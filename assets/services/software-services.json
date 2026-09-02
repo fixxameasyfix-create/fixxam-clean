@@ -1,0 +1,12 @@
+[
+  { "id": "mobile-app-development", "name": "Mobile App Development" },
+  { "id": "web-application-development", "name": "Web Application Development" },
+  { "id": "software-development", "name": "Software Development" },
+  { "id": "software-maintenance", "name": "Software Maintenance" },
+  { "id": "ui-ux-design", "name": "UI/UX Design" },
+  { "id": "api-development", "name": "API Development" },
+  { "id": "database-development", "name": "Database Development" },
+  { "id": "software-testing", "name": "Software Testing" },
+  { "id": "software-consultation", "name": "Software Consultation" },
+  { "id": "system-integration", "name": "System Integration" }
+]

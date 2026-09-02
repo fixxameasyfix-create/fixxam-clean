@@ -1,0 +1,121 @@
+{
+  "Home Services": [
+    "Cleaning",
+    "Laundry",
+    "Home Movig",
+    "Property Maintenance",
+    "Borehole Services",
+    "Waste Management",
+    "Water Treatment",
+    "Appliance Repair"
+  ],
+
+  "Construction & Building": [
+    "Building",
+    "Construction",
+    "Masonry",
+    "Roofing",
+    "Flooring",
+    "POP & Ceiling",
+    "Interlocking",
+    "Aluminium",
+    "Glass Work",
+    "Welding"
+  ],
+
+  "Electrical & Energy": [
+    "Electrical",
+    "Solar Energy",
+    "Generator Services",
+    "Air Conditioning"
+  ],
+
+  "Security Services": [
+    "Security Guards",
+    "Security Systems",
+    "CCTV",
+    "Gate Automation",
+    "Locksmith"
+  ],
+
+  "Automotive Services": [
+    "Mechanic",
+    "Automotive"
+  ],
+
+  "Technology Services": [
+    "Computer Repair",
+    "Phone Repair",
+    "Networking",
+    "Software Services",
+    "Web Development",
+    "Graphic Design"
+  ],
+
+  "Beauty & Personal Care": [
+    "Hairdressing",
+    "Barbing",
+    "Makeup",
+    "Nail Care",
+    "Spa",
+    "Beauty"
+  ],
+
+  "Fashion & Tailoring": [
+    "Fashion Design",
+    "Tailoring",
+    "Jewelry Making"
+  ],
+
+  "Events & Entertainment": [
+    "Event Planning",
+    "Event Decoration",
+    "MC Services",
+    "DJ Services",
+    "Photography",
+    "Videography",
+    "Music Production",
+    "Voice Over"
+  ],
+
+  "Business & Professional Services": [
+    "Accounting",
+    "Consulting",
+    "Legal Services",
+    "Real Estate",
+    "Land Surveying"
+  ],
+
+  "Healthcare Services": [
+    "Healthcare",
+    "Caregiving",
+    "Physiotherapy"
+  ],
+
+  "Agriculture & Farming": [
+    "Agriculture",
+    "Fish Farming",
+    "Livestock",
+    "Gardening",
+    "Landscaping"
+  ],
+
+  "Food & Hospitality": [
+    "Catering",
+    "Baking",
+    "Hospitality"
+  ],
+
+  "Logistics & Transportation": [
+    "Courier",
+    "Delivery",
+    "Logistics",
+    "Travel Services"
+],
+
+  "Education & Training": [
+    "Education",
+    "Tutoring"
+  ]
+
+}

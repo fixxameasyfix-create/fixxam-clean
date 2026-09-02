@@ -1,0 +1,12 @@
+[
+  { "id": "event-videography", "name": "Event Videography" },
+  { "id": "wedding-videography", "name": "Wedding Videography" },
+  { "id": "corporate-video-production", "name": "Corporate Video Production" },
+  { "id": "music-video-production", "name": "Music Video Production" },
+  { "id": "commercial-video-production", "name": "Commercial Video Production" },
+  { "id": "documentary-production", "name": "Documentary Production" },
+  { "id": "drone-videography", "name": "Drone Videography" },
+  { "id": "video-editing", "name": "Video Editing" },
+  { "id": "livestream-production", "name": "Livestream Production" },
+  { "id": "video-production-consultation", "name": "Video Production Consultation" }
+]

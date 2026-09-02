@@ -1,0 +1,17 @@
+[
+  { "id": "home-fumigation", "name": "Home Fumigation" },
+  { "id": "office-fumigation", "name": "Office Fumigation" },
+  { "id": "warehouse-fumigation", "name": "Warehouse Fumigation" },
+  { "id": "hotel-fumigation", "name": "Hotel Fumigation" },
+  { "id": "restaurant-fumigation", "name": "Restaurant Fumigation" },
+  { "id": "mosquito-control", "name": "Mosquito Control" },
+  { "id": "cockroach-control", "name": "Cockroach Control" },
+  { "id": "rat-control", "name": "Rat Control" },
+  { "id": "termite-control", "name": "Termite Control" },
+  { "id": "bedbug-treatment", "name": "Bedbug Treatment" },
+  { "id": "snake-control", "name": "Snake Control" },
+  { "id": "pest-inspection", "name": "Pest Inspection" },
+  { "id": "disinfection-service", "name": "Disinfection Service" },
+  { "id": "sanitization-service", "name": "Sanitization Service" },
+  { "id": "fumigation-consultation", "name": "Fumigation Consultation" }
+]

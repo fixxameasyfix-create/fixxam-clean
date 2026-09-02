@@ -1,0 +1,82 @@
+[
+  {
+    "id": "epoxy-flooring",
+    "name": "Epoxy Flooring"
+  },
+  {
+    "id": "vinyl-flooring",
+    "name": "Vinyl Flooring"
+  },
+  {
+    "id": "laminate-flooring",
+    "name": "Laminate Flooring"
+  },
+  {
+    "id": "hardwood-flooring",
+    "name": "Hardwood Flooring"
+  },
+  {
+    "id": "engineered-wood-flooring",
+    "name": "Engineered Wood Flooring"
+  },
+  {
+    "id": "parquet-flooring",
+    "name": "Parquet Flooring"
+  },
+  {
+    "id": "marble-flooring",
+    "name": "Marble Flooring"
+  },
+  {
+    "id": "granite-flooring",
+    "name": "Granite Flooring"
+  },
+  {
+    "id": "terrazzo-flooring",
+    "name": "Terrazzo Flooring"
+  },
+  {
+    "id": "concrete-floor-finishing",
+    "name": "Concrete Floor Finishing"
+  },
+  {
+    "id": "industrial-flooring",
+    "name": "Industrial Flooring"
+  },
+  {
+    "id": "commercial-flooring",
+    "name": "Commercial Flooring"
+  },
+  {
+    "id": "residential-flooring",
+    "name": "Residential Flooring"
+  },
+  {
+    "id": "floor-polishing",
+    "name": "Floor Polishing"
+  },
+  {
+    "id": "floor-restoration",
+    "name": "Floor Restoration"
+  },
+  {
+    "id": "floor-repair",
+    "name": "Floor Repair"
+  },
+  {
+    "id": "floor-maintenance",
+    "name": "Floor Maintenance"
+  },
+  {
+    "id": "anti-slip-floor-treatment",
+    "name": "Anti-Slip Floor Treatment"
+  },
+  {
+    "id": "sports-floor-installation",
+    "name": "Sports Floor Installation"
+  },
+  {
+    "id": "flooring-consultation",
+    "name": "Flooring Consultation"
+  }
+]

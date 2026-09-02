@@ -1,0 +1,12 @@
+[
+  { "id": "home-physiotherapy", "name": "Home Physiotherapy" },
+  { "id": "sports-physiotherapy", "name": "Sports Physiotherapy" },
+  { "id": "post-surgery-rehabilitation", "name": "Post Surgery Rehabilitation" },
+  { "id": "stroke-rehabilitation", "name": "Stroke Rehabilitation" },
+  { "id": "pain-management-therapy", "name": "Pain Management Therapy" },
+  { "id": "joint-mobility-therapy", "name": "Joint Mobility Therapy" },
+  { "id": "muscle-rehabilitation", "name": "Muscle Rehabilitation" },
+  { "id": "elderly-physiotherapy", "name": "Elderly Physiotherapy" },
+  { "id": "physical-assessment", "name": "Physical Assessment" },
+  { "id": "physiotherapy-consultation", "name": "Physiotherapy Consultation" }
+]

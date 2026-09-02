@@ -1,0 +1,82 @@
+[
+  {
+    "id": "sliding-gate-installation",
+    "name": "Sliding Gate Installation"
+  },
+  {
+    "id": "swing-gate-installation",
+    "name": "Swing Gate Installation"
+  },
+  {
+    "id": "automatic-gate-installation",
+    "name": "Automatic Gate Installation"
+  },
+  {
+    "id": "manual-gate-installation",
+    "name": "Manual Gate Installation"
+  },
+  {
+    "id": "electric-gate-installation",
+    "name": "Electric Gate Installation"
+  },
+  {
+    "id": "remote-control-gate-installation",
+    "name": "Remote Control Gate Installation"
+  },
+  {
+    "id": "gate-motor-installation",
+    "name": "Gate Motor Installation"
+  },
+  {
+    "id": "gate-automation",
+    "name": "Gate Automation"
+  },
+  {
+    "id": "steel-gate-fabrication",
+    "name": "Steel Gate Fabrication"
+  },
+  {
+    "id": "security-gate-installation",
+    "name": "Security Gate Installation"
+  },
+  {
+    "id": "estate-gate-installation",
+    "name": "Estate Gate Installation"
+  },
+  {
+    "id": "industrial-gate-installation",
+    "name": "Industrial Gate Installation"
+  },
+  {
+    "id": "gate-repair",
+    "name": "Gate Repair"
+  },
+  {
+    "id": "gate-maintenance",
+    "name": "Gate Maintenance"
+  },
+  {
+    "id": "gate-welding",
+    "name": "Gate Welding"
+  },
+  {
+    "id": "gate-alignment",
+    "name": "Gate Alignment"
+  },
+  {
+    "id": "gate-lock-installation",
+    "name": "Gate Lock Installation"
+  },
+  {
+    "id": "gate-sensor-installation",
+    "name": "Gate Sensor Installation"
+  },
+  {
+    "id": "access-control-gate-system",
+    "name": "Access Control Gate System"
+  },
+  {
+    "id": "gate-installation-consultation",
+    "name": "Gate Installation Consultation"
+  }
+]

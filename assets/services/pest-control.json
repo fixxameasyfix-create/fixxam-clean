@@ -1,0 +1,12 @@
+[
+  { "id": "home-fumigation", "name": "Home Fumigation" },
+  { "id": "office-fumigation", "name": "Office Fumigation" },
+  { "id": "mosquito-control", "name": "Mosquito Control" },
+  { "id": "cockroach-control", "name": "Cockroach Control" },
+  { "id": "bedbug-control", "name": "Bedbug Control" },
+  { "id": "termite-control", "name": "Termite Control" },
+  { "id": "rat-control", "name": "Rat Control" },
+  { "id": "snake-control", "name": "Snake Control" },
+  { "id": "disinfection-service", "name": "Disinfection Service" },
+  { "id": "pest-control-consultation", "name": "Pest Control Consultation" }
+]

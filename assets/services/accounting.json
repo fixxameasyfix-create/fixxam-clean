@@ -1,0 +1,82 @@
+[
+  {
+    "id": "bookkeeping",
+    "name": "Bookkeeping"
+  },
+  {
+    "id": "financial-accounting",
+    "name": "Financial Accounting"
+  },
+  {
+    "id": "management-accounting",
+    "name": "Management Accounting"
+  },
+  {
+    "id": "tax-preparation",
+    "name": "Tax Preparation"
+  },
+  {
+    "id": "tax-filing",
+    "name": "Tax Filing"
+  },
+  {
+    "id": "vat-services",
+    "name": "VAT Services"
+  },
+  {
+    "id": "payroll-management",
+    "name": "Payroll Management"
+  },
+  {
+    "id": "auditing",
+    "name": "Auditing"
+  },
+  {
+    "id": "internal-audit",
+    "name": "Internal Audit"
+  },
+  {
+    "id": "forensic-audit",
+    "name": "Forensic Audit"
+  },
+  {
+    "id": "financial-reporting",
+    "name": "Financial Reporting"
+  },
+  {
+    "id": "budget-planning",
+    "name": "Budget Planning"
+  },
+  {
+    "id": "cashflow-management",
+    "name": "Cash Flow Management"
+  },
+  {
+    "id": "business-registration-support",
+    "name": "Business Registration Support"
+  },
+  {
+    "id": "account-reconciliation",
+    "name": "Account Reconciliation"
+  },
+  {
+    "id": "inventory-accounting",
+    "name": "Inventory Accounting"
+  },
+  {
+    "id": "cost-accounting",
+    "name": "Cost Accounting"
+  },
+  {
+    "id": "financial-consulting",
+    "name": "Financial Consulting"
+  },
+  {
+    "id": "loan-documentation",
+    "name": "Loan Documentation"
+  },
+  {
+    "id": "business-tax-advisory",
+    "name": "Business Tax Advisory"
+  }
+]

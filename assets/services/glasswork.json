@@ -1,0 +1,50 @@
+[
+  {
+    "id": "glass-installation",
+    "name": "Glass Installation"
+  },
+  {
+    "id": "glass-repair",
+    "name": "Glass Repair"
+  },
+  {
+    "id": "glass-replacement",
+    "name": "Glass Replacement"
+  },
+  {
+    "id": "window-glass-installation",
+    "name": "Window Glass Installation"
+  },
+  {
+    "id": "door-glass-installation",
+    "name": "Door Glass Installation"
+  },
+  {
+    "id": "shower-glass-installation",
+    "name": "Shower Glass Installation"
+  },
+  {
+    "id": "office-glass-partition",
+    "name": "Office Glass Partition"
+  },
+  {
+    "id": "tempered-glass-installation",
+    "name": "Tempered Glass Installation"
+  },
+  {
+    "id": "glass-polishing",
+    "name": "Glass Polishing"
+  },
+  {
+    "id": "glass-cutting",
+    "name": "Glass Cutting"
+  },
+  {
+    "id": "storefront-glass-installation",
+    "name": "Storefront Glass Installation"
+  },
+  {
+    "id": "glass-consultation",
+    "name": "Glass Consultation"
+  }
+]

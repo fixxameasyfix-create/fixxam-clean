@@ -1,0 +1,82 @@
+[
+  {
+    "id": "catfish-farming",
+    "name": "Catfish Farming"
+  },
+  {
+    "id": "tilapia-farming",
+    "name": "Tilapia Farming"
+  },
+  {
+    "id": "fish-pond-construction",
+    "name": "Fish Pond Construction"
+  },
+  {
+    "id": "concrete-fish-pond-construction",
+    "name": "Concrete Fish Pond Construction"
+  },
+  {
+    "id": "tarpaulin-fish-pond-installation",
+    "name": "Tarpaulin Fish Pond Installation"
+  },
+  {
+    "id": "fish-pond-maintenance",
+    "name": "Fish Pond Maintenance"
+  },
+  {
+    "id": "fish-feed-supply",
+    "name": "Fish Feed Supply"
+  },
+  {
+    "id": "fish-fingerlings-supply",
+    "name": "Fish Fingerlings Supply"
+  },
+  {
+    "id": "fish-hatchery-services",
+    "name": "Fish Hatchery Services"
+  },
+  {
+    "id": "fish-harvesting",
+    "name": "Fish Harvesting"
+  },
+  {
+    "id": "fish-processing",
+    "name": "Fish Processing"
+  },
+  {
+    "id": "fish-smoking",
+    "name": "Fish Smoking"
+  },
+  {
+    "id": "fish-packaging",
+    "name": "Fish Packaging"
+  },
+  {
+    "id": "water-quality-testing",
+    "name": "Water Quality Testing"
+  },
+  {
+    "id": "aquaculture-consultation",
+    "name": "Aquaculture Consultation"
+  },
+  {
+    "id": "fish-farm-management",
+    "name": "Fish Farm Management"
+  },
+  {
+    "id": "recirculating-aquaculture-system",
+    "name": "Recirculating Aquaculture System"
+  },
+  {
+    "id": "fish-health-management",
+    "name": "Fish Health Management"
+  },
+  {
+    "id": "commercial-fish-farming",
+    "name": "Commercial Fish Farming"
+  },
+  {
+    "id": "ornamental-fish-farming",
+    "name": "Ornamental Fish Farming"
+  }
+]

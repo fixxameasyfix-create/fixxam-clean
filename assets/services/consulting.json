@@ -1,0 +1,102 @@
+[
+  {
+    "id": "business-consulting",
+    "name": "Business Consulting"
+  },
+  {
+    "id": "startup-consulting",
+    "name": "Startup Consulting"
+  },
+  {
+    "id": "management-consulting",
+    "name": "Management Consulting"
+  },
+  {
+    "id": "strategy-consulting",
+    "name": "Strategy Consulting"
+  },
+  {
+    "id": "operations-consulting",
+    "name": "Operations Consulting"
+  },
+  {
+    "id": "financial-consulting",
+    "name": "Financial Consulting"
+  },
+  {
+    "id": "investment-consulting",
+    "name": "Investment Consulting"
+  },
+  {
+    "id": "tax-consulting",
+    "name": "Tax Consulting"
+  },
+  {
+    "id": "hr-consulting",
+    "name": "Human Resources Consulting"
+  },
+  {
+    "id": "recruitment-consulting",
+    "name": "Recruitment Consulting"
+  },
+  {
+    "id": "marketing-consulting",
+    "name": "Marketing Consulting"
+  },
+  {
+    "id": "sales-consulting",
+    "name": "Sales Consulting"
+  },
+  {
+    "id": "branding-consulting",
+    "name": "Branding Consulting"
+  },
+  {
+    "id": "digital-transformation-consulting",
+    "name": "Digital Transformation Consulting"
+  },
+  {
+    "id": "it-consulting",
+    "name": "IT Consulting"
+  },
+  {
+    "id": "cybersecurity-consulting",
+    "name": "Cybersecurity Consulting"
+  },
+  {
+    "id": "project-management-consulting",
+    "name": "Project Management Consulting"
+  },
+  {
+    "id": "real-estate-consulting",
+    "name": "Real Estate Consulting"
+  },
+  {
+    "id": "agricultural-consulting",
+    "name": "Agricultural Consulting"
+  },
+  {
+    "id": "career-consulting",
+    "name": "Career Consulting"
+  },
+  {
+    "id": "education-consulting",
+    "name": "Education Consulting"
+  },
+  {
+    "id": "compliance-consulting",
+    "name": "Compliance Consulting"
+  },
+  {
+    "id": "risk-management-consulting",
+    "name": "Risk Management Consulting"
+  },
+  {
+    "id": "business-plan-development",
+    "name": "Business Plan Development"
+  },
+  {
+    "id": "feasibility-study",
+    "name": "Feasibility Study"
+  }
+]

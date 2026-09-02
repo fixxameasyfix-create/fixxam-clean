@@ -1,0 +1,12 @@
+[
+  { "id": "sofa-upholstery", "name": "Sofa Upholstery" },
+  { "id": "chair-upholstery", "name": "Chair Upholstery" },
+  { "id": "bed-upholstery", "name": "Bed Upholstery" },
+  { "id": "car-seat-upholstery", "name": "Car Seat Upholstery" },
+  { "id": "office-furniture-upholstery", "name": "Office Furniture Upholstery" },
+  { "id": "sofa-reupholstery", "name": "Sofa Reupholstery" },
+  { "id": "cushion-production", "name": "Cushion Production" },
+  { "id": "headboard-upholstery", "name": "Headboard Upholstery" },
+  { "id": "upholstery-repair", "name": "Upholstery Repair" },
+  { "id": "upholstery-consultation", "name": "Upholstery Consultation" }
+]

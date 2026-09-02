@@ -1,0 +1,99 @@
+{
+  "Cleaning": "cleaning",
+  "Laundry": "laundry",
+  "Home Movig": "home-movig",
+  "Property Maintenance": "property-maintenance",
+  "Borehole Services": "borehole",
+  "Waste Management": "waste-management",
+  "Water Treatment": "water-treatment",
+  "Appliance Repair": "appliance-repair",
+
+  "Building": "building",
+  "Construction": "construction",
+  "Masonry": "masonry",
+  "Roofing": "roofing",
+  "Flooring": "flooring",
+  "POP & Ceiling": "pop-installation",
+  "Interlocking": "interlocking",
+  "Aluminium": "aluminium",
+  "Glass Work": "glasswork",
+  "Welding": "welding",
+
+  "Electrical": "electrical",
+  "Solar Energy": "solar",
+  "Generator Services": "generator",
+  "Air Conditioning": "air-conditioning",
+
+  "Security Guards": "guard-services",
+  "Security Systems": "security",
+  "CCTV": "cctv",
+  "Gate Automation": "gate-installation",
+  "Locksmith": "locksmith",
+
+  "Mechanic": "mechanic",
+  "Automotive": "automotive",
+
+  "Computer Repair": "computer-repair",
+  "Phone Repair": "mobile-phone-repair",
+  "Networking": "networking",
+  "Software Services": "software-services",
+  "Web Development": "web-development",
+  "Graphic Design": "graphic-design",
+
+  "Hairdressing": "hairdressing",
+  "Barbing": "barbing",
+  "Makeup": "makeup",
+  "Nail Care": "nail-care",
+  "Spa": "spa",
+  "Beauty": "beauty",
+
+  "Fashion Design": "fashion-design",
+  "Tailoring": "tailoring",
+  "Jewelry Making": "jewelry-making",
+
+  "Event Planning": "event-planning",
+  "Event Decoration": "event-decoration",
+  "MC Services": "mc-services",
+  "DJ Services": "dj-services",
+  "Photography": "photography",
+  "Videography": "video-production",
+  "Music Production": "music-production",
+  "Voice Over": "voice-over",
+
+  "Accounting": "accounting",
+  "Consulting": "consulting",
+  "Legal Services": "legal-services",
+  "Real Estate": "real-estate",
+  "Land Surveying": "land-surveying",
+
+  "Healthcare": "healthcare",
+  "Caregiving": "caregiving",
+  "Physiotherapy": "physiotherapy",
+
+  "Agriculture": "agriculture",
+  "Fish Farming": "fish-farming",
+  "Livestock": "livestock",
+  "Gardening": "gardening",
+  "Landscaping": "landscaping",
+
+  "Catering": "catering",
+  "Baking": "baking",
+  "Hospitality": "hospitality",
+
+  "Courier": "courier",
+  "Delivery": "delivery",
+  "Logistics": "logistics",
+  "Travel Services": "travel-services",
+
+  "Education": "education",
+  "Tutoring": "tutoring",
+
+  "AC Repair": "ac-repair",
+  "Refrigerator Repair": "refrigerator-repair",
+
+  "Window Installation": "window-installation",
+  "house-painting": "house-painting",
+
+  "Furniture Making": "furniture",
+  "Fumigation": "fumigation"
+}

@@ -1,0 +1,12 @@
+[
+  { "id": "business-website-development", "name": "Business Website Development" },
+  { "id": "ecommerce-website-development", "name": "E-commerce Website Development" },
+  { "id": "portfolio-website-development", "name": "Portfolio Website Development" },
+  { "id": "landing-page-development", "name": "Landing Page Development" },
+  { "id": "wordpress-development", "name": "WordPress Development" },
+  { "id": "website-maintenance", "name": "Website Maintenance" },
+  { "id": "frontend-development", "name": "Frontend Development" },
+  { "id": "backend-development", "name": "Backend Development" },
+  { "id": "fullstack-development", "name": "Full Stack Development" },
+  { "id": "web-development-consultation", "name": "Web Development Consultation" }
+]

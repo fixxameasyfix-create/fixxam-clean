@@ -1,0 +1,82 @@
+[
+  {
+    "id": "aluminium-door-installation",
+    "name": "Aluminium Door Installation"
+  },
+  {
+    "id": "aluminium-window-installation",
+    "name": "Aluminium Window Installation"
+  },
+  {
+    "id": "sliding-window-installation",
+    "name": "Sliding Window Installation"
+  },
+  {
+    "id": "casement-window-installation",
+    "name": "Casement Window Installation"
+  },
+  {
+    "id": "aluminium-partitioning",
+    "name": "Aluminium Partitioning"
+  },
+  {
+    "id": "office-partition-installation",
+    "name": "Office Partition Installation"
+  },
+  {
+    "id": "aluminium-roofing",
+    "name": "Aluminium Roofing"
+  },
+  {
+    "id": "aluminium-cladding",
+    "name": "Aluminium Cladding"
+  },
+  {
+    "id": "curtain-wall-installation",
+    "name": "Curtain Wall Installation"
+  },
+  {
+    "id": "aluminium-fabrication",
+    "name": "Aluminium Fabrication"
+  },
+  {
+    "id": "aluminium-gate-installation",
+    "name": "Aluminium Gate Installation"
+  },
+  {
+    "id": "aluminium-fence-installation",
+    "name": "Aluminium Fence Installation"
+  },
+  {
+    "id": "aluminium-railings",
+    "name": "Aluminium Railings"
+  },
+  {
+    "id": "balcony-rail-installation",
+    "name": "Balcony Rail Installation"
+  },
+  {
+    "id": "staircase-rail-installation",
+    "name": "Staircase Rail Installation"
+  },
+  {
+    "id": "aluminium-showcase-installation",
+    "name": "Aluminium Showcase Installation"
+  },
+  {
+    "id": "shopfront-installation",
+    "name": "Shopfront Installation"
+  },
+  {
+    "id": "aluminium-repair",
+    "name": "Aluminium Repair"
+  },
+  {
+    "id": "window-frame-repair",
+    "name": "Window Frame Repair"
+  },
+  {
+    "id": "aluminium-maintenance",
+    "name": "Aluminium Maintenance"
+  }
+]

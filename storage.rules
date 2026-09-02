@@ -1,0 +1,126 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    /* ============================================================
+       USER PROFILE PHOTO
+       users/{uid}/profile/profile-photo.jpg
+    ============================================================ */
+
+    match /users/{uid}/profile/profile-photo.jpg {
+
+      /* Profile photos are publicly readable */
+      allow read:
+        if true;
+
+      /* Only the authenticated owner can upload/replace */
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches(
+          'image/.*'
+        );
+
+      /* Only the owner can delete */
+      allow delete:
+        if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+
+    /* ============================================================
+       CUSTOMER PROFILE PHOTO
+       customerProfiles/{uid}/profile.jpg
+    ============================================================ */
+
+    match /customerProfiles/{uid}/profile.jpg {
+
+      allow read:
+        if true;
+
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches(
+          'image/.*'
+        );
+
+      allow delete:
+        if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+
+    /* ============================================================
+       WORKER PROFILE PHOTO
+       workerProfiles/{uid}/profile.jpg
+    ============================================================ */
+
+    match /workerProfiles/{uid}/profile.jpg {
+
+      allow read:
+        if true;
+
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches(
+          'image/.*'
+        );
+
+      allow delete:
+        if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+
+    /* ============================================================
+       WORKER GALLERY
+       workerProfiles/{uid}/gallery/{fileName}
+    ============================================================ */
+
+    match /workerProfiles/{uid}/gallery/{fileName} {
+
+      allow read:
+        if true;
+
+      allow create, update:
+        if request.auth != null
+        && request.auth.uid == uid
+        && request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType != null
+        && request.resource.contentType.matches(
+          'image/.*'
+        );
+
+      allow delete:
+        if request.auth != null
+        && request.auth.uid == uid;
+    }
+
+
+    /* ============================================================
+       EVERYTHING ELSE
+    ============================================================ */
+
+    match /{allPaths=**} {
+      allow read, write:
+        if false;
+    }
+  }
+}

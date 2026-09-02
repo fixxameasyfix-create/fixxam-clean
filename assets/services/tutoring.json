@@ -1,0 +1,12 @@
+[
+  { "id": "home-tutoring", "name": "Home Tutoring" },
+  { "id": "online-tutoring", "name": "Online Tutoring" },
+  { "id": "mathematics-tutoring", "name": "Mathematics Tutoring" },
+  { "id": "english-tutoring", "name": "English Tutoring" },
+  { "id": "science-tutoring", "name": "Science Tutoring" },
+  { "id": "waec-preparation", "name": "WAEC Preparation" },
+  { "id": "jamb-preparation", "name": "JAMB Preparation" },
+  { "id": "ielts-preparation", "name": "IELTS Preparation" },
+  { "id": "computer-training", "name": "Computer Training" },
+  { "id": "tutoring-consultation", "name": "Tutoring Consultation" }
+]

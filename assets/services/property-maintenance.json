@@ -1,0 +1,12 @@
+[
+  { "id": "facility-maintenance", "name": "Facility Maintenance" },
+  { "id": "building-maintenance", "name": "Building Maintenance" },
+  { "id": "property-inspection", "name": "Property Inspection" },
+  { "id": "property-renovation", "name": "Property Renovation" },
+  { "id": "electrical-maintenance", "name": "Electrical Maintenance" },
+  { "id": "plumbing-maintenance", "name": "Plumbing Maintenance" },
+  { "id": "painting-maintenance", "name": "Painting Maintenance" },
+  { "id": "landscape-maintenance", "name": "Landscape Maintenance" },
+  { "id": "estate-maintenance", "name": "Estate Maintenance" },
+  { "id": "property-maintenance-consultation", "name": "Property Maintenance Consultation" }
+]

@@ -1,0 +1,12 @@
+[
+  { "id": "metal-fabrication", "name": "Metal Fabrication" },
+  { "id": "gate-fabrication", "name": "Gate Fabrication" },
+  { "id": "window-burglary-proof", "name": "Window Burglary Proof" },
+  { "id": "steel-door-fabrication", "name": "Steel Door Fabrication" },
+  { "id": "staircase-rail-fabrication", "name": "Staircase Rail Fabrication" },
+  { "id": "tank-fabrication", "name": "Tank Fabrication" },
+  { "id": "welding-repair", "name": "Welding Repair" },
+  { "id": "industrial-welding", "name": "Industrial Welding" },
+  { "id": "arc-welding", "name": "Arc Welding" },
+  { "id": "welding-consultation", "name": "Welding Consultation" }
+]

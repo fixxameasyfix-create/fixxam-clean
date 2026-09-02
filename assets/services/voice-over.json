@@ -1,0 +1,12 @@
+[
+  { "id": "commercial-voice-over", "name": "Commercial Voice Over" },
+  { "id": "radio-jingle-voice-over", "name": "Radio Jingle Voice Over" },
+  { "id": "tv-ad-voice-over", "name": "TV Ad Voice Over" },
+  { "id": "documentary-narration", "name": "Documentary Narration" },
+  { "id": "audiobook-narration", "name": "Audiobook Narration" },
+  { "id": "podcast-voice-over", "name": "Podcast Voice Over" },
+  { "id": "e-learning-voice-over", "name": "E-Learning Voice Over" },
+  { "id": "animation-voice-over", "name": "Animation Voice Over" },
+  { "id": "multilingual-voice-over", "name": "Multilingual Voice Over" },
+  { "id": "voice-over-consultation", "name": "Voice Over Consultation" }
+]

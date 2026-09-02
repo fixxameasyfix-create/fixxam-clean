@@ -1,0 +1,58 @@
+[
+  {
+    "id": "house-relocation",
+    "name": "House Relocation"
+  },
+  {
+    "id": "apartment-moving",
+    "name": "Apartment Moving"
+  },
+  {
+    "id": "office-relocation",
+    "name": "Office Relocation"
+  },
+  {
+    "id": "furniture-moving",
+    "name": "Furniture Moving"
+  },
+  {
+    "id": "packing-services",
+    "name": "Packing Services"
+  },
+  {
+    "id": "unpacking-services",
+    "name": "Unpacking Services"
+  },
+  {
+    "id": "loading-services",
+    "name": "Loading Services"
+  },
+  {
+    "id": "offloading-services",
+    "name": "Offloading Services"
+  },
+  {
+    "id": "interstate-moving",
+    "name": "Interstate Moving"
+  },
+  {
+    "id": "local-moving",
+    "name": "Local Moving"
+  },
+  {
+    "id": "moving-truck-service",
+    "name": "Moving Truck Service"
+  },
+  {
+    "id": "fragile-item-moving",
+    "name": "Fragile Item Moving"
+  },
+  {
+    "id": "storage-services",
+    "name": "Storage Services"
+  },
+  {
+    "id": "moving-consultation",
+    "name": "Moving Consultation"
+  }
+]

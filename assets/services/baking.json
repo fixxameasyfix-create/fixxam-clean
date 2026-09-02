@@ -1,0 +1,82 @@
+[
+  {
+    "id": "cake-baking",
+    "name": "Cake Baking"
+  },
+  {
+    "id": "birthday-cake-baking",
+    "name": "Birthday Cake Baking"
+  },
+  {
+    "id": "wedding-cake-baking",
+    "name": "Wedding Cake Baking"
+  },
+  {
+    "id": "anniversary-cake-baking",
+    "name": "Anniversary Cake Baking"
+  },
+  {
+    "id": "cupcake-baking",
+    "name": "Cupcake Baking"
+  },
+  {
+    "id": "bread-baking",
+    "name": "Bread Baking"
+  },
+  {
+    "id": "pastry-baking",
+    "name": "Pastry Baking"
+  },
+  {
+    "id": "meat-pie-baking",
+    "name": "Meat Pie Baking"
+  },
+  {
+    "id": "sausage-roll-baking",
+    "name": "Sausage Roll Baking"
+  },
+  {
+    "id": "doughnut-baking",
+    "name": "Doughnut Baking"
+  },
+  {
+    "id": "cookies-baking",
+    "name": "Cookies Baking"
+  },
+  {
+    "id": "chin-chin-production",
+    "name": "Chin Chin Production"
+  },
+  {
+    "id": "small-chops-production",
+    "name": "Small Chops Production"
+  },
+  {
+    "id": "dessert-preparation",
+    "name": "Dessert Preparation"
+  },
+  {
+    "id": "event-baking-services",
+    "name": "Event Baking Services"
+  },
+  {
+    "id": "custom-cake-design",
+    "name": "Custom Cake Design"
+  },
+  {
+    "id": "fondant-cake-design",
+    "name": "Fondant Cake Design"
+  },
+  {
+    "id": "cake-decoration",
+    "name": "Cake Decoration"
+  },
+  {
+    "id": "bulk-bakery-production",
+    "name": "Bulk Bakery Production"
+  },
+  {
+    "id": "bakery-consultation",
+    "name": "Bakery Consultation"
+  }
+]

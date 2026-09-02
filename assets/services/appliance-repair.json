@@ -1,0 +1,82 @@
+[
+  {
+    "id": "refrigerator-repair",
+    "name": "Refrigerator Repair"
+  },
+  {
+    "id": "freezer-repair",
+    "name": "Freezer Repair"
+  },
+  {
+    "id": "washing-machine-repair",
+    "name": "Washing Machine Repair"
+  },
+  {
+    "id": "dryer-repair",
+    "name": "Dryer Repair"
+  },
+  {
+    "id": "microwave-repair",
+    "name": "Microwave Repair"
+  },
+  {
+    "id": "oven-repair",
+    "name": "Oven Repair"
+  },
+  {
+    "id": "gas-cooker-repair",
+    "name": "Gas Cooker Repair"
+  },
+  {
+    "id": "electric-cooker-repair",
+    "name": "Electric Cooker Repair"
+  },
+  {
+    "id": "dishwasher-repair",
+    "name": "Dishwasher Repair"
+  },
+  {
+    "id": "water-dispenser-repair",
+    "name": "Water Dispenser Repair"
+  },
+  {
+    "id": "blender-repair",
+    "name": "Blender Repair"
+  },
+  {
+    "id": "mixer-repair",
+    "name": "Mixer Repair"
+  },
+  {
+    "id": "vacuum-cleaner-repair",
+    "name": "Vacuum Cleaner Repair"
+  },
+  {
+    "id": "electric-kettle-repair",
+    "name": "Electric Kettle Repair"
+  },
+  {
+    "id": "fan-repair",
+    "name": "Fan Repair"
+  },
+  {
+    "id": "water-heater-repair",
+    "name": "Water Heater Repair"
+  },
+  {
+    "id": "home-appliance-installation",
+    "name": "Home Appliance Installation"
+  },
+  {
+    "id": "home-appliance-maintenance",
+    "name": "Home Appliance Maintenance"
+  },
+  {
+    "id": "home-appliance-inspection",
+    "name": "Home Appliance Inspection"
+  },
+  {
+    "id": "small-appliance-repair",
+    "name": "Small Appliance Repair"
+  }
+]

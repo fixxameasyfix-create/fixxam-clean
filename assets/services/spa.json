@@ -1,0 +1,12 @@
+[
+  { "id": "body-massage", "name": "Body Massage" },
+  { "id": "swedish-massage", "name": "Swedish Massage" },
+  { "id": "deep-tissue-massage", "name": "Deep Tissue Massage" },
+  { "id": "hot-stone-massage", "name": "Hot Stone Massage" },
+  { "id": "facial-treatment", "name": "Facial Treatment" },
+  { "id": "body-scrub", "name": "Body Scrub" },
+  { "id": "aromatherapy", "name": "Aromatherapy" },
+  { "id": "spa-therapy", "name": "Spa Therapy" },
+  { "id": "wellness-treatment", "name": "Wellness Treatment" },
+  { "id": "spa-consultation", "name": "Spa Consultation" }
+]

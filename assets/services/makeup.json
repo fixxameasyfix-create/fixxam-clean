@@ -1,0 +1,66 @@
+[
+  {
+    "id": "bridal-makeup",
+    "name": "Bridal Makeup"
+  },
+  {
+    "id": "traditional-makeup",
+    "name": "Traditional Makeup"
+  },
+  {
+    "id": "engagement-makeup",
+    "name": "Engagement Makeup"
+  },
+  {
+    "id": "birthday-makeup",
+    "name": "Birthday Makeup"
+  },
+  {
+    "id": "party-makeup",
+    "name": "Party Makeup"
+  },
+  {
+    "id": "editorial-makeup",
+    "name": "Editorial Makeup"
+  },
+  {
+    "id": "fashion-makeup",
+    "name": "Fashion Makeup"
+  },
+  {
+    "id": "photoshoot-makeup",
+    "name": "Photoshoot Makeup"
+  },
+  {
+    "id": "tv-film-makeup",
+    "name": "TV & Film Makeup"
+  },
+  {
+    "id": "special-effects-makeup",
+    "name": "Special Effects Makeup"
+  },
+  {
+    "id": "airbrush-makeup",
+    "name": "Airbrush Makeup"
+  },
+  {
+    "id": "gele-tying",
+    "name": "Gele Tying"
+  },
+  {
+    "id": "eyelash-installation",
+    "name": "Eyelash Installation"
+  },
+  {
+    "id": "eyebrow-shaping",
+    "name": "Eyebrow Shaping"
+  },
+  {
+    "id": "makeup-training",
+    "name": "Makeup Training"
+  },
+  {
+    "id": "makeup-consultation",
+    "name": "Makeup Consultation"
+  }
+]

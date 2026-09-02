@@ -1,0 +1,12 @@
+[
+  { "id": "native-wear-tailoring", "name": "Native Wear Tailoring" },
+  { "id": "senator-wear-tailoring", "name": "Senator Wear Tailoring" },
+  { "id": "agbada-tailoring", "name": "Agbada Tailoring" },
+  { "id": "kaftan-tailoring", "name": "Kaftan Tailoring" },
+  { "id": "corporate-wear-tailoring", "name": "Corporate Wear Tailoring" },
+  { "id": "school-uniform-tailoring", "name": "School Uniform Tailoring" },
+  { "id": "aso-ebi-tailoring", "name": "Aso Ebi Tailoring" },
+  { "id": "cloth-alteration", "name": "Cloth Alteration" },
+  { "id": "cloth-repair", "name": "Cloth Repair" },
+  { "id": "tailoring-consultation", "name": "Tailoring Consultation" }
+]

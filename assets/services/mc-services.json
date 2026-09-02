@@ -1,0 +1,14 @@
+[
+  { "id": "wedding-mc", "name": "Wedding MC" },
+  { "id": "traditional-wedding-mc", "name": "Traditional Wedding MC" },
+  { "id": "birthday-event-mc", "name": "Birthday Event MC" },
+  { "id": "corporate-event-mc", "name": "Corporate Event MC" },
+  { "id": "conference-mc", "name": "Conference MC" },
+  { "id": "award-night-mc", "name": "Award Night MC" },
+  { "id": "concert-hosting", "name": "Concert Hosting" },
+  { "id": "event-hosting", "name": "Event Hosting" },
+  { "id": "red-carpet-hosting", "name": "Red Carpet Hosting" },
+  { "id": "event-coordination", "name": "Event Coordination" },
+  { "id": "public-speaking", "name": "Public Speaking" },
+  { "id": "mc-consultation", "name": "MC Consultation" }
+]

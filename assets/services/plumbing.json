@@ -1,0 +1,12 @@
+[
+  { "id": "pipe-installation", "name": "Pipe Installation" },
+  { "id": "pipe-repair", "name": "Pipe Repair" },
+  { "id": "water-leak-repair", "name": "Water Leak Repair" },
+  { "id": "toilet-installation", "name": "Toilet Installation" },
+  { "id": "toilet-repair", "name": "Toilet Repair" },
+  { "id": "sink-installation", "name": "Sink Installation" },
+  { "id": "bathroom-plumbing", "name": "Bathroom Plumbing" },
+  { "id": "kitchen-plumbing", "name": "Kitchen Plumbing" },
+  { "id": "drainage-repair", "name": "Drainage Repair" },
+  { "id": "plumbing-consultation", "name": "Plumbing Consultation" }
+]

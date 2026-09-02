@@ -1,0 +1,82 @@
+[
+  {
+    "id": "home-tutoring",
+    "name": "Home Tutoring"
+  },
+  {
+    "id": "online-tutoring",
+    "name": "Online Tutoring"
+  },
+  {
+    "id": "mathematics-tutoring",
+    "name": "Mathematics Tutoring"
+  },
+  {
+    "id": "english-tutoring",
+    "name": "English Tutoring"
+  },
+  {
+    "id": "science-tutoring",
+    "name": "Science Tutoring"
+  },
+  {
+    "id": "physics-tutoring",
+    "name": "Physics Tutoring"
+  },
+  {
+    "id": "chemistry-tutoring",
+    "name": "Chemistry Tutoring"
+  },
+  {
+    "id": "biology-tutoring",
+    "name": "Biology Tutoring"
+  },
+  {
+    "id": "exam-preparation",
+    "name": "Exam Preparation"
+  },
+  {
+    "id": "waec-coaching",
+    "name": "WAEC Coaching"
+  },
+  {
+    "id": "jamb-coaching",
+    "name": "JAMB Coaching"
+  },
+  {
+    "id": "neco-coaching",
+    "name": "NECO Coaching"
+  },
+  {
+    "id": "ielts-preparation",
+    "name": "IELTS Preparation"
+  },
+  {
+    "id": "language-training",
+    "name": "Language Training"
+  },
+  {
+    "id": "french-lessons",
+    "name": "French Lessons"
+  },
+  {
+    "id": "computer-training",
+    "name": "Computer Training"
+  },
+  {
+    "id": "coding-lessons",
+    "name": "Coding Lessons"
+  },
+  {
+    "id": "adult-education",
+    "name": "Adult Education"
+  },
+  {
+    "id": "special-needs-tutoring",
+    "name": "Special Needs Tutoring"
+  },
+  {
+    "id": "academic-consultation",
+    "name": "Academic Consultation"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "event-catering",
+    "name": "Event Catering"
+  },
+  {
+    "id": "wedding-catering",
+    "name": "Wedding Catering"
+  },
+  {
+    "id": "birthday-catering",
+    "name": "Birthday Catering"
+  },
+  {
+    "id": "corporate-catering",
+    "name": "Corporate Catering"
+  },
+  {
+    "id": "outdoor-catering",
+    "name": "Outdoor Catering"
+  },
+  {
+    "id": "indoor-catering",
+    "name": "Indoor Catering"
+  },
+  {
+    "id": "small-chops-catering",
+    "name": "Small Chops Catering"
+  },
+  {
+    "id": "buffet-service",
+    "name": "Buffet Service"
+  },
+  {
+    "id": "food-delivery-catering",
+    "name": "Food Delivery Catering"
+  },
+  {
+    "id": "private-chef-service",
+    "name": "Private Chef Service"
+  },
+  {
+    "id": "home-cooking-service",
+    "name": "Home Cooking Service"
+  },
+  {
+    "id": "traditional-meals-catering",
+    "name": "Traditional Meals Catering"
+  },
+  {
+    "id": "continental-meals-catering",
+    "name": "Continental Meals Catering"
+  },
+  {
+    "id": "grill-and-bbq-service",
+    "name": "Grill and BBQ Service"
+  },
+  {
+    "id": "cocktail-service",
+    "name": "Cocktail Service"
+  },
+  {
+    "id": "event-waiters-service",
+    "name": "Event Waiters Service"
+  },
+  {
+    "id": "food-packaging-service",
+    "name": "Food Packaging Service"
+  },
+  {
+    "id": "meal-plan-service",
+    "name": "Meal Plan Service"
+  },
+  {
+    "id": "bulk-food-supply",
+    "name": "Bulk Food Supply"
+  },
+  {
+    "id": "catering-consultation",
+    "name": "Catering Consultation"
+  }
+]

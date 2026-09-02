@@ -1,0 +1,22 @@
+[
+  { "id": "wedding-planning", "name": "Wedding Planning" },
+  { "id": "traditional-wedding-planning", "name": "Traditional Wedding Planning" },
+  { "id": "engagement-planning", "name": "Engagement Planning" },
+  { "id": "birthday-event-planning", "name": "Birthday Event Planning" },
+  { "id": "corporate-event-planning", "name": "Corporate Event Planning" },
+  { "id": "conference-planning", "name": "Conference Planning" },
+  { "id": "seminar-planning", "name": "Seminar Planning" },
+  { "id": "product-launch-planning", "name": "Product Launch Planning" },
+  { "id": "concert-planning", "name": "Concert Planning" },
+  { "id": "festival-planning", "name": "Festival Planning" },
+  { "id": "event-budget-planning", "name": "Event Budget Planning" },
+  { "id": "vendor-management", "name": "Vendor Management" },
+  { "id": "venue-sourcing", "name": "Venue Sourcing" },
+  { "id": "guest-management", "name": "Guest Management" },
+  { "id": "event-coordination", "name": "Event Coordination" },
+  { "id": "on-site-event-management", "name": "On-site Event Management" },
+  { "id": "event-logistics", "name": "Event Logistics" },
+  { "id": "event-scheduling", "name": "Event Scheduling" },
+  { "id": "event-consultation", "name": "Event Consultation" },
+  { "id": "full-event-management", "name": "Full Event Management" }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "phone-screen-replacement",
+    "name": "Phone Screen Replacement"
+  },
+  {
+    "id": "phone-battery-replacement",
+    "name": "Phone Battery Replacement"
+  },
+  {
+    "id": "charging-port-repair",
+    "name": "Charging Port Repair"
+  },
+  {
+    "id": "speaker-repair",
+    "name": "Speaker Repair"
+  },
+  {
+    "id": "microphone-repair",
+    "name": "Microphone Repair"
+  },
+  {
+    "id": "camera-repair",
+    "name": "Camera Repair"
+  },
+  {
+    "id": "water-damage-repair",
+    "name": "Water Damage Repair"
+  },
+  {
+    "id": "phone-unlocking",
+    "name": "Phone Unlocking"
+  },
+  {
+    "id": "software-flashing",
+    "name": "Software Flashing"
+  },
+  {
+    "id": "operating-system-installation",
+    "name": "Operating System Installation"
+  },
+  {
+    "id": "data-recovery",
+    "name": "Data Recovery"
+  },
+  {
+    "id": "motherboard-repair",
+    "name": "Motherboard Repair"
+  },
+  {
+    "id": "phone-diagnostics",
+    "name": "Phone Diagnostics"
+  },
+  {
+    "id": "tablet-repair",
+    "name": "Tablet Repair"
+  },
+  {
+    "id": "phone-maintenance",
+    "name": "Phone Maintenance"
+  },
+  {
+    "id": "mobile-repair-consultation",
+    "name": "Mobile Repair Consultation"
+  }
+]

@@ -1,0 +1,12 @@
+[
+  { "id": "waste-collection", "name": "Waste Collection" },
+  { "id": "waste-disposal", "name": "Waste Disposal" },
+  { "id": "recycling-services", "name": "Recycling Services" },
+  { "id": "commercial-waste-management", "name": "Commercial Waste Management" },
+  { "id": "residential-waste-management", "name": "Residential Waste Management" },
+  { "id": "construction-waste-removal", "name": "Construction Waste Removal" },
+  { "id": "dumpster-services", "name": "Dumpster Services" },
+  { "id": "septic-waste-removal", "name": "Septic Waste Removal" },
+  { "id": "environmental-cleanup", "name": "Environmental Cleanup" },
+  { "id": "waste-management-consultation", "name": "Waste Management Consultation" }
+]

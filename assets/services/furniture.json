@@ -1,0 +1,19 @@
+[
+  { "id": "sofa-production", "name": "Sofa Production" },
+  { "id": "bed-production", "name": "Bed Production" },
+  { "id": "wardrobe-production", "name": "Wardrobe Production" },
+  { "id": "kitchen-cabinet-production", "name": "Kitchen Cabinet Production" },
+  { "id": "office-furniture-production", "name": "Office Furniture Production" },
+  { "id": "tv-console-production", "name": "TV Console Production" },
+  { "id": "dining-table-production", "name": "Dining Table Production" },
+  { "id": "bookshelf-production", "name": "Bookshelf Production" },
+  { "id": "custom-furniture-production", "name": "Custom Furniture Production" },
+  { "id": "wooden-door-production", "name": "Wooden Door Production" },
+  { "id": "chair-production", "name": "Chair Production" },
+  { "id": "furniture-repair", "name": "Furniture Repair" },
+  { "id": "furniture-restoration", "name": "Furniture Restoration" },
+  { "id": "furniture-polishing", "name": "Furniture Polishing" },
+  { "id": "furniture-installation", "name": "Furniture Installation" },
+  { "id": "interior-woodwork", "name": "Interior Woodwork" },
+  { "id": "furniture-consultation", "name": "Furniture Consultation" }
+]

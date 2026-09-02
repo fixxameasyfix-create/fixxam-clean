@@ -1,0 +1,14 @@
+[
+  { "id": "block-laying", "name": "Block Laying" },
+  { "id": "bricklaying", "name": "Bricklaying" },
+  { "id": "stone-masonry", "name": "Stone Masonry" },
+  { "id": "concrete-work", "name": "Concrete Work" },
+  { "id": "foundation-work", "name": "Foundation Work" },
+  { "id": "plastering", "name": "Plastering" },
+  { "id": "rendering", "name": "Rendering" },
+  { "id": "screeding", "name": "Screeding" },
+  { "id": "retaining-wall-construction", "name": "Retaining Wall Construction" },
+  { "id": "fence-wall-construction", "name": "Fence Wall Construction" },
+  { "id": "masonry-repair", "name": "Masonry Repair" },
+  { "id": "masonry-consultation", "name": "Masonry Consultation" }
+]

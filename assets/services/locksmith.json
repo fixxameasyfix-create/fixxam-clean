@@ -1,0 +1,16 @@
+[
+  { "id": "door-lock-installation", "name": "Door Lock Installation" },
+  { "id": "door-lock-repair", "name": "Door Lock Repair" },
+  { "id": "door-lock-replacement", "name": "Door Lock Replacement" },
+  { "id": "emergency-lockout-service", "name": "Emergency Lockout Service" },
+  { "id": "key-cutting", "name": "Key Cutting" },
+  { "id": "key-duplication", "name": "Key Duplication" },
+  { "id": "smart-lock-installation", "name": "Smart Lock Installation" },
+  { "id": "digital-lock-installation", "name": "Digital Lock Installation" },
+  { "id": "security-lock-upgrade", "name": "Security Lock Upgrade" },
+  { "id": "safe-lock-installation", "name": "Safe Lock Installation" },
+  { "id": "safe-lock-repair", "name": "Safe Lock Repair" },
+  { "id": "car-key-programming", "name": "Car Key Programming" },
+  { "id": "automotive-locksmith", "name": "Automotive Locksmith" },
+  { "id": "locksmith-consultation", "name": "Locksmith Consultation" }
+]

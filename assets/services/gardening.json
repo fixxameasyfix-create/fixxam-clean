@@ -1,0 +1,58 @@
+[
+  {
+    "id": "garden-design",
+    "name": "Garden Design"
+  },
+  {
+    "id": "landscaping",
+    "name": "Landscaping"
+  },
+  {
+    "id": "garden-maintenance",
+    "name": "Garden Maintenance"
+  },
+  {
+    "id": "lawn-mowing",
+    "name": "Lawn Mowing"
+  },
+  {
+    "id": "grass-installation",
+    "name": "Grass Installation"
+  },
+  {
+    "id": "artificial-grass-installation",
+    "name": "Artificial Grass Installation"
+  },
+  {
+    "id": "tree-planting",
+    "name": "Tree Planting"
+  },
+  {
+    "id": "flower-planting",
+    "name": "Flower Planting"
+  },
+  {
+    "id": "hedge-trimming",
+    "name": "Hedge Trimming"
+  },
+  {
+    "id": "weed-control",
+    "name": "Weed Control"
+  },
+  {
+    "id": "garden-irrigation",
+    "name": "Garden Irrigation"
+  },
+  {
+    "id": "garden-cleanup",
+    "name": "Garden Cleanup"
+  },
+  {
+    "id": "outdoor-landscaping",
+    "name": "Outdoor Landscaping"
+  },
+  {
+    "id": "garden-consultation",
+    "name": "Garden Consultation"
+  }
+]

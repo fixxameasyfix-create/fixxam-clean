@@ -1,0 +1,62 @@
+[
+  {
+    "id": "home-nursing",
+    "name": "Home Nursing"
+  },
+  {
+    "id": "home-healthcare",
+    "name": "Home Healthcare"
+  },
+  {
+    "id": "caregiver-services",
+    "name": "Caregiver Services"
+  },
+  {
+    "id": "elderly-care",
+    "name": "Elderly Care"
+  },
+  {
+    "id": "post-surgery-care",
+    "name": "Post Surgery Care"
+  },
+  {
+    "id": "physiotherapy",
+    "name": "Physiotherapy"
+  },
+  {
+    "id": "medical-consultation",
+    "name": "Medical Consultation"
+  },
+  {
+    "id": "telemedicine",
+    "name": "Telemedicine"
+  },
+  {
+    "id": "blood-pressure-check",
+    "name": "Blood Pressure Check"
+  },
+  {
+    "id": "blood-sugar-testing",
+    "name": "Blood Sugar Testing"
+  },
+  {
+    "id": "laboratory-sample-collection",
+    "name": "Laboratory Sample Collection"
+  },
+  {
+    "id": "ambulance-service",
+    "name": "Ambulance Service"
+  },
+  {
+    "id": "mental-health-support",
+    "name": "Mental Health Support"
+  },
+  {
+    "id": "nutrition-consultation",
+    "name": "Nutrition Consultation"
+  },
+  {
+    "id": "healthcare-consultation",
+    "name": "Healthcare Consultation"
+  }
+]

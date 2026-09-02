@@ -1,0 +1,82 @@
+[
+  {
+    "id": "borehole-drilling",
+    "name": "Borehole Drilling"
+  },
+  {
+    "id": "industrial-borehole-drilling",
+    "name": "Industrial Borehole Drilling"
+  },
+  {
+    "id": "residential-borehole-drilling",
+    "name": "Residential Borehole Drilling"
+  },
+  {
+    "id": "borehole-survey",
+    "name": "Borehole Survey"
+  },
+  {
+    "id": "geophysical-survey",
+    "name": "Geophysical Survey"
+  },
+  {
+    "id": "water-detection",
+    "name": "Water Detection"
+  },
+  {
+    "id": "borehole-casing",
+    "name": "Borehole Casing"
+  },
+  {
+    "id": "borehole-development",
+    "name": "Borehole Development"
+  },
+  {
+    "id": "borehole-flushing",
+    "name": "Borehole Flushing"
+  },
+  {
+    "id": "borehole-rehabilitation",
+    "name": "Borehole Rehabilitation"
+  },
+  {
+    "id": "submersible-pump-installation",
+    "name": "Submersible Pump Installation"
+  },
+  {
+    "id": "surface-pump-installation",
+    "name": "Surface Pump Installation"
+  },
+  {
+    "id": "water-pump-repair",
+    "name": "Water Pump Repair"
+  },
+  {
+    "id": "water-pump-maintenance",
+    "name": "Water Pump Maintenance"
+  },
+  {
+    "id": "overhead-tank-installation",
+    "name": "Overhead Tank Installation"
+  },
+  {
+    "id": "water-reticulation",
+    "name": "Water Reticulation"
+  },
+  {
+    "id": "borehole-plumbing",
+    "name": "Borehole Plumbing"
+  },
+  {
+    "id": "water-treatment-installation",
+    "name": "Water Treatment Installation"
+  },
+  {
+    "id": "borehole-maintenance",
+    "name": "Borehole Maintenance"
+  },
+  {
+    "id": "borehole-inspection",
+    "name": "Borehole Inspection"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "id": "dry-cleaning-service",
+    "name": "Dry Cleaning Service"
+  },
+  {
+    "id": "suit-dry-cleaning",
+    "name": "Suit Dry Cleaning"
+  },
+  {
+    "id": "traditional-attire-cleaning",
+    "name": "Traditional Attire Cleaning"
+  },
+  {
+    "id": "wedding-gown-cleaning",
+    "name": "Wedding Gown Cleaning"
+  },
+  {
+    "id": "bridal-dress-cleaning",
+    "name": "Bridal Dress Cleaning"
+  },
+  {
+    "id": "shirt-cleaning",
+    "name": "Shirt Cleaning"
+  },
+  {
+    "id": "trouser-cleaning",
+    "name": "Trouser Cleaning"
+  },
+  {
+    "id": "blanket-cleaning",
+    "name": "Blanket Cleaning"
+  },
+  {
+    "id": "duvet-cleaning",
+    "name": "Duvet Cleaning"
+  },
+  {
+    "id": "curtain-cleaning",
+    "name": "Curtain Cleaning"
+  },
+  {
+    "id": "carpet-cleaning",
+    "name": "Carpet Cleaning"
+  },
+  {
+    "id": "sofa-cover-cleaning",
+    "name": "Sofa Cover Cleaning"
+  },
+  {
+    "id": "laundry-service",
+    "name": "Laundry Service"
+  },
+  {
+    "id": "ironing-service",
+    "name": "Ironing Service"
+  },
+  {
+    "id": "steam-ironing",
+    "name": "Steam Ironing"
+  },
+  {
+    "id": "stain-removal",
+    "name": "Stain Removal"
+  },
+  {
+    "id": "fabric-care-service",
+    "name": "Fabric Care Service"
+  },
+  {
+    "id": "laundry-pickup",
+    "name": "Laundry Pickup"
+  },
+  {
+    "id": "laundry-delivery",
+    "name": "Laundry Delivery"
+  },
+  {
+    "id": "express-dry-cleaning",
+    "name": "Express Dry Cleaning"
+  }
+]

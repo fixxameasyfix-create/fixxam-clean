@@ -1,0 +1,14 @@
+[
+  { "id": "freight-services", "name": "Freight Services" },
+  { "id": "cargo-transportation", "name": "Cargo Transportation" },
+  { "id": "warehousing", "name": "Warehousing" },
+  { "id": "distribution-services", "name": "Distribution Services" },
+  { "id": "fleet-management", "name": "Fleet Management" },
+  { "id": "supply-chain-management", "name": "Supply Chain Management" },
+  { "id": "last-mile-delivery", "name": "Last Mile Delivery" },
+  { "id": "interstate-logistics", "name": "Interstate Logistics" },
+  { "id": "import-export-logistics", "name": "Import Export Logistics" },
+  { "id": "truck-hire-services", "name": "Truck Hire Services" },
+  { "id": "haulage-services", "name": "Haulage Services" },
+  { "id": "logistics-consultation", "name": "Logistics Consultation" }
+]

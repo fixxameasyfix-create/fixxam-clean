@@ -1,0 +1,15 @@
+[
+  { "id": "landscape-design", "name": "Landscape Design" },
+  { "id": "garden-landscaping", "name": "Garden Landscaping" },
+  { "id": "residential-landscaping", "name": "Residential Landscaping" },
+  { "id": "commercial-landscaping", "name": "Commercial Landscaping" },
+  { "id": "lawn-installation", "name": "Lawn Installation" },
+  { "id": "artificial-turf-installation", "name": "Artificial Turf Installation" },
+  { "id": "tree-planting", "name": "Tree Planting" },
+  { "id": "flower-garden-installation", "name": "Flower Garden Installation" },
+  { "id": "garden-irrigation", "name": "Garden Irrigation" },
+  { "id": "landscape-maintenance", "name": "Landscape Maintenance" },
+  { "id": "hedge-trimming", "name": "Hedge Trimming" },
+  { "id": "outdoor-beautification", "name": "Outdoor Beautification" },
+  { "id": "landscape-consultation", "name": "Landscape Consultation" }
+]

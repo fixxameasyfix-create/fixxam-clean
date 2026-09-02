@@ -1,0 +1,54 @@
+[
+  {
+    "id": "generator-installation",
+    "name": "Generator Installation"
+  },
+  {
+    "id": "generator-repair",
+    "name": "Generator Repair"
+  },
+  {
+    "id": "generator-maintenance",
+    "name": "Generator Maintenance"
+  },
+  {
+    "id": "generator-servicing",
+    "name": "Generator Servicing"
+  },
+  {
+    "id": "generator-overhaul",
+    "name": "Generator Overhaul"
+  },
+  {
+    "id": "generator-fault-diagnosis",
+    "name": "Generator Fault Diagnosis"
+  },
+  {
+    "id": "diesel-generator-repair",
+    "name": "Diesel Generator Repair"
+  },
+  {
+    "id": "petrol-generator-repair",
+    "name": "Petrol Generator Repair"
+  },
+  {
+    "id": "generator-panel-repair",
+    "name": "Generator Panel Repair"
+  },
+  {
+    "id": "generator-wiring",
+    "name": "Generator Wiring"
+  },
+  {
+    "id": "automatic-changeover-installation",
+    "name": "Automatic Changeover Installation"
+  },
+  {
+    "id": "manual-changeover-installation",
+    "name": "Manual Changeover Installation"
+  },
+  {
+    "id": "generator-consultation",
+    "name": "Generator Consultation"
+  }
+]

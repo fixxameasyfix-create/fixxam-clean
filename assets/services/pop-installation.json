@@ -1,0 +1,12 @@
+[
+  { "id": "pop-ceiling-installation", "name": "POP Ceiling Installation" },
+  { "id": "suspended-ceiling-installation", "name": "Suspended Ceiling Installation" },
+  { "id": "decorative-ceiling-design", "name": "Decorative Ceiling Design" },
+  { "id": "false-ceiling-installation", "name": "False Ceiling Installation" },
+  { "id": "gypsum-ceiling-installation", "name": "Gypsum Ceiling Installation" },
+  { "id": "ceiling-light-channel-design", "name": "Ceiling Light Channel Design" },
+  { "id": "ceiling-renovation", "name": "Ceiling Renovation" },
+  { "id": "ceiling-repair", "name": "Ceiling Repair" },
+  { "id": "ceiling-finishing", "name": "Ceiling Finishing" },
+  { "id": "pop-consultation", "name": "POP Consultation" }
+]

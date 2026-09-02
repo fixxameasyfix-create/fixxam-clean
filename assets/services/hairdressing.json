@@ -1,0 +1,66 @@
+[
+  {
+    "id": "hair-braiding",
+    "name": "Hair Braiding"
+  },
+  {
+    "id": "weaving-installation",
+    "name": "Weaving Installation"
+  },
+  {
+    "id": "wig-installation",
+    "name": "Wig Installation"
+  },
+  {
+    "id": "wig-customization",
+    "name": "Wig Customization"
+  },
+  {
+    "id": "hair-coloring",
+    "name": "Hair Coloring"
+  },
+  {
+    "id": "hair-relaxing",
+    "name": "Hair Relaxing"
+  },
+  {
+    "id": "hair-treatment",
+    "name": "Hair Treatment"
+  },
+  {
+    "id": "dreadlocks-installation",
+    "name": "Dreadlocks Installation"
+  },
+  {
+    "id": "dreadlocks-maintenance",
+    "name": "Dreadlocks Maintenance"
+  },
+  {
+    "id": "natural-hair-styling",
+    "name": "Natural Hair Styling"
+  },
+  {
+    "id": "bridal-hair-styling",
+    "name": "Bridal Hair Styling"
+  },
+  {
+    "id": "children-hair-styling",
+    "name": "Children Hair Styling"
+  },
+  {
+    "id": "hair-extension-installation",
+    "name": "Hair Extension Installation"
+  },
+  {
+    "id": "scalp-treatment",
+    "name": "Scalp Treatment"
+  },
+  {
+    "id": "mobile-hairdressing",
+    "name": "Mobile Hairdressing"
+  },
+  {
+    "id": "hairdressing-consultation",
+    "name": "Hairdressing Consultation"
+  }
+]

@@ -1,0 +1,102 @@
+[
+  {
+    "id": "crop-farming",
+    "name": "Crop Farming"
+  },
+  {
+    "id": "vegetable-farming",
+    "name": "Vegetable Farming"
+  },
+  {
+    "id": "maize-farming",
+    "name": "Maize Farming"
+  },
+  {
+    "id": "rice-farming",
+    "name": "Rice Farming"
+  },
+  {
+    "id": "cassava-farming",
+    "name": "Cassava Farming"
+  },
+  {
+    "id": "yam-farming",
+    "name": "Yam Farming"
+  },
+  {
+    "id": "wheat-farming",
+    "name": "Wheat Farming"
+  },
+  {
+    "id": "soybean-farming",
+    "name": "Soybean Farming"
+  },
+  {
+    "id": "groundnut-farming",
+    "name": "Groundnut Farming"
+  },
+  {
+    "id": "poultry-farming",
+    "name": "Poultry Farming"
+  },
+  {
+    "id": "fish-farming",
+    "name": "Fish Farming"
+  },
+  {
+    "id": "livestock-farming",
+    "name": "Livestock Farming"
+  },
+  {
+    "id": "goat-farming",
+    "name": "Goat Farming"
+  },
+  {
+    "id": "sheep-farming",
+    "name": "Sheep Farming"
+  },
+  {
+    "id": "cattle-farming",
+    "name": "Cattle Farming"
+  },
+  {
+    "id": "bee-keeping",
+    "name": "Bee Keeping"
+  },
+  {
+    "id": "farm-irrigation",
+    "name": "Farm Irrigation"
+  },
+  {
+    "id": "soil-testing",
+    "name": "Soil Testing"
+  },
+  {
+    "id": "farm-consultancy",
+    "name": "Farm Consultancy"
+  },
+  {
+    "id": "tractor-services",
+    "name": "Tractor Services"
+  },
+  {
+    "id": "land-clearing",
+    "name": "Land Clearing"
+  },
+  {
+    "id": "farm-harvesting",
+    "name": "Farm Harvesting"
+  },
+  {
+    "id": "seed-supply",
+    "name": "Seed Supply"
+  },
+  {
+    "id": "fertilizer-supply",
+    "name": "Fertilizer Supply"
+  },
+  {
+    "id": "greenhouse-farming",
+    "name": "Greenhouse Farming"
+  }
+]

@@ -1,0 +1,12 @@
+[
+  { "id": "cctv-installation", "name": "CCTV Installation" },
+  { "id": "cctv-maintenance", "name": "CCTV Maintenance" },
+  { "id": "electric-fence-installation", "name": "Electric Fence Installation" },
+  { "id": "access-control-installation", "name": "Access Control Installation" },
+  { "id": "biometric-system-installation", "name": "Biometric System Installation" },
+  { "id": "alarm-system-installation", "name": "Alarm System Installation" },
+  { "id": "fire-alarm-installation", "name": "Fire Alarm Installation" },
+  { "id": "video-door-phone-installation", "name": "Video Door Phone Installation" },
+  { "id": "security-system-maintenance", "name": "Security System Maintenance" },
+  { "id": "security-consultation", "name": "Security Consultation" }
+]

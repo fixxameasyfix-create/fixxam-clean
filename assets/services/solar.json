@@ -1,0 +1,12 @@
+[
+  { "id": "solar-panel-installation", "name": "Solar Panel Installation" },
+  { "id": "solar-panel-repair", "name": "Solar Panel Repair" },
+  { "id": "solar-system-maintenance", "name": "Solar System Maintenance" },
+  { "id": "solar-inverter-installation", "name": "Solar Inverter Installation" },
+  { "id": "solar-battery-installation", "name": "Solar Battery Installation" },
+  { "id": "solar-street-light-installation", "name": "Solar Street Light Installation" },
+  { "id": "solar-water-pump-installation", "name": "Solar Water Pump Installation" },
+  { "id": "solar-energy-audit", "name": "Solar Energy Audit" },
+  { "id": "off-grid-solar-system", "name": "Off Grid Solar System" },
+  { "id": "solar-consultation", "name": "Solar Consultation" }
+]

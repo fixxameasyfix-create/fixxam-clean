@@ -1,0 +1,12 @@
+[
+  { "id": "custom-woodwork", "name": "Custom Woodwork" },
+  { "id": "cabinet-making", "name": "Cabinet Making" },
+  { "id": "wardrobe-construction", "name": "Wardrobe Construction" },
+  { "id": "kitchen-cabinet-installation", "name": "Kitchen Cabinet Installation" },
+  { "id": "wooden-door-production", "name": "Wooden Door Production" },
+  { "id": "wooden-window-production", "name": "Wooden Window Production" },
+  { "id": "furniture-woodwork", "name": "Furniture Woodwork" },
+  { "id": "wood-polishing", "name": "Wood Polishing" },
+  { "id": "wood-repair", "name": "Wood Repair" },
+  { "id": "woodwork-consultation", "name": "Woodwork Consultation" }
+]

@@ -1,0 +1,12 @@
+[
+  { "id": "cold-room-installation", "name": "Cold Room Installation" },
+  { "id": "cold-room-repair", "name": "Cold Room Repair" },
+  { "id": "cold-room-maintenance", "name": "Cold Room Maintenance" },
+  { "id": "refrigerator-repair", "name": "Refrigerator Repair" },
+  { "id": "freezer-repair", "name": "Freezer Repair" },
+  { "id": "commercial-refrigeration", "name": "Commercial Refrigeration" },
+  { "id": "industrial-refrigeration", "name": "Industrial Refrigeration" },
+  { "id": "cooling-system-installation", "name": "Cooling System Installation" },
+  { "id": "refrigeration-maintenance", "name": "Refrigeration Maintenance" },
+  { "id": "refrigeration-consultation", "name": "Refrigeration Consultation" }
+]

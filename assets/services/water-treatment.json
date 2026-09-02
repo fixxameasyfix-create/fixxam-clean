@@ -1,0 +1,12 @@
+[
+  { "id": "water-treatment-system-installation", "name": "Water Treatment System Installation" },
+  { "id": "water-purification", "name": "Water Purification" },
+  { "id": "water-filtration-installation", "name": "Water Filtration Installation" },
+  { "id": "borehole-water-treatment", "name": "Borehole Water Treatment" },
+  { "id": "industrial-water-treatment", "name": "Industrial Water Treatment" },
+  { "id": "water-quality-testing", "name": "Water Quality Testing" },
+  { "id": "reverse-osmosis-installation", "name": "Reverse Osmosis Installation" },
+  { "id": "water-softener-installation", "name": "Water Softener Installation" },
+  { "id": "water-treatment-maintenance", "name": "Water Treatment Maintenance" },
+  { "id": "water-treatment-consultation", "name": "Water Treatment Consultation" }
+]

@@ -1,0 +1,12 @@
+[
+  { "id": "aluminium-window-installation", "name": "Aluminium Window Installation" },
+  { "id": "glass-window-installation", "name": "Glass Window Installation" },
+  { "id": "sliding-window-installation", "name": "Sliding Window Installation" },
+  { "id": "casement-window-installation", "name": "Casement Window Installation" },
+  { "id": "window-repair", "name": "Window Repair" },
+  { "id": "window-replacement", "name": "Window Replacement" },
+  { "id": "window-maintenance", "name": "Window Maintenance" },
+  { "id": "office-window-installation", "name": "Office Window Installation" },
+  { "id": "residential-window-installation", "name": "Residential Window Installation" },
+  { "id": "window-installation-consultation", "name": "Window Installation Consultation" }
+]

@@ -1,0 +1,13 @@
+[
+  { "id": "manicure", "name": "Manicure" },
+  { "id": "pedicure", "name": "Pedicure" },
+  { "id": "gel-polish", "name": "Gel Polish" },
+  { "id": "acrylic-nails", "name": "Acrylic Nails" },
+  { "id": "nail-extension", "name": "Nail Extension" },
+  { "id": "nail-art", "name": "Nail Art" },
+  { "id": "french-manicure", "name": "French Manicure" },
+  { "id": "nail-repair", "name": "Nail Repair" },
+  { "id": "nail-treatment", "name": "Nail Treatment" },
+  { "id": "mobile-nail-service", "name": "Mobile Nail Service" },
+  { "id": "nail-care-consultation", "name": "Nail Care Consultation" }
+]

@@ -1,0 +1,162 @@
+[
+  {
+    "id": "general-mechanic",
+    "name": "General Mechanic"
+  },
+  {
+    "id": "auto-electrical-repair",
+    "name": "Auto Electrical Repair"
+  },
+  {
+    "id": "vehicle-diagnostics",
+    "name": "Vehicle Diagnostics"
+  },
+  {
+    "id": "engine-repair",
+    "name": "Engine Repair"
+  },
+  {
+    "id": "engine-overhaul",
+    "name": "Engine Overhaul"
+  },
+  {
+    "id": "gearbox-repair",
+    "name": "Gearbox Repair"
+  },
+  {
+    "id": "clutch-repair",
+    "name": "Clutch Repair"
+  },
+  {
+    "id": "brake-repair",
+    "name": "Brake Repair"
+  },
+  {
+    "id": "suspension-repair",
+    "name": "Suspension Repair"
+  },
+  {
+    "id": "steering-repair",
+    "name": "Steering Repair"
+  },
+  {
+    "id": "car-ac-repair",
+    "name": "Car AC Repair"
+  },
+  {
+    "id": "car-ac-installation",
+    "name": "Car AC Installation"
+  },
+  {
+    "id": "battery-replacement",
+    "name": "Battery Replacement"
+  },
+  {
+    "id": "battery-charging",
+    "name": "Battery Charging"
+  },
+  {
+    "id": "alternator-repair",
+    "name": "Alternator Repair"
+  },
+  {
+    "id": "starter-repair",
+    "name": "Starter Repair"
+  },
+  {
+    "id": "tyre-replacement",
+    "name": "Tyre Replacement"
+  },
+  {
+    "id": "tyre-repair",
+    "name": "Tyre Repair"
+  },
+  {
+    "id": "wheel-balancing",
+    "name": "Wheel Balancing"
+  },
+  {
+    "id": "wheel-alignment",
+    "name": "Wheel Alignment"
+  },
+  {
+    "id": "oil-change",
+    "name": "Oil Change"
+  },
+  {
+    "id": "car-servicing",
+    "name": "Car Servicing"
+  },
+  {
+    "id": "fuel-system-repair",
+    "name": "Fuel System Repair"
+  },
+  {
+    "id": "radiator-repair",
+    "name": "Radiator Repair"
+  },
+  {
+    "id": "cooling-system-repair",
+    "name": "Cooling System Repair"
+  },
+  {
+    "id": "panel-beating",
+    "name": "Panel Beating"
+  },
+  {
+    "id": "car-painting",
+    "name": "Car Painting"
+  },
+  {
+    "id": "bumper-repair",
+    "name": "Bumper Repair"
+  },
+  {
+    "id": "windshield-replacement",
+    "name": "Windshield Replacement"
+  },
+  {
+    "id": "car-detailing",
+    "name": "Car Detailing"
+  },
+  {
+    "id": "car-wash",
+    "name": "Car Wash"
+  },
+  {
+    "id": "interior-cleaning",
+    "name": "Interior Cleaning"
+  },
+  {
+    "id": "vehicle-inspection",
+    "name": "Vehicle Inspection"
+  },
+  {
+    "id": "pre-purchase-inspection",
+    "name": "Pre-Purchase Inspection"
+  },
+  {
+    "id": "vehicle-registration-assistance",
+    "name": "Vehicle Registration Assistance"
+  },
+  {
+    "id": "roadside-assistance",
+    "name": "Roadside Assistance"
+  },
+  {
+    "id": "vehicle-towing",
+    "name": "Vehicle Towing"
+  },
+  {
+    "id": "truck-repair",
+    "name": "Truck Repair"
+  },
+  {
+    "id": "bus-repair",
+    "name": "Bus Repair"
+  },
+  {
+    "id": "motorcycle-repair",
+    "name": "Motorcycle Repair"
+  }
+]

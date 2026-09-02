@@ -1,0 +1,90 @@
+# =========================
+# Dependencies
+# =========================
+node_modules/
+
+# =========================
+# Expo / build outputs
+# =========================
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# =========================
+# Native build outputs
+# =========================
+.kotlin/
+android/app/build/
+android/build/
+ios/build/
+
+# =========================
+# Keys / signing files
+# =========================
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# =========================
+# Metro / debug logs
+# =========================
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# =========================
+# Local env files
+# =========================
+.env*.local
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Misc
+# =========================
+app-example
+
+agents
+agents/
+.claude
+.claude/
+.agents
+.agents/
+
+# =========================
+# Firebase secret credentials
+# =========================
+firebase-admin-key.json
+serviceAccountKey.json
+service-account.json
+*-service-account.json
+
+
+# =========================
+# Environment / Firebase secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+firebase-admin-key.json
+serviceAccountKey.json
+service-account.json
+*-service-account.json

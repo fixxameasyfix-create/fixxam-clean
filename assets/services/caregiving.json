@@ -1,0 +1,82 @@
+[
+  {
+    "id": "elderly-care",
+    "name": "Elderly Care"
+  },
+  {
+    "id": "home-caregiver",
+    "name": "Home Caregiver"
+  },
+  {
+    "id": "live-in-caregiver",
+    "name": "Live-in Caregiver"
+  },
+  {
+    "id": "part-time-caregiver",
+    "name": "Part-Time Caregiver"
+  },
+  {
+    "id": "patient-care-assistance",
+    "name": "Patient Care Assistance"
+  },
+  {
+    "id": "hospital-caregiver",
+    "name": "Hospital Caregiver"
+  },
+  {
+    "id": "post-surgery-care",
+    "name": "Post Surgery Care"
+  },
+  {
+    "id": "disability-support",
+    "name": "Disability Support"
+  },
+  {
+    "id": "special-needs-care",
+    "name": "Special Needs Care"
+  },
+  {
+    "id": "companionship-care",
+    "name": "Companionship Care"
+  },
+  {
+    "id": "mobility-assistance",
+    "name": "Mobility Assistance"
+  },
+  {
+    "id": "personal-hygiene-assistance",
+    "name": "Personal Hygiene Assistance"
+  },
+  {
+    "id": "medication-reminder",
+    "name": "Medication Reminder"
+  },
+  {
+    "id": "meal-preparation-care",
+    "name": "Meal Preparation Care"
+  },
+  {
+    "id": "respite-care",
+    "name": "Respite Care"
+  },
+  {
+    "id": "night-care-service",
+    "name": "Night Care Service"
+  },
+  {
+    "id": "child-care-assistant",
+    "name": "Child Care Assistant"
+  },
+  {
+    "id": "newborn-care-support",
+    "name": "Newborn Care Support"
+  },
+  {
+    "id": "caregiver-consultation",
+    "name": "Caregiver Consultation"
+  },
+  {
+    "id": "home-health-support",
+    "name": "Home Health Support"
+  }
+]

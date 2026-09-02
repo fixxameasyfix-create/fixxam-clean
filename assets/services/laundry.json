@@ -1,0 +1,15 @@
+[
+  { "id": "laundry-service", "name": "Laundry Service" },
+  { "id": "wash-and-fold", "name": "Wash and Fold" },
+  { "id": "ironing-service", "name": "Ironing Service" },
+  { "id": "steam-ironing", "name": "Steam Ironing" },
+  { "id": "laundry-pickup", "name": "Laundry Pickup" },
+  { "id": "laundry-delivery", "name": "Laundry Delivery" },
+  { "id": "blanket-washing", "name": "Blanket Washing" },
+  { "id": "duvet-cleaning", "name": "Duvet Cleaning" },
+  { "id": "curtain-washing", "name": "Curtain Washing" },
+  { "id": "uniform-laundry", "name": "Uniform Laundry" },
+  { "id": "hotel-laundry-service", "name": "Hotel Laundry Service" },
+  { "id": "commercial-laundry", "name": "Commercial Laundry" },
+  { "id": "laundry-consultation", "name": "Laundry Consultation" }
+]

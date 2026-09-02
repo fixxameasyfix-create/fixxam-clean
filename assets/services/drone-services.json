@@ -1,0 +1,82 @@
+[
+  {
+    "id": "aerial-photography",
+    "name": "Aerial Photography"
+  },
+  {
+    "id": "aerial-videography",
+    "name": "Aerial Videography"
+  },
+  {
+    "id": "event-drone-coverage",
+    "name": "Event Drone Coverage"
+  },
+  {
+    "id": "wedding-drone-coverage",
+    "name": "Wedding Drone Coverage"
+  },
+  {
+    "id": "real-estate-drone-shoot",
+    "name": "Real Estate Drone Shoot"
+  },
+  {
+    "id": "construction-site-monitoring",
+    "name": "Construction Site Monitoring"
+  },
+  {
+    "id": "land-survey-drone-service",
+    "name": "Land Survey Drone Service"
+  },
+  {
+    "id": "mapping-and-gis-services",
+    "name": "Mapping and GIS Services"
+  },
+  {
+    "id": "agricultural-drone-survey",
+    "name": "Agricultural Drone Survey"
+  },
+  {
+    "id": "crop-monitoring",
+    "name": "Crop Monitoring"
+  },
+  {
+    "id": "drone-inspection",
+    "name": "Drone Inspection"
+  },
+  {
+    "id": "roof-inspection",
+    "name": "Roof Inspection"
+  },
+  {
+    "id": "tower-inspection",
+    "name": "Tower Inspection"
+  },
+  {
+    "id": "pipeline-inspection",
+    "name": "Pipeline Inspection"
+  },
+  {
+    "id": "security-surveillance",
+    "name": "Security Surveillance"
+  },
+  {
+    "id": "search-and-rescue-support",
+    "name": "Search and Rescue Support"
+  },
+  {
+    "id": "drone-pilot-service",
+    "name": "Drone Pilot Service"
+  },
+  {
+    "id": "drone-training",
+    "name": "Drone Training"
+  },
+  {
+    "id": "drone-maintenance",
+    "name": "Drone Maintenance"
+  },
+  {
+    "id": "drone-consultation",
+    "name": "Drone Consultation"
+  }
+]

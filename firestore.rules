@@ -1,0 +1,974 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ============================================================
+       GENERAL HELPERS
+    ============================================================ */
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn()
+        && request.auth.uid == uid;
+    }
+
+
+    /* ============================================================
+       BOOKING HELPERS
+    ============================================================ */
+
+    function bookingExists(bookingId) {
+      return exists(
+        /databases/$(database)/documents/bookings/$(bookingId)
+      );
+    }
+
+    function currentBooking(bookingId) {
+      return get(
+        /databases/$(database)/documents/bookings/$(bookingId)
+      ).data;
+    }
+
+    function isBookingCustomer(bookingId) {
+      return signedIn()
+        && bookingExists(bookingId)
+        && currentBooking(bookingId).customerId
+          == request.auth.uid;
+    }
+
+    function isBookingWorker(bookingId) {
+      return signedIn()
+        && bookingExists(bookingId)
+        && currentBooking(bookingId).workerId
+          == request.auth.uid;
+    }
+
+    function validOfferAmount(value) {
+      return value is number
+        && value > 0
+        && value <= 100000000;
+    }
+
+    function validOfferMessage(value) {
+      return value == null
+        || (
+          value is string
+          && value.size() <= 300
+        );
+    }
+
+
+    /* ============================================================
+       MARKET ORDER HELPERS
+    ============================================================ */
+
+    function marketOrderExists(orderId) {
+      return exists(
+        /databases/$(database)/documents/orders/$(orderId)
+      );
+    }
+
+    function currentMarketOrder(orderId) {
+      return get(
+        /databases/$(database)/documents/orders/$(orderId)
+      ).data;
+    }
+
+    function isMarketOrderCustomer(orderId) {
+      return signedIn()
+        && marketOrderExists(orderId)
+        && currentMarketOrder(orderId).customerId
+          == request.auth.uid;
+    }
+
+    function isMarketOrderWorker(orderId) {
+      return signedIn()
+        && marketOrderExists(orderId)
+        && currentMarketOrder(orderId).workerId
+          == request.auth.uid;
+    }
+
+    function isMarketOrderSeller(orderId) {
+      return signedIn()
+        && marketOrderExists(orderId)
+        && currentMarketOrder(orderId).sellerId
+          == request.auth.uid;
+    }
+
+    function isMarketOrderParticipant(orderId) {
+      return isMarketOrderCustomer(orderId)
+        || isMarketOrderWorker(orderId)
+        || isMarketOrderSeller(orderId);
+    }
+
+
+    /* ============================================================
+       MARKET CHAT HELPERS
+    ============================================================ */
+
+    function marketChatExists(chatId) {
+      return exists(
+        /databases/$(database)/documents/marketChats/$(chatId)
+      );
+    }
+
+    function currentMarketChat(chatId) {
+      return get(
+        /databases/$(database)/documents/marketChats/$(chatId)
+      ).data;
+    }
+
+    function isMarketChatParticipant(chatId) {
+      return signedIn()
+        && marketChatExists(chatId)
+        && (
+          (
+            "customerId" in currentMarketChat(chatId)
+            &&
+            currentMarketChat(chatId).customerId
+              == request.auth.uid
+          )
+
+          ||
+
+          (
+            "workerId" in currentMarketChat(chatId)
+            &&
+            currentMarketChat(chatId).workerId
+              == request.auth.uid
+          )
+
+          ||
+
+          (
+            "sellerId" in currentMarketChat(chatId)
+            &&
+            currentMarketChat(chatId).sellerId
+              == request.auth.uid
+          )
+        );
+    }
+
+    function isMarketChatOrderParticipant(chatId) {
+      return signedIn()
+        && marketOrderExists(chatId)
+        && isMarketOrderParticipant(chatId);
+    }
+
+
+    /* ============================================================
+       USERS
+    ============================================================ */
+
+    match /users/{userId} {
+
+      allow create:
+        if isOwner(userId);
+
+      allow read:
+        if isOwner(userId);
+
+      allow update:
+        if isOwner(userId);
+
+      allow delete:
+        if false;
+
+
+      /* ==========================================================
+         CUSTOMER NOTIFICATIONS
+      ========================================================== */
+
+      match /notifications/{notificationId} {
+
+        allow read:
+          if signedIn()
+          && request.auth.uid == userId;
+
+        allow create:
+          if false;
+
+        allow update:
+          if signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.diff(
+            resource.data
+          ).affectedKeys().hasOnly([
+            "read"
+          ])
+          && request.resource.data.read is bool;
+
+        allow delete:
+          if false;
+      }
+    }
+
+
+    /* ============================================================
+       WORKER PUBLIC PROFILES
+    ============================================================ */
+
+    match /workerPublicProfiles/{workerId} {
+
+      /*
+       * Public profile can be viewed by customers.
+       */
+      allow read:
+        if true;
+
+      /*
+       * Worker can create only his own profile.
+       */
+      allow create:
+        if isOwner(workerId);
+
+      /*
+       * Worker can update only his own profile.
+       */
+      allow update:
+        if isOwner(workerId);
+
+      /*
+       * Public profile cannot be deleted from client.
+       */
+      allow delete:
+        if false;
+    }
+
+
+    /* ============================================================
+       CATEGORIES
+    ============================================================ */
+
+    match /categories/{categoryId} {
+
+      allow read:
+        if true;
+
+      allow create, update, delete:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       SUBCATEGORIES
+    ============================================================ */
+
+    match /subcategories/{subcategoryId} {
+
+      allow read:
+        if true;
+
+      allow create, update, delete:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       SERVICES
+    ============================================================ */
+
+    match /services/{serviceId} {
+
+      allow read:
+        if true;
+
+      allow create, update, delete:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       PRODUCTS
+    ============================================================ */
+
+    match /products/{productId} {
+
+      allow read:
+        if true;
+
+      allow create, update, delete:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       PRODUCT DEALS
+    ============================================================ */
+
+    match /deals/{dealId} {
+
+      allow read:
+        if true;
+
+      allow create, update, delete:
+        if false;
+    }
+
+
+    /* ============================================================
+       SERVICE BOOKINGS
+    ============================================================ */
+
+    match /bookings/{bookingId} {
+
+      allow read:
+        if signedIn()
+        && (
+          resource.data.customerId
+            == request.auth.uid
+          ||
+          resource.data.workerId
+            == request.auth.uid
+        );
+
+
+      allow create:
+        if signedIn()
+        && request.resource.data.customerId
+          == request.auth.uid
+        && request.resource.data.status
+          == "pending"
+        && request.resource.data.offerStatus
+          == "none"
+        && request.resource.data.offerAmount
+          == null
+        && request.resource.data.agreedPrice
+          == null
+        && request.resource.data.counterOfferAmount
+          == null
+        && request.resource.data.counterOfferStatus
+          == "none"
+        && request.resource.data.negotiationStatus
+          == "none";
+
+
+      allow delete:
+        if false;
+
+
+      allow update:
+        if signedIn()
+        && bookingExists(bookingId)
+        && (
+
+          /* ======================================================
+             CUSTOMER
+          ====================================================== */
+
+          (
+            isBookingCustomer(bookingId)
+            && (
+
+              /* CUSTOMER ACCEPTS WORKER OFFER */
+
+              (
+                resource.data.offerStatus
+                  == "sent"
+                && request.resource.data.offerStatus
+                  == "accepted"
+                && request.resource.data.status
+                  == "accepted"
+                && request.resource.data.agreedPrice
+                  == resource.data.offerAmount
+                && request.resource.data.amount
+                  == resource.data.offerAmount
+                && request.resource.data.customerId
+                  == resource.data.customerId
+                && request.resource.data.workerId
+                  == resource.data.workerId
+              )
+
+              ||
+
+              /* CUSTOMER COUNTER OFFER */
+
+              (
+                resource.data.status
+                  == "pending"
+                && request.resource.data.status
+                  == "pending"
+                && request.resource.data.counterOfferBy
+                  == "customer"
+                && request.resource.data.counterOfferStatus
+                  == "sent"
+                && validOfferAmount(
+                  request.resource.data.counterOfferAmount
+                )
+                && validOfferMessage(
+                  request.resource.data.counterOfferMessage
+                )
+                && request.resource.data.agreedPrice
+                  == resource.data.agreedPrice
+                && request.resource.data.customerId
+                  == resource.data.customerId
+                && request.resource.data.workerId
+                  == resource.data.workerId
+                && request.resource.data.negotiationStatus
+                  == "negotiating"
+                && request.resource.data.offerRound
+                  == resource.data.offerRound + 1
+                && request.resource.data.counterOfferBy
+                  != resource.data.counterOfferBy
+              )
+
+              ||
+
+              /* CUSTOMER DECLINES WORKER OFFER */
+
+              (
+                resource.data.offerStatus
+                  == "sent"
+                && request.resource.data.status
+                  == "cancelled"
+                && request.resource.data.offerStatus
+                  == "declined"
+                && request.resource.data.cancelledBy
+                  == "customer"
+              )
+
+              ||
+
+              /* CUSTOMER DECLINES WORKER COUNTER */
+
+              (
+                resource.data.counterOfferStatus
+                  == "sent"
+                && resource.data.counterOfferBy
+                  == "worker"
+                && request.resource.data.status
+                  == "cancelled"
+                && request.resource.data.counterOfferStatus
+                  == "declined"
+                && request.resource.data.cancelledBy
+                  == "customer"
+              )
+            )
+          )
+
+          ||
+
+          /* ======================================================
+             WORKER
+          ====================================================== */
+
+          (
+            isBookingWorker(bookingId)
+            && (
+
+              /* WORKER INITIAL OFFER */
+
+              (
+                resource.data.status
+                  == "pending"
+                && resource.data.offerStatus
+                  == "none"
+                && request.resource.data.status
+                  == "pending"
+                && request.resource.data.offerStatus
+                  == "sent"
+                && validOfferAmount(
+                  request.resource.data.offerAmount
+                )
+                && validOfferMessage(
+                  request.resource.data.offerMessage
+                )
+                && request.resource.data.offerWorkerId
+                  == request.auth.uid
+                && request.resource.data.customerId
+                  == resource.data.customerId
+                && request.resource.data.workerId
+                  == request.auth.uid
+                && request.resource.data.agreedPrice
+                  == resource.data.agreedPrice
+                && request.resource.data.negotiationStatus
+                  == "negotiating"
+                && request.resource.data.counterOfferStatus
+                  == "none"
+              )
+
+              ||
+
+              /* WORKER ACCEPTS CUSTOMER COUNTER */
+
+              (
+                resource.data.counterOfferStatus
+                  == "sent"
+                && resource.data.counterOfferBy
+                  == "customer"
+                && request.resource.data.status
+                  == "accepted"
+                && request.resource.data.offerStatus
+                  == "accepted"
+                && request.resource.data.counterOfferStatus
+                  == "accepted"
+                && request.resource.data.agreedPrice
+                  == resource.data.counterOfferAmount
+                && request.resource.data.amount
+                  == resource.data.counterOfferAmount
+                && request.resource.data.customerId
+                  == resource.data.customerId
+                && request.resource.data.workerId
+                  == resource.data.workerId
+              )
+
+              ||
+
+              /* WORKER COUNTER OFFER */
+
+              (
+                resource.data.status
+                  == "pending"
+                && resource.data.counterOfferStatus
+                  == "sent"
+                && resource.data.counterOfferBy
+                  == "customer"
+                && request.resource.data.status
+                  == "pending"
+                && request.resource.data.counterOfferBy
+                  == "worker"
+                && request.resource.data.counterOfferStatus
+                  == "sent"
+                && validOfferAmount(
+                  request.resource.data.counterOfferAmount
+                )
+                && validOfferMessage(
+                  request.resource.data.counterOfferMessage
+                )
+                && request.resource.data.customerId
+                  == resource.data.customerId
+                && request.resource.data.workerId
+                  == request.auth.uid
+                && request.resource.data.agreedPrice
+                  == resource.data.agreedPrice
+                && request.resource.data.negotiationStatus
+                  == "negotiating"
+                && request.resource.data.offerRound
+                  == resource.data.offerRound + 1
+              )
+
+              ||
+
+              /* WORKER DECLINES CUSTOMER COUNTER */
+
+              (
+                resource.data.counterOfferStatus
+                  == "sent"
+                && resource.data.counterOfferBy
+                  == "customer"
+                && request.resource.data.status
+                  == "cancelled"
+                && request.resource.data.counterOfferStatus
+                  == "declined"
+                && request.resource.data.cancelledBy
+                  == "worker"
+              )
+            )
+          )
+
+          ||
+
+          /* WORKER STARTS SERVICE */
+
+          (
+            isBookingWorker(bookingId)
+            && resource.data.status
+              == "accepted"
+            && request.resource.data.status
+              == "in-progress"
+            && request.resource.data.agreedPrice
+              == resource.data.agreedPrice
+          )
+
+          ||
+
+          /* WORKER COMPLETES SERVICE */
+
+          (
+            isBookingWorker(bookingId)
+            && resource.data.status
+              == "in-progress"
+            && request.resource.data.status
+              == "completed"
+            && request.resource.data.agreedPrice
+              == resource.data.agreedPrice
+          )
+        );
+    }
+
+
+    /* ============================================================
+       MARKET ORDERS
+    ============================================================ */
+
+    match /orders/{orderId} {
+
+      allow read:
+        if signedIn()
+        && (
+          resource.data.customerId
+            == request.auth.uid
+          ||
+          resource.data.workerId
+            == request.auth.uid
+          ||
+          resource.data.sellerId
+            == request.auth.uid
+        );
+
+
+      allow create:
+        if signedIn()
+        && (
+          request.resource.data.customerId
+            == request.auth.uid
+          ||
+          request.resource.data.workerId
+            == request.auth.uid
+          ||
+          request.resource.data.sellerId
+            == request.auth.uid
+        );
+
+
+      allow update:
+        if signedIn()
+        && (
+          resource.data.customerId
+            == request.auth.uid
+          ||
+          resource.data.workerId
+            == request.auth.uid
+          ||
+          resource.data.sellerId
+            == request.auth.uid
+        )
+        && request.resource.data.customerId
+          == resource.data.customerId
+        && request.resource.data.workerId
+          == resource.data.workerId
+        && request.resource.data.sellerId
+          == resource.data.sellerId;
+
+
+      allow delete:
+        if false;
+    }
+
+
+    /* ============================================================
+       MARKET CHATS
+    ============================================================ */
+
+    match /marketChats/{chatId} {
+
+      allow create:
+        if signedIn()
+        && request.resource.data.orderId
+          is string
+        && request.resource.data.orderId
+          != ""
+        && marketOrderExists(
+          request.resource.data.orderId
+        )
+        && isMarketOrderParticipant(
+          request.resource.data.orderId
+        )
+        && request.resource.data.customerId
+          == currentMarketOrder(
+            request.resource.data.orderId
+          ).customerId
+
+        && (
+          !("workerId" in request.resource.data)
+          ||
+          (
+            "workerId" in currentMarketOrder(
+              request.resource.data.orderId
+            )
+            &&
+            request.resource.data.workerId
+              == currentMarketOrder(
+                request.resource.data.orderId
+              ).workerId
+          )
+        )
+
+        && (
+          !("sellerId" in request.resource.data)
+          ||
+          (
+            "sellerId" in currentMarketOrder(
+              request.resource.data.orderId
+            )
+            &&
+            request.resource.data.sellerId
+              == currentMarketOrder(
+                request.resource.data.orderId
+              ).sellerId
+          )
+        );
+
+
+      allow read:
+        if isMarketChatParticipant(chatId)
+        || isMarketChatOrderParticipant(chatId);
+
+
+      allow update:
+        if isMarketChatParticipant(chatId)
+        && request.resource.data.orderId
+          == resource.data.orderId
+        && request.resource.data.customerId
+          == resource.data.customerId
+
+        && (
+          !("workerId" in resource.data)
+          ||
+          (
+            "workerId" in request.resource.data
+            &&
+            request.resource.data.workerId
+              == resource.data.workerId
+          )
+        )
+
+        && (
+          !("sellerId" in resource.data)
+          ||
+          (
+            "sellerId" in request.resource.data
+            &&
+            request.resource.data.sellerId
+              == resource.data.sellerId
+          )
+        )
+
+        && request.resource.data.diff(
+          resource.data
+        ).affectedKeys().hasOnly([
+          "updatedAt",
+          "lastMessage",
+          "lastMessageSenderId",
+          "lastMessageSenderRole"
+        ])
+
+        && request.resource.data.lastMessageSenderId
+          == request.auth.uid
+
+        && (
+          (
+            request.resource.data.lastMessageSenderRole
+              == "customer"
+            &&
+            resource.data.customerId
+              == request.auth.uid
+          )
+
+          ||
+
+          (
+            request.resource.data.lastMessageSenderRole
+              == "worker"
+            &&
+            resource.data.workerId
+              == request.auth.uid
+          )
+
+          ||
+
+          (
+            request.resource.data.lastMessageSenderRole
+              == "seller"
+            &&
+            resource.data.sellerId
+              == request.auth.uid
+          )
+        );
+
+
+      allow delete:
+        if false;
+
+
+      /* ==========================================================
+         MARKET CHAT MESSAGES
+      ========================================================== */
+
+      match /messages/{messageId} {
+
+        allow read:
+          if isMarketChatOrderParticipant(chatId)
+          || isMarketChatParticipant(chatId);
+
+
+        allow create:
+          if signedIn()
+
+          && (
+            isMarketChatOrderParticipant(chatId)
+            || isMarketChatParticipant(chatId)
+          )
+
+          && request.resource.data.senderId
+            == request.auth.uid
+
+          && request.resource.data.text
+            is string
+
+          && request.resource.data.text.size()
+            > 0
+
+          && request.resource.data.text.size()
+            <= 1000
+
+          && request.resource.data.senderRole
+            in [
+              "customer",
+              "worker",
+              "seller"
+            ]
+
+          && (
+
+            /* CUSTOMER */
+
+            (
+              request.resource.data.senderRole
+                == "customer"
+
+              && (
+                (
+                  marketOrderExists(chatId)
+                  && currentMarketOrder(chatId).customerId
+                    == request.auth.uid
+                )
+
+                ||
+
+                (
+                  marketChatExists(chatId)
+                  && "customerId"
+                    in currentMarketChat(chatId)
+                  && currentMarketChat(chatId).customerId
+                    == request.auth.uid
+                )
+              )
+            )
+
+            ||
+
+            /* WORKER */
+
+            (
+              request.resource.data.senderRole
+                == "worker"
+
+              && (
+                (
+                  marketOrderExists(chatId)
+                  && "workerId"
+                    in currentMarketOrder(chatId)
+                  && currentMarketOrder(chatId).workerId
+                    == request.auth.uid
+                )
+
+                ||
+
+                (
+                  marketChatExists(chatId)
+                  && "workerId"
+                    in currentMarketChat(chatId)
+                  && currentMarketChat(chatId).workerId
+                    == request.auth.uid
+                )
+              )
+            )
+
+            ||
+
+            /* SELLER */
+
+            (
+              request.resource.data.senderRole
+                == "seller"
+
+              && (
+                (
+                  marketOrderExists(chatId)
+                  && "sellerId"
+                    in currentMarketOrder(chatId)
+                  && currentMarketOrder(chatId).sellerId
+                    == request.auth.uid
+                )
+
+                ||
+
+                (
+                  marketChatExists(chatId)
+                  && "sellerId"
+                    in currentMarketChat(chatId)
+                  && currentMarketChat(chatId).sellerId
+                    == request.auth.uid
+                )
+              )
+            )
+          )
+
+          && request.resource.data.createdAt
+            == request.time;
+
+
+        allow update:
+          if false;
+
+
+        allow delete:
+          if signedIn()
+          && (
+            isMarketChatOrderParticipant(chatId)
+            || isMarketChatParticipant(chatId)
+          )
+          && resource.data.senderId
+            == request.auth.uid;
+      }
+    }
+
+
+    /* ============================================================
+       FAVORITES
+    ============================================================ */
+
+    match /favorites/{favoriteId} {
+
+      allow read, write:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       RECENTLY VIEWED
+    ============================================================ */
+
+    match /recentlyViewed/{documentId} {
+
+      allow read, write:
+        if signedIn();
+    }
+
+
+    /* ============================================================
+       DEFAULT DENY
+    ============================================================ */
+
+    match /{document=**} {
+
+      allow read, write:
+        if false;
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[
+  { "id": "music-recording", "name": "Music Recording" },
+  { "id": "audio-mixing", "name": "Audio Mixing" },
+  { "id": "audio-mastering", "name": "Audio Mastering" },
+  { "id": "beat-production", "name": "Beat Production" },
+  { "id": "songwriting", "name": "Songwriting" },
+  { "id": "voice-over-recording", "name": "Voice Over Recording" },
+  { "id": "podcast-production", "name": "Podcast Production" },
+  { "id": "jingle-production", "name": "Jingle Production" },
+  { "id": "music-video-audio", "name": "Music Video Audio Production" },
+  { "id": "studio-session", "name": "Studio Session" },
+  { "id": "music-consultation", "name": "Music Consultation" }
+]

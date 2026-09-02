@@ -1,0 +1,82 @@
+[
+  {
+    "id": "wedding-dj",
+    "name": "Wedding DJ"
+  },
+  {
+    "id": "birthday-party-dj",
+    "name": "Birthday Party DJ"
+  },
+  {
+    "id": "corporate-event-dj",
+    "name": "Corporate Event DJ"
+  },
+  {
+    "id": "club-dj",
+    "name": "Club DJ"
+  },
+  {
+    "id": "house-party-dj",
+    "name": "House Party DJ"
+  },
+  {
+    "id": "concert-dj",
+    "name": "Concert DJ"
+  },
+  {
+    "id": "event-sound-management",
+    "name": "Event Sound Management"
+  },
+  {
+    "id": "music-mixing",
+    "name": "Music Mixing"
+  },
+  {
+    "id": "live-dj-performance",
+    "name": "Live DJ Performance"
+  },
+  {
+    "id": "event-playlist-curation",
+    "name": "Event Playlist Curation"
+  },
+  {
+    "id": "sound-equipment-rental",
+    "name": "Sound Equipment Rental"
+  },
+  {
+    "id": "pa-system-setup",
+    "name": "PA System Setup"
+  },
+  {
+    "id": "lighting-and-sound-setup",
+    "name": "Lighting and Sound Setup"
+  },
+  {
+    "id": "master-of-ceremony-support",
+    "name": "Master of Ceremony Support"
+  },
+  {
+    "id": "traditional-event-dj",
+    "name": "Traditional Event DJ"
+  },
+  {
+    "id": "engagement-party-dj",
+    "name": "Engagement Party DJ"
+  },
+  {
+    "id": "school-event-dj",
+    "name": "School Event DJ"
+  },
+  {
+    "id": "religious-event-sound",
+    "name": "Religious Event Sound"
+  },
+  {
+    "id": "karaoke-services",
+    "name": "Karaoke Services"
+  },
+  {
+    "id": "mobile-dj-services",
+    "name": "Mobile DJ Services"
+  }
+]

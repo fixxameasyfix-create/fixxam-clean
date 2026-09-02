@@ -1,0 +1,14 @@
+[
+  { "id": "digital-printing", "name": "Digital Printing" },
+  { "id": "banner-printing", "name": "Banner Printing" },
+  { "id": "flex-printing", "name": "Flex Printing" },
+  { "id": "business-card-printing", "name": "Business Card Printing" },
+  { "id": "flyer-printing", "name": "Flyer Printing" },
+  { "id": "brochure-printing", "name": "Brochure Printing" },
+  { "id": "book-printing", "name": "Book Printing" },
+  { "id": "tshirt-printing", "name": "T-Shirt Printing" },
+  { "id": "mug-printing", "name": "Mug Printing" },
+  { "id": "sticker-printing", "name": "Sticker Printing" },
+  { "id": "large-format-printing", "name": "Large Format Printing" },
+  { "id": "printing-consultation", "name": "Printing Consultation" }
+]

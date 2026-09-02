@@ -1,0 +1,22 @@
+[
+  { "id": "wedding-decoration", "name": "Wedding Decoration" },
+  { "id": "traditional-wedding-decoration", "name": "Traditional Wedding Decoration" },
+  { "id": "engagement-decoration", "name": "Engagement Decoration" },
+  { "id": "birthday-decoration", "name": "Birthday Decoration" },
+  { "id": "corporate-event-decoration", "name": "Corporate Event Decoration" },
+  { "id": "conference-decoration", "name": "Conference Decoration" },
+  { "id": "stage-decoration", "name": "Stage Decoration" },
+  { "id": "hall-decoration", "name": "Hall Decoration" },
+  { "id": "outdoor-event-decoration", "name": "Outdoor Event Decoration" },
+  { "id": "indoor-event-decoration", "name": "Indoor Event Decoration" },
+  { "id": "balloon-decoration", "name": "Balloon Decoration" },
+  { "id": "flower-decoration", "name": "Flower Decoration" },
+  { "id": "artificial-flower-decoration", "name": "Artificial Flower Decoration" },
+  { "id": "table-decoration", "name": "Table Decoration" },
+  { "id": "chair-decoration", "name": "Chair Decoration" },
+  { "id": "backdrop-decoration", "name": "Backdrop Decoration" },
+  { "id": "entrance-decoration", "name": "Entrance Decoration" },
+  { "id": "tent-decoration", "name": "Tent Decoration" },
+  { "id": "lighting-decoration", "name": "Lighting Decoration" },
+  { "id": "event-decoration-consultation", "name": "Event Decoration Consultation" }
+]

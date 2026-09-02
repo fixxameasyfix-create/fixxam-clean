@@ -1,0 +1,107 @@
+import React from "react";
+
+import ProfileSection
+from "@/components/profile/shared/ProfileSection";
+
+import ProfileMenuItem
+from "@/components/profile/shared/ProfileMenuItem";
+
+type Props = {
+
+  onOrders?: () => void;
+
+  onSaved?: () => void;
+
+  onAddresses?: () => void;
+
+  onPayments?: () => void;
+
+  onNotifications?: () => void;
+
+  onReviews?: () => void;
+
+  onSupport?: () => void;
+
+  onSettings?: () => void;
+
+};
+
+export default function CustomerMenu({
+
+  onOrders,
+
+  onSaved,
+
+  onAddresses,
+
+  onPayments,
+
+  onNotifications,
+
+  onReviews,
+
+  onSupport,
+
+  onSettings,
+
+}: Props) {
+
+  return (
+
+    <ProfileSection
+      title="Account"
+    >
+
+      <ProfileMenuItem
+        title="Orders"
+        icon="document-text-outline"
+        onPress={onOrders}
+      />
+
+      <ProfileMenuItem
+        title="Saved"
+        icon="heart-outline"
+        onPress={onSaved}
+      />
+
+      <ProfileMenuItem
+        title="Addresses"
+        icon="location-outline"
+        onPress={onAddresses}
+      />
+
+      <ProfileMenuItem
+        title="Payment Methods"
+        icon="card-outline"
+        onPress={onPayments}
+      />
+
+      <ProfileMenuItem
+        title="Notifications"
+        icon="notifications-outline"
+        onPress={onNotifications}
+      />
+
+      <ProfileMenuItem
+        title="Reviews"
+        icon="star-outline"
+        onPress={onReviews}
+      />
+
+      <ProfileMenuItem
+        title="Help & Support"
+        icon="help-circle-outline"
+        onPress={onSupport}
+      />
+
+      <ProfileMenuItem
+        title="Settings"
+        icon="settings-outline"
+        onPress={onSettings}
+      />
+
+    </ProfileSection>
+
+  );
+
+}

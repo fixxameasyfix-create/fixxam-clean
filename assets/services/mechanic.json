@@ -1,0 +1,70 @@
+[
+  {
+    "id": "general-auto-repair",
+    "name": "General Auto Repair"
+  },
+  {
+    "id": "engine-repair",
+    "name": "Engine Repair"
+  },
+  {
+    "id": "engine-overhaul",
+    "name": "Engine Overhaul"
+  },
+  {
+    "id": "gearbox-repair",
+    "name": "Gearbox Repair"
+  },
+  {
+    "id": "clutch-repair",
+    "name": "Clutch Repair"
+  },
+  {
+    "id": "brake-repair",
+    "name": "Brake Repair"
+  },
+  {
+    "id": "suspension-repair",
+    "name": "Suspension Repair"
+  },
+  {
+    "id": "steering-repair",
+    "name": "Steering Repair"
+  },
+  {
+    "id": "oil-change",
+    "name": "Oil Change"
+  },
+  {
+    "id": "vehicle-servicing",
+    "name": "Vehicle Servicing"
+  },
+  {
+    "id": "vehicle-diagnostics",
+    "name": "Vehicle Diagnostics"
+  },
+  {
+    "id": "radiator-repair",
+    "name": "Radiator Repair"
+  },
+  {
+    "id": "fuel-system-repair",
+    "name": "Fuel System Repair"
+  },
+  {
+    "id": "exhaust-system-repair",
+    "name": "Exhaust System Repair"
+  },
+  {
+    "id": "truck-repair",
+    "name": "Truck Repair"
+  },
+  {
+    "id": "motorcycle-repair",
+    "name": "Motorcycle Repair"
+  },
+  {
+    "id": "mechanic-consultation",
+    "name": "Mechanic Consultation"
+  }
+]

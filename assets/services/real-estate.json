@@ -1,0 +1,12 @@
+[
+  { "id": "property-sales", "name": "Property Sales" },
+  { "id": "property-rental", "name": "Property Rental" },
+  { "id": "property-management", "name": "Property Management" },
+  { "id": "property-valuation", "name": "Property Valuation" },
+  { "id": "real-estate-consultation", "name": "Real Estate Consultation" },
+  { "id": "land-sales", "name": "Land Sales" },
+  { "id": "commercial-property-leasing", "name": "Commercial Property Leasing" },
+  { "id": "facility-management", "name": "Facility Management" },
+  { "id": "property-inspection", "name": "Property Inspection" },
+  { "id": "real-estate-investment-advisory", "name": "Real Estate Investment Advisory" }
+]

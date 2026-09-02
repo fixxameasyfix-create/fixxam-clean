@@ -1,0 +1,90 @@
+[
+  {
+    "id": "security-guard-service",
+    "name": "Security Guard Service"
+  },
+  {
+    "id": "armed-security-guard",
+    "name": "Armed Security Guard"
+  },
+  {
+    "id": "unarmed-security-guard",
+    "name": "Unarmed Security Guard"
+  },
+  {
+    "id": "residential-security",
+    "name": "Residential Security"
+  },
+  {
+    "id": "estate-security",
+    "name": "Estate Security"
+  },
+  {
+    "id": "office-security",
+    "name": "Office Security"
+  },
+  {
+    "id": "corporate-security",
+    "name": "Corporate Security"
+  },
+  {
+    "id": "warehouse-security",
+    "name": "Warehouse Security"
+  },
+  {
+    "id": "retail-store-security",
+    "name": "Retail Store Security"
+  },
+  {
+    "id": "bank-security",
+    "name": "Bank Security"
+  },
+  {
+    "id": "hotel-security",
+    "name": "Hotel Security"
+  },
+  {
+    "id": "event-security",
+    "name": "Event Security"
+  },
+  {
+    "id": "vip-protection",
+    "name": "VIP Protection"
+  },
+  {
+    "id": "bodyguard-service",
+    "name": "Bodyguard Service"
+  },
+  {
+    "id": "crowd-control",
+    "name": "Crowd Control"
+  },
+  {
+    "id": "access-control-service",
+    "name": "Access Control Service"
+  },
+  {
+    "id": "gatehouse-security",
+    "name": "Gatehouse Security"
+  },
+  {
+    "id": "patrol-security",
+    "name": "Patrol Security"
+  },
+  {
+    "id": "night-watch-service",
+    "name": "Night Watch Service"
+  },
+  {
+    "id": "security-supervisor",
+    "name": "Security Supervisor"
+  },
+  {
+    "id": "security-risk-assessment",
+    "name": "Security Risk Assessment"
+  },
+  {
+    "id": "security-consultation",
+    "name": "Security Consultation"
+  }
+]

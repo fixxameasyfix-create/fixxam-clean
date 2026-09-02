@@ -1,0 +1,82 @@
+[
+  {
+    "id": "same-day-delivery",
+    "name": "Same Day Delivery"
+  },
+  {
+    "id": "next-day-delivery",
+    "name": "Next Day Delivery"
+  },
+  {
+    "id": "express-courier",
+    "name": "Express Courier"
+  },
+  {
+    "id": "document-delivery",
+    "name": "Document Delivery"
+  },
+  {
+    "id": "parcel-delivery",
+    "name": "Parcel Delivery"
+  },
+  {
+    "id": "package-delivery",
+    "name": "Package Delivery"
+  },
+  {
+    "id": "business-courier-service",
+    "name": "Business Courier Service"
+  },
+  {
+    "id": "ecommerce-delivery",
+    "name": "E-commerce Delivery"
+  },
+  {
+    "id": "pickup-service",
+    "name": "Pickup Service"
+  },
+  {
+    "id": "door-to-door-delivery",
+    "name": "Door to Door Delivery"
+  },
+  {
+    "id": "food-delivery",
+    "name": "Food Delivery"
+  },
+  {
+    "id": "pharmacy-delivery",
+    "name": "Pharmacy Delivery"
+  },
+  {
+    "id": "grocery-delivery",
+    "name": "Grocery Delivery"
+  },
+  {
+    "id": "interstate-delivery",
+    "name": "Interstate Delivery"
+  },
+  {
+    "id": "local-delivery",
+    "name": "Local Delivery"
+  },
+  {
+    "id": "bulk-delivery",
+    "name": "Bulk Delivery"
+  },
+  {
+    "id": "fragile-item-delivery",
+    "name": "Fragile Item Delivery"
+  },
+  {
+    "id": "scheduled-delivery",
+    "name": "Scheduled Delivery"
+  },
+  {
+    "id": "courier-tracking-service",
+    "name": "Courier Tracking Service"
+  },
+  {
+    "id": "logistics-support",
+    "name": "Logistics Support"
+  }
+]

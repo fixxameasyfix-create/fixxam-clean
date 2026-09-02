@@ -1,0 +1,82 @@
+[
+  {
+    "id": "same-day-delivery",
+    "name": "Same Day Delivery"
+  },
+  {
+    "id": "express-delivery",
+    "name": "Express Delivery"
+  },
+  {
+    "id": "door-to-door-delivery",
+    "name": "Door to Door Delivery"
+  },
+  {
+    "id": "food-delivery",
+    "name": "Food Delivery"
+  },
+  {
+    "id": "grocery-delivery",
+    "name": "Grocery Delivery"
+  },
+  {
+    "id": "pharmacy-delivery",
+    "name": "Pharmacy Delivery"
+  },
+  {
+    "id": "parcel-delivery",
+    "name": "Parcel Delivery"
+  },
+  {
+    "id": "package-delivery",
+    "name": "Package Delivery"
+  },
+  {
+    "id": "document-delivery",
+    "name": "Document Delivery"
+  },
+  {
+    "id": "interstate-delivery",
+    "name": "Interstate Delivery"
+  },
+  {
+    "id": "local-delivery",
+    "name": "Local Delivery"
+  },
+  {
+    "id": "scheduled-delivery",
+    "name": "Scheduled Delivery"
+  },
+  {
+    "id": "business-delivery-service",
+    "name": "Business Delivery Service"
+  },
+  {
+    "id": "ecommerce-delivery",
+    "name": "E-commerce Delivery"
+  },
+  {
+    "id": "pickup-and-delivery",
+    "name": "Pickup and Delivery"
+  },
+  {
+    "id": "bulk-item-delivery",
+    "name": "Bulk Item Delivery"
+  },
+  {
+    "id": "fragile-item-delivery",
+    "name": "Fragile Item Delivery"
+  },
+  {
+    "id": "furniture-delivery",
+    "name": "Furniture Delivery"
+  },
+  {
+    "id": "appliance-delivery",
+    "name": "Appliance Delivery"
+  },
+  {
+    "id": "last-mile-delivery",
+    "name": "Last Mile Delivery"
+  }
+]

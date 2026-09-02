@@ -1,0 +1,82 @@
+[
+  {
+    "id": "desktop-repair",
+    "name": "Desktop Repair"
+  },
+  {
+    "id": "laptop-repair",
+    "name": "Laptop Repair"
+  },
+  {
+    "id": "motherboard-repair",
+    "name": "Motherboard Repair"
+  },
+  {
+    "id": "screen-replacement",
+    "name": "Screen Replacement"
+  },
+  {
+    "id": "keyboard-repair",
+    "name": "Keyboard Repair"
+  },
+  {
+    "id": "battery-replacement",
+    "name": "Battery Replacement"
+  },
+  {
+    "id": "hard-drive-replacement",
+    "name": "Hard Drive Replacement"
+  },
+  {
+    "id": "ssd-upgrade",
+    "name": "SSD Upgrade"
+  },
+  {
+    "id": "ram-upgrade",
+    "name": "RAM Upgrade"
+  },
+  {
+    "id": "operating-system-installation",
+    "name": "Operating System Installation"
+  },
+  {
+    "id": "windows-installation",
+    "name": "Windows Installation"
+  },
+  {
+    "id": "software-installation",
+    "name": "Software Installation"
+  },
+  {
+    "id": "virus-removal",
+    "name": "Virus Removal"
+  },
+  {
+    "id": "data-recovery",
+    "name": "Data Recovery"
+  },
+  {
+    "id": "computer-network-setup",
+    "name": "Computer Network Setup"
+  },
+  {
+    "id": "printer-installation",
+    "name": "Printer Installation"
+  },
+  {
+    "id": "printer-repair",
+    "name": "Printer Repair"
+  },
+  {
+    "id": "computer-maintenance",
+    "name": "Computer Maintenance"
+  },
+  {
+    "id": "it-support",
+    "name": "IT Support"
+  },
+  {
+    "id": "computer-consultation",
+    "name": "Computer Consultation"
+  }
+]

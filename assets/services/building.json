@@ -1,0 +1,122 @@
+[
+  {
+    "id": "building-construction",
+    "name": "Building Construction"
+  },
+  {
+    "id": "residential-building-construction",
+    "name": "Residential Building Construction"
+  },
+  {
+    "id": "commercial-building-construction",
+    "name": "Commercial Building Construction"
+  },
+  {
+    "id": "foundation-construction",
+    "name": "Foundation Construction"
+  },
+  {
+    "id": "excavation-work",
+    "name": "Excavation Work"
+  },
+  {
+    "id": "site-preparation",
+    "name": "Site Preparation"
+  },
+  {
+    "id": "block-laying",
+    "name": "Block Laying"
+  },
+  {
+    "id": "bricklaying",
+    "name": "Bricklaying"
+  },
+  {
+    "id": "lintel-construction",
+    "name": "Lintel Construction"
+  },
+  {
+    "id": "column-construction",
+    "name": "Column Construction"
+  },
+  {
+    "id": "beam-construction",
+    "name": "Beam Construction"
+  },
+  {
+    "id": "decking-work",
+    "name": "Decking Work"
+  },
+  {
+    "id": "concrete-casting",
+    "name": "Concrete Casting"
+  },
+  {
+    "id": "plastering",
+    "name": "Plastering"
+  },
+  {
+    "id": "rendering",
+    "name": "Rendering"
+  },
+  {
+    "id": "screeding",
+    "name": "Screeding"
+  },
+  {
+    "id": "roof-framing",
+    "name": "Roof Framing"
+  },
+  {
+    "id": "roof-installation",
+    "name": "Roof Installation"
+  },
+  {
+    "id": "staircase-construction",
+    "name": "Staircase Construction"
+  },
+  {
+    "id": "balcony-construction",
+    "name": "Balcony Construction"
+  },
+  {
+    "id": "building-renovation",
+    "name": "Building Renovation"
+  },
+  {
+    "id": "building-remodeling",
+    "name": "Building Remodeling"
+  },
+  {
+    "id": "building-extension",
+    "name": "Building Extension"
+  },
+  {
+    "id": "structural-repair",
+    "name": "Structural Repair"
+  },
+  {
+    "id": "crack-repair",
+    "name": "Crack Repair"
+  },
+  {
+    "id": "retaining-wall-construction",
+    "name": "Retaining Wall Construction"
+  },
+  {
+    "id": "perimeter-wall-construction",
+    "name": "Perimeter Wall Construction"
+  },
+  {
+    "id": "building-maintenance",
+    "name": "Building Maintenance"
+  },
+  {
+    "id": "building-inspection",
+    "name": "Building Inspection"
+  },
+  {
+    "id": "building-consultation",
+    "name": "Building Consultation"
+  }
+]

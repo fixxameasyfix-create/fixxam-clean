@@ -1,0 +1,14 @@
+[
+  { "id": "cattle-farming", "name": "Cattle Farming" },
+  { "id": "goat-farming", "name": "Goat Farming" },
+  { "id": "sheep-farming", "name": "Sheep Farming" },
+  { "id": "poultry-farming", "name": "Poultry Farming" },
+  { "id": "pig-farming", "name": "Pig Farming" },
+  { "id": "rabbit-farming", "name": "Rabbit Farming" },
+  { "id": "animal-feed-supply", "name": "Animal Feed Supply" },
+  { "id": "livestock-vaccination", "name": "Livestock Vaccination" },
+  { "id": "animal-health-management", "name": "Animal Health Management" },
+  { "id": "livestock-breeding", "name": "Livestock Breeding" },
+  { "id": "farm-management", "name": "Farm Management" },
+  { "id": "livestock-consultation", "name": "Livestock Consultation" }
+]

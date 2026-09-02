@@ -1,0 +1,15 @@
+[
+  { "id": "legal-consultation", "name": "Legal Consultation" },
+  { "id": "contract-drafting", "name": "Contract Drafting" },
+  { "id": "notary-services", "name": "Notary Services" },
+  { "id": "property-law-services", "name": "Property Law Services" },
+  { "id": "corporate-law-services", "name": "Corporate Law Services" },
+  { "id": "employment-law-services", "name": "Employment Law Services" },
+  { "id": "family-law-services", "name": "Family Law Services" },
+  { "id": "immigration-law-services", "name": "Immigration Law Services" },
+  { "id": "legal-document-review", "name": "Legal Document Review" },
+  { "id": "business-registration-support", "name": "Business Registration Support" },
+  { "id": "compliance-services", "name": "Compliance Services" },
+  { "id": "legal-representation", "name": "Legal Representation" },
+  { "id": "legal-advisory-services", "name": "Legal Advisory Services" }
+]

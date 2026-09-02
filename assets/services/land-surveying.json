@@ -1,0 +1,14 @@
+[
+  { "id": "land-survey", "name": "Land Survey" },
+  { "id": "property-boundary-survey", "name": "Property Boundary Survey" },
+  { "id": "topographic-survey", "name": "Topographic Survey" },
+  { "id": "construction-survey", "name": "Construction Survey" },
+  { "id": "engineering-survey", "name": "Engineering Survey" },
+  { "id": "site-mapping", "name": "Site Mapping" },
+  { "id": "gps-surveying", "name": "GPS Surveying" },
+  { "id": "geospatial-mapping", "name": "Geospatial Mapping" },
+  { "id": "land-documentation", "name": "Land Documentation" },
+  { "id": "survey-plan-preparation", "name": "Survey Plan Preparation" },
+  { "id": "land-demarcation", "name": "Land Demarcation" },
+  { "id": "survey-consultation", "name": "Survey Consultation" }
+]

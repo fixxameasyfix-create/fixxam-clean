@@ -1,0 +1,16 @@
+android
+ios
+node_modules
+.git
+.expo
+.vscode
+*.log
+*.tmp
+Thumbs.db
+desktop.ini
+agents
+agents/
+.claude
+.claude/
+.agents
+.agents/

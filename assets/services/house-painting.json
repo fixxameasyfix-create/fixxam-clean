@@ -1,0 +1,62 @@
+[
+  {
+    "id": "interior-painting",
+    "name": "Interior Painting"
+  },
+  {
+    "id": "exterior-painting",
+    "name": "Exterior Painting"
+  },
+  {
+    "id": "residential-painting",
+    "name": "Residential Painting"
+  },
+  {
+    "id": "commercial-painting",
+    "name": "Commercial Painting"
+  },
+  {
+    "id": "office-painting",
+    "name": "Office Painting"
+  },
+  {
+    "id": "wall-painting",
+    "name": "Wall Painting"
+  },
+  {
+    "id": "ceiling-painting",
+    "name": "Ceiling Painting"
+  },
+  {
+    "id": "decorative-painting",
+    "name": "Decorative Painting"
+  },
+  {
+    "id": "texture-painting",
+    "name": "Texture Painting"
+  },
+  {
+    "id": "spray-painting",
+    "name": "Spray Painting"
+  },
+  {
+    "id": "building-repainting",
+    "name": "Building Repainting"
+  },
+  {
+    "id": "surface-preparation",
+    "name": "Surface Preparation"
+  },
+  {
+    "id": "wall-scraping",
+    "name": "Wall Scraping"
+  },
+  {
+    "id": "wall-putty-application",
+    "name": "Wall Putty Application"
+  },
+  {
+    "id": "paint-consultation",
+    "name": "Paint Consultation"
+  }
+]

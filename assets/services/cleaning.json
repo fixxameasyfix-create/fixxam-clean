@@ -1,0 +1,82 @@
+[
+  {
+    "id": "house-cleaning",
+    "name": "House Cleaning"
+  },
+  {
+    "id": "deep-house-cleaning",
+    "name": "Deep House Cleaning"
+  },
+  {
+    "id": "apartment-cleaning",
+    "name": "Apartment Cleaning"
+  },
+  {
+    "id": "office-cleaning",
+    "name": "Office Cleaning"
+  },
+  {
+    "id": "commercial-cleaning",
+    "name": "Commercial Cleaning"
+  },
+  {
+    "id": "post-construction-cleaning",
+    "name": "Post Construction Cleaning"
+  },
+  {
+    "id": "move-in-cleaning",
+    "name": "Move In Cleaning"
+  },
+  {
+    "id": "move-out-cleaning",
+    "name": "Move Out Cleaning"
+  },
+  {
+    "id": "window-cleaning",
+    "name": "Window Cleaning"
+  },
+  {
+    "id": "glass-cleaning",
+    "name": "Glass Cleaning"
+  },
+  {
+    "id": "carpet-cleaning",
+    "name": "Carpet Cleaning"
+  },
+  {
+    "id": "rug-cleaning",
+    "name": "Rug Cleaning"
+  },
+  {
+    "id": "sofa-cleaning",
+    "name": "Sofa Cleaning"
+  },
+  {
+    "id": "mattress-cleaning",
+    "name": "Mattress Cleaning"
+  },
+  {
+    "id": "kitchen-cleaning",
+    "name": "Kitchen Cleaning"
+  },
+  {
+    "id": "bathroom-cleaning",
+    "name": "Bathroom Cleaning"
+  },
+  {
+    "id": "water-tank-cleaning",
+    "name": "Water Tank Cleaning"
+  },
+  {
+    "id": "industrial-cleaning",
+    "name": "Industrial Cleaning"
+  },
+  {
+    "id": "janitorial-services",
+    "name": "Janitorial Services"
+  },
+  {
+    "id": "cleaning-consultation",
+    "name": "Cleaning Consultation"
+  }
+]

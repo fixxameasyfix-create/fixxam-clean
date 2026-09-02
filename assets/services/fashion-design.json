@@ -1,0 +1,22 @@
+[
+  { "id": "mens-wear-tailoring", "name": "Men's Wear Tailoring" },
+  { "id": "womens-wear-tailoring", "name": "Women's Wear Tailoring" },
+  { "id": "children-clothing-design", "name": "Children Clothing Design" },
+  { "id": "native-wear-design", "name": "Native Wear Design" },
+  { "id": "senator-wear-tailoring", "name": "Senator Wear Tailoring" },
+  { "id": "agbada-design", "name": "Agbada Design" },
+  { "id": "kaftan-tailoring", "name": "Kaftan Tailoring" },
+  { "id": "wedding-gown-design", "name": "Wedding Gown Design" },
+  { "id": "bridal-dress-design", "name": "Bridal Dress Design" },
+  { "id": "aso-ebi-design", "name": "Aso Ebi Design" },
+  { "id": "corporate-wear-tailoring", "name": "Corporate Wear Tailoring" },
+  { "id": "uniform-production", "name": "Uniform Production" },
+  { "id": "fashion-alteration", "name": "Fashion Alteration" },
+  { "id": "cloth-repair", "name": "Cloth Repair" },
+  { "id": "measurement-service", "name": "Measurement Service" },
+  { "id": "fashion-consultation", "name": "Fashion Consultation" },
+  { "id": "fashion-sketching", "name": "Fashion Sketching" },
+  { "id": "custom-clothing-design", "name": "Custom Clothing Design" },
+  { "id": "ready-to-wear-production", "name": "Ready To Wear Production" },
+  { "id": "fashion-brand-development", "name": "Fashion Brand Development" }
+]

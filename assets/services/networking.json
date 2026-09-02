@@ -1,0 +1,14 @@
+[
+  { "id": "wifi-installation", "name": "WiFi Installation" },
+  { "id": "router-installation", "name": "Router Installation" },
+  { "id": "network-cabling", "name": "Network Cabling" },
+  { "id": "lan-setup", "name": "LAN Setup" },
+  { "id": "wan-setup", "name": "WAN Setup" },
+  { "id": "office-network-installation", "name": "Office Network Installation" },
+  { "id": "home-network-installation", "name": "Home Network Installation" },
+  { "id": "access-point-installation", "name": "Access Point Installation" },
+  { "id": "network-security-setup", "name": "Network Security Setup" },
+  { "id": "server-network-setup", "name": "Server Network Setup" },
+  { "id": "network-maintenance", "name": "Network Maintenance" },
+  { "id": "network-consultation", "name": "Network Consultation" }
+]

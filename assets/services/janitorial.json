@@ -1,0 +1,12 @@
+[
+  { "id": "office-janitorial-service", "name": "Office Janitorial Service" },
+  { "id": "commercial-cleaning", "name": "Commercial Cleaning" },
+  { "id": "building-cleaning", "name": "Building Cleaning" },
+  { "id": "facility-maintenance", "name": "Facility Maintenance" },
+  { "id": "daily-cleaning-service", "name": "Daily Cleaning Service" },
+  { "id": "weekly-cleaning-service", "name": "Weekly Cleaning Service" },
+  { "id": "waste-management", "name": "Waste Management" },
+  { "id": "floor-cleaning", "name": "Floor Cleaning" },
+  { "id": "restroom-cleaning", "name": "Restroom Cleaning" },
+  { "id": "janitorial-consultation", "name": "Janitorial Consultation" }
+]

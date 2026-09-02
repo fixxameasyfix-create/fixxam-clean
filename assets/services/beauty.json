@@ -1,0 +1,82 @@
+[
+  {
+    "id": "facial-treatment",
+    "name": "Facial Treatment"
+  },
+  {
+    "id": "deep-cleansing-facial",
+    "name": "Deep Cleansing Facial"
+  },
+  {
+    "id": "acne-treatment",
+    "name": "Acne Treatment"
+  },
+  {
+    "id": "skin-care-consultation",
+    "name": "Skin Care Consultation"
+  },
+  {
+    "id": "body-scrub",
+    "name": "Body Scrub"
+  },
+  {
+    "id": "body-polishing",
+    "name": "Body Polishing"
+  },
+  {
+    "id": "body-treatment",
+    "name": "Body Treatment"
+  },
+  {
+    "id": "makeup-application",
+    "name": "Makeup Application"
+  },
+  {
+    "id": "bridal-makeup",
+    "name": "Bridal Makeup"
+  },
+  {
+    "id": "traditional-makeup",
+    "name": "Traditional Makeup"
+  },
+  {
+    "id": "engagement-makeup",
+    "name": "Engagement Makeup"
+  },
+  {
+    "id": "party-makeup",
+    "name": "Party Makeup"
+  },
+  {
+    "id": "gele-tying",
+    "name": "Gele Tying"
+  },
+  {
+    "id": "eyelash-installation",
+    "name": "Eyelash Installation"
+  },
+  {
+    "id": "eyebrow-shaping",
+    "name": "Eyebrow Shaping"
+  },
+  {
+    "id": "microblading",
+    "name": "Microblading"
+  },
+  {
+    "id": "beauty-consultation",
+    "name": "Beauty Consultation"
+  },
+  {
+    "id": "home-beauty-service",
+    "name": "Home Beauty Service"
+  },
+  {
+    "id": "spa-beauty-service",
+    "name": "Spa Beauty Service"
+  },
+  {
+    "id": "vip-beauty-service",
+    "name": "VIP Beauty Service"
+  }
+]

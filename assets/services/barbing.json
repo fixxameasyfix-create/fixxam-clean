@@ -1,0 +1,82 @@
+[
+  {
+    "id": "haircut",
+    "name": "Haircut"
+  },
+  {
+    "id": "kids-haircut",
+    "name": "Kids Haircut"
+  },
+  {
+    "id": "adult-haircut",
+    "name": "Adult Haircut"
+  },
+  {
+    "id": "executive-haircut",
+    "name": "Executive Haircut"
+  },
+  {
+    "id": "beard-trimming",
+    "name": "Beard Trimming"
+  },
+  {
+    "id": "beard-styling",
+    "name": "Beard Styling"
+  },
+  {
+    "id": "hair-line-fix",
+    "name": "Hair Line Fix"
+  },
+  {
+    "id": "hair-dye",
+    "name": "Hair Dye"
+  },
+  {
+    "id": "hair-coloring",
+    "name": "Hair Coloring"
+  },
+  {
+    "id": "hair-treatment",
+    "name": "Hair Treatment"
+  },
+  {
+    "id": "dreadlocks-maintenance",
+    "name": "Dreadlocks Maintenance"
+  },
+  {
+    "id": "dreadlocks-installation",
+    "name": "Dreadlocks Installation"
+  },
+  {
+    "id": "twists-styling",
+    "name": "Twists Styling"
+  },
+  {
+    "id": "waves-styling",
+    "name": "Waves Styling"
+  },
+  {
+    "id": "home-barbing-service",
+    "name": "Home Barbing Service"
+  },
+  {
+    "id": "office-barbing-service",
+    "name": "Office Barbing Service"
+  },
+  {
+    "id": "event-grooming",
+    "name": "Event Grooming"
+  },
+  {
+    "id": "wedding-groom-styling",
+    "name": "Wedding Groom Styling"
+  },
+  {
+    "id": "vip-barbing-service",
+    "name": "VIP Barbing Service"
+  },
+  {
+    "id": "mobile-barber-service",
+    "name": "Mobile Barber Service"
+  }
+]

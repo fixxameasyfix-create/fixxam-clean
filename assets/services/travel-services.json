@@ -1,0 +1,12 @@
+[
+  { "id": "car-hire", "name": "Car Hire" },
+  { "id": "airport-pickup", "name": "Airport Pickup" },
+  { "id": "airport-dropoff", "name": "Airport Dropoff" },
+  { "id": "staff-transportation", "name": "Staff Transportation" },
+  { "id": "school-transportation", "name": "School Transportation" },
+  { "id": "corporate-transportation", "name": "Corporate Transportation" },
+  { "id": "event-transportation", "name": "Event Transportation" },
+  { "id": "bus-hire", "name": "Bus Hire" },
+  { "id": "truck-hire", "name": "Truck Hire" },
+  { "id": "chauffeur-service", "name": "Chauffeur Service" }
+]

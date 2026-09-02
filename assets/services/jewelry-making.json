@@ -1,0 +1,14 @@
+[
+  { "id": "custom-jewelry-design", "name": "Custom Jewelry Design" },
+  { "id": "gold-jewelry-making", "name": "Gold Jewelry Making" },
+  { "id": "silver-jewelry-making", "name": "Silver Jewelry Making" },
+  { "id": "bridal-jewelry-design", "name": "Bridal Jewelry Design" },
+  { "id": "beaded-jewelry-making", "name": "Beaded Jewelry Making" },
+  { "id": "necklace-making", "name": "Necklace Making" },
+  { "id": "bracelet-making", "name": "Bracelet Making" },
+  { "id": "earring-making", "name": "Earring Making" },
+  { "id": "ring-making", "name": "Ring Making" },
+  { "id": "jewelry-repair", "name": "Jewelry Repair" },
+  { "id": "jewelry-polishing", "name": "Jewelry Polishing" },
+  { "id": "jewelry-consultation", "name": "Jewelry Consultation" }
+]

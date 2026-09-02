@@ -1,0 +1,102 @@
+[
+  {
+    "id": "building-construction",
+    "name": "Building Construction"
+  },
+  {
+    "id": "residential-construction",
+    "name": "Residential Construction"
+  },
+  {
+    "id": "commercial-construction",
+    "name": "Commercial Construction"
+  },
+  {
+    "id": "building-renovation",
+    "name": "Building Renovation"
+  },
+  {
+    "id": "home-renovation",
+    "name": "Home Renovation"
+  },
+  {
+    "id": "office-renovation",
+    "name": "Office Renovation"
+  },
+  {
+    "id": "foundation-work",
+    "name": "Foundation Work"
+  },
+  {
+    "id": "block-laying",
+    "name": "Block Laying"
+  },
+  {
+    "id": "concrete-work",
+    "name": "Concrete Work"
+  },
+  {
+    "id": "roof-construction",
+    "name": "Roof Construction"
+  },
+  {
+    "id": "structural-construction",
+    "name": "Structural Construction"
+  },
+  {
+    "id": "site-supervision",
+    "name": "Site Supervision"
+  },
+  {
+    "id": "project-management",
+    "name": "Construction Project Management"
+  },
+  {
+    "id": "quantity-surveying",
+    "name": "Quantity Surveying"
+  },
+  {
+    "id": "building-estimation",
+    "name": "Building Estimation"
+  },
+  {
+    "id": "construction-consultation",
+    "name": "Construction Consultation"
+  },
+  {
+    "id": "demolition-services",
+    "name": "Demolition Services"
+  },
+  {
+    "id": "site-clearing",
+    "name": "Site Clearing"
+  },
+  {
+    "id": "fencing-construction",
+    "name": "Fencing Construction"
+  },
+  {
+    "id": "gate-installation",
+    "name": "Gate Installation"
+  },
+  {
+    "id": "drainage-construction",
+    "name": "Drainage Construction"
+  },
+  {
+    "id": "road-construction",
+    "name": "Road Construction"
+  },
+  {
+    "id": "interlocking-installation",
+    "name": "Interlocking Installation"
+  },
+  {
+    "id": "paving-services",
+    "name": "Paving Services"
+  },
+  {
+    "id": "building-maintenance",
+    "name": "Building Maintenance"
+  }
+]

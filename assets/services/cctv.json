@@ -1,0 +1,82 @@
+[
+  {
+    "id": "cctv-installation",
+    "name": "CCTV Installation"
+  },
+  {
+    "id": "cctv-repair",
+    "name": "CCTV Repair"
+  },
+  {
+    "id": "cctv-maintenance",
+    "name": "CCTV Maintenance"
+  },
+  {
+    "id": "cctv-upgrade",
+    "name": "CCTV Upgrade"
+  },
+  {
+    "id": "wireless-cctv-installation",
+    "name": "Wireless CCTV Installation"
+  },
+  {
+    "id": "wired-cctv-installation",
+    "name": "Wired CCTV Installation"
+  },
+  {
+    "id": "ip-camera-installation",
+    "name": "IP Camera Installation"
+  },
+  {
+    "id": "dome-camera-installation",
+    "name": "Dome Camera Installation"
+  },
+  {
+    "id": "bullet-camera-installation",
+    "name": "Bullet Camera Installation"
+  },
+  {
+    "id": "ptz-camera-installation",
+    "name": "PTZ Camera Installation"
+  },
+  {
+    "id": "dvr-installation",
+    "name": "DVR Installation"
+  },
+  {
+    "id": "nvr-installation",
+    "name": "NVR Installation"
+  },
+  {
+    "id": "security-camera-networking",
+    "name": "Security Camera Networking"
+  },
+  {
+    "id": "remote-viewing-setup",
+    "name": "Remote Viewing Setup"
+  },
+  {
+    "id": "cctv-monitoring-setup",
+    "name": "CCTV Monitoring Setup"
+  },
+  {
+    "id": "home-cctv-installation",
+    "name": "Home CCTV Installation"
+  },
+  {
+    "id": "office-cctv-installation",
+    "name": "Office CCTV Installation"
+  },
+  {
+    "id": "warehouse-cctv-installation",
+    "name": "Warehouse CCTV Installation"
+  },
+  {
+    "id": "cctv-inspection",
+    "name": "CCTV Inspection"
+  },
+  {
+    "id": "security-system-consultation",
+    "name": "Security System Consultation"
+  }
+]

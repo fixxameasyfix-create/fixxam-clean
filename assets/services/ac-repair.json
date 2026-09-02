@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ac-installation",
+    "name": "AC Installation"
+  },
+  {
+    "id": "ac-uninstallation",
+    "name": "AC Uninstallation"
+  },
+  {
+    "id": "ac-repair",
+    "name": "AC Repair"
+  },
+  {
+    "id": "ac-servicing",
+    "name": "AC Servicing"
+  },
+  {
+    "id": "ac-gas-refill",
+    "name": "AC Gas Refill"
+  },
+  {
+    "id": "ac-compressor-repair",
+    "name": "AC Compressor Repair"
+  },
+  {
+    "id": "ac-compressor-replacement",
+    "name": "AC Compressor Replacement"
+  },
+  {
+    "id": "ac-leak-repair",
+    "name": "AC Leak Repair"
+  },
+  {
+    "id": "ac-pipe-installation",
+    "name": "AC Pipe Installation"
+  },
+  {
+    "id": "ac-drain-cleaning",
+    "name": "AC Drain Cleaning"
+  },
+  {
+    "id": "split-ac-installation",
+    "name": "Split AC Installation"
+  },
+  {
+    "id": "window-ac-installation",
+    "name": "Window AC Installation"
+  },
+  {
+    "id": "central-ac-maintenance",
+    "name": "Central AC Maintenance"
+  },
+  {
+    "id": "industrial-ac-repair",
+    "name": "Industrial AC Repair"
+  },
+  {
+    "id": "ac-maintenance-contract",
+    "name": "AC Maintenance Contract"
+  }
+]

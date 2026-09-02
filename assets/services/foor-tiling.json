@@ -1,0 +1,19 @@
+[
+  { "id": "floor-tiling", "name": "Floor Tiling" },
+  { "id": "wall-tiling", "name": "Wall Tiling" },
+  { "id": "bathroom-tiling", "name": "Bathroom Tiling" },
+  { "id": "kitchen-tiling", "name": "Kitchen Tiling" },
+  { "id": "outdoor-tiling", "name": "Outdoor Tiling" },
+  { "id": "marble-installation", "name": "Marble Installation" },
+  { "id": "granite-installation", "name": "Granite Installation" },
+  { "id": "ceramic-tiling", "name": "Ceramic Tiling" },
+  { "id": "porcelain-tiling", "name": "Porcelain Tiling" },
+  { "id": "tile-repair", "name": "Tile Repair" },
+  { "id": "tile-replacement", "name": "Tile Replacement" },
+  { "id": "tile-polishing", "name": "Tile Polishing" },
+  { "id": "tile-grouting", "name": "Tile Grouting" },
+  { "id": "interlocking-installation", "name": "Interlocking Installation" },
+  { "id": "floor-leveling", "name": "Floor Leveling" },
+  { "id": "screeding", "name": "Screeding" },
+  { "id": "tiling-consultation", "name": "Tiling Consultation" }
+]

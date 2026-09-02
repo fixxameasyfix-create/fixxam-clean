@@ -1,0 +1,58 @@
+[
+  {
+    "id": "interlocking-installation",
+    "name": "Interlocking Installation"
+  },
+  {
+    "id": "interlocking-repair",
+    "name": "Interlocking Repair"
+  },
+  {
+    "id": "interlocking-maintenance",
+    "name": "Interlocking Maintenance"
+  },
+  {
+    "id": "driveway-interlocking",
+    "name": "Driveway Interlocking"
+  },
+  {
+    "id": "compound-interlocking",
+    "name": "Compound Interlocking"
+  },
+  {
+    "id": "parking-lot-interlocking",
+    "name": "Parking Lot Interlocking"
+  },
+  {
+    "id": "walkway-interlocking",
+    "name": "Walkway Interlocking"
+  },
+  {
+    "id": "decorative-paving",
+    "name": "Decorative Paving"
+  },
+  {
+    "id": "kerbstone-installation",
+    "name": "Kerbstone Installation"
+  },
+  {
+    "id": "site-leveling",
+    "name": "Site Leveling"
+  },
+  {
+    "id": "ground-preparation",
+    "name": "Ground Preparation"
+  },
+  {
+    "id": "commercial-interlocking",
+    "name": "Commercial Interlocking"
+  },
+  {
+    "id": "residential-interlocking",
+    "name": "Residential Interlocking"
+  },
+  {
+    "id": "interlocking-consultation",
+    "name": "Interlocking Consultation"
+  }
+]

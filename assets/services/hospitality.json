@@ -1,0 +1,54 @@
+[
+  {
+    "id": "hotel-management",
+    "name": "Hotel Management"
+  },
+  {
+    "id": "guest-house-management",
+    "name": "Guest House Management"
+  },
+  {
+    "id": "shortlet-management",
+    "name": "Shortlet Management"
+  },
+  {
+    "id": "front-desk-services",
+    "name": "Front Desk Services"
+  },
+  {
+    "id": "concierge-services",
+    "name": "Concierge Services"
+  },
+  {
+    "id": "housekeeping-services",
+    "name": "Housekeeping Services"
+  },
+  {
+    "id": "room-attendant-services",
+    "name": "Room Attendant Services"
+  },
+  {
+    "id": "event-hosting",
+    "name": "Event Hosting"
+  },
+  {
+    "id": "catering-management",
+    "name": "Catering Management"
+  },
+  {
+    "id": "restaurant-management",
+    "name": "Restaurant Management"
+  },
+  {
+    "id": "bar-management",
+    "name": "Bar Management"
+  },
+  {
+    "id": "customer-service-training",
+    "name": "Customer Service Training"
+  },
+  {
+    "id": "hospitality-consultation",
+    "name": "Hospitality Consultation"
+  }
+]

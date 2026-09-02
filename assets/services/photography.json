@@ -1,0 +1,22 @@
+[
+  {
+    "id": "event-photography",
+    "name": "Event Photography"
+  },
+  {
+    "id": "wedding-photography",
+    "name": "Wedding Photography"
+  },
+  {
+    "id": "portrait-photography",
+    "name": "Portrait Photography"
+  },
+  {
+    "id": "product-photography",
+    "name": "Product Photography"
+  },
+  {
+    "id": "drone-photography",
+    "name": "Drone Photography"
+  }
+]

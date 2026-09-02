@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ac-installation",
+    "name": "AC Installation"
+  },
+  {
+    "id": "ac-repair",
+    "name": "AC Repair"
+  },
+  {
+    "id": "ac-maintenance",
+    "name": "AC Maintenance"
+  },
+  {
+    "id": "ac-servicing",
+    "name": "AC Servicing"
+  },
+  {
+    "id": "ac-gas-refill",
+    "name": "AC Gas Refill"
+  },
+  {
+    "id": "ac-cleaning",
+    "name": "AC Cleaning"
+  },
+  {
+    "id": "ac-relocation",
+    "name": "AC Relocation"
+  },
+  {
+    "id": "ac-troubleshooting",
+    "name": "AC Troubleshooting"
+  },
+  {
+    "id": "industrial-ac-installation",
+    "name": "Industrial AC Installation"
+  },
+  {
+    "id": "cold-room-installation",
+    "name": "Cold Room Installation"
+  }
+]

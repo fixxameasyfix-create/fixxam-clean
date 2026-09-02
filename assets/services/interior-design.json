@@ -1,0 +1,82 @@
+[
+  {
+    "id": "residential-interior-design",
+    "name": "Residential Interior Design"
+  },
+  {
+    "id": "commercial-interior-design",
+    "name": "Commercial Interior Design"
+  },
+  {
+    "id": "office-interior-design",
+    "name": "Office Interior Design"
+  },
+  {
+    "id": "space-planning",
+    "name": "Space Planning"
+  },
+  {
+    "id": "interior-decoration",
+    "name": "Interior Decoration"
+  },
+  {
+    "id": "furniture-selection",
+    "name": "Furniture Selection"
+  },
+  {
+    "id": "color-consultation",
+    "name": "Color Consultation"
+  },
+  {
+    "id": "lighting-design",
+    "name": "Lighting Design"
+  },
+  {
+    "id": "false-ceiling-design",
+    "name": "False Ceiling Design"
+  },
+  {
+    "id": "wall-panel-design",
+    "name": "Wall Panel Design"
+  },
+  {
+    "id": "kitchen-interior-design",
+    "name": "Kitchen Interior Design"
+  },
+  {
+    "id": "bedroom-interior-design",
+    "name": "Bedroom Interior Design"
+  },
+  {
+    "id": "living-room-interior-design",
+    "name": "Living Room Interior Design"
+  },
+  {
+    "id": "3d-interior-visualization",
+    "name": "3D Interior Visualization"
+  },
+  {
+    "id": "interior-design-consultation",
+    "name": "Interior Design Consultation"
+  },
+  {
+    "id": "interior-project-management",
+    "name": "Interior Project Management"
+  },
+  {
+    "id": "furniture-layout-design",
+    "name": "Furniture Layout Design"
+  },
+  {
+    "id": "curtain-and-blinds-design",
+    "name": "Curtain and Blinds Design"
+  },
+  {
+    "id": "luxury-interior-design",
+    "name": "Luxury Interior Design"
+  },
+  {
+    "id": "smart-home-interior-design",
+    "name": "Smart Home Interior Design"
+  }
+]

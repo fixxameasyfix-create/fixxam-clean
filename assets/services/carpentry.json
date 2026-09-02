@@ -1,0 +1,82 @@
+[
+  {
+    "id": "furniture-making",
+    "name": "Furniture Making"
+  },
+  {
+    "id": "custom-furniture-design",
+    "name": "Custom Furniture Design"
+  },
+  {
+    "id": "wardrobe-installation",
+    "name": "Wardrobe Installation"
+  },
+  {
+    "id": "kitchen-cabinet-installation",
+    "name": "Kitchen Cabinet Installation"
+  },
+  {
+    "id": "tv-console-installation",
+    "name": "TV Console Installation"
+  },
+  {
+    "id": "bed-frame-construction",
+    "name": "Bed Frame Construction"
+  },
+  {
+    "id": "office-furniture-making",
+    "name": "Office Furniture Making"
+  },
+  {
+    "id": "bookshelf-installation",
+    "name": "Bookshelf Installation"
+  },
+  {
+    "id": "door-installation",
+    "name": "Door Installation"
+  },
+  {
+    "id": "wooden-door-repair",
+    "name": "Wooden Door Repair"
+  },
+  {
+    "id": "window-frame-construction",
+    "name": "Window Frame Construction"
+  },
+  {
+    "id": "roof-woodwork",
+    "name": "Roof Woodwork"
+  },
+  {
+    "id": "wooden-flooring-installation",
+    "name": "Wooden Flooring Installation"
+  },
+  {
+    "id": "wood-polishing",
+    "name": "Wood Polishing"
+  },
+  {
+    "id": "furniture-repair",
+    "name": "Furniture Repair"
+  },
+  {
+    "id": "chair-repair",
+    "name": "Chair Repair"
+  },
+  {
+    "id": "table-repair",
+    "name": "Table Repair"
+  },
+  {
+    "id": "wood-carving",
+    "name": "Wood Carving"
+  },
+  {
+    "id": "interior-woodwork",
+    "name": "Interior Woodwork"
+  },
+  {
+    "id": "carpentry-consultation",
+    "name": "Carpentry Consultation"
+  }
+]
