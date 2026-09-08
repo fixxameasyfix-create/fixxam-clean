@@ -1,138 +1,102 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
-  ActivityIndicator,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppButton,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
-
   loading: boolean;
 
   onSave: () => void;
 
   buttonText?: string;
-
 };
 
-export default function ProductFooter({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProductFooter({
   loading,
-
   onSave,
-
   buttonText = "Publish Product",
-
 }: Props) {
-
   return (
-
-    <View style={styles.container}>
-
-      <Pressable
-
-        style={[
-          styles.button,
-          loading &&
-            styles.disabled,
-        ]}
-
-        disabled={loading}
-
-        onPress={onSave}
-
-      >
-
-        {loading ? (
-
-          <ActivityIndicator
-            color="#FFFFFF"
-          />
-
-        ) : (
-
-          <>
-
-            <Ionicons
-              name="cloud-upload-outline"
-              size={20}
-              color="#FFFFFF"
-            />
-
-            <AppText
-
-              weight="bold"
-
-              style={styles.text}
-
-            >
-
-              {buttonText}
-
-            </AppText>
-
-          </>
-
-        )}
-
-      </Pressable>
-
+    <View
+      style={
+        styles.container
+      }
+    >
+      <AppButton
+        title={
+          buttonText
+        }
+        role="worker"
+        variant="primary"
+        leftIconName="upload"
+        loading={
+          loading
+        }
+        disabled={
+          loading
+        }
+        onPress={
+          onSave
+        }
+        style={
+          styles.button
+        }
+      />
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductFooter =
+  memo(
+    ProductFooter,
   );
 
-}
+MemoizedProductFooter.displayName =
+  "ProductFooter";
+
+export default MemoizedProductFooter;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     container: {
+      width: "100%",
 
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      marginBottom: 40,
-
+      marginBottom:
+        FixxamTokens.spacing.xxl,
     },
 
     button: {
-
-      height: 58,
-
-      borderRadius: 18,
-
-      backgroundColor:
-        "#FF6B00",
-
-      flexDirection: "row",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
+      width: "100%",
     },
-
-    disabled: {
-
-      opacity: 0.6,
-
-    },
-
-    text: {
-
-      color: "#FFFFFF",
-
-      fontSize: 16,
-
-      marginLeft: 10,
-
-    },
-
   });

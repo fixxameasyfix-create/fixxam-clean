@@ -1,4 +1,5 @@
 import React, {
+  useDeferredValue,
   useMemo,
   useState,
 } from "react";
@@ -30,54 +31,117 @@ import useServices from "@/hooks/services/useServices";
 import useCategories from "@/hooks/services/useCategories";
 import usePopularServices from "@/hooks/services/usePopularServices";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const ALL_CATEGORY_ID =
+  "all";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function safeCount(
+  value: unknown,
+): number {
+  const parsed =
+    typeof value ===
+    "number"
+      ? value
+      : Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    parsed,
+  );
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
+
 export default function ServicesScreen() {
+  /* ============================================================
+     SEARCH
+  ============================================================ */
+
   const [
     search,
     setSearch,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     selectedCategory,
     setSelectedCategory,
-  ] = useState("all");
+  ] =
+    useState(
+      ALL_CATEGORY_ID,
+    );
 
-  /* ==========================================================
+  /*
+   * The input stays responsive while heavier
+   * service filtering can use the deferred value.
+   */
+  const deferredSearch =
+    useDeferredValue(
+      search.trim(),
+    );
+
+  /* ============================================================
      ALL SERVICES
-  ========================================================== */
+  ============================================================ */
 
   const {
     services,
     loading,
-  } = useServices(
-    search,
-    selectedCategory,
-  );
+  } =
+    useServices(
+      deferredSearch,
+      selectedCategory,
+    );
 
-  /* ==========================================================
+  /* ============================================================
      CATEGORIES
-  ========================================================== */
+  ============================================================ */
 
   const {
     categories,
-  } = useCategories();
+  } =
+    useCategories();
 
-  /* ==========================================================
-     MOST BOOKED SERVICES
+  /* ============================================================
+     MOST BOOKED
      
-     IMPORTANT:
-     This comes from services.completedCount,
-     NOT from the filtered useServices() result.
-  ========================================================== */
+     This remains independent from filtered services.
+  ============================================================ */
 
   const {
-    services: popularServices,
+    services:
+      popularServices,
+
     loading:
       popularLoading,
-  } = usePopularServices();
+  } =
+    usePopularServices();
 
-  /* ==========================================================
+  /* ============================================================
      STATS
-  ========================================================== */
+  ============================================================ */
 
   const totalServices =
     services.length;
@@ -91,61 +155,90 @@ export default function ServicesScreen() {
             service,
           ) =>
             total +
-            Number(
-              service.bookingCount ??
-                0,
+            safeCount(
+              service.bookingCount,
             ),
           0,
         ),
-      [services],
+      [
+        services,
+      ],
     );
 
-  /* ==========================================================
-     SHOW MOST BOOKED
-     
-     Only show it when the customer is
-     browsing the main services page.
-  ========================================================== */
+  /* ============================================================
+     DERIVED UI
+  ============================================================ */
+
+  const hasSearch =
+    search.trim().length >
+    0;
+
+  const isAllCategories =
+    selectedCategory ===
+    ALL_CATEGORY_ID;
 
   const showPopular =
-    search.trim().length === 0 &&
-    selectedCategory === "all" &&
+    !hasSearch &&
+    isAllCategories &&
     !popularLoading &&
-    popularServices.length > 0;
+    popularServices.length >
+      0;
+
+  const sectionTitle =
+    hasSearch
+      ? "Search results"
+      : !isAllCategories
+        ? "Services"
+        : "All Services";
+
+  const serviceCountLabel =
+    `${totalServices} ${
+      totalServices === 1
+        ? "service"
+        : "services"
+    } available`;
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <>
       <Stack.Screen
         options={{
-          headerShown: false,
+          headerShown:
+            false,
         }}
       />
 
       <AppScreen
+        role="customer"
         contentContainerStyle={
           styles.container
         }
       >
-        {/* ==================================================
+        {/* ======================================================
             HEADER
-        ================================================== */}
+        ====================================================== */}
 
         <ServicesHeader />
 
-        {/* ==================================================
+        {/* ======================================================
             SEARCH
-        ================================================== */}
+        ====================================================== */}
 
         <ServicesSearch
-          value={search}
+          value={
+            search
+          }
           onChangeText={
             setSearch
           }
         />
 
-        {/* ==================================================
+        {/* ======================================================
             CATEGORIES
-        ================================================== */}
+        ====================================================== */}
 
         <View
           style={
@@ -157,24 +250,25 @@ export default function ServicesScreen() {
               styles.sectionHeader
             }
           >
-            <View>
-              <AppText
-                weight="bold"
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Categories
-              </AppText>
+            <AppText
+              variant="heading3"
+              weight="bold"
+              style={
+                styles.sectionTitle
+              }
+            >
+              Categories
+            </AppText>
 
-              <AppText
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                Browse services by category
-              </AppText>
-            </View>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.sectionSubtitle
+              }
+            >
+              Browse services by category
+            </AppText>
           </View>
 
           <ServicesCategories
@@ -190,29 +284,29 @@ export default function ServicesScreen() {
           />
         </View>
 
-        {/* ==================================================
-            SERVICES LOADING
-        ================================================== */}
+        {/* ======================================================
+            SERVICES
+        ====================================================== */}
 
         {loading ? (
           <ServicesLoading />
         ) : (
           <>
-            {/* ==============================================
+            {/* ==================================================
                 MOST BOOKED
-            ============================================== */}
+            ================================================== */}
 
-            {showPopular && (
+            {showPopular ? (
               <MostBookedServices
                 services={
                   popularServices
                 }
               />
-            )}
+            ) : null}
 
-            {/* ==============================================
+            {/* ==================================================
                 ALL SERVICES
-            ============================================== */}
+            ================================================== */}
 
             <View
               style={
@@ -224,37 +318,28 @@ export default function ServicesScreen() {
                   styles.servicesHeader
                 }
               >
-                <View>
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.sectionTitle
-                    }
-                  >
-                    {search.trim()
-                      ? "Search results"
-                      : selectedCategory !==
-                          "all"
-                        ? "Services"
-                        : "All Services"}
-                  </AppText>
+                <AppText
+                  variant="heading3"
+                  weight="bold"
+                  style={
+                    styles.sectionTitle
+                  }
+                >
+                  {sectionTitle}
+                </AppText>
 
-                  <AppText
-                    style={
-                      styles.sectionSubtitle
-                    }
-                  >
-                    {totalServices}{" "}
-                    {totalServices ===
-                    1
-                      ? "service"
-                      : "services"}{" "}
-                    available
-                  </AppText>
-                </View>
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.sectionSubtitle
+                  }
+                >
+                  {serviceCountLabel}
+                </AppText>
               </View>
 
-              {services.length ===
+              {totalServices ===
               0 ? (
                 <EmptyServices />
               ) : (
@@ -283,47 +368,58 @@ export default function ServicesScreen() {
   );
 }
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
       flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+
       backgroundColor:
-        "#F8FAFC",
-      paddingHorizontal: 16,
-      paddingTop: 10,
-      paddingBottom: 32,
+        Colors.background,
     },
 
     categorySection: {
-      marginTop: 4,
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     sectionHeader: {
-      marginBottom: 8,
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
     servicesHeader: {
-      marginBottom: 12,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     sectionTitle: {
-      fontSize: 19,
-      lineHeight: 24,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     sectionSubtitle: {
-      marginTop: 2,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     servicesSection: {
-      marginTop: 20,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

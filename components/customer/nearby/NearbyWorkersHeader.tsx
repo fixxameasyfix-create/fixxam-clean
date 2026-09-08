@@ -1,70 +1,127 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+} from "react";
+
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
 import AppSearch from "@/components/common/AppSearch";
-import { AppText } from "@/components/ui";
+
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   search: string;
-  onSearch: (value: string) => void;
 
-  /**
-   * Optional custom heading.
-   *
-   * Existing screens continue to use:
-   * "Nearby Workers"
-   */
+  onSearch: (
+    value: string,
+  ) => void;
+
   title?: string;
 
-  /**
-   * Optional custom subtitle.
-   */
   subtitle?: string;
 };
 
-export default function NearbyWorkersHeader({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function NearbyWorkersHeader({
   search,
   onSearch,
   title = "Nearby Workers",
   subtitle = "Discover trusted professionals near your current location.",
 }: Props) {
   return (
-    <View style={styles.container}>
-      <AppText
-        weight="bold"
-        style={styles.title}
-      >
-        {title}
-      </AppText>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADING
+      ====================================================== */}
 
-      <AppText style={styles.subtitle}>
-        {subtitle}
-      </AppText>
+      <View
+        style={
+          styles.heading
+        }
+      >
+        <AppText
+          variant="heading2"
+          weight="bold"
+          numberOfLines={2}
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          style={
+            styles.subtitle
+          }
+        >
+          {subtitle}
+        </AppText>
+      </View>
+
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
 
       <AppSearch
         value={search}
-        onChangeText={onSearch}
+        onChangeText={
+          onSearch
+        }
         placeholder="Search workers or profession..."
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 16,
-    gap: 12,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  title: {
-    fontSize: 26,
-    color: "#111827",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  subtitle: {
-    color: "#64748B",
-    fontSize: 14,
-  },
-});
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    heading: {
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    subtitle: {
+      lineHeight: 20,
+    },
+  });
+
+export default memo(
+  NearbyWorkersHeader,
+);

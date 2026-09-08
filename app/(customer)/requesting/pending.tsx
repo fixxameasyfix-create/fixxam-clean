@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -7,7 +8,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StyleSheet,
   View,
@@ -18,9 +18,12 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
@@ -28,186 +31,578 @@ import {
 import CategoryCard from "@/components/categories/CategoryCard";
 
 import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
   getServicesByIds,
 } from "@/firebase/queries/getServicesByIds";
 
-/* ==============================================================
+import {
+  getPublicWorker,
+} from "@/firebase/queries/workerPublicProfiles";
+
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
 type ServiceData = {
   id: string;
+
   name: string;
+
   icon?: string;
+
   color?: string;
+
   backgroundColor?: string;
 };
 
 type PendingParams = {
-  bookingId?: string;
+  bookingId?:
+    | string
+    | string[];
 
-  serviceId?: string;
-  serviceName?: string;
+  serviceId?:
+    | string
+    | string[];
 
-  serviceIcon?: string;
-  serviceColor?: string;
-  serviceBackgroundColor?: string;
+  serviceName?:
+    | string
+    | string[];
 
-  workerId?: string;
-  workerName?: string;
-  workerPhoto?: string;
+  serviceIcon?:
+    | string
+    | string[];
+
+  serviceColor?:
+    | string
+    | string[];
+
+  serviceBackgroundColor?:
+    | string
+    | string[];
+
+  workerId?:
+    | string
+    | string[];
+
+  workerName?:
+    | string
+    | string[];
+
+  workerPhoto?:
+    | string
+    | string[];
 };
 
-/* ==============================================================
+/* ============================================================
    CONSTANTS
-============================================================== */
+============================================================ */
 
 const DEFAULT_SERVICE_ICON =
   "tools";
 
 const DEFAULT_SERVICE_COLOR =
-  "#2563EB";
+  CustomerColors.primary;
 
 const DEFAULT_SERVICE_BACKGROUND =
-  "#EFF6FF";
+  CustomerColors.primarySoft;
 
-/* ==============================================================
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getParamValue(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+function normalizeWorkerPhotoUrl(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  const url =
+    value.trim();
+
+  if (!url) {
+    return "";
+  }
+
+  /*
+   * Only secure remote URLs are rendered
+   * directly on this confirmation screen.
+   */
+  if (
+    !url.startsWith(
+      "https://",
+    )
+  ) {
+    return "";
+  }
+
+  return url;
+}
+
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function PendingScreen() {
-  const {
-    bookingId,
-
-    serviceId,
-    serviceName,
-
-    serviceIcon,
-    serviceColor,
-    serviceBackgroundColor,
-
-    workerId,
-    workerName,
-    workerPhoto,
-  } =
+  const params =
     useLocalSearchParams<PendingParams>();
 
-  /* ============================================================
-     SERVICE STATE
-  ============================================================ */
+  /* ==========================================================
+     RESOLVED BOOKING
+  ========================================================== */
+
+  const resolvedBookingId =
+    useMemo(
+      () =>
+        getParamValue(
+          params.bookingId,
+        ),
+      [
+        params.bookingId,
+      ],
+    );
+
+  /* ==========================================================
+     WORKER
+  ========================================================== */
+
+  const resolvedWorkerId =
+    useMemo(
+      () =>
+        getParamValue(
+          params.workerId,
+        ),
+      [
+        params.workerId,
+      ],
+    );
+
+  const resolvedWorkerName =
+    useMemo(
+      () =>
+        getParamValue(
+          params.workerName,
+        ) ||
+        "Selected worker",
+      [
+        params.workerName,
+      ],
+    );
+
+  const routeWorkerPhoto =
+    useMemo(
+      () =>
+        normalizeWorkerPhotoUrl(
+          getParamValue(
+            params.workerPhoto,
+          ),
+        ),
+      [
+        params.workerPhoto,
+      ],
+    );
+
+  const [
+    firebaseWorkerPhoto,
+    setFirebaseWorkerPhoto,
+  ] =
+    useState("");
+
+  const [
+    workerPhotoLoading,
+    setWorkerPhotoLoading,
+  ] =
+    useState(false);
+
+  const [
+    workerPhotoFailed,
+    setWorkerPhotoFailed,
+  ] =
+    useState(false);
+
+  const resolvedWorkerPhoto =
+    useMemo(
+      () =>
+        normalizeWorkerPhotoUrl(
+          firebaseWorkerPhoto ||
+            routeWorkerPhoto,
+        ),
+      [
+        firebaseWorkerPhoto,
+        routeWorkerPhoto,
+      ],
+    );
+
+  /* ==========================================================
+     LOAD WORKER PHOTO
+  ========================================================== */
+
+  useEffect(() => {
+    let cancelled =
+      false;
+
+    async function loadWorkerPhoto() {
+      if (
+        !resolvedWorkerId
+      ) {
+        setFirebaseWorkerPhoto(
+          "",
+        );
+
+        setWorkerPhotoLoading(
+          false,
+        );
+
+        return;
+      }
+
+      setWorkerPhotoLoading(
+        true,
+      );
+
+      setWorkerPhotoFailed(
+        false,
+      );
+
+      try {
+        const snapshot =
+          await getPublicWorker(
+            resolvedWorkerId,
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          !snapshot.exists()
+        ) {
+          console.warn(
+            "PENDING_WORKER_NOT_FOUND",
+            {
+              workerId:
+                resolvedWorkerId,
+            },
+          );
+
+          setFirebaseWorkerPhoto(
+            routeWorkerPhoto,
+          );
+
+          return;
+        }
+
+        const data =
+          snapshot.data();
+
+        const workerProfile =
+          data?.workerProfile;
+
+        let nestedPhoto =
+          "";
+
+        if (
+          workerProfile &&
+          typeof workerProfile ===
+            "object"
+        ) {
+          const profile =
+            workerProfile as {
+              photoUrl?: unknown;
+
+              photoURL?: unknown;
+            };
+
+          nestedPhoto =
+            normalizeWorkerPhotoUrl(
+              profile.photoUrl,
+            ) ||
+            normalizeWorkerPhotoUrl(
+              profile.photoURL,
+            );
+        }
+
+        /*
+         * Backward compatibility for
+         * older worker documents.
+         */
+        const rootPhoto =
+          normalizeWorkerPhotoUrl(
+            data?.photoUrl,
+          ) ||
+          normalizeWorkerPhotoUrl(
+            data?.photoURL,
+          );
+
+        const finalPhoto =
+          nestedPhoto ||
+          rootPhoto ||
+          routeWorkerPhoto;
+
+        if (
+          !cancelled
+        ) {
+          setFirebaseWorkerPhoto(
+            finalPhoto,
+          );
+        }
+      } catch (
+        error
+      ) {
+        console.warn(
+          "PENDING_WORKER_PHOTO_LOAD_ERROR",
+          {
+            workerId:
+              resolvedWorkerId,
+
+            error,
+          },
+        );
+
+        if (
+          !cancelled
+        ) {
+          /*
+           * Firestore refresh failure should
+           * not discard a valid route image.
+           */
+          setFirebaseWorkerPhoto(
+            routeWorkerPhoto,
+          );
+        }
+      } finally {
+        if (
+          !cancelled
+        ) {
+          setWorkerPhotoLoading(
+            false,
+          );
+        }
+      }
+    }
+
+    void loadWorkerPhoto();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    resolvedWorkerId,
+    routeWorkerPhoto,
+  ]);
+
+  /* ==========================================================
+     WORKER IMAGE EVENTS
+  ========================================================== */
+
+  const handleWorkerImageError =
+    useCallback(
+      (
+        error: unknown,
+      ) => {
+        setWorkerPhotoLoading(
+          false,
+        );
+
+        setWorkerPhotoFailed(
+          true,
+        );
+
+        console.warn(
+          "PENDING_WORKER_IMAGE_LOAD_FAILED",
+          {
+            workerId:
+              resolvedWorkerId,
+
+            photoUrl:
+              resolvedWorkerPhoto,
+
+            error,
+          },
+        );
+      },
+      [
+        resolvedWorkerId,
+        resolvedWorkerPhoto,
+      ],
+    );
+
+  const handleWorkerImageLoaded =
+    useCallback(() => {
+      setWorkerPhotoLoading(
+        false,
+      );
+
+      setWorkerPhotoFailed(
+        false,
+      );
+    }, []);
+
+  const shouldShowWorkerImage =
+    Boolean(
+      resolvedWorkerPhoto &&
+      !workerPhotoFailed,
+    );
+
+  /* ==========================================================
+     SERVICE
+  ========================================================== */
 
   const [
     firebaseService,
     setFirebaseService,
-  ] = useState<ServiceData | null>(
-    null,
-  );
+  ] =
+    useState<ServiceData | null>(
+      null,
+    );
 
   const [
     loadingService,
     setLoadingService,
-  ] = useState(false);
-
-  /* ============================================================
-     RESOLVED SERVICE ID
-  ============================================================ */
+  ] =
+    useState(false);
 
   const resolvedServiceId =
     useMemo(
       () =>
-        serviceId?.trim() ?? "",
-      [serviceId],
+        getParamValue(
+          params.serviceId,
+        ),
+      [
+        params.serviceId,
+      ],
     );
-
-  /* ============================================================
-     RESOLVED SERVICE NAME
-  ============================================================ */
 
   const resolvedServiceName =
     useMemo(
       () =>
-        serviceName?.trim() ||
-        firebaseService?.name?.trim() ||
+        getParamValue(
+          params.serviceName,
+        ) ||
+        firebaseService
+          ?.name
+          ?.trim() ||
         "Selected service",
       [
-        serviceName,
+        params.serviceName,
         firebaseService?.name,
       ],
     );
 
-  /* ============================================================
-     RESOLVED SERVICE ICON
-  ============================================================ */
-
   const resolvedServiceIcon =
     useMemo(
       () =>
-        serviceIcon?.trim() ||
-        firebaseService?.icon?.trim() ||
+        getParamValue(
+          params.serviceIcon,
+        ) ||
+        firebaseService
+          ?.icon
+          ?.trim() ||
         DEFAULT_SERVICE_ICON,
       [
-        serviceIcon,
+        params.serviceIcon,
         firebaseService?.icon,
       ],
     );
 
-  /* ============================================================
-     RESOLVED SERVICE COLOR
-  ============================================================ */
-
   const resolvedServiceColor =
     useMemo(
       () =>
-        serviceColor?.trim() ||
-        firebaseService?.color?.trim() ||
+        getParamValue(
+          params.serviceColor,
+        ) ||
+        firebaseService
+          ?.color
+          ?.trim() ||
         DEFAULT_SERVICE_COLOR,
       [
-        serviceColor,
+        params.serviceColor,
         firebaseService?.color,
       ],
     );
 
-  /* ============================================================
-     RESOLVED SERVICE BACKGROUND
-  ============================================================ */
-
   const resolvedServiceBackground =
     useMemo(
       () =>
-        serviceBackgroundColor?.trim() ||
-        firebaseService?.backgroundColor?.trim() ||
+        getParamValue(
+          params.serviceBackgroundColor,
+        ) ||
+        firebaseService
+          ?.backgroundColor
+          ?.trim() ||
         DEFAULT_SERVICE_BACKGROUND,
       [
-        serviceBackgroundColor,
-        firebaseService?.backgroundColor,
+        params.serviceBackgroundColor,
+        firebaseService
+          ?.backgroundColor,
       ],
     );
 
-  /* ============================================================
-     LOAD SERVICE FROM FIREBASE
-  ============================================================ */
+  /* ==========================================================
+     LOAD SERVICE
+  ========================================================== */
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
     async function loadService() {
-      if (!resolvedServiceId) {
-        return;
-      }
-
-      /*
-       * If all Firebase icon data already came
-       * from BookingScreen, no extra request.
-       */
       if (
-        serviceIcon?.trim() &&
-        serviceColor?.trim() &&
-        serviceBackgroundColor?.trim()
+        !resolvedServiceId
       ) {
         return;
       }
 
-      setLoadingService(true);
+      /*
+       * BookingScreen may already provide
+       * the full dynamic service presentation.
+       */
+      if (
+        getParamValue(
+          params.serviceIcon,
+        ) &&
+        getParamValue(
+          params.serviceColor,
+        ) &&
+        getParamValue(
+          params.serviceBackgroundColor,
+        )
+      ) {
+        return;
+      }
+
+      setLoadingService(
+        true,
+      );
 
       try {
         const services =
@@ -215,22 +610,25 @@ export default function PendingScreen() {
             resolvedServiceId,
           ]);
 
-        if (!mounted) {
+        if (
+          !mounted
+        ) {
           return;
         }
 
         const rawService =
           services.find(
-            (service) => {
+            service => {
               const item =
                 service as {
                   id?: unknown;
+
                   serviceId?: unknown;
                 };
 
               const id =
                 typeof item.id ===
-                "string"
+                  "string"
                   ? item.id.trim()
                   : typeof item.serviceId ===
                       "string"
@@ -244,24 +642,36 @@ export default function PendingScreen() {
             },
           );
 
-        if (!rawService) {
-          setFirebaseService(null);
+        if (
+          !rawService
+        ) {
+          setFirebaseService(
+            null,
+          );
+
           return;
         }
 
         const item =
           rawService as {
             id?: unknown;
+
             serviceId?: unknown;
+
             name?: unknown;
+
             serviceName?: unknown;
+
             icon?: unknown;
+
             color?: unknown;
+
             backgroundColor?: unknown;
           };
 
         const id =
-          typeof item.id === "string"
+          typeof item.id ===
+            "string"
             ? item.id.trim()
             : typeof item.serviceId ===
                 "string"
@@ -270,7 +680,7 @@ export default function PendingScreen() {
 
         const name =
           typeof item.name ===
-          "string"
+            "string"
             ? item.name.trim()
             : typeof item.serviceName ===
                 "string"
@@ -279,24 +689,25 @@ export default function PendingScreen() {
 
         const icon =
           typeof item.icon ===
-          "string"
+            "string"
             ? item.icon.trim()
             : "";
 
         const color =
           typeof item.color ===
-          "string"
+            "string"
             ? item.color.trim()
             : "";
 
         const backgroundColor =
           typeof item.backgroundColor ===
-          "string"
+            "string"
             ? item.backgroundColor.trim()
             : "";
 
         setFirebaseService({
           id,
+
           name,
 
           ...(icon
@@ -317,18 +728,28 @@ export default function PendingScreen() {
               }
             : {}),
         });
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.error(
           "PENDING_LOAD_SERVICE_ERROR:",
           error,
         );
 
-        if (mounted) {
-          setFirebaseService(null);
+        if (
+          mounted
+        ) {
+          setFirebaseService(
+            null,
+          );
         }
       } finally {
-        if (mounted) {
-          setLoadingService(false);
+        if (
+          mounted
+        ) {
+          setLoadingService(
+            false,
+          );
         }
       }
     }
@@ -336,22 +757,25 @@ export default function PendingScreen() {
     void loadService();
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
     };
   }, [
+    params.serviceBackgroundColor,
+    params.serviceColor,
+    params.serviceIcon,
     resolvedServiceId,
-    serviceIcon,
-    serviceColor,
-    serviceBackgroundColor,
   ]);
 
-  /* ============================================================
-     VIEW ORDER
-  ============================================================ */
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
 
   const handleViewOrder =
     useCallback(() => {
-      if (!bookingId) {
+      if (
+        !resolvedBookingId
+      ) {
         router.replace(
           "/(customer)/(tabs)/orders",
         );
@@ -362,15 +786,15 @@ export default function PendingScreen() {
       router.push({
         pathname:
           "/(customer)/orders/[orderId]",
+
         params: {
-          orderId: bookingId,
+          orderId:
+            resolvedBookingId,
         },
       });
-    }, [bookingId]);
-
-  /* ============================================================
-     HOME
-  ============================================================ */
+    }, [
+      resolvedBookingId,
+    ]);
 
   const handleBackHome =
     useCallback(() => {
@@ -379,43 +803,43 @@ export default function PendingScreen() {
       );
     }, []);
 
-  /* ============================================================
-     WORKER PROFILE
-  ============================================================ */
-
   const handleWorkerProfile =
     useCallback(() => {
-      if (!workerId) {
+      if (
+        !resolvedWorkerId
+      ) {
         return;
       }
 
       router.push({
         pathname:
           "/(customer)/details/worker-profile/[id]",
+
         params: {
-          id: workerId,
+          id:
+            resolvedWorkerId,
         },
       } as const);
-    }, [workerId]);
-
-  /* ============================================================
-     SERVICE CARD PRESS
-  ============================================================ */
+    }, [
+      resolvedWorkerId,
+    ]);
 
   const handleServicePress =
     useCallback(() => {
       /*
        * Service is already selected.
-       * We intentionally do not navigate.
+       * Existing behavior intentionally
+       * performs no navigation.
        */
     }, []);
 
-  /* ============================================================
+  /* ==========================================================
      UI
-  ============================================================ */
+  ========================================================== */
 
   return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
         styles.container
       }
@@ -429,26 +853,35 @@ export default function PendingScreen() {
           styles.successIcon
         }
       >
-        <Ionicons
-          name="checkmark"
-          size={34}
-          color="#16A34A"
+        <AppIcon
+          name="success"
+          size="lg"
+          color={
+            Colors.success
+          }
         />
       </View>
 
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        center
+        style={
+          styles.title
+        }
       >
-        Requesting Sent Successfully
+        Request Sent Successfully
       </AppText>
 
       <AppText
+        variant="body"
+        tone="secondary"
         center
-        style={styles.description}
+        style={
+          styles.description
+        }
       >
-        Your request has been sent
-        successfully.
+        Your request has been sent successfully.
       </AppText>
 
       {/* ======================================================
@@ -460,32 +893,49 @@ export default function PendingScreen() {
         title="Request sent to worker"
       />
 
-      {workerId ? (
+      {resolvedWorkerId ? (
         <Pressable
           onPress={
             handleWorkerProfile
           }
           accessibilityRole="button"
           accessibilityLabel="View selected worker"
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.workerCard,
 
-            pressed &&
-              styles.cardPressed,
+            pressed
+              ? styles.cardPressed
+              : null,
           ]}
         >
-          {/* AVATAR */}
-
           <View
             style={
               styles.avatarContainer
             }
           >
-            {workerPhoto ? (
+            {shouldShowWorkerImage ? (
               <Image
                 source={{
-                  uri: workerPhoto,
+                  uri:
+                    resolvedWorkerPhoto,
                 }}
+                contentFit="cover"
+                cachePolicy="disk"
+                transition={180}
+                onLoadStart={() => {
+                  setWorkerPhotoLoading(
+                    true,
+                  );
+                }}
+                onLoad={
+                  handleWorkerImageLoaded
+                }
+                onError={
+                  handleWorkerImageError
+                }
+                accessibilityLabel={`${resolvedWorkerName} profile photo`}
                 style={
                   styles.avatar
                 }
@@ -496,28 +946,47 @@ export default function PendingScreen() {
                   styles.avatarPlaceholder
                 }
               >
-                <Ionicons
-                  name="person"
-                  size={25}
-                  color="#94A3B8"
+                <AppIcon
+                  name="profile"
+                  size="md"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </View>
             )}
+
+            {workerPhotoLoading &&
+            shouldShowWorkerImage ? (
+              <View
+                pointerEvents="none"
+                style={
+                  styles.imageLoadingOverlay
+                }
+              >
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+            ) : null}
 
             <View
               style={
                 styles.workerCheck
               }
             >
-              <Ionicons
-                name="checkmark"
-                size={12}
-                color="#FFFFFF"
+              <AppIcon
+                name="check"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
           </View>
-
-          {/* WORKER INFO */}
 
           <View
             style={
@@ -525,6 +994,7 @@ export default function PendingScreen() {
             }
           >
             <AppText
+              variant="caption"
               style={
                 styles.cardLabel
               }
@@ -533,17 +1003,19 @@ export default function PendingScreen() {
             </AppText>
 
             <AppText
+              variant="body"
               weight="bold"
               numberOfLines={1}
               style={
                 styles.workerName
               }
             >
-              {workerName ||
-                "Selected worker"}
+              {resolvedWorkerName}
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.cardHint
               }
@@ -557,26 +1029,32 @@ export default function PendingScreen() {
               styles.chevronBox
             }
           >
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color="#64748B"
+            <AppIcon
+              name="next"
+              size="sm"
+              color={
+                Colors.textSecondary
+              }
             />
           </View>
         </Pressable>
       ) : (
         <View
-          style={styles.workerCard}
+          style={
+            styles.workerCard
+          }
         >
           <View
             style={
               styles.avatarPlaceholder
             }
           >
-            <Ionicons
-              name="person"
-              size={25}
-              color="#94A3B8"
+            <AppIcon
+              name="profile"
+              size="md"
+              color={
+                Colors.textMuted
+              }
             />
           </View>
 
@@ -586,6 +1064,7 @@ export default function PendingScreen() {
             }
           >
             <AppText
+              variant="caption"
               style={
                 styles.cardLabel
               }
@@ -594,6 +1073,7 @@ export default function PendingScreen() {
             </AppText>
 
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.workerName
@@ -622,10 +1102,14 @@ export default function PendingScreen() {
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.serviceLoadingText
             }
@@ -639,6 +1123,10 @@ export default function PendingScreen() {
             styles.categoryCardWrapper
           }
         >
+          {/*
+           * CategoryCard keeps the dynamic
+           * Firebase service icon/color system.
+           */}
           <CategoryCard
             icon={
               resolvedServiceIcon
@@ -657,18 +1145,18 @@ export default function PendingScreen() {
             }
           />
 
-          {/* SELECTED CHECK */}
-
           <View
             pointerEvents="none"
             style={
               styles.serviceCheckOverlay
             }
           >
-            <Ionicons
-              name="checkmark"
-              size={16}
-              color="#FFFFFF"
+            <AppIcon
+              name="check"
+              size="sm"
+              color={
+                Colors.textInverse
+              }
             />
           </View>
         </View>
@@ -684,17 +1172,21 @@ export default function PendingScreen() {
       />
 
       <View
-        style={styles.statusCard}
+        style={
+          styles.statusCard
+        }
       >
         <View
           style={
             styles.statusIconBox
           }
         >
-          <Ionicons
-            name="time-outline"
-            size={23}
-            color="#2563EB"
+          <AppIcon
+            name="clock"
+            size="md"
+            color={
+              Colors.warning
+            }
           />
         </View>
 
@@ -704,6 +1196,7 @@ export default function PendingScreen() {
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.statusTitle
@@ -713,12 +1206,13 @@ export default function PendingScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.statusText
             }
           >
-            Waiting for the selected
-            worker to respond.
+            Waiting for the selected worker to respond.
           </AppText>
         </View>
 
@@ -734,6 +1228,7 @@ export default function PendingScreen() {
           />
 
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.pendingText
@@ -749,26 +1244,32 @@ export default function PendingScreen() {
       ====================================================== */}
 
       <View
-        style={styles.infoCard}
+        style={
+          styles.infoCard
+        }
       >
         <View
           style={
             styles.infoIconBox
           }
         >
-          <Ionicons
-            name="information-circle-outline"
-            size={18}
-            color="#64748B"
+          <AppIcon
+            name="info"
+            size="sm"
+            color={
+              Colors.info
+            }
           />
         </View>
 
         <AppText
-          style={styles.infoText}
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.infoText
+          }
         >
-          You can track your request and
-          view its latest status from
-          My Orders.
+          You can track your request and view its latest status from My Orders.
         </AppText>
       </View>
 
@@ -782,11 +1283,14 @@ export default function PendingScreen() {
         }
         accessibilityRole="button"
         accessibilityLabel="View my order"
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.primaryButton,
 
-          pressed &&
-            styles.primaryButtonPressed,
+          pressed
+            ? styles.primaryButtonPressed
+            : null,
         ]}
       >
         <View
@@ -794,14 +1298,17 @@ export default function PendingScreen() {
             styles.primaryIconBox
           }
         >
-          <Ionicons
-            name="receipt-outline"
-            size={18}
-            color="#FFFFFF"
+          <AppIcon
+            name="file"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
 
         <AppText
+          variant="body"
           weight="bold"
           style={
             styles.primaryButtonText
@@ -810,15 +1317,17 @@ export default function PendingScreen() {
           VIEW MY ORDER
         </AppText>
 
-        <Ionicons
-          name="arrow-forward"
-          size={20}
-          color="#FFFFFF"
+        <AppIcon
+          name="next"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
       </Pressable>
 
       {/* ======================================================
-          BACK HOME
+          HOME
       ====================================================== */}
 
       <Pressable
@@ -827,20 +1336,26 @@ export default function PendingScreen() {
         }
         accessibilityRole="button"
         accessibilityLabel="Back to home"
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.secondaryButton,
 
-          pressed &&
-            styles.secondaryButtonPressed,
+          pressed
+            ? styles.secondaryButtonPressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="home-outline"
-          size={18}
-          color="#475569"
+        <AppIcon
+          name="home"
+          size="sm"
+          color={
+            Colors.textSecondary
+          }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
           style={
             styles.secondaryButtonText
@@ -854,271 +1369,344 @@ export default function PendingScreen() {
           REQUEST ID
       ====================================================== */}
 
-      {bookingId && (
+      {resolvedBookingId ? (
         <AppText
+          variant="caption"
           center
           numberOfLines={1}
           style={
             styles.requestId
           }
         >
-          Request ID: {bookingId}
+          Request ID: {resolvedBookingId}
         </AppText>
-      )}
+      ) : null}
     </AppScreen>
   );
 }
 
-/* ==============================================================
+/* ============================================================
    SECTION TITLE
-============================================================== */
+============================================================ */
 
-function SectionTitle({
-  number,
-  title,
-}: {
-  number: string;
-  title: string;
-}) {
-  return (
-    <View
-      style={
-        styles.sectionTitle
-      }
-    >
-      <View
-        style={
-          styles.sectionNumber
-        }
-      >
-        <AppText
-          weight="bold"
+const SectionTitle =
+  memo(
+    function SectionTitle({
+      number,
+      title,
+    }: {
+      number: string;
+
+      title: string;
+    }) {
+      return (
+        <View
           style={
-            styles.sectionNumberText
+            styles.sectionTitle
           }
         >
-          {number}
-        </AppText>
-      </View>
+          <View
+            style={
+              styles.sectionNumber
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.sectionNumberText
+              }
+            >
+              {number}
+            </AppText>
+          </View>
 
-      <AppText
-        weight="bold"
-        style={
-          styles.sectionText
-        }
-      >
-        {title}
-      </AppText>
-    </View>
+          <AppText
+            variant="body"
+            weight="bold"
+            style={
+              styles.sectionText
+            }
+          >
+            {title}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
 
-/* ==============================================================
+SectionTitle.displayName =
+  "SectionTitle";
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
+    /* ========================================================
        CONTAINER
-    ========================================================== */
+    ======================================================== */
 
     container: {
       flexGrow: 1,
 
-      paddingHorizontal: 16,
-      paddingTop: 18,
-      paddingBottom: 36,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
 
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SUCCESS
-    ========================================================== */
+    ======================================================== */
 
     successIcon: {
-      width: 70,
-      height: 70,
+      width:
+        FixxamTokens.size.avatarXl,
 
-      borderRadius: 22,
+      height:
+        FixxamTokens.size.avatarXl,
 
-      backgroundColor:
-        "#DCFCE7",
+      alignSelf:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 1,
+
       borderColor:
-        "#BBF7D0",
+        Colors.success,
 
-      alignItems: "center",
-      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      alignSelf: "center",
-
-      marginBottom: 15,
+      backgroundColor:
+        Colors.successSoft,
     },
 
     title: {
-      fontSize: 23,
-      lineHeight: 29,
-
-      color: "#0F172A",
-
-      textAlign: "center",
+      color:
+        Colors.textPrimary,
     },
 
     description: {
-      marginTop: 5,
-      marginBottom: 18,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      paddingHorizontal: 24,
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-      fontSize: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       lineHeight: 18,
 
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SECTION
-    ========================================================== */
+    ======================================================== */
 
     sectionTitle: {
-      flexDirection: "row",
-      alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      marginTop: 8,
-      marginBottom: 9,
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     sectionNumber: {
-      width: 27,
-      height: 27,
+      width: 28,
 
-      borderRadius: 9,
+      height: 28,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
 
       backgroundColor:
-        "#EFF6FF",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      marginRight: 8,
+        CustomerColors.primarySoft,
     },
 
     sectionNumberText: {
-      fontSize: 13,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     sectionText: {
       flex: 1,
 
-      fontSize: 16,
-      lineHeight: 21,
-
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        WORKER
-    ========================================================== */
+    ======================================================== */
 
     workerCard: {
-      minHeight: 78,
+      minHeight: 80,
 
-      paddingHorizontal: 12,
-      paddingVertical: 11,
+      padding:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 20,
+      flexDirection:
+        "row",
 
-      backgroundColor:
-        "#FFFFFF",
+      alignItems:
+        "center",
 
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      flexDirection: "row",
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowColor:
-        "#0F172A",
+      backgroundColor:
+        Colors.surface,
 
-      shadowOpacity: 0.045,
-
-      shadowRadius: 12,
-
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     cardPressed: {
-      opacity: 0.9,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     avatarContainer: {
-      position: "relative",
+      position:
+        "relative",
+
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
     },
 
     avatar: {
-      width: 52,
-      height: 52,
+      width: "100%",
 
-      borderRadius: 17,
+      height: "100%",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     avatarPlaceholder: {
-      width: 52,
-      height: 52,
+      width:
+        FixxamTokens.size.avatarLg,
 
-      borderRadius: 17,
+      height:
+        FixxamTokens.size.avatarLg,
 
-      backgroundColor:
-        "#F8FAFC",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
 
-      alignItems: "center",
-      justifyContent: "center",
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    imageLoadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        "rgba(255,255,255,0.65)",
     },
 
     workerCheck: {
-      position: "absolute",
+      position:
+        "absolute",
 
       right: -3,
+
       bottom: -3,
 
       width: 20,
+
       height: 20,
 
-      borderRadius: 10,
+      alignItems:
+        "center",
 
-      backgroundColor:
-        "#16A34A",
+      justifyContent:
+        "center",
 
       borderWidth: 2,
-      borderColor:
-        "#FFFFFF",
 
-      alignItems: "center",
-      justifyContent: "center",
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
     },
 
     workerContent: {
@@ -1126,159 +1714,179 @@ const styles =
 
       minWidth: 0,
 
-      marginLeft: 11,
-      marginRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     cardLabel: {
-      fontSize: 9,
-      lineHeight: 13,
-
       letterSpacing: 1,
 
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     workerName: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 15.5,
-      lineHeight: 21,
-
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     cardHint: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10.5,
-      lineHeight: 15,
-
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     chevronBox: {
       width: 32,
+
       height: 32,
 
-      borderRadius: 10,
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        "#F8FAFC",
-
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.background,
     },
 
-    /* ==========================================================
-       CATEGORY CARD
-    ========================================================== */
+    /* ========================================================
+       SERVICE
+    ======================================================== */
 
     categoryCardWrapper: {
-      position: "relative",
+      position:
+        "relative",
     },
 
     serviceCheckOverlay: {
-      position: "absolute",
+      position:
+        "absolute",
 
-      right: 12,
+      right:
+        FixxamTokens.spacing.md,
+
       top: "50%",
 
       width: 30,
+
       height: 30,
 
       marginTop: -15,
 
-      borderRadius: 15,
+      zIndex: 10,
+
+      elevation: 10,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#2563EB",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      zIndex: 10,
-      elevation: 10,
+        CustomerColors.primary,
     },
 
     serviceLoading: {
       minHeight: 76,
 
-      borderRadius: 17,
+      flexDirection:
+        "row",
 
-      backgroundColor:
-        "#FFFFFF",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      flexDirection: "row",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      alignItems: "center",
-      justifyContent: "center",
-
-      gap: 9,
+      backgroundColor:
+        Colors.surface,
     },
 
     serviceLoadingText: {
-      fontSize: 11,
-
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        STATUS
-    ========================================================== */
+    ======================================================== */
 
     statusCard: {
       minHeight: 82,
 
-      paddingHorizontal: 12,
-      paddingVertical: 11,
+      padding:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 20,
+      flexDirection:
+        "row",
 
-      backgroundColor:
-        "#FFFFFF",
+      alignItems:
+        "center",
 
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      flexDirection: "row",
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowColor:
-        "#0F172A",
+      backgroundColor:
+        Colors.surface,
 
-      shadowOpacity: 0.045,
-
-      shadowRadius: 12,
-
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     statusIconBox: {
-      width: 50,
-      height: 50,
+      width:
+        FixxamTokens.size.avatarLg,
 
-      borderRadius: 16,
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#EFF6FF",
-
-      borderWidth: 1,
-      borderColor:
-        "#DBEAFE",
-
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.warningSoft,
     },
 
     statusContent: {
@@ -1286,239 +1894,272 @@ const styles =
 
       minWidth: 0,
 
-      marginLeft: 11,
-      marginRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     statusTitle: {
-      fontSize: 12,
-      lineHeight: 17,
-
       letterSpacing: 0.5,
 
-      color: "#1D4ED8",
+      color:
+        Colors.warning,
     },
 
     statusText: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10.5,
-      lineHeight: 15,
+      lineHeight: 16,
 
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     pendingBadge: {
-      minHeight: 27,
+      minHeight: 28,
 
-      paddingHorizontal: 9,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderRadius: 9,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
 
       backgroundColor:
-        "#FFF7ED",
-
-      borderWidth: 1,
-      borderColor:
-        "#FED7AA",
-
-      flexDirection: "row",
-      alignItems: "center",
-
-      gap: 5,
+        Colors.warningSoft,
     },
 
     pendingDot: {
       width: 6,
+
       height: 6,
 
-      borderRadius: 3,
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#F59E0B",
+        Colors.warning,
     },
 
     pendingText: {
-      fontSize: 8.5,
-      lineHeight: 12,
-
       letterSpacing: 0.4,
 
-      color: "#B45309",
+      color:
+        Colors.warning,
     },
 
-    /* ==========================================================
+    /* ========================================================
        INFO
-    ========================================================== */
+    ======================================================== */
 
     infoCard: {
       minHeight: 58,
 
-      marginTop: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      paddingHorizontal: 11,
-      paddingVertical: 10,
+      padding:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 17,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#F8FAFC",
-
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-
-      flexDirection: "row",
-      alignItems: "center",
+        Colors.infoSoft,
     },
 
     infoIconBox: {
-      width: 34,
-      height: 34,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 11,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        "#FFFFFF",
-
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.surface,
     },
 
     infoText: {
       flex: 1,
 
-      marginLeft: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 10.5,
-      lineHeight: 16,
+      lineHeight: 17,
 
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
-       PRIMARY BUTTON
-    ========================================================== */
+    /* ========================================================
+       PRIMARY ACTION
+    ======================================================== */
 
     primaryButton: {
-      minHeight: 56,
+      minHeight:
+        FixxamTokens.size.buttonHeight,
 
-      marginTop: 18,
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-      borderRadius: 17,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
 
       backgroundColor:
-        "#2563EB",
+        CustomerColors.primary,
 
-      paddingHorizontal: 16,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      gap: 9,
-
-      shadowColor:
-        "#2563EB",
-
-      shadowOpacity: 0.12,
-
-      shadowRadius: 10,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     primaryButtonPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     primaryIconBox: {
-      width: 25,
-      height: 25,
+      width: 28,
 
-      borderRadius: 8,
+      height: 28,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
 
       backgroundColor:
         "rgba(255,255,255,0.14)",
-
-      alignItems: "center",
-      justifyContent: "center",
     },
 
     primaryButtonText: {
-      fontSize: 13,
-      lineHeight: 18,
-
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
-    /* ==========================================================
-       SECONDARY BUTTON
-    ========================================================== */
+    /* ========================================================
+       SECONDARY ACTION
+    ======================================================== */
 
     secondaryButton: {
-      minHeight: 50,
+      minHeight:
+        FixxamTokens.size.buttonHeight,
 
-      marginTop: 9,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      borderRadius: 16,
+      flexDirection:
+        "row",
 
-      backgroundColor:
-        "#FFFFFF",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      flexDirection: "row",
+      borderRadius:
+        FixxamTokens.radius.button,
 
-      alignItems: "center",
-      justifyContent: "center",
-
-      gap: 7,
+      backgroundColor:
+        Colors.surface,
     },
 
     secondaryButtonPressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     secondaryButtonText: {
-      fontSize: 11.5,
-      lineHeight: 17,
-
-      color: "#475569",
+      color:
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        REQUEST ID
-    ========================================================== */
+    ======================================================== */
 
     requestId: {
-      marginTop: 11,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      paddingHorizontal: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      fontSize: 9.5,
-      lineHeight: 14,
-
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
   });

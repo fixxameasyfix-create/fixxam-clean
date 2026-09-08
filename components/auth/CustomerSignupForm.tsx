@@ -118,36 +118,39 @@ export default function CustomerSignupForm({
   ============================================================ */
 
   const draft = useCustomerDraft({
-    step,
-    setStep,
+  step,
+  setStep,
 
-    firstName,
-    setFirstName,
+  firstName,
+  setFirstName,
 
-    surname,
-    setSurname,
+  surname,
+  setSurname,
 
-    otherName,
-    setOtherName,
+  otherName,
+  setOtherName,
 
-    email,
-    setEmail,
+  email,
+  setEmail,
 
-    emailOtp,
-    setEmailOtp,
+  emailOtp,
+  setEmailOtp,
 
-    phone,
-    setPhone,
+  emailVerified,
+  setEmailVerified,
 
-    otp,
-    setOtp,
+  phone,
+  setPhone,
 
-    phoneVerified,
-    setPhoneVerified,
+  otp,
+  setOtp,
 
-    acceptedTerms,
-    setAcceptedTerms,
-  });
+  phoneVerified,
+  setPhoneVerified,
+
+  acceptedTerms,
+  setAcceptedTerms,
+});
 
   /* ============================================================
      REGISTRATION

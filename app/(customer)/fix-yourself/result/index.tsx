@@ -1,7 +1,9 @@
-import React from "react";
+import React, {
+  useEffect,
+  useMemo,
+} from "react";
 
 import {
-  Alert,
   ScrollView,
   StyleSheet,
 } from "react-native";
@@ -10,6 +12,8 @@ import {
   router,
   useLocalSearchParams,
 } from "expo-router";
+
+import Toast from "react-native-toast-message";
 
 import {
   AppScreen,
@@ -48,105 +52,255 @@ type FixYourselfResultWithService =
   };
 
 /* ==============================================================
+   TYPES
+============================================================== */
+
+type ResultState =
+  | {
+      status: "success";
+
+      data:
+        FixYourselfResultWithService;
+    }
+  | {
+      status:
+        | "missing"
+        | "invalid";
+
+      data: null;
+    };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getParamString(
+  value: unknown,
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    return value.trim();
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    const first =
+      value[0];
+
+    return typeof first ===
+      "string"
+      ? first.trim()
+      : "";
+  }
+
+  return "";
+}
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function parseResult(
+  value: string,
+): ResultState {
+  if (!value) {
+    return {
+      status: "missing",
+      data: null,
+    };
+  }
+
+  try {
+    const parsed:
+      unknown =
+      JSON.parse(value);
+
+    if (
+      !parsed ||
+      typeof parsed !==
+        "object" ||
+      Array.isArray(parsed)
+    ) {
+      return {
+        status: "invalid",
+        data: null,
+      };
+    }
+
+    return {
+      status: "success",
+
+      data:
+        parsed as FixYourselfResultWithService,
+    };
+  } catch {
+    return {
+      status: "invalid",
+      data: null,
+    };
+  }
+}
+
+/* ==============================================================
    SCREEN
 ============================================================== */
 
 export default function FixYourselfResultScreen() {
-  const {
-    query,
-    result,
-  } =
+  const params =
     useLocalSearchParams<{
-      query?: string;
-      result?: string;
+      query?:
+        | string
+        | string[];
+
+      result?:
+        | string
+        | string[];
     }>();
 
   /* ============================================================
-     RESULT CHECK
+     PARAMS
   ============================================================ */
 
-  if (!result) {
-    Alert.alert(
-      "Analysis Not Found",
-      "Please analyze your problem again.",
-      [
-        {
-          text: "OK",
-          onPress: () =>
-            router.back(),
-        },
-      ],
+  const query =
+    getParamString(
+      params.query,
     );
 
-    return null;
-  }
+  const rawResult =
+    getParamString(
+      params.result,
+    );
 
   /* ============================================================
      PARSE RESULT
   ============================================================ */
 
-  let data:
-    FixYourselfResultWithService;
-
-  try {
-    data =
-      JSON.parse(
-        result,
-      ) as FixYourselfResultWithService;
-  } catch {
-    Alert.alert(
-      "Invalid Result",
-      "Unable to load the analysis.",
+  const resultState =
+    useMemo(
+      () =>
+        parseResult(
+          rawResult,
+        ),
       [
-        {
-          text: "OK",
-          onPress: () =>
-            router.back(),
-        },
+        rawResult,
       ],
     );
 
+  /* ============================================================
+     INVALID RESULT
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      resultState.status ===
+      "success"
+    ) {
+      return;
+    }
+
+    if (
+      resultState.status ===
+      "missing"
+    ) {
+      Toast.show({
+        type: "error",
+
+        text1:
+          "Analysis not found",
+
+        text2:
+          "Please analyze your problem again.",
+      });
+
+      router.back();
+
+      return;
+    }
+
+    Toast.show({
+      type: "error",
+
+      text1:
+        "Invalid analysis",
+
+      text2:
+        "Unable to load the analysis. Please try again.",
+    });
+
+    router.back();
+  }, [
+    resultState.status,
+  ]);
+
+  /* ============================================================
+     WAIT FOR NAVIGATION
+  ============================================================ */
+
+  if (
+    resultState.status !==
+    "success"
+  ) {
     return null;
   }
+
+  const data =
+    resultState.data;
 
   /* ============================================================
      SERVICE DATA
   ============================================================ */
 
   const serviceId =
-    data.matchedServiceId
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedServiceId,
+    );
 
   const serviceName =
-    data.matchedService
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedService,
+    );
 
   const serviceIcon =
-    data.matchedServiceIcon
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedServiceIcon,
+    );
 
   const serviceColor =
-    data.matchedServiceColor
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedServiceColor,
+    );
 
   const serviceBackgroundColor =
-    data.matchedServiceBackgroundColor
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedServiceBackgroundColor,
+    );
 
   const categoryId =
-    data.matchedCategoryId
-      ?.trim() ?? "";
+    cleanString(
+      data.matchedCategoryId,
+    );
 
   /* ============================================================
      UI
   ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.container
         }
@@ -164,9 +318,7 @@ export default function FixYourselfResultScreen() {
         ====================================================== */}
 
         <ResultProblemCard
-          problem={
-            query ?? ""
-          }
+          problem={query}
         />
 
         {/* ======================================================
@@ -233,34 +385,25 @@ export default function FixYourselfResultScreen() {
         ====================================================== */}
 
         <ResultActions
-          problem={
-            query ?? ""
-          }
-
+          problem={query}
           serviceId={
             serviceId
           }
-
           serviceName={
             serviceName
           }
-
           serviceIcon={
             serviceIcon
           }
-
           serviceColor={
             serviceColor
           }
-
           serviceBackgroundColor={
             serviceBackgroundColor
           }
-
           categoryId={
             categoryId
           }
-
           professionalRequired={
             data.professionalRequired
           }
@@ -284,8 +427,9 @@ const styles =
         FixxamTokens.spacing.md,
 
       paddingBottom:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.xxl,
 
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.sm,
     },
   });

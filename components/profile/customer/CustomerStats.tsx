@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -6,129 +9,223 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   orders: number;
 
   saved: number;
 
   reviews: number;
-
 };
 
-export default function CustomerStats({
+type StatItem = {
+  label: string;
 
-  orders,
+  value: number;
+};
 
-  saved,
+/* ============================================================
+   HELPERS
+============================================================ */
 
-  reviews,
+function normalizeCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return 0;
+  }
 
-}: Props) {
-
-  const stats = [
-
-    {
-      label: "Orders",
-      value: orders,
-    },
-
-    {
-      label: "Saved",
-      value: saved,
-    },
-
-    {
-      label: "Reviews",
-      value: reviews,
-    },
-
-  ];
-
-  return (
-
-    <AppCard style={styles.card}>
-
-      {stats.map((item) => (
-
-        <View
-          key={item.label}
-          style={styles.item}
-        >
-
-          <AppText
-            weight="bold"
-            style={styles.value}
-          >
-
-            {item.value}
-
-          </AppText>
-
-          <AppText
-            style={styles.label}
-          >
-
-            {item.label}
-
-          </AppText>
-
-        </View>
-
-      ))}
-
-    </AppCard>
-
-  );
-
+  return Math.floor(value);
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   STAT
+============================================================ */
 
-  card: {
+const Stat = memo(
+  function Stat({
+    item,
+  }: {
+    item: StatItem;
+  }) {
+    return (
+      <View
+        style={styles.item}
+        accessible
+        accessibilityLabel={`${item.value} ${item.label}`}
+      >
+        <AppText
+          variant="heading3"
+          weight="bold"
+          numberOfLines={1}
+          style={styles.value}
+        >
+          {item.value}
+        </AppText>
 
-    marginHorizontal: 16,
-
-    marginTop: 16,
-
-    marginBottom: 20,
-
-    paddingVertical: 18,
-
-    flexDirection: "row",
-
-    justifyContent: "space-around",
-
-    borderRadius: 18,
-
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={1}
+          style={styles.label}
+        >
+          {item.label}
+        </AppText>
+      </View>
+    );
   },
+);
 
-  item: {
+/* ============================================================
+   COMPONENT
+============================================================ */
 
-    alignItems: "center",
+export default function CustomerStats({
+  orders,
+  saved,
+  reviews,
+}: Props) {
+  const stats =
+    useMemo<StatItem[]>(
+      () => [
+        {
+          label: "Orders",
+          value:
+            normalizeCount(
+              orders,
+            ),
+        },
+        {
+          label: "Saved",
+          value:
+            normalizeCount(
+              saved,
+            ),
+        },
+        {
+          label: "Reviews",
+          value:
+            normalizeCount(
+              reviews,
+            ),
+        },
+      ],
+      [
+        orders,
+        saved,
+        reviews,
+      ],
+    );
 
-  },
+  return (
+    <View
+      style={styles.container}
+    >
+      {stats.map(
+        (
+          item,
+          index,
+        ) => (
+          <React.Fragment
+            key={item.label}
+          >
+            {index > 0 ? (
+              <View
+                style={
+                  styles.divider
+                }
+              />
+            ) : null}
 
-  value: {
+            <Stat
+              item={item}
+            />
+          </React.Fragment>
+        ),
+      )}
+    </View>
+  );
+}
 
-    fontSize: 22,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    color: "#0F172A",
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  },
+    container: {
+      minHeight: 88,
 
-  label: {
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-    marginTop: 6,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    color: "#64748B",
+      flexDirection: "row",
 
-    fontSize: 13,
+      alignItems: "center",
 
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-});
+    /* ========================================================
+       STAT
+    ======================================================== */
+
+    item: {
+      flex: 1,
+
+      minWidth: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+    },
+
+    value: {
+      color:
+        CustomerColors.primary,
+    },
+
+    label: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
+
+    divider: {
+      width: 1,
+
+      height: 38,
+
+      backgroundColor:
+        Colors.divider,
+    },
+  });

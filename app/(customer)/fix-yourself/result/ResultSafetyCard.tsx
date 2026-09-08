@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -15,9 +18,14 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   safety: string;
@@ -27,24 +35,57 @@ interface Props {
   professionalRequired: boolean;
 }
 
-export default function ResultSafetyCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultSafetyCard({
   safety,
   emergency,
   professionalRequired,
 }: Props) {
+  const safetyText =
+    useMemo(() => {
+      const value =
+        typeof safety === "string"
+          ? safety.trim()
+          : "";
+
+      return (
+        value ||
+        "No additional safety information is available."
+      );
+    }, [
+      safety,
+    ]);
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
           <MaterialCommunityIcons
             name="shield-check-outline"
             size={18}
-            color={CustomerColors.primary}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
           style={styles.title}
         >
@@ -52,13 +93,39 @@ export default function ResultSafetyCard({
         </AppText>
       </View>
 
-      <View style={styles.safetyBox}>
-        <AppText style={styles.safetyText}>
-          {safety}
+      {/* ========================================================
+          SAFETY INFORMATION
+      ======================================================== */}
+
+      <View
+        style={styles.safetyBox}
+      >
+        <MaterialCommunityIcons
+          name="shield-check"
+          size={18}
+          color={
+            Colors.success
+          }
+          style={
+            styles.safetyIcon
+          }
+        />
+
+        <AppText
+          variant="body"
+          style={
+            styles.safetyText
+          }
+        >
+          {safetyText}
         </AppText>
       </View>
 
-      {emergency && (
+      {/* ========================================================
+          EMERGENCY
+      ======================================================== */}
+
+      {emergency ? (
         <View
           style={[
             styles.notice,
@@ -67,31 +134,47 @@ export default function ResultSafetyCard({
         >
           <MaterialCommunityIcons
             name="alert-circle"
-            size={18}
-            color={CustomerColors.error}
-            style={styles.noticeIcon}
+            size={20}
+            color={
+              Colors.error
+            }
+            style={
+              styles.noticeIcon
+            }
           />
 
-          <View style={styles.content}>
+          <View
+            style={
+              styles.noticeContent
+            }
+          >
             <AppText
+              variant="bodyMedium"
               weight="bold"
-              color={CustomerColors.error}
+              style={
+                styles.emergencyTitle
+              }
             >
               Emergency
             </AppText>
 
             <AppText
-              style={styles.description}
+              variant="body"
+              style={
+                styles.description
+              }
             >
-              Stop using the equipment
-              immediately and make the
-              area safe.
+              Stop using the equipment immediately and make the area safe.
             </AppText>
           </View>
         </View>
-      )}
+      ) : null}
 
-      {professionalRequired && (
+      {/* ========================================================
+          PROFESSIONAL REQUIRED
+      ======================================================== */}
+
+      {professionalRequired ? (
         <View
           style={[
             styles.notice,
@@ -100,36 +183,48 @@ export default function ResultSafetyCard({
         >
           <MaterialCommunityIcons
             name="account-hard-hat"
-            size={18}
+            size={20}
             color={
-              CustomerColors.warning
+              Colors.warning
             }
-            style={styles.noticeIcon}
+            style={
+              styles.noticeIcon
+            }
           />
 
-          <View style={styles.content}>
+          <View
+            style={
+              styles.noticeContent
+            }
+          >
             <AppText
+              variant="bodyMedium"
               weight="bold"
-              color={
-                CustomerColors.warning
+              style={
+                styles.professionalTitle
               }
             >
               Professional Required
             </AppText>
 
             <AppText
-              style={styles.description}
+              variant="body"
+              style={
+                styles.description
+              }
             >
-              Professional tools or
-              technical experience are
-              required for this repair.
+              Professional tools or technical experience are required for this repair.
             </AppText>
           </View>
         </View>
-      )}
+      ) : null}
     </AppCard>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
@@ -141,12 +236,14 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
       flexDirection: "row",
 
       alignItems: "center",
-
-      marginBottom: 2,
     },
 
     iconContainer: {
@@ -154,89 +251,137 @@ const styles =
 
       height: 34,
 
-      borderRadius: 17,
-
       alignItems: "center",
 
       justifyContent: "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        CustomerColors.diagnosisBackground,
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginLeft: 10,
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       SAFETY
+    ======================================================== */
+
     safetyBox: {
-      padding: 12,
+      flexDirection: "row",
 
-      borderRadius: 12,
+      alignItems:
+        "flex-start",
 
-      backgroundColor:
-        CustomerColors.safetyBackground,
+      padding:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    safetyIcon: {
+      marginTop: 2,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     safetyText: {
-      fontSize: 14,
-
-      lineHeight: 22,
+      flex: 1,
 
       color:
-        CustomerColors.primaryText,
+        Colors.textPrimary,
+
+      lineHeight: 22,
     },
+
+    /* ========================================================
+       NOTICE
+    ======================================================== */
 
     notice: {
       flexDirection: "row",
 
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
 
-      padding: 12,
-
-      borderRadius: 12,
+      padding:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     emergencyNotice: {
-      backgroundColor:
-        CustomerColors.emergencyBackground,
-
       borderColor:
-        CustomerColors.error,
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     professionalNotice: {
-      backgroundColor:
-        CustomerColors.professionalBackground,
-
       borderColor:
-        CustomerColors.warning,
+        Colors.warning,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     noticeIcon: {
       marginTop: 2,
 
-      marginRight: 10,
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
-    content: {
+    noticeContent: {
       flex: 1,
+
+      minWidth: 0,
+    },
+
+    emergencyTitle: {
+      color:
+        Colors.error,
+    },
+
+    professionalTitle: {
+      color:
+        Colors.warning,
     },
 
     description: {
-      marginTop: 2,
-
-      fontSize: 14,
-
-      lineHeight: 20,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       color:
-        CustomerColors.primaryText,
+        Colors.textPrimary,
+
+      lineHeight: 20,
     },
   });
+
+export default memo(
+  ResultSafetyCard,
+);

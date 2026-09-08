@@ -1,32 +1,71 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+} from "react";
 
-import { AppText } from "@/components/ui";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
-import { CustomerColors } from "@/theme";
+import {
+  AppText,
+} from "@/components/ui";
 
 import EmailOtpField from "@/components/auth/EmailOtpField";
 import PhoneOtpField from "@/components/auth/PhoneOtpField";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   email: string;
+
   emailOtp: string;
+
   phone: string;
+
   otp: string;
 
   emailVerified: boolean;
+
   phoneVerified: boolean;
 
-  setEmail: (value: string) => void;
-  setEmailOtp: (value: string) => void;
-  setPhone: (value: string) => void;
-  setOtp: (value: string) => void;
+  setEmail: (
+    value: string,
+  ) => void;
 
-  setEmailVerified: (value: boolean) => void;
-  setPhoneVerified: (value: boolean) => void;
+  setEmailOtp: (
+    value: string,
+  ) => void;
+
+  setPhone: (
+    value: string,
+  ) => void;
+
+  setOtp: (
+    value: string,
+  ) => void;
+
+  setEmailVerified: (
+    value: boolean,
+  ) => void;
+
+  setPhoneVerified: (
+    value: boolean,
+  ) => void;
 };
 
-export default function CustomerContactInfo({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CustomerContactInfo({
   email,
   emailOtp,
   phone,
@@ -41,93 +80,173 @@ export default function CustomerContactInfo({
   setPhoneVerified,
 }: Props) {
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         How can we reach you?
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Add your contact details. Verify at least
-        one to continue.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Add your contact details. Verify at least one to continue.
       </AppText>
 
-      {/* Email */}
+      {/* ========================================================
+          EMAIL
+      ======================================================== */}
 
-      <View style={styles.emailSection}>
+      <View
+        style={
+          styles.emailSection
+        }
+      >
         <EmailOtpField
-          email={email}
-          otp={emailOtp}
-          onEmailChange={setEmail}
-          onOtpChange={setEmailOtp}
+          email={
+            email
+          }
+          otp={
+            emailOtp
+          }
+          onEmailChange={
+            setEmail
+          }
+          onOtpChange={
+            setEmailOtp
+          }
           variant="customer"
-          isVerified={emailVerified}
+          isVerified={
+            emailVerified
+          }
           onVerifiedChange={
             setEmailVerified
           }
         />
       </View>
 
-      {/* Phone */}
+      {/* ========================================================
+          PHONE
+      ======================================================== */}
 
-      <View style={styles.phoneSection}>
+      <View
+        style={
+          styles.phoneSection
+        }
+      >
         <PhoneOtpField
-          phone={phone}
-          otp={otp}
-          onPhoneChange={setPhone}
-          onOtpChange={setOtp}
+          phone={
+            phone
+          }
+          otp={
+            otp
+          }
+          onPhoneChange={
+            setPhone
+          }
+          onOtpChange={
+            setOtp
+          }
           variant="customer"
-          isVerified={phoneVerified}
+          isVerified={
+            phoneVerified
+          }
           onVerifiedChange={
             setPhoneVerified
           }
         />
       </View>
 
-      <AppText style={styles.securityText}>
+      {/* ========================================================
+          SECURITY NOTE
+      ======================================================== */}
+
+      <AppText
+        accessibilityRole="text"
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.securityText
+        }
+      >
         Your contact details are kept secure.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    paddingHorizontal: 4,
-    paddingTop: 28,
-  },
+export default memo(
+  CustomerContactInfo,
+);
 
-  title: {
-    fontSize: 22,
-    lineHeight: 28,
-    color: CustomerColors.textPrimary,
-    marginBottom: 6,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: CustomerColors.textSecondary,
-    marginBottom: 22,
-    maxWidth: 340,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  emailSection: {
-    marginBottom: 20,
-  },
+      paddingTop:
+        FixxamTokens.spacing.xl,
 
-  phoneSection: {
-    marginBottom: 6,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
+    },
 
-  securityText: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: CustomerColors.textSecondary,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-});
+    title: {
+      color:
+        Colors.textPrimary,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
+
+    subtitle: {
+      maxWidth: 340,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    emailSection: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
+
+    phoneSection: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
+
+    securityText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

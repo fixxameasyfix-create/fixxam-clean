@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useState,
+} from "react";
 
 import {
   StyleSheet,
@@ -6,97 +9,173 @@ import {
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
-
   description: string;
 
   onChangeDescription: (
     value: string,
   ) => void;
-
 };
 
-export default function ProductDescription({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProductDescription({
   description,
-
   onChangeDescription,
-
 }: Props) {
+  const [
+    focused,
+    setFocused,
+  ] =
+    useState(false);
 
   return (
-
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          LABEL
+      ====================================================== */}
 
       <AppText
+        variant="caption"
         weight="bold"
-        style={styles.label}
+        style={
+          styles.label
+        }
       >
         Description
       </AppText>
 
+      {/* ======================================================
+          INPUT
+      ====================================================== */}
+
       <TextInput
-        value={description}
+        value={
+          description
+        }
         onChangeText={
           onChangeDescription
         }
+        onFocus={() => {
+          setFocused(
+            true,
+          );
+        }}
+        onBlur={() => {
+          setFocused(
+            false,
+          );
+        }}
         placeholder="Describe your product..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={
+          Colors.textMuted
+        }
+        selectionColor={
+          WorkerColors.primary
+        }
         multiline
         numberOfLines={6}
-        style={styles.input}
+        textAlignVertical="top"
+        autoCapitalize="sentences"
+        autoCorrect
+        accessibilityLabel="Product description"
+        style={[
+          styles.input,
+
+          focused
+            ? styles.inputFocused
+            : null,
+        ]}
       />
-
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductDescription =
+  memo(
+    ProductDescription,
   );
 
-}
+MemoizedProductDescription.displayName =
+  "ProductDescription";
+
+export default MemoizedProductDescription;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     container: {
+      width: "100%",
 
-      marginBottom: 24,
-
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
     label: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      marginBottom: 8,
-
-      fontSize: 15,
-
+      color:
+        Colors.textPrimary,
     },
 
     input: {
-
       minHeight: 140,
 
-      backgroundColor:
-        "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 16,
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      paddingHorizontal: 16,
+      borderRadius:
+        FixxamTokens.radius.input,
 
-      paddingVertical: 14,
+      backgroundColor:
+        Colors.surface,
 
-      textAlignVertical:
-        "top",
+      fontSize:
+        Typography.fontSize.md,
 
-      fontSize: 15,
-
-      color: "#0F172A",
-
+      color:
+        Colors.textPrimary,
     },
 
+    inputFocused: {
+      borderColor:
+        WorkerColors.primary,
+    },
   });

@@ -1,49 +1,186 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  TouchableOpacity,
+  ActivityIndicator,
+  Pressable,
+  StyleProp,
   StyleSheet,
   ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Props = {
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
+import AppIcon from "@/components/ui/AppIcon";
+
+import {
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+type FloatingButtonSize =
+  | "md"
+  | "lg";
+
+export interface AppFloatingButtonProps {
+  icon?: string;
+
   onPress: () => void;
 
+  role?: FixxamRole;
+
+  size?: FloatingButtonSize;
+
+  disabled?: boolean;
+
+  loading?: boolean;
+
+  accessibilityLabel?: string;
+
+  /*
+   * Legacy/custom overrides.
+   */
   color?: string;
+
   backgroundColor?: string;
 
-  style?: ViewStyle;
-};
+  bottomOffset?: number;
 
-export default function AppFloatingButton({
-  icon = "plus",
+  rightOffset?: number;
+
+  respectSafeArea?: boolean;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppFloatingButton({
+  icon = "add",
   onPress,
 
-  color = "#FFFFFF",
-  backgroundColor = "#2563EB",
+  role = "customer",
+
+  size = "md",
+
+  disabled = false,
+  loading = false,
+
+  accessibilityLabel = "Action",
+
+  color,
+  backgroundColor,
+
+  bottomOffset,
+  rightOffset =
+    FixxamTokens.spacing.xl,
+
+  respectSafeArea = true,
 
   style,
-}: Props) {
+}: AppFloatingButtonProps) {
+  const insets = useSafeAreaInsets();
+
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const isDisabled =
+    disabled || loading;
+
+  const buttonSize =
+    size === "lg"
+      ? FixxamTokens.size.fabLarge
+      : FixxamTokens.size.fab;
+
+  const resolvedBottom =
+    bottomOffset ??
+    FixxamTokens.spacing.xxl +
+      (respectSafeArea
+        ? insets.bottom
+        : 0);
+
+  const resolvedBackground =
+    backgroundColor ??
+    colors.primary;
+
+  const resolvedIconColor =
+    color ?? colors.white;
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        accessibilityLabel
+      }
+      accessibilityState={{
+        disabled: isDisabled,
+        busy: loading,
+      }}
+      disabled={isDisabled}
+      hitSlop={8}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
+
         {
-          backgroundColor,
+          width: buttonSize,
+          height: buttonSize,
+
+          right: rightOffset,
+          bottom: resolvedBottom,
+
+          backgroundColor:
+            isDisabled
+              ? colors.primaryDisabled
+              : resolvedBackground,
+
+          opacity: isDisabled
+            ? FixxamTokens.motion
+                .disabledOpacity
+            : pressed
+              ? FixxamTokens.motion
+                  .pressedOpacity
+              : 1,
+
+          transform: [
+            {
+              scale:
+                pressed &&
+                !isDisabled
+                  ? FixxamTokens.motion
+                      .scalePressed
+                  : 1,
+            },
+          ],
         },
+
+        !isDisabled
+          ? FixxamTokens.shadow.floating
+          : null,
+
         style,
       ]}
     >
-      <MaterialCommunityIcons
-        name={icon}
-        size={28}
-        color={color}
-      />
-    </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={resolvedIconColor}
+        />
+      ) : (
+        <AppIcon
+          name={icon}
+          role={role}
+          size={
+            size === "lg"
+              ? "lg"
+              : "md"
+          }
+          color={resolvedIconColor}
+          strokeWidth="medium"
+        />
+      )}
+    </Pressable>
   );
 }
 
@@ -51,25 +188,14 @@ const styles = StyleSheet.create({
   button: {
     position: "absolute",
 
-    right: 20,
-    bottom: 24,
-
-    width: 64,
-    height: 64,
-
-    borderRadius: 32,
-
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
 
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
+    borderRadius:
+      FixxamTokens.radius.full,
 
-    elevation: 8,
+    zIndex: 20,
   },
 });
+
+export default memo(AppFloatingButton);

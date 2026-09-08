@@ -1,22 +1,44 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-type Variant = "customer" | "worker";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Variant =
+  | "customer"
+  | "worker";
 
 type Props = {
   photo: string | null;
 
   onUpload: () => void;
+
   onCapture: () => void;
 
   onSkip?: () => void;
@@ -24,36 +46,63 @@ type Props = {
   variant?: Variant;
 };
 
-export default function ProfilePhotoPreview({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProfilePhotoPreview({
   photo,
   onUpload,
   onCapture,
   onSkip,
   variant = "worker",
 }: Props) {
-  const isWorker = variant === "worker";
+  const isWorker =
+    variant === "worker";
 
-  const primaryColor = isWorker
-    ? "#F97316"
-    : "#2563EB";
+  const roleColor =
+    isWorker
+      ? WorkerColors.primary
+      : CustomerColors.primary;
 
-  const infoBackground = isWorker
-    ? "#FFF7ED"
-    : "#EFF6FF";
+  const roleSoftColor =
+    isWorker
+      ? WorkerColors.primarySoft
+      : CustomerColors.primarySoft;
 
-  const infoTextColor = isWorker
-    ? "#9A3412"
-    : "#1D4ED8";
+  const hasPhoto =
+    typeof photo === "string" &&
+    photo.trim().length > 0;
+
+  const subtitle =
+    useMemo(
+      () =>
+        isWorker
+          ? "Add a clear photo of yourself so customers and Fixxam can easily recognize your profile."
+          : "Add a clear photo of yourself so workers and Fixxam can easily recognize your profile.",
+      [isWorker],
+    );
 
   return (
-    <View style={styles.container}>
+    <AppCard
+      role={
+        variant
+      }
+      variant="outlined"
+      style={
+        styles.container
+      }
+    >
       {/* ==================================================
           TITLE
       ================================================== */}
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Add your profile photo
       </AppText>
@@ -62,9 +111,14 @@ export default function ProfilePhotoPreview({
           SUBTITLE
       ================================================== */}
 
-      <AppText style={styles.subtitle}>
-        Add a clear photo of yourself so customers and
-        Fixxam can easily recognize your profile.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        {subtitle}
       </AppText>
 
       {/* ==================================================
@@ -76,26 +130,31 @@ export default function ProfilePhotoPreview({
           styles.infoBox,
           {
             backgroundColor:
-              infoBackground,
+              roleSoftColor,
           },
         ]}
       >
-        <Ionicons
-          name="checkmark-circle-outline"
-          size={18}
-          color={primaryColor}
+        <AppIcon
+          name="success"
+          role={
+            variant
+          }
+          size="sm"
+          state="active"
         />
 
         <AppText
+          variant="caption"
+          weight="medium"
           style={[
             styles.infoText,
             {
-              color: infoTextColor,
+              color:
+                roleColor,
             },
           ]}
         >
-          Use a clear, well-lit photo where your face
-          is easy to see.
+          Use a clear, well-lit photo where your face is easy to see.
         </AppText>
       </View>
 
@@ -103,18 +162,32 @@ export default function ProfilePhotoPreview({
           PHOTO
       ================================================== */}
 
-      <View style={styles.photoCircle}>
-        {photo ? (
+      <View
+        style={
+          styles.photoCircle
+        }
+      >
+        {hasPhoto ? (
           <Image
-            source={{ uri: photo }}
-            style={styles.previewImage}
-            resizeMode="cover"
+            source={{
+              uri:
+                photo!,
+            }}
+            contentFit="cover"
+            transition={150}
+            accessibilityLabel="Profile photo preview"
+            style={
+              styles.previewImage
+            }
           />
         ) : (
-          <Ionicons
-            name="person-outline"
-            size={38}
-            color="#94A3B8"
+          <AppIcon
+            name="profile"
+            role={
+              variant
+            }
+            size="lg"
+            state="muted"
           />
         )}
       </View>
@@ -123,258 +196,224 @@ export default function ProfilePhotoPreview({
           BUTTONS
       ================================================== */}
 
-      <View style={styles.buttonsRow}>
-        {/* TAKE PHOTO */}
+      <View
+        style={
+          styles.buttonsRow
+        }
+      >
+        <AppButton
+          title="Take Photo"
+          role={
+            variant
+          }
+          variant="primary"
+          size="md"
+          leftIconName="camera"
+          onPress={
+            onCapture
+          }
+          style={
+            styles.actionButton
+          }
+        />
 
-        <Pressable
-          onPress={onCapture}
-          style={[
-            styles.primaryButton,
-            {
-              backgroundColor:
-                primaryColor,
-            },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Take profile photo"
-        >
-          <Ionicons
-            name="camera-outline"
-            size={19}
-            color="#FFFFFF"
-          />
-
-          <AppText
-            color="#FFFFFF"
-            weight="bold"
-            style={
-              styles.primaryButtonText
-            }
-          >
-            Take Photo
-          </AppText>
-        </Pressable>
-
-        {/* GALLERY */}
-
-        <Pressable
-          onPress={onUpload}
-          style={styles.galleryButton}
-          accessibilityRole="button"
-          accessibilityLabel="Choose profile photo from gallery"
-        >
-          <Ionicons
-            name="images-outline"
-            size={19}
-            color="#1E293B"
-          />
-
-          <AppText
-            weight="bold"
-            style={
-              styles.galleryButtonText
-            }
-          >
-            Gallery
-          </AppText>
-        </Pressable>
+        <AppButton
+          title="Gallery"
+          role={
+            variant
+          }
+          variant="outline"
+          size="md"
+          leftIconName="image"
+          onPress={
+            onUpload
+          }
+          style={
+            styles.actionButton
+          }
+        />
       </View>
 
       {/* ==================================================
           SKIP
       ================================================== */}
 
-      {onSkip && (
-        <Pressable
-          onPress={onSkip}
-          style={styles.skipButton}
-          accessibilityRole="button"
-          accessibilityLabel="Skip profile photo"
-        >
-          <AppText
-            weight="bold"
-            style={styles.skipText}
-          >
-            Skip for now
-          </AppText>
-        </Pressable>
-      )}
+      {onSkip ? (
+        <AppButton
+          title="Skip for now"
+          role={
+            variant
+          }
+          variant="ghost"
+          size="sm"
+          onPress={
+            onSkip
+          }
+          style={
+            styles.skipButton
+          }
+        />
+      ) : null}
 
       {/* ==================================================
           FOOTER
       ================================================== */}
 
-      <AppText style={styles.footerText}>
-        You can add or change your photo later
-        from your profile.
+      <AppText
+        variant="caption"
+        tone="secondary"
+        center
+        style={
+          styles.footerText
+        }
+      >
+        You can add or change your photo later from your profile.
       </AppText>
-    </View>
+    </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
+export default memo(
+  ProfilePhotoPreview,
+);
 
-    backgroundColor: "#FFFFFF",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    borderRadius: 16,
+const styles =
+  StyleSheet.create({
+    container: {
+      width:
+        "100%",
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    marginBottom: 8,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-  title: {
-    fontSize: 17,
-    lineHeight: 22,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    color: "#0F172A",
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-    marginBottom: 3,
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  subtitle: {
-    fontSize: 11,
-    lineHeight: 16,
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    color: "#64748B",
+      color:
+        Colors.textSecondary,
+    },
 
-    marginBottom: 9,
-  },
+    infoBox: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-  infoBox: {
-    minHeight: 44,
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 11,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
-    flexDirection: "row",
+      flexDirection:
+        "row",
 
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    gap: 8,
+      gap:
+        FixxamTokens.spacing.sm,
 
-    marginBottom: 12,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-  infoText: {
-    flex: 1,
+    infoText: {
+      flex: 1,
+    },
 
-    fontSize: 10,
-    lineHeight: 14,
+    photoCircle: {
+      width: 82,
 
-    fontWeight: "500",
-  },
+      height: 82,
 
-  photoCircle: {
-    width: 82,
-    height: 82,
+      alignSelf:
+        "center",
 
-    borderRadius: 41,
+      alignItems:
+        "center",
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+      justifyContent:
+        "center",
 
-    backgroundColor: "#F8FAFC",
+      overflow:
+        "hidden",
 
-    alignSelf: "center",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    justifyContent: "center",
-    alignItems: "center",
+      borderWidth: 1,
 
-    overflow: "hidden",
+      borderColor:
+        Colors.border,
 
-    marginBottom: 12,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  previewImage: {
-    width: "100%",
-    height: "100%",
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  buttonsRow: {
-    flexDirection: "row",
+    previewImage: {
+      width:
+        "100%",
 
-    gap: 8,
+      height:
+        "100%",
+    },
 
-    width: "100%",
-  },
+    buttonsRow: {
+      width:
+        "100%",
 
-  primaryButton: {
-    flex: 1,
+      flexDirection:
+        "row",
 
-    height: 42,
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-    borderRadius: 11,
+    actionButton: {
+      flex: 1,
+    },
 
-    flexDirection: "row",
+    skipButton: {
+      alignSelf:
+        "center",
 
-    justifyContent: "center",
-    alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
 
-    gap: 7,
-  },
+    footerText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  primaryButtonText: {
-    fontSize: 12,
-  },
-
-  galleryButton: {
-    flex: 1,
-
-    height: 42,
-
-    borderRadius: 11,
-
-    borderWidth: 1,
-
-    borderColor: "#D1D5DB",
-
-    backgroundColor: "#FFFFFF",
-
-    flexDirection: "row",
-
-    justifyContent: "center",
-    alignItems: "center",
-
-    gap: 7,
-  },
-
-  galleryButtonText: {
-    fontSize: 12,
-
-    color: "#1E293B",
-  },
-
-  skipButton: {
-    alignSelf: "center",
-
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-
-  skipText: {
-    fontSize: 11,
-
-    color: "#64748B",
-  },
-
-  footerText: {
-    fontSize: 10,
-    lineHeight: 14,
-
-    color: "#94A3B8",
-
-    textAlign: "center",
-
-    marginTop: 0,
-  },
-});
+      color:
+        Colors.textMuted,
+    },
+  });

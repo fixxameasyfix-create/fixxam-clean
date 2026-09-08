@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -6,22 +8,66 @@ import {
   View,
 } from "react-native";
 
-export default function PopularMaterialsLoading() {
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function PopularMaterialsLoading() {
   return (
-    <View style={styles.container}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading materials"
+      style={styles.container}
+    >
       <ActivityIndicator
         size="large"
-        color="#0F766E"
+        color={CustomerColors.primary}
       />
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={styles.text}
+      >
+        Loading materials...
+      </AppText>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    minHeight: 320,
-    justifyContent: "center",
+
+    minHeight: 300,
+
     alignItems: "center",
+
+    justifyContent: "center",
+
+    paddingVertical:
+      FixxamTokens.spacing.xl,
+  },
+
+  text: {
+    marginTop:
+      FixxamTokens.spacing.md,
   },
 });
+
+export default memo(
+  PopularMaterialsLoading,
+);

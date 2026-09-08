@@ -1,4 +1,8 @@
 import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -12,8 +16,6 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   router,
   useLocalSearchParams,
@@ -21,19 +23,23 @@ import {
 
 import Toast from "react-native-toast-message";
 
-import * as Location from "expo-location";
-
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   useCart,
 } from "@/contexts/CartContext";
 
 import useProductDetails from "@/hooks/market/useProductDetails";
-
 import useWorkerProfile from "@/hooks/worker/useWorkerProfile";
 
 import {
@@ -45,13 +51,9 @@ import {
 } from "@/firebase/config";
 
 import ProductGallery from "@/components/customer/market/ProductGallery";
-
 import ProductInfo from "@/components/customer/market/ProductInfo";
-
 import ProductDescription from "@/components/customer/market/ProductDescription";
-
 import ProductSeller from "@/components/customer/market/ProductSeller";
-
 import ProductActions from "@/components/customer/market/ProductActions";
 
 import WorkerStore from "@/components/customer/worker/WorkerStore";
@@ -96,25 +98,44 @@ type WorkerData = {
   };
 };
 
+type ActiveProductDeal =
+  Awaited<
+    ReturnType<
+      typeof getActiveProductDeals
+    >
+  > extends Map<
+    string,
+    infer Deal
+  >
+    ? Deal
+    : never;
+
 /* ============================================================
    HELPERS
 ============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
 
 function normalizePhoneNumber(
   value: string,
 ): string {
   let phone =
-    value.trim();
+    value
+      .trim()
+      .replace(
+        /[^\d+]/g,
+        "",
+      );
 
   if (!phone) {
     return "";
   }
-
-  phone =
-    phone.replace(
-      /[^\d+]/g,
-      "",
-    );
 
   if (
     phone.startsWith("0") &&
@@ -135,6 +156,58 @@ function normalizePhoneNumber(
   return phone;
 }
 
+function getSafeStock(
+  value: unknown,
+): number {
+  const stock =
+    Number(value);
+
+  if (
+    !Number.isFinite(stock) ||
+    stock <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(stock),
+  );
+}
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
 /* ============================================================
    SCREEN
 ============================================================ */
@@ -144,11 +217,27 @@ export default function ProductDetailsScreen() {
     id,
   } =
     useLocalSearchParams<{
-      id: string;
+      id:
+        | string
+        | string[];
     }>();
 
   const normalizedProductId =
-    String(id ?? "").trim();
+    useMemo(() => {
+      if (
+        Array.isArray(id)
+      ) {
+        return cleanString(
+          id[0],
+        );
+      }
+
+      return cleanString(
+        id,
+      );
+    }, [
+      id,
+    ]);
 
   /* ==========================================================
      PRODUCT
@@ -184,8 +273,11 @@ export default function ProductDetailsScreen() {
   } =
     useCart();
 
+  const cartMutationInFlight =
+    useRef(false);
+
   /* ==========================================================
-     WORKER PHONE
+     CALL
   ========================================================== */
 
   const [
@@ -193,6 +285,12 @@ export default function ProductDetailsScreen() {
     setWorkerPhone,
   ] =
     useState("");
+
+  const [
+    callingWorker,
+    setCallingWorker,
+  ] =
+    useState(false);
 
   /* ==========================================================
      MODALS
@@ -247,40 +345,67 @@ export default function ProductDetailsScreen() {
       | undefined;
 
   const workerName =
-    workerData
-      ? [
-          workerData.firstName,
-          workerData.otherName,
-          workerData.surname,
+    useMemo(() => {
+      if (!workerData) {
+        return "Worker";
+      }
+
+      const name =
+        [
+          cleanString(
+            workerData.firstName,
+          ),
+          cleanString(
+            workerData.otherName,
+          ),
+          cleanString(
+            workerData.surname,
+          ),
         ]
           .filter(Boolean)
-          .join(" ")
-      : "Worker";
+          .join(" ");
+
+      return (
+        name ||
+        "Worker"
+      );
+    }, [
+      workerData,
+    ]);
 
   const workerPhoto =
-    workerData?.photoUrl ??
-    workerData?.photo ??
-    workerData?.photoURL ??
-    "";
+    useMemo(
+      () =>
+        cleanString(
+          workerData?.photoUrl,
+        ) ||
+        cleanString(
+          workerData?.photo,
+        ) ||
+        cleanString(
+          workerData?.photoURL,
+        ),
+      [
+        workerData,
+      ],
+    );
 
   /* ==========================================================
      VIEW WORKER PROFILE
   ========================================================== */
 
   const handleViewProfile =
-    () => {
+    useCallback(() => {
       const workerId =
-        product?.workerId?.trim() ??
-        "";
+        cleanString(
+          product?.workerId,
+        );
 
       if (!workerId) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Worker unavailable",
-          text2:
-            "Worker profile could not be opened.",
-        });
+        showErrorToast(
+          "Worker unavailable",
+          "Worker profile could not be opened.",
+        );
 
         return;
       }
@@ -288,79 +413,97 @@ export default function ProductDetailsScreen() {
       router.push({
         pathname:
           "/(customer)/details/worker-profile/[id]",
+
         params: {
-          id: workerId,
+          id:
+            workerId,
         },
       });
-    };
+    }, [
+      product?.workerId,
+    ]);
 
   /* ==========================================================
      CALL WORKER
   ========================================================== */
 
   const handleCallWorker =
-    () => {
-      const user =
-        auth.currentUser;
+    useCallback(() => {
+      if (
+        !auth.currentUser
+      ) {
+        setShowLoginModal(
+          true,
+        );
 
-      if (!user) {
-        setShowLoginModal(true);
         return;
       }
 
-      setShowCallModal(true);
-    };
+      setShowCallModal(
+        true,
+      );
+    }, []);
 
   /* ==========================================================
      CONFIRM CALL
   ========================================================== */
 
   const handleConfirmCallWorker =
-    async () => {
+    useCallback(async () => {
+      if (callingWorker) {
+        return;
+      }
+
       const user =
         auth.currentUser;
 
       if (!user) {
-        setShowCallModal(false);
-        setShowLoginModal(true);
+        setShowCallModal(
+          false,
+        );
+
+        setShowLoginModal(
+          true,
+        );
 
         return;
       }
 
       const workerId =
-        product?.workerId?.trim() ??
-        "";
+        cleanString(
+          product?.workerId,
+        );
 
       if (!workerId) {
-        setShowCallModal(false);
+        setShowCallModal(
+          false,
+        );
 
-        Toast.show({
-          type: "error",
-          text1:
-            "Worker unavailable",
-          text2:
-            "This product is not linked to a worker.",
-        });
+        showErrorToast(
+          "Worker unavailable",
+          "This product is not linked to a worker.",
+        );
 
         return;
       }
 
-      try {
-        setShowCallModal(false);
+      setCallingWorker(
+        true,
+      );
 
+      try {
         const snapshot =
           await getWorker(
             workerId,
           );
 
-        if (!snapshot.exists()) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Worker unavailable",
-            text2:
-              "Worker information could not be found.",
-          });
+        if (
+          !snapshot.exists()
+        ) {
+          showErrorToast(
+            "Worker unavailable",
+            "Worker information could not be found.",
+          );
 
           return;
         }
@@ -368,7 +511,7 @@ export default function ProductDetailsScreen() {
         const data =
           snapshot.data() as WorkerData;
 
-        const phone =
+        const rawPhone =
           data.phoneNumber ??
           data.phone ??
           data.mobileNumber ??
@@ -382,7 +525,9 @@ export default function ProductDetailsScreen() {
 
         const phoneNumber =
           normalizePhoneNumber(
-            String(phone),
+            String(
+              rawPhone,
+            ),
           );
 
         setWorkerPhone(
@@ -390,13 +535,10 @@ export default function ProductDetailsScreen() {
         );
 
         if (!phoneNumber) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Phone number unavailable",
-            text2:
-              "This worker has not added a phone number.",
-          });
+          showErrorToast(
+            "Phone number unavailable",
+            "This worker has not added a phone number.",
+          );
 
           return;
         }
@@ -410,60 +552,68 @@ export default function ProductDetailsScreen() {
           );
 
         if (!supported) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Unable to make call",
-            text2:
-              "This device cannot open the phone dialer.",
-          });
+          showErrorToast(
+            "Unable to make call",
+            "This device cannot open the phone dialer.",
+          );
 
           return;
         }
 
+        setShowCallModal(
+          false,
+        );
+
         await Linking.openURL(
           phoneUrl,
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.error(
           "FIXXAM_CALL_WORKER_ERROR:",
           error,
         );
 
-        Toast.show({
-          type: "error",
-          text1:
-            "Unable to make call",
-          text2:
-            "The phone dialer could not be opened.",
-        });
+        showErrorToast(
+          "Unable to make call",
+          "The phone dialer could not be opened.",
+        );
+      } finally {
+        setCallingWorker(
+          false,
+        );
       }
-    };
+    }, [
+      callingWorker,
+      product?.workerId,
+    ]);
 
   /* ==========================================================
      VALIDATE PRODUCT
   ========================================================== */
 
   const validateProduct =
-    (): boolean => {
+    useCallback((): boolean => {
       if (!product) {
+        showErrorToast(
+          "Product unavailable",
+          "This product is no longer available.",
+        );
+
         return false;
       }
 
       const stock =
-        Number(product.stock);
+        getSafeStock(
+          product.stock,
+        );
 
-      if (
-        !Number.isFinite(stock) ||
-        stock <= 0
-      ) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Out of Stock",
-          text2:
-            "This product is currently unavailable.",
-        });
+      if (stock <= 0) {
+        showErrorToast(
+          "Out of Stock",
+          "This product is currently unavailable.",
+        );
 
         return false;
       }
@@ -475,61 +625,52 @@ export default function ProductDetailsScreen() {
         quantity < 1 ||
         quantity > stock
       ) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid quantity",
-          text2:
-            "Please select a valid quantity.",
-        });
+        showErrorToast(
+          "Invalid quantity",
+          "Please select a valid quantity.",
+        );
 
         return false;
       }
 
       const workerId =
-        product.workerId?.trim() ??
-        "";
+        cleanString(
+          product.workerId,
+        );
 
       if (!workerId) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Worker unavailable",
-          text2:
-            "This product is not linked to a worker.",
-        });
+        showErrorToast(
+          "Worker unavailable",
+          "This product is not linked to a worker.",
+        );
 
         return false;
       }
 
       const productId =
-        product.id?.trim() ??
-        "";
+        cleanString(
+          product.id,
+        );
 
       if (!productId) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid product",
-          text2:
-            "This product has an invalid ID.",
-        });
+        showErrorToast(
+          "Invalid product",
+          "This product has an invalid ID.",
+        );
 
         return false;
       }
 
       const productName =
-        product.name?.trim() ??
-        "";
+        cleanString(
+          product.name,
+        );
 
       if (!productName) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid product",
-          text2:
-            "This product has no valid name.",
-        });
+        showErrorToast(
+          "Invalid product",
+          "This product has no valid name.",
+        );
 
         return false;
       }
@@ -545,37 +686,50 @@ export default function ProductDetailsScreen() {
         ) ||
         originalPrice < 0
       ) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid product price",
-          text2:
-            "This product cannot be added to cart.",
-        });
+        showErrorToast(
+          "Invalid product price",
+          "This product cannot be added to cart.",
+        );
 
         return false;
       }
 
       return true;
-    };
+    }, [
+      product,
+      quantity,
+    ]);
 
   /* ==========================================================
-     ADD PRODUCT TO CART
+     ADD CURRENT PRODUCT
   ========================================================== */
 
   const addCurrentProductToCart =
-    async (): Promise<boolean> => {
+    useCallback(async (): Promise<boolean> => {
+      if (
+        cartMutationInFlight.current
+      ) {
+        return false;
+      }
+
       if (!product) {
         return false;
       }
 
       const productId =
-        product.id?.trim() ??
-        "";
+        cleanString(
+          product.id,
+        );
 
       const workerId =
-        product.workerId?.trim() ??
-        "";
+        cleanString(
+          product.workerId,
+        );
+
+      const productName =
+        cleanString(
+          product.name,
+        );
 
       const originalPrice =
         Number(
@@ -585,271 +739,258 @@ export default function ProductDetailsScreen() {
       if (
         !productId ||
         !workerId ||
+        !productName ||
         !Number.isFinite(
           originalPrice,
         ) ||
         originalPrice < 0
       ) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid product",
-          text2:
-            "This product cannot be added to cart.",
-        });
+        showErrorToast(
+          "Invalid product",
+          "This product cannot be added to cart.",
+        );
 
         return false;
       }
 
-      /* --------------------------------------------------------
-         ACTIVE DEAL
-      -------------------------------------------------------- */
-
-      let activeDeal:
-        Awaited<
-          ReturnType<
-            typeof getActiveProductDeals
-          >
-        > extends Map<
-          string,
-          infer Deal
-        >
-          ? Deal | null
-          : null =
-        null;
+      cartMutationInFlight.current =
+        true;
 
       try {
-        const dealsByProductId =
-          await getActiveProductDeals([
-            productId,
-          ]);
+        /* ----------------------------------------------------
+           ACTIVE DEAL
+        ---------------------------------------------------- */
 
-        activeDeal =
-          dealsByProductId.get(
-            productId,
-          ) ?? null;
-      } catch (error) {
-        /*
-         * Deal is optional.
-         *
-         * If the deal query fails,
-         * do NOT block the customer
-         * from buying at the original price.
-         */
-        console.warn(
-          "FIXXAM_PRODUCT_DEAL_ERROR:",
-          error,
-        );
+        let activeDeal:
+          ActiveProductDeal | null =
+          null;
 
-        activeDeal = null;
-      }
+        try {
+          const dealsByProductId =
+            await getActiveProductDeals([
+              productId,
+            ]);
 
-      /* --------------------------------------------------------
-         VALIDATE DEAL OWNERSHIP
-      -------------------------------------------------------- */
+          activeDeal =
+            dealsByProductId.get(
+              productId,
+            ) ?? null;
+        } catch (
+          dealError
+        ) {
+          console.warn(
+            "FIXXAM_PRODUCT_DEAL_ERROR:",
+            dealError,
+          );
 
-      if (
-        activeDeal &&
-        activeDeal.workerId !==
-          workerId
-      ) {
-        /*
-         * Never apply a deal belonging
-         * to another worker.
-         */
-        activeDeal = null;
-      }
+          /*
+           * Deal lookup failure must not
+           * block purchase at normal price.
+           */
+          activeDeal =
+            null;
+        }
 
-      /* --------------------------------------------------------
-         VALIDATE DEAL PRICE
-      -------------------------------------------------------- */
+        /* ----------------------------------------------------
+           DEAL OWNERSHIP
+        ---------------------------------------------------- */
 
-      const discountPercentage =
-        Number(
-          activeDeal?.discountPercentage,
-        );
+        const dealWorkerId =
+          activeDeal
+            ? cleanString(
+                activeDeal.workerId,
+              )
+            : "";
 
-      const dealPrice =
-        Number(
-          activeDeal?.discountedPrice,
-        );
-
-      const hasValidDiscount =
-        Boolean(
+        if (
           activeDeal &&
-            Number.isFinite(
-              discountPercentage,
-            ) &&
-            discountPercentage > 0 &&
-            discountPercentage < 100 &&
-            Number.isFinite(
-              dealPrice,
-            ) &&
-            dealPrice > 0 &&
-            dealPrice < originalPrice,
-        );
+          dealWorkerId !==
+            workerId
+        ) {
+          activeDeal =
+            null;
+        }
 
-      const unitPrice =
-        hasValidDiscount
-          ? dealPrice
-          : originalPrice;
+        /* ----------------------------------------------------
+           DEAL PRICE
+        ---------------------------------------------------- */
 
-      /* --------------------------------------------------------
-         CART ITEM
-      -------------------------------------------------------- */
+        const discountPercentage =
+          Number(
+            activeDeal
+              ?.discountPercentage,
+          );
 
-      const result =
-        addToCart({
-          id:
-            productId,
+        const dealPrice =
+          Number(
+            activeDeal
+              ?.discountedPrice,
+          );
 
-          name:
-            product.name.trim(),
+        const dealId =
+          activeDeal
+            ? cleanString(
+                activeDeal.id,
+              )
+            : "";
 
-          /*
-           * Original price.
-           */
-          price:
-            originalPrice,
-
-          /*
-           * Actual customer price.
-           */
-          unitPrice,
-
-          image:
-            product.thumbnail?.trim() ??
-            "",
-
-          /*
-           * Use the selected quantity.
-           */
-          quantity,
-
-          ...(hasValidDiscount
-            ? {
+        const hasValidDiscount =
+          Boolean(
+            activeDeal &&
+              dealId &&
+              Number.isFinite(
                 discountPercentage,
+              ) &&
+              discountPercentage > 0 &&
+              discountPercentage < 100 &&
+              Number.isFinite(
+                dealPrice,
+              ) &&
+              dealPrice > 0 &&
+              dealPrice <
+                originalPrice,
+          );
 
-                discountedPrice:
-                  unitPrice,
+        const unitPrice =
+          hasValidDiscount
+            ? dealPrice
+            : originalPrice;
 
-                dealId:
-                  activeDeal!.id.trim(),
-              }
-            : {}),
+        /* ----------------------------------------------------
+           CART
+        ---------------------------------------------------- */
 
-          storeId:
-            product.storeId?.trim() ??
-            "",
+        const result =
+          addToCart({
+            id:
+              productId,
 
-          /*
-           * Current Fixxam market flow
-           * uses worker as seller.
-           */
-          sellerId:
+            name:
+              productName,
+
+            /*
+             * Reference/original price.
+             */
+            price:
+              originalPrice,
+
+            /*
+             * Current customer unit price.
+             */
+            unitPrice,
+
+            image:
+              cleanString(
+                product.thumbnail,
+              ),
+
+            quantity,
+
+            ...(hasValidDiscount
+              ? {
+                  discountPercentage,
+
+                  discountedPrice:
+                    unitPrice,
+
+                  dealId,
+                }
+              : {}),
+
+            storeId:
+              cleanString(
+                product.storeId,
+              ),
+
+            /*
+             * Current market flow uses
+             * worker as seller.
+             */
+            sellerId:
+              workerId,
+
             workerId,
+          });
 
-          workerId,
-        });
-
-      /* --------------------------------------------------------
-         RESULT
-      -------------------------------------------------------- */
-
-      switch (result) {
-        case "added":
-          Toast.show({
-            type: "success",
-            text1:
+        switch (result) {
+          case "added":
+            showSuccessToast(
               "Added to cart",
-            text2:
               hasValidDiscount
-                ? `${quantity} × ${product.name} added with discount.`
-                : `${quantity} × ${product.name} added to your cart.`,
-          });
+                ? `${quantity} × ${productName} added with discount.`
+                : `${quantity} × ${productName} added to your cart.`,
+            );
 
-          return true;
+            return true;
 
-        case "updated":
-          Toast.show({
-            type: "success",
-            text1:
+          case "updated":
+            showSuccessToast(
               "Cart updated",
-            text2:
-              `${quantity} × ${product.name} added to your cart.`,
-          });
+              `${quantity} × ${productName} added to your cart.`,
+            );
 
-          return true;
+            return true;
 
-        case "worker-conflict":
-          Toast.show({
-            type: "error",
-            text1:
+          case "worker-conflict":
+            showErrorToast(
               "Different worker",
-            text2:
               "Your cart can only contain products from one worker.",
-          });
+            );
 
-          return false;
+            return false;
 
-        case "invalid":
-          Toast.show({
-            type: "error",
-            text1:
+          case "invalid":
+            showErrorToast(
               "Unable to add product",
-            text2:
               "This product contains invalid information.",
-          });
+            );
 
-          return false;
+            return false;
 
-        default:
-          Toast.show({
-            type: "error",
-            text1:
+          default:
+            showErrorToast(
               "Unable to add product",
-            text2:
               "Please try again.",
-          });
+            );
 
-          return false;
+            return false;
+        }
+      } finally {
+        cartMutationInFlight.current =
+          false;
       }
-    };
+    }, [
+      addToCart,
+      product,
+      quantity,
+    ]);
 
   /* ==========================================================
-     INCREASE QUANTITY
+     QUANTITY
   ========================================================== */
 
   const increaseQuantity =
-    () => {
-      if (!product) {
-        return;
-      }
-
+    useCallback(() => {
       const stock =
-        Number(product.stock);
+        getSafeStock(
+          product?.stock,
+        );
 
-      if (
-        !Number.isFinite(stock) ||
-        stock <= 0
-      ) {
+      if (stock <= 0) {
         return;
       }
 
       if (
         quantity >= stock
       ) {
-        Toast.show({
-          type: "info",
-          text1:
-            "Maximum quantity reached",
-          text2:
-            `Only ${stock} item${
-              stock === 1
-                ? ""
-                : "s"
-            } available.`,
-        });
+        showInfoToast(
+          "Maximum quantity reached",
+          `Only ${stock} item${
+            stock === 1
+              ? ""
+              : "s"
+          } available.`,
+        );
 
         return;
       }
@@ -861,14 +1002,13 @@ export default function ProductDetailsScreen() {
             stock,
           ),
       );
-    };
-
-  /* ==========================================================
-     DECREASE QUANTITY
-  ========================================================== */
+    }, [
+      product?.stock,
+      quantity,
+    ]);
 
   const decreaseQuantity =
-    () => {
+    useCallback(() => {
       setQuantity(
         previous =>
           Math.max(
@@ -876,30 +1016,36 @@ export default function ProductDetailsScreen() {
             previous - 1,
           ),
       );
-    };
+    }, []);
 
   /* ==========================================================
      ADD TO CART
   ========================================================== */
 
   const handleAddToCart =
-    async () => {
-      if (!validateProduct()) {
+    useCallback(async () => {
+      if (
+        !validateProduct()
+      ) {
         return;
       }
 
       await addCurrentProductToCart();
-    };
+    }, [
+      addCurrentProductToCart,
+      validateProduct,
+    ]);
 
   /* ==========================================================
-     DIFFERENT WORKER IN CART
+     DIFFERENT WORKER
   ========================================================== */
 
   const hasDifferentWorkerInCart =
-    (): boolean => {
+    useCallback((): boolean => {
       const productWorkerId =
-        product?.workerId?.trim() ??
-        "";
+        cleanString(
+          product?.workerId,
+        );
 
       if (
         !productWorkerId ||
@@ -911,8 +1057,9 @@ export default function ProductDetailsScreen() {
       return items.some(
         item => {
           const itemWorkerId =
-            item.workerId?.trim() ??
-            "";
+            cleanString(
+              item.workerId,
+            );
 
           return (
             itemWorkerId !==
@@ -920,15 +1067,20 @@ export default function ProductDetailsScreen() {
           );
         },
       );
-    };
+    }, [
+      items,
+      product?.workerId,
+    ]);
 
   /* ==========================================================
      BUY NOW
   ========================================================== */
 
   const handleBuyNow =
-    async () => {
-      if (!validateProduct()) {
+    useCallback(async () => {
+      if (
+        !validateProduct()
+      ) {
         return;
       }
 
@@ -952,15 +1104,21 @@ export default function ProductDetailsScreen() {
       router.push(
         "/(customer)/shop/cart",
       );
-    };
+    }, [
+      addCurrentProductToCart,
+      hasDifferentWorkerInCart,
+      validateProduct,
+    ]);
 
   /* ==========================================================
-     CLEAR CART AND CONTINUE
+     CLEAR CART + CONTINUE
   ========================================================== */
 
   const handleClearCartAndContinue =
-    async () => {
-      if (!validateProduct()) {
+    useCallback(async () => {
+      if (
+        !validateProduct()
+      ) {
         setShowReplaceCartModal(
           false,
         );
@@ -975,8 +1133,8 @@ export default function ProductDetailsScreen() {
       clearCart();
 
       /*
-       * Wait for deal lookup and
-       * cart insertion to complete.
+       * CartContext should process clearCart()
+       * and addToCart() sequentially/atomically.
        */
       const added =
         await addCurrentProductToCart();
@@ -985,18 +1143,19 @@ export default function ProductDetailsScreen() {
         return;
       }
 
-      Toast.show({
-        type: "success",
-        text1:
-          "Cart Updated",
-        text2:
-          "Your previous cart was cleared.",
-      });
+      showSuccessToast(
+        "Cart Updated",
+        "Your previous cart was cleared.",
+      );
 
       router.push(
         "/(customer)/shop/cart",
       );
-    };
+    }, [
+      addCurrentProductToCart,
+      clearCart,
+      validateProduct,
+    ]);
 
   /* ==========================================================
      LOADING
@@ -1004,7 +1163,12 @@ export default function ProductDetailsScreen() {
 
   if (loading) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
         <View
           style={
             styles.center
@@ -1012,41 +1176,76 @@ export default function ProductDetailsScreen() {
         >
           <ActivityIndicator
             size="large"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading product...
+          </AppText>
         </View>
       </AppScreen>
     );
   }
 
   /* ==========================================================
-     PRODUCT NOT FOUND
+     NOT FOUND
   ========================================================== */
 
   if (!product) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
         <View
           style={
             styles.center
           }
         >
+          <View
+            style={
+              styles.notFoundIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              size="lg"
+              color={
+                Colors.textMuted
+              }
+            />
+          </View>
+
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.notFoundTitle
             }
           >
-            Product not found.
+            Product not found
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.subtitle
             }
           >
-            This product is no longer
-            available.
+            This product is no longer available.
           </AppText>
         </View>
       </AppScreen>
@@ -1058,19 +1257,21 @@ export default function ProductDetailsScreen() {
   ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.container
         }
       >
-        {/* ====================================================
-            PRODUCT GALLERY
-        ==================================================== */}
-
         <ProductGallery
           images={
             product.images
@@ -1079,10 +1280,6 @@ export default function ProductDetailsScreen() {
             setCurrentImage
           }
         />
-
-        {/* ====================================================
-            PRODUCT INFO
-        ==================================================== */}
 
         <ProductInfo
           name={
@@ -1112,19 +1309,11 @@ export default function ProductDetailsScreen() {
           }
         />
 
-        {/* ====================================================
-            DESCRIPTION
-        ==================================================== */}
-
         <ProductDescription
           description={
             product.description
           }
         />
-
-        {/* ====================================================
-            SELLER / WORKER
-        ==================================================== */}
 
         <ProductSeller
           workerId={
@@ -1155,20 +1344,12 @@ export default function ProductDetailsScreen() {
           }
         />
 
-        {/* ====================================================
-            WORKER STORE
-        ==================================================== */}
-
         <WorkerStore
           workerId={
             product.workerId
           }
         />
       </ScrollView>
-
-      {/* ======================================================
-          PRODUCT ACTIONS
-      ====================================================== */}
 
       <ProductActions
         quantity={
@@ -1189,809 +1370,945 @@ export default function ProductDetailsScreen() {
       />
 
       {/* ======================================================
-          LOGIN MODAL
+          LOGIN
       ====================================================== */}
 
-      <Modal
+      <LoginRequiredModal
         visible={
           showLoginModal
         }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
+        onClose={() =>
           setShowLoginModal(
             false,
           )
         }
-      >
-        <View
-          style={
-            styles.loginModalOverlay
-          }
-        >
-          <View
-            style={
-              styles.loginModal
-            }
-          >
-            <View
-              style={
-                styles.loginModalIcon
-              }
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={32}
-                color="#2563EB"
-              />
-            </View>
+        onLogin={() => {
+          setShowLoginModal(
+            false,
+          );
 
-            <AppText
-              weight="bold"
-              style={
-                styles.loginModalTitle
-              }
-            >
-              Login Required
-            </AppText>
-
-            <AppText
-              style={
-                styles.loginModalMessage
-              }
-            >
-              Please login to your Fixxam
-              account before contacting
-              this worker.
-            </AppText>
-
-            <View
-              style={
-                styles.loginModalActions
-              }
-            >
-              <Pressable
-                onPress={() =>
-                  setShowLoginModal(
-                    false,
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.loginCancelButton,
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel login"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.loginCancelText
-                  }
-                >
-                  Cancel
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  setShowLoginModal(
-                    false,
-                  );
-
-                  router.push(
-                    "/(auth)/login",
-                  );
-                }}
-                style={({ pressed }) => [
-                  styles.loginButton,
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Login"
-              >
-                <Ionicons
-                  name="log-in-outline"
-                  size={19}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.loginButtonText
-                  }
-                >
-                  Login
-                </AppText>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          router.push(
+            "/(auth)/login",
+          );
+        }}
+      />
 
       {/* ======================================================
-          CALL WORKER MODAL
+          CALL WORKER
       ====================================================== */}
 
-      <Modal
+      <CallWorkerModal
         visible={
           showCallModal
         }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setShowCallModal(
-            false,
-          )
+        workerName={
+          workerName
         }
-      >
-        <View
-          style={
-            styles.callModalOverlay
+        loading={
+          callingWorker
+        }
+        onClose={() => {
+          if (
+            !callingWorker
+          ) {
+            setShowCallModal(
+              false,
+            );
           }
-        >
-          <View
-            style={
-              styles.callModal
-            }
-          >
-            <View
-              style={
-                styles.callModalIcon
-              }
-            >
-              <Ionicons
-                name="call-outline"
-                size={34}
-                color="#2563EB"
-              />
-            </View>
-
-            <AppText
-              weight="bold"
-              style={
-                styles.callModalTitle
-              }
-              numberOfLines={2}
-            >
-              Call {workerName}?
-            </AppText>
-
-            <AppText
-              style={
-                styles.callModalDistance
-              }
-              numberOfLines={2}
-            >
-              {workerName} is available
-              for contact.
-            </AppText>
-
-            <AppText
-              style={
-                styles.callModalQuestion
-              }
-            >
-              Do you want to call this
-              worker?
-            </AppText>
-
-            <View
-              style={
-                styles.callModalActions
-              }
-            >
-              <Pressable
-                onPress={() =>
-                  setShowCallModal(
-                    false,
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.callCancelButton,
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel call"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.callCancelText
-                  }
-                >
-                  Cancel
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={
-                  handleConfirmCallWorker
-                }
-                style={({ pressed }) => [
-                  styles.callConfirmButton,
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Confirm call to ${workerName}`}
-              >
-                <Ionicons
-                  name="call-outline"
-                  size={18}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.callConfirmText
-                  }
-                  numberOfLines={1}
-                >
-                  Call Worker
-                </AppText>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        }}
+        onConfirm={
+          handleConfirmCallWorker
+        }
+      />
 
       {/* ======================================================
-          REPLACE CART MODAL
+          REPLACE CART
       ====================================================== */}
 
-      <Modal
+      <ReplaceCartModal
         visible={
           showReplaceCartModal
         }
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
+        onClose={() =>
           setShowReplaceCartModal(
             false,
           )
         }
-      >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
-          <View
-            style={
-              styles.modal
-            }
-          >
-            <View
-              style={
-                styles.modalIcon
-              }
-            >
-              <Ionicons
-                name="cart-outline"
-                size={30}
-                color="#2563EB"
-              />
-            </View>
-
-            <AppText
-              weight="bold"
-              style={
-                styles.modalTitle
-              }
-            >
-              Your Cart Has Other Products
-            </AppText>
-
-            <AppText
-              style={
-                styles.modalMessage
-              }
-            >
-              Your cart contains products
-              from another worker. You need
-              to clear your current cart
-              before you can continue with
-              this product.
-            </AppText>
-
-            <View
-              style={
-                styles.warningBox
-              }
-            >
-              <Ionicons
-                name="information-circle-outline"
-                size={20}
-                color="#2563EB"
-              />
-
-              <AppText
-                style={
-                  styles.warningText
-                }
-              >
-                Your current cart will be
-                removed and replaced with
-                this product.
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.modalActions
-              }
-            >
-              <Pressable
-                style={({ pressed }) => [
-                  styles.cancelButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={() =>
-                  setShowReplaceCartModal(
-                    false,
-                  )
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.cancelText
-                  }
-                >
-                  Cancel
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.continueButton,
-                  pressed &&
-                    styles.pressed,
-                ]}
-                onPress={
-                  handleClearCartAndContinue
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Clear cart and continue"
-              >
-                <Ionicons
-                  name="cart-outline"
-                  size={19}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.continueText
-                  }
-                >
-                  Clear & Continue
-                </AppText>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        onContinue={
+          handleClearCartAndContinue
+        }
+      />
     </AppScreen>
   );
 }
 
-/* ==============================================================
+/* ============================================================
+   LOGIN MODAL
+============================================================ */
+
+const LoginRequiredModal =
+  memo(
+    function LoginRequiredModal({
+      visible,
+      onClose,
+      onLogin,
+    }: {
+      visible: boolean;
+
+      onClose: () => void;
+
+      onLogin: () => void;
+    }) {
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              onPress={
+                onClose
+              }
+              accessible={false}
+              style={
+                StyleSheet.absoluteFill
+              }
+            />
+
+            <View
+              style={
+                styles.modal
+              }
+            >
+              <View
+                style={
+                  styles.modalIcon
+                }
+              >
+                <AppIcon
+                  name="lock"
+                  role="customer"
+                  size="lg"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="heading3"
+                weight="bold"
+                center
+                style={
+                  styles.modalTitle
+                }
+              >
+                Login Required
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.modalMessage
+                }
+              >
+                Please login to your Fixxam account before contacting this worker.
+              </AppText>
+
+              <View
+                style={
+                  styles.modalActions
+                }
+              >
+                <SecondaryButton
+                  title="Cancel"
+                  onPress={
+                    onClose
+                  }
+                />
+
+                <PrimaryButton
+                  title="Login"
+                  icon="next"
+                  onPress={
+                    onLogin
+                  }
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      );
+    },
+  );
+
+LoginRequiredModal.displayName =
+  "LoginRequiredModal";
+
+/* ============================================================
+   CALL MODAL
+============================================================ */
+
+const CallWorkerModal =
+  memo(
+    function CallWorkerModal({
+      visible,
+      workerName,
+      loading,
+      onClose,
+      onConfirm,
+    }: {
+      visible: boolean;
+
+      workerName: string;
+
+      loading: boolean;
+
+      onClose: () => void;
+
+      onConfirm: () => void;
+    }) {
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <View
+              style={
+                styles.modal
+              }
+            >
+              <View
+                style={
+                  styles.modalIcon
+                }
+              >
+                <AppIcon
+                  name="phone"
+                  role="customer"
+                  size="lg"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="heading3"
+                weight="bold"
+                center
+                numberOfLines={2}
+                style={
+                  styles.modalTitle
+                }
+              >
+                Call {workerName}?
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.modalMessage
+                }
+              >
+                {workerName} is available for contact.
+              </AppText>
+
+              <AppText
+                variant="body"
+                weight="bold"
+                center
+                style={
+                  styles.modalQuestion
+                }
+              >
+                Do you want to call this worker?
+              </AppText>
+
+              <View
+                style={
+                  styles.modalActions
+                }
+              >
+                <SecondaryButton
+                  title="Cancel"
+                  disabled={
+                    loading
+                  }
+                  onPress={
+                    onClose
+                  }
+                />
+
+                <PrimaryButton
+                  title="Call Worker"
+                  icon="phone"
+                  loading={
+                    loading
+                  }
+                  disabled={
+                    loading
+                  }
+                  onPress={
+                    onConfirm
+                  }
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      );
+    },
+  );
+
+CallWorkerModal.displayName =
+  "CallWorkerModal";
+
+/* ============================================================
+   REPLACE CART MODAL
+============================================================ */
+
+const ReplaceCartModal =
+  memo(
+    function ReplaceCartModal({
+      visible,
+      onClose,
+      onContinue,
+    }: {
+      visible: boolean;
+
+      onClose: () => void;
+
+      onContinue:
+        () => void;
+    }) {
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              onPress={
+                onClose
+              }
+              accessible={false}
+              style={
+                StyleSheet.absoluteFill
+              }
+            />
+
+            <View
+              style={
+                styles.modal
+              }
+            >
+              <View
+                style={
+                  styles.modalIcon
+                }
+              >
+                <AppIcon
+                  name="cart"
+                  role="customer"
+                  size="lg"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="heading3"
+                weight="bold"
+                center
+                style={
+                  styles.modalTitle
+                }
+              >
+                Your Cart Has Other Products
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.modalMessage
+                }
+              >
+                Your cart contains products from another worker. You need to clear your current cart before continuing with this product.
+              </AppText>
+
+              <View
+                style={
+                  styles.infoBox
+                }
+              >
+                <AppIcon
+                  name="info"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  style={
+                    styles.infoText
+                  }
+                >
+                  Your current cart will be removed and replaced with this product.
+                </AppText>
+              </View>
+
+              <View
+                style={
+                  styles.modalActions
+                }
+              >
+                <SecondaryButton
+                  title="Cancel"
+                  onPress={
+                    onClose
+                  }
+                />
+
+                <PrimaryButton
+                  title="Clear & Continue"
+                  icon="cart"
+                  onPress={
+                    onContinue
+                  }
+                />
+              </View>
+            </View>
+          </View>
+        </Modal>
+      );
+    },
+  );
+
+ReplaceCartModal.displayName =
+  "ReplaceCartModal";
+
+/* ============================================================
+   PRIMARY BUTTON
+============================================================ */
+
+const PrimaryButton =
+  memo(
+    function PrimaryButton({
+      title,
+      icon,
+      onPress,
+      disabled = false,
+      loading = false,
+    }: {
+      title: string;
+
+      icon:
+        | "next"
+        | "phone"
+        | "cart";
+
+      onPress: () => void;
+
+      disabled?: boolean;
+
+      loading?: boolean;
+    }) {
+      return (
+        <Pressable
+          disabled={
+            disabled
+          }
+          onPress={
+            onPress
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
+          }
+          accessibilityState={{
+            disabled,
+            busy:
+              loading,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.primaryButton,
+
+            disabled
+              ? styles.disabledButton
+              : null,
+
+            pressed &&
+            !disabled
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator
+              size="small"
+              color={
+                Colors.textInverse
+              }
+            />
+          ) : (
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              color={
+                Colors.textInverse
+              }
+            />
+          )}
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.primaryButtonText
+            }
+          >
+            {title}
+          </AppText>
+        </Pressable>
+      );
+    },
+  );
+
+PrimaryButton.displayName =
+  "PrimaryButton";
+
+/* ============================================================
+   SECONDARY BUTTON
+============================================================ */
+
+const SecondaryButton =
+  memo(
+    function SecondaryButton({
+      title,
+      onPress,
+      disabled = false,
+    }: {
+      title: string;
+
+      onPress: () => void;
+
+      disabled?: boolean;
+    }) {
+      return (
+        <Pressable
+          disabled={
+            disabled
+          }
+          onPress={
+            onPress
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
+          }
+          accessibilityState={{
+            disabled,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.secondaryButton,
+
+            disabled
+              ? styles.disabledButton
+              : null,
+
+            pressed &&
+            !disabled
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.secondaryButtonText
+            }
+          >
+            {title}
+          </AppText>
+        </Pressable>
+      );
+    },
+  );
+
+SecondaryButton.displayName =
+  "SecondaryButton";
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    container: {
-      paddingBottom: 8,
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
+    },
+
+    container: {
+      paddingBottom:
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.background,
     },
 
     center: {
       flex: 1,
-      justifyContent:
-        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
-      paddingHorizontal: 24,
+
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    notFoundIcon: {
+      width: 68,
+
+      height: 68,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.disabledBackground,
     },
 
     notFoundTitle: {
-      fontSize: 18,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 8,
-      textAlign:
-        "center",
-      color:
-        "#64748B",
-      fontSize: 14,
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
-       LOGIN
-    ======================================================== */
-
-    loginModalOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 20,
-    },
-
-    loginModal: {
-      width: "88%",
-      maxWidth: 330,
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 22,
-      paddingHorizontal: 18,
-      paddingTop: 22,
-      paddingBottom: 18,
-    },
-
-    loginModalIcon: {
-      width: 68,
-      height: 68,
-      borderRadius: 20,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      alignSelf:
-        "center",
-      marginBottom: 15,
-    },
-
-    loginModalTitle: {
-      fontSize: 20,
-      lineHeight: 25,
-      color:
-        "#0F172A",
-      textAlign:
-        "center",
-    },
-
-    loginModalMessage: {
-      marginTop: 8,
-      fontSize: 14,
-      lineHeight: 21,
-      color:
-        "#64748B",
-      textAlign:
-        "center",
-      paddingHorizontal: 8,
-    },
-
-    loginModalActions: {
-      flexDirection:
-        "row",
-      gap: 9,
-      marginTop: 20,
-    },
-
-    loginCancelButton: {
-      flex: 1,
-      height: 46,
-      borderRadius: 14,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    loginCancelText: {
-      fontSize: 14,
-      color:
-        "#475569",
-    },
-
-    loginButton: {
-      flex: 1,
-      height: 46,
-      borderRadius: 14,
-      backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 6,
-    },
-
-    loginButtonText: {
-      fontSize: 14,
-      color:
-        "#FFFFFF",
-    },
-
-    /* ========================================================
-       CALL
-    ======================================================== */
-
-    callModalOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 20,
-    },
-
-    callModal: {
-      width: "88%",
-      maxWidth: 330,
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 22,
-      paddingHorizontal: 16,
-      paddingTop: 20,
-      paddingBottom: 16,
-    },
-
-    callModalIcon: {
-      width: 70,
-      height: 70,
-      borderRadius: 20,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      alignSelf:
-        "center",
-      marginBottom: 15,
-    },
-
-    callModalTitle: {
-      fontSize: 18,
-      lineHeight: 23,
-      color:
-        "#0F172A",
-      textAlign:
-        "center",
-    },
-
-    callModalDistance: {
-      marginTop: 6,
-      fontSize: 12,
-      lineHeight: 18,
-      color:
-        "#64748B",
-      textAlign:
-        "center",
-      paddingHorizontal: 5,
-    },
-
-    callModalQuestion: {
-      marginTop: 13,
-      fontSize: 13,
-      lineHeight: 19,
-      color:
-        "#0F172A",
-      textAlign:
-        "center",
-    },
-
-    callModalActions: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 8,
-      marginTop: 17,
-    },
-
-    callCancelButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    callCancelText: {
-      fontSize: 13,
-      color:
-        "#475569",
-    },
-
-    callConfirmButton: {
-      flex: 1,
-      height: 44,
-      borderRadius: 13,
-      backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 5,
-      paddingHorizontal: 6,
-    },
-
-    callConfirmText: {
-      fontSize: 13,
-      color:
-        "#FFFFFF",
-    },
-
-    /* ========================================================
-       COMMON MODAL
+       MODAL
     ======================================================== */
 
     modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      justifyContent:
-        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
-      paddingHorizontal: 22,
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
     modal: {
       width: "100%",
+
       maxWidth: 400,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#FFFFFF",
-      borderRadius: 24,
-      padding: 20,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     modalIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 18,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+      width: 68,
+
+      height: 68,
+
       alignSelf:
         "center",
-      marginBottom: 14,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     modalTitle: {
-      fontSize: 20,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       color:
-        "#0F172A",
-      textAlign:
-        "center",
+        Colors.textPrimary,
     },
 
     modalMessage: {
-      marginTop: 8,
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 21,
+
       color:
-        "#64748B",
-      textAlign:
-        "center",
+        Colors.textSecondary,
     },
 
-    warningBox: {
+    modalQuestion: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoBox: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
-        "center",
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
-      borderRadius: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 11,
-      marginTop: 16,
-      gap: 9,
+        CustomerColors.primarySoft,
     },
 
-    warningText: {
+    infoText: {
       flex: 1,
-      fontSize: 12,
+
       lineHeight: 18,
+
       color:
-        "#475569",
+        Colors.textSecondary,
     },
+
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
 
     modalActions: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
       flexDirection:
         "row",
-      gap: 10,
-      marginTop: 18,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    cancelButton: {
+    primaryButton: {
       flex: 1,
-      height: 50,
-      borderRadius: 15,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
 
-    cancelText: {
-      fontSize: 14,
-      color:
-        "#475569",
-    },
+      minHeight:
+        FixxamTokens.size.buttonHeight,
 
-    continueButton: {
-      flex: 1,
-      height: 50,
-      borderRadius: 15,
-      backgroundColor:
-        "#2563EB",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 6,
-      paddingHorizontal: 8,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
-    continueText: {
-      fontSize: 13,
+    primaryButtonText: {
+      flexShrink: 1,
+
       color:
-        "#FFFFFF",
+        Colors.textInverse,
     },
 
-    modalPressed: {
-      opacity: 0.78,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
+    secondaryButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    secondaryButtonText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabledButton: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     pressed: {
-      opacity: 0.78,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

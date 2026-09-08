@@ -1,77 +1,205 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-export default function WorkerCardSkeleton() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerCardSkeleton() {
   return (
-    <View style={styles.card}>
-      <View style={styles.avatar} />
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={
+        styles.card
+      }
+    >
+      {/* ======================================================
+          AVATAR
+      ====================================================== */}
 
-      <View style={styles.content}>
-        <View style={styles.name} />
+      <View
+        style={
+          styles.avatar
+        }
+      />
 
-        <View style={styles.line} />
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
-        <View style={styles.lineShort} />
+      <View
+        style={
+          styles.content
+        }
+      >
+        <View
+          style={
+            styles.name
+          }
+        />
 
-        <View style={styles.bottom} />
+        <View
+          style={
+            styles.line
+          }
+        />
+
+        <View
+          style={
+            styles.lineShort
+          }
+        />
+
+        <View
+          style={
+            styles.bottom
+          }
+        />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 16,
-    marginBottom: 16,
-    flexDirection: "row",
-    elevation: 2,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#E2E8F0",
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      minHeight: 112,
 
-  content: {
-    flex: 1,
-    marginLeft: 16,
-  },
+      flexDirection:
+        "row",
 
-  name: {
-    width: "60%",
-    height: 18,
-    borderRadius: 8,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 12,
-  },
+      alignItems:
+        "center",
 
-  line: {
-    width: "90%",
-    height: 14,
-    borderRadius: 8,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 10,
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  lineShort: {
-    width: "55%",
-    height: 14,
-    borderRadius: 8,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 16,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  bottom: {
-    width: 100,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#E2E8F0",
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       AVATAR
+    ======================================================== */
+
+    avatar: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    name: {
+      width: "60%",
+
+      height: 18,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    line: {
+      width: "90%",
+
+      height: 14,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    lineShort: {
+      width: "55%",
+
+      height: 14,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    bottom: {
+      width: 100,
+
+      height: 30,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+  });
+
+export default memo(
+  WorkerCardSkeleton,
+);

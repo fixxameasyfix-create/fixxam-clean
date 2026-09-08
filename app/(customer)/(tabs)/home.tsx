@@ -8,26 +8,29 @@ import {
   AppScreen,
 } from "@/components/ui";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
 import useMarket from "@/hooks/market/useMarket";
 
 import useEmergencyRotation from "@/hooks/customer/useEmergencyRotation";
-
 import useCustomerLocation from "@/hooks/customer/useCustomerLocation";
 
 import {
-  HomeHeader,
-  HomeSearch,
+  ContactWorkers,
+  EmergencyCallModal,
   HeroCarousel,
   HomeCategories,
+  HomeHeader,
+  HomeSearch,
   NewArrivals,
   PopularServices,
-  ContactWorkers,
   RecentlyViewed,
-  EmergencyCallModal,
 } from "@/components/customer/home";
 
 /* ============================================================
-   CUSTOMER HOME
+   COMPONENT
 ============================================================ */
 
 export default function CustomerHome() {
@@ -52,11 +55,10 @@ export default function CustomerHome() {
   ========================================================== */
 
   /*
-   * Gets customer's current location
-   * and keeps users/{customerUid}
+   * Keeps the authenticated customer's
    * location data updated.
    *
-   * Expected fields:
+   * Expected user location fields:
    *
    * latitude
    * longitude
@@ -71,75 +73,48 @@ export default function CustomerHome() {
 
   return (
     <AppScreen
+      role="customer"
+      padded={false}
       contentContainerStyle={
         styles.container
       }
     >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+      {/* HEADER */}
 
       <HomeHeader />
 
-      {/* ======================================================
-          SEARCH
-      ====================================================== */}
+      {/* SEARCH */}
 
       <HomeSearch />
 
-      {/* ======================================================
-          HERO
-      ====================================================== */}
+      {/* HERO */}
 
       <HeroCarousel />
 
-      {/* ======================================================
-          CATEGORIES
-      ====================================================== */}
+      {/* CATEGORIES */}
 
       <HomeCategories />
 
-      {/* ======================================================
-          NEW ARRIVALS
-      ====================================================== */}
+      {/* NEW ARRIVALS */}
 
       <NewArrivals
-        products={
-          products
-        }
-        loading={
-          loading
-        }
+        products={products}
+        loading={loading}
       />
 
-      {/* ======================================================
-          POPULAR SERVICES
-      ====================================================== */}
+      {/* POPULAR SERVICES */}
 
       <PopularServices />
 
-      {/* ======================================================
-          CONTACT WORKERS
-          
-          Worker images are loaded inside
-          ContactWorkers from:
-          
-          workerProfile.photoUrl
-          
-          in workerPublicProfiles.
-      ====================================================== */}
+      {/* CONTACT WORKERS */}
 
       <ContactWorkers />
 
-      {/* ======================================================
-          RECENTLY VIEWED
-      ====================================================== */}
+      {/* RECENTLY VIEWED */}
 
       <RecentlyViewed />
 
-      {/* ======================================================
-          EMERGENCY CALL
-      ====================================================== */}
+      {/* EMERGENCY */}
 
       <EmergencyCallModal
         visible={
@@ -163,8 +138,13 @@ export default function CustomerHome() {
 const styles =
   StyleSheet.create({
     container: {
-      paddingHorizontal: 16,
-      paddingTop: 35,
-      paddingBottom: 24,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.xxxl,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
     },
   });

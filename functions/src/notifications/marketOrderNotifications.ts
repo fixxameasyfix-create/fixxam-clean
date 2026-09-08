@@ -1,14 +1,28 @@
 import {
+  onDocumentCreated,
   onDocumentUpdated,
 } from "firebase-functions/v2/firestore";
 
 import {
-  sendCustomerPushNotification,
+  sendUserPushNotification,
 } from "./sendCustomerPushNotification";
 
 /* ============================================================
    TYPES
 ============================================================ */
+
+type NotificationRecipientRole =
+  | "customer"
+  | "worker";
+
+type MarketOrderAction =
+  | "order_created"
+  | "order_accepted"
+  | "order_packed"
+  | "order_shipped"
+  | "order_delivered"
+  | "order_cancelled"
+  | "order_payment_confirmed";
 
 type OrderNotificationEvent = {
   type: "market_order";
@@ -17,13 +31,11 @@ type OrderNotificationEvent = {
 
   message: string;
 
-  action:
-    | "order_accepted"
-    | "order_packed"
-    | "order_shipped"
-    | "order_delivered"
-    | "order_cancelled"
-    | "order_payment_confirmed";
+  action: MarketOrderAction;
+
+  recipientId: string;
+
+  recipientRole: NotificationRecipientRole;
 };
 
 /* ============================================================
@@ -41,8 +53,10 @@ function getString(
 function getNumber(
   value: unknown,
 ): number | null {
-  return typeof value === "number" &&
+  return (
+    typeof value === "number" &&
     Number.isFinite(value)
+  )
     ? value
     : null;
 }
@@ -60,39 +74,371 @@ function formatAmount(
 }
 
 /* ============================================================
-   DETERMINE ORDER EVENT
+   ACTOR
+============================================================ */
+
+function getActorRole(
+  actorId: string,
+  customerId: string,
+  workerId: string,
+): NotificationRecipientRole | null {
+  /*
+   * IMPORTANT:
+   *
+   * Fixxam supports multi-role accounts.
+   *
+   * The same Firebase Auth UID can be both:
+   *
+   * Customer
+   * +
+   * Worker
+   *
+   * Therefore we must NOT reject:
+   *
+   * customerId === workerId
+   *
+   * For market-order actions where the backend stores
+   * the actor UID, worker is checked first because seller/
+   * worker actions are the authoritative actions for the
+   * corresponding order lifecycle.
+   */
+
+  if (
+    actorId &&
+    actorId === workerId
+  ) {
+    return "worker";
+  }
+
+  if (
+    actorId &&
+    actorId === customerId
+  ) {
+    return "customer";
+  }
+
+  return null;
+}
+
+/* ============================================================
+   NEW MARKET ORDER
+   CUSTOMER → WORKER
+============================================================ */
+
+export const marketOrderCreatedNotifications =
+  onDocumentCreated(
+    {
+      document:
+        "orders/{orderId}",
+
+      region:
+        "us-central1",
+
+      retry: true,
+    },
+
+    async (event) => {
+      const order =
+        event.data?.data();
+
+      if (!order) {
+        console.warn(
+          "FIXXAM_MARKET_ORDER_CREATED_DATA_MISSING",
+          {
+            orderId:
+              event.params.orderId,
+
+            eventId:
+              event.id,
+          },
+        );
+
+        return;
+      }
+
+      const orderId =
+        getString(
+          event.params.orderId,
+        );
+
+      const customerId =
+        getString(
+          order.customerId,
+        );
+
+      const workerId =
+        getString(
+          order.workerId,
+        );
+
+      if (!orderId) {
+        console.warn(
+          "FIXXAM_MARKET_ORDER_CREATED_ID_MISSING",
+          {
+            eventId:
+              event.id,
+          },
+        );
+
+        return;
+      }
+
+      if (!customerId) {
+        console.warn(
+          "FIXXAM_MARKET_ORDER_CREATED_CUSTOMER_MISSING",
+          {
+            orderId,
+
+            eventId:
+              event.id,
+          },
+        );
+
+        return;
+      }
+
+      if (!workerId) {
+        console.warn(
+          "FIXXAM_MARKET_ORDER_CREATED_WORKER_MISSING",
+          {
+            orderId,
+
+            eventId:
+              event.id,
+          },
+        );
+
+        return;
+      }
+
+      /* ========================================================
+         MULTI-ROLE ACCOUNT SUPPORT
+         
+         customerId === workerId IS ALLOWED.
+         
+         Example:
+         
+         customerId = ABC
+         workerId   = ABC
+         
+         This is valid because one Firebase account can have
+         both Customer and Worker roles.
+         
+         DO NOT BLOCK THIS ORDER.
+      ======================================================== */
+
+      if (
+        customerId === workerId
+      ) {
+        console.log(
+          "FIXXAM_MARKET_ORDER_MULTI_ROLE_ACCOUNT",
+          {
+            orderId,
+
+            customerId,
+
+            workerId,
+
+            eventId:
+              event.id,
+          },
+        );
+      }
+
+      const total =
+        formatAmount(
+          getNumber(
+            order.total,
+          ),
+        );
+
+      const customerName =
+        getString(
+          order.customerName,
+        );
+
+      const message =
+        total
+          ? customerName
+            ? `${customerName} placed a new market order. Total: ${total}.`
+            : `You have received a new market order. Total: ${total}.`
+          : customerName
+            ? `${customerName} placed a new market order.`
+            : "You have received a new market order.";
+
+      const notificationId =
+        `order_created_${orderId}`;
+
+      try {
+        await sendUserPushNotification({
+          userId:
+            workerId,
+
+          /*
+           * IMPORTANT:
+           *
+           * Even when customerId === workerId,
+           * this notification belongs to the Worker
+           * notification stream.
+           */
+          recipientRole:
+            "worker",
+
+          type:
+            "market_order",
+
+          title:
+            "New market order",
+
+          message,
+
+          notificationId,
+
+          data: {
+            type:
+              "market_order",
+
+            action:
+              "order_created",
+
+            orderId,
+
+            customerId,
+
+            workerId,
+
+            recipientRole:
+              "worker",
+          },
+        });
+
+        console.log(
+          "FIXXAM_MARKET_ORDER_CREATED_NOTIFICATION_SENT",
+          {
+            orderId,
+
+            customerId,
+
+            workerId,
+
+            sameAccount:
+              customerId === workerId,
+
+            eventId:
+              event.id,
+
+            notificationId,
+          },
+        );
+      } catch (error) {
+        console.error(
+          "FIXXAM_MARKET_ORDER_CREATED_NOTIFICATION_ERROR",
+          {
+            orderId,
+
+            customerId,
+
+            workerId,
+
+            eventId:
+              event.id,
+
+            notificationId,
+
+            error,
+          },
+        );
+
+        throw error;
+      }
+    },
+  );
+
+/* ============================================================
+   DETERMINE UPDATED ORDER EVENT
 ============================================================ */
 
 function getOrderNotification(
   before: FirebaseFirestore.DocumentData,
   after: FirebaseFirestore.DocumentData,
 ): OrderNotificationEvent | null {
+  const customerId =
+    getString(
+      after.customerId,
+    );
+
+  const workerId =
+    getString(
+      after.workerId,
+    );
+
+  if (
+    !customerId ||
+    !workerId
+  ) {
+    return null;
+  }
+
   const beforeStatus =
-    getString(before.status);
+    getString(
+      before.status,
+    ).toLowerCase();
 
   const afterStatus =
-    getString(after.status);
+    getString(
+      after.status,
+    ).toLowerCase();
 
   const beforePaymentStatus =
     getString(
       before.paymentStatus,
-    );
+    ).toLowerCase();
 
   const afterPaymentStatus =
     getString(
       after.paymentStatus,
-    );
+    ).toLowerCase();
 
   /* ==========================================================
-     ORDER ACCEPTED
+     ACCEPTED
   ========================================================== */
 
   if (
     beforeStatus !== "accepted" &&
     afterStatus === "accepted"
   ) {
+    const acceptedBy =
+      getString(
+        after.acceptedBy,
+      );
+
+    const actorRole =
+      getActorRole(
+        acceptedBy,
+        customerId,
+        workerId,
+      );
+
+    if (
+      actorRole !== "worker"
+    ) {
+      console.warn(
+        "FIXXAM_MARKET_ORDER_INVALID_ACCEPT_ACTOR",
+        {
+          acceptedBy,
+
+          customerId,
+
+          workerId,
+        },
+      );
+
+      return null;
+    }
+
     return {
-      type: "market_order",
+      type:
+        "market_order",
 
       title:
         "Order accepted",
@@ -102,11 +448,17 @@ function getOrderNotification(
 
       action:
         "order_accepted",
+
+      recipientId:
+        customerId,
+
+      recipientRole:
+        "customer",
     };
   }
 
   /* ==========================================================
-     ORDER PACKED
+     PACKED
   ========================================================== */
 
   if (
@@ -114,7 +466,8 @@ function getOrderNotification(
     afterStatus === "packed"
   ) {
     return {
-      type: "market_order",
+      type:
+        "market_order",
 
       title:
         "Order packed",
@@ -124,11 +477,17 @@ function getOrderNotification(
 
       action:
         "order_packed",
+
+      recipientId:
+        customerId,
+
+      recipientRole:
+        "customer",
     };
   }
 
   /* ==========================================================
-     ORDER SHIPPED
+     SHIPPED
   ========================================================== */
 
   if (
@@ -136,7 +495,8 @@ function getOrderNotification(
     afterStatus === "shipped"
   ) {
     return {
-      type: "market_order",
+      type:
+        "market_order",
 
       title:
         "Order shipped",
@@ -146,11 +506,17 @@ function getOrderNotification(
 
       action:
         "order_shipped",
+
+      recipientId:
+        customerId,
+
+      recipientRole:
+        "customer",
     };
   }
 
   /* ==========================================================
-     ORDER DELIVERED
+     DELIVERED
   ========================================================== */
 
   if (
@@ -159,43 +525,134 @@ function getOrderNotification(
   ) {
     const total =
       formatAmount(
-        getNumber(after.total),
+        getNumber(
+          after.total,
+        ),
       );
 
     return {
-      type: "market_order",
+      type:
+        "market_order",
 
       title:
         "Order delivered",
 
-      message: total
-        ? `Your market order has been delivered. Total: ${total}.`
-        : "Your market order has been delivered.",
+      message:
+        total
+          ? `Your market order has been delivered. Total: ${total}.`
+          : "Your market order has been delivered.",
 
       action:
         "order_delivered",
+
+      recipientId:
+        customerId,
+
+      recipientRole:
+        "customer",
     };
   }
 
   /* ==========================================================
-     ORDER CANCELLED
+     CANCELLED
   ========================================================== */
 
   if (
     beforeStatus !== "cancelled" &&
     afterStatus === "cancelled"
   ) {
+    const cancelledBy =
+      getString(
+        after.cancelledBy,
+      );
+
+    const actorRole =
+      getActorRole(
+        cancelledBy,
+        customerId,
+        workerId,
+      );
+
+    if (!actorRole) {
+      console.warn(
+        "FIXXAM_MARKET_ORDER_UNKNOWN_CANCEL_ACTOR",
+        {
+          cancelledBy,
+
+          customerId,
+
+          workerId,
+        },
+      );
+
+      return null;
+    }
+
+    /* --------------------------------------------------------
+       WORKER → CUSTOMER
+    -------------------------------------------------------- */
+
+    if (
+      actorRole === "worker"
+    ) {
+      const isProductUnavailable =
+        getString(
+          after.cancellationReason,
+        ) ===
+        "product_unavailable";
+
+      return {
+        type:
+          "market_order",
+
+        title:
+          isProductUnavailable
+            ? "Product unavailable"
+            : "Order cancelled",
+
+        message:
+          isProductUnavailable
+            ? (
+                getString(
+                  after.customerMessage,
+                ) ||
+                "This product is currently not available. Please try another store."
+              )
+            : "Your market order has been cancelled by the seller.",
+
+        action:
+          "order_cancelled",
+
+        recipientId:
+          customerId,
+
+        recipientRole:
+          "customer",
+      };
+    }
+
+    /* --------------------------------------------------------
+       CUSTOMER → WORKER
+    -------------------------------------------------------- */
+
     return {
-      type: "market_order",
+      type:
+        "market_order",
 
       title:
         "Order cancelled",
 
       message:
-        "Your market order has been cancelled.",
+        "The customer has cancelled this market order.",
 
       action:
         "order_cancelled",
+
+      recipientId:
+        workerId,
+
+      recipientRole:
+        "worker",
     };
   }
 
@@ -207,25 +664,86 @@ function getOrderNotification(
     beforePaymentStatus !== "paid" &&
     afterPaymentStatus === "paid"
   ) {
-    return {
-      type: "market_order",
+    const customerPaymentConfirmedBy =
+      getString(
+        after.customerPaymentConfirmedBy,
+      );
 
-      title:
-        "Payment confirmed",
+    const workerPaymentConfirmedBy =
+      getString(
+        after.workerPaymentConfirmedBy,
+      );
 
-      message:
-        "Payment for your market order has been confirmed.",
+    if (
+      customerPaymentConfirmedBy ===
+      customerId
+    ) {
+      return {
+        type:
+          "market_order",
 
-      action:
-        "order_payment_confirmed",
-    };
+        title:
+          "Payment confirmed",
+
+        message:
+          "The customer has confirmed payment for this market order.",
+
+        action:
+          "order_payment_confirmed",
+
+        recipientId:
+          workerId,
+
+        recipientRole:
+          "worker",
+      };
+    }
+
+    if (
+      workerPaymentConfirmedBy ===
+      workerId
+    ) {
+      return {
+        type:
+          "market_order",
+
+        title:
+          "Payment confirmed",
+
+        message:
+          "Payment for your market order has been confirmed by the seller.",
+
+        action:
+          "order_payment_confirmed",
+
+        recipientId:
+          customerId,
+
+        recipientRole:
+          "customer",
+      };
+    }
+
+    console.warn(
+      "FIXXAM_MARKET_ORDER_PAYMENT_ACTOR_UNKNOWN",
+      {
+        customerId,
+
+        workerId,
+
+        paymentStatus:
+          afterPaymentStatus,
+      },
+    );
+
+    return null;
   }
 
   return null;
 }
 
 /* ============================================================
-   MARKET ORDER FIRESTORE TRIGGER
+   UPDATED MARKET ORDER
 ============================================================ */
 
 export const marketOrderNotifications =
@@ -241,10 +759,6 @@ export const marketOrderNotifications =
     },
 
     async (event) => {
-      /* --------------------------------------------------------
-         VALIDATE EVENT DATA
-      -------------------------------------------------------- */
-
       const before =
         event.data?.before.data();
 
@@ -269,10 +783,6 @@ export const marketOrderNotifications =
         return;
       }
 
-      /* --------------------------------------------------------
-         ORDER ID
-      -------------------------------------------------------- */
-
       const orderId =
         getString(
           event.params.orderId,
@@ -290,33 +800,6 @@ export const marketOrderNotifications =
         return;
       }
 
-      /* --------------------------------------------------------
-         CUSTOMER ID
-      -------------------------------------------------------- */
-
-      const customerId =
-        getString(
-          after.customerId,
-        );
-
-      if (!customerId) {
-        console.warn(
-          "FIXXAM_ORDER_CUSTOMER_ID_MISSING",
-          {
-            orderId,
-
-            eventId:
-              event.id,
-          },
-        );
-
-        return;
-      }
-
-      /* --------------------------------------------------------
-         DETERMINE ORDER EVENT
-      -------------------------------------------------------- */
-
       const notification =
         getOrderNotification(
           before,
@@ -327,20 +810,16 @@ export const marketOrderNotifications =
         return;
       }
 
-      /* --------------------------------------------------------
-         IDEMPOTENT NOTIFICATION ID
-      -------------------------------------------------------- */
-
       const notificationId =
         `order_${orderId}_${event.id}`;
 
-      /* --------------------------------------------------------
-         SEND CUSTOMER NOTIFICATION
-      -------------------------------------------------------- */
-
       try {
-        await sendCustomerPushNotification({
-          customerId,
+        await sendUserPushNotification({
+          userId:
+            notification.recipientId,
+
+          recipientRole:
+            notification.recipientRole,
 
           type:
             notification.type,
@@ -361,6 +840,9 @@ export const marketOrderNotifications =
               notification.action,
 
             orderId,
+
+            recipientRole:
+              notification.recipientRole,
           },
         });
 
@@ -369,7 +851,11 @@ export const marketOrderNotifications =
           {
             orderId,
 
-            customerId,
+            recipientId:
+              notification.recipientId,
+
+            recipientRole:
+              notification.recipientRole,
 
             eventId:
               event.id,
@@ -386,20 +872,24 @@ export const marketOrderNotifications =
           {
             orderId,
 
-            customerId,
+            recipientId:
+              notification.recipientId,
+
+            recipientRole:
+              notification.recipientRole,
 
             eventId:
               event.id,
 
             notificationId,
 
+            action:
+              notification.action,
+
             error,
           },
         );
 
-        /*
-         * Allow Firebase to retry the event.
-         */
         throw error;
       }
     },

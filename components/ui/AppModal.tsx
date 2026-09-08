@@ -1,35 +1,102 @@
-import React from "react";
+import React, { memo, type ReactNode } from "react";
+
 import {
   Modal,
-  View,
+  Pressable,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
+  type ModalProps,
 } from "react-native";
 
 import AppCard from "./AppCard";
 
-interface AppModalProps {
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppModalProps {
   visible: boolean;
-  children: React.ReactNode;
+
+  children: ReactNode;
+
   onClose?: () => void;
+
+  role?: FixxamRole;
+
+  dismissOnBackdrop?: boolean;
+
+  animationType?: ModalProps["animationType"];
+
+  cardStyle?: StyleProp<ViewStyle>;
+
+  overlayStyle?: StyleProp<ViewStyle>;
 }
 
-export default function AppModal({
+function AppModal({
   visible,
   children,
+  onClose,
+  role = "customer",
+  dismissOnBackdrop = true,
+  animationType = "fade",
+  cardStyle,
+  overlayStyle,
 }: AppModalProps) {
+  const canDismiss =
+    dismissOnBackdrop &&
+    typeof onClose === "function";
+
+  const handleBackdropPress = () => {
+    if (canDismiss) {
+      onClose?.();
+    }
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={animationType}
       statusBarTranslucent
-      onRequestClose={() => {}}
+      onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <AppCard style={styles.card}>
-          {children}
-        </AppCard>
-      </View>
+      <Pressable
+        accessibilityRole={
+          canDismiss ? "button" : undefined
+        }
+        accessibilityLabel={
+          canDismiss
+            ? "Close modal"
+            : undefined
+        }
+        onPress={handleBackdropPress}
+        style={[
+          styles.overlay,
+          overlayStyle,
+        ]}
+      >
+        <Pressable
+          onPress={(event) =>
+            event.stopPropagation()
+          }
+          style={styles.cardWrapper}
+        >
+          <AppCard
+            role={role}
+            variant="elevated"
+            style={[
+              styles.card,
+              cardStyle,
+            ]}
+          >
+            {children}
+          </AppCard>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -37,14 +104,28 @@ export default function AppModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
+
     alignItems: "center",
-    padding: 20,
+    justifyContent: "center",
+
+    backgroundColor:
+      Colors.overlayMedium,
+
+    padding:
+      FixxamTokens.spacing.xl,
+  },
+
+  cardWrapper: {
+    width: "100%",
+    maxWidth: 420,
   },
 
   card: {
     width: "100%",
-    maxWidth: 420,
+
+    borderRadius:
+      FixxamTokens.radius.modal,
   },
 });
+
+export default memo(AppModal);

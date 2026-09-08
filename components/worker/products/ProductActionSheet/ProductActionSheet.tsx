@@ -5,159 +5,299 @@ import React, {
   useRef,
 } from "react";
 
-import { Pressable, View } from "react-native";
+import {
+  Pressable,
+  View,
+} from "react-native";
 
 import BottomSheet, {
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  WorkerColors,
+} from "@/theme";
 
 import styles from "./ProductActionSheet.styles";
 
-import {
+import type {
   ProductActionSheetProps,
   ProductActionSheetRef,
 } from "./ProductActionSheet.types";
 
-const ProductActionSheet = forwardRef<
-  ProductActionSheetRef,
-  ProductActionSheetProps
->(
-  (
-    {
-      onEdit,
-      onDuplicate,
-      onShare,
-      onDelete,
-    },
-    ref,
-  ) => {
-    const bottomSheetRef =
-      useRef<BottomSheet>(null);
+/* ============================================================
+   COMPONENT
+============================================================ */
 
-    const snapPoints =
-      useMemo(() => ["50%"], []);
-
-    useImperativeHandle(ref, () => ({
-      present() {
-        bottomSheetRef.current?.snapToIndex(0);
+const ProductActionSheet =
+  forwardRef<
+    ProductActionSheetRef,
+    ProductActionSheetProps
+  >(
+    (
+      {
+        onEdit,
+        onDuplicate,
+        onShare,
+        onDelete,
       },
+      ref,
+    ) => {
+      const bottomSheetRef =
+        useRef<BottomSheet>(
+          null,
+        );
 
-      dismiss() {
-        bottomSheetRef.current?.close();
-      },
-    }));
+      const snapPoints =
+        useMemo(
+          () => ["50%"],
+          [],
+        );
 
-    return (
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-      >
-        <BottomSheetView
-          style={styles.content}
+      /* ======================================================
+         IMPERATIVE API
+      ====================================================== */
+
+      useImperativeHandle(
+        ref,
+        () => ({
+          present() {
+            bottomSheetRef.current?.snapToIndex(
+              0,
+            );
+          },
+
+          dismiss() {
+            bottomSheetRef.current?.close();
+          },
+        }),
+        [],
+      );
+
+      /* ======================================================
+         RENDER
+      ====================================================== */
+
+      return (
+        <BottomSheet
+          ref={
+            bottomSheetRef
+          }
+          index={-1}
+          snapPoints={
+            snapPoints
+          }
+          enablePanDownToClose
+          enableDynamicSizing={
+            false
+          }
+          handleComponent={
+            null
+          }
         >
-          <View style={styles.handle} />
-
-          <AppText
-            weight="bold"
-            style={styles.title}
-          >
-            Product Actions
-          </AppText>
-
-          <Pressable
-            style={styles.action}
-            onPress={onEdit}
-          >
-            <Ionicons
-              name="create-outline"
-              size={22}
-              color="#2563EB"
-            />
-
-            <AppText
-              style={styles.actionText}
-            >
-              Edit Product
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            style={styles.action}
-            onPress={onDuplicate}
-          >
-            <Ionicons
-              name="copy-outline"
-              size={22}
-              color="#475569"
-            />
-
-            <AppText
-              style={styles.actionText}
-            >
-              Duplicate Product
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            style={styles.action}
-            onPress={onShare}
-          >
-            <Ionicons
-              name="share-social-outline"
-              size={22}
-              color="#16A34A"
-            />
-
-            <AppText
-              style={styles.actionText}
-            >
-              Share Product
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            style={styles.action}
-            onPress={onDelete}
-          >
-            <Ionicons
-              name="trash-outline"
-              size={22}
-              color="#DC2626"
-            />
-
-            <AppText
-              style={[
-                styles.actionText,
-                styles.deleteText,
-              ]}
-            >
-              Delete Product
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            style={styles.cancel}
-            onPress={() =>
-              bottomSheetRef.current?.close()
+          <BottomSheetView
+            style={
+              styles.content
             }
           >
+            {/* ==================================================
+                HANDLE
+            ================================================== */}
+
+            <View
+              style={
+                styles.handle
+              }
+            />
+
+            {/* ==================================================
+                TITLE
+            ================================================== */}
+
             <AppText
-              style={styles.cancelText}
+              variant="heading3"
+              weight="bold"
+              style={
+                styles.title
+              }
             >
-              Cancel
+              Product Actions
             </AppText>
-          </Pressable>
-        </BottomSheetView>
-      </BottomSheet>
-    );
-  },
-);
+
+            {/* ==================================================
+                EDIT
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onEdit
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Edit product"
+              style={
+                styles.action
+              }
+            >
+              <AppIcon
+                name="settings"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                style={
+                  styles.actionText
+                }
+              >
+                Edit Product
+              </AppText>
+            </Pressable>
+
+            {/* ==================================================
+                DUPLICATE
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onDuplicate
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Duplicate product"
+              style={
+                styles.action
+              }
+            >
+              <AppIcon
+                name="file"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                style={
+                  styles.actionText
+                }
+              >
+                Duplicate Product
+              </AppText>
+            </Pressable>
+
+            {/* ==================================================
+                SHARE
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onShare
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Share product"
+              style={
+                styles.action
+              }
+            >
+              <AppIcon
+                name="upload"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                style={
+                  styles.actionText
+                }
+              >
+                Share Product
+              </AppText>
+            </Pressable>
+
+            {/* ==================================================
+                DELETE
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onDelete
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Delete product"
+              style={
+                styles.action
+              }
+            >
+              <AppIcon
+                name="delete"
+                size="sm"
+                color={
+                  Colors.error
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                style={[
+                  styles.actionText,
+                  styles.deleteText,
+                ]}
+              >
+                Delete Product
+              </AppText>
+            </Pressable>
+
+            {/* ==================================================
+                CANCEL
+            ================================================== */}
+
+            <Pressable
+              onPress={() => {
+                bottomSheetRef.current?.close();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Close product actions"
+              style={
+                styles.cancel
+              }
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.cancelText
+                }
+              >
+                Cancel
+              </AppText>
+            </Pressable>
+          </BottomSheetView>
+        </BottomSheet>
+      );
+    },
+  );
+
+/* ============================================================
+   DISPLAY NAME
+============================================================ */
 
 ProductActionSheet.displayName =
   "ProductActionSheet";

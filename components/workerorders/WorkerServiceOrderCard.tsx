@@ -1,114 +1,526 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import type {
   WorkerOrder,
 } from "@/types/workerOrders";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type WorkerServiceOrderCardProps = {
   order: WorkerOrder;
-  onPress: (order: WorkerOrder) => void;
+
+  onPress: (
+    order: WorkerOrder,
+  ) => void;
 };
+
+type StatusConfig = {
+  label: string;
+
+  backgroundColor: string;
+
+  color: string;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getSafeText(
+  value: unknown,
+  fallback = "",
+): string {
+  if (
+    typeof value ===
+      "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  ) {
+    return String(
+      value,
+    );
+  }
+
+  return fallback;
+}
+
+/* ==============================================================
+   SERVICE ICON
+============================================================== */
+
+function resolveServiceIcon(
+  value: unknown,
+): keyof typeof MaterialCommunityIcons.glyphMap {
+  const icon =
+    getSafeText(
+      value,
+      "tools",
+    );
+
+  if (
+    icon in
+    MaterialCommunityIcons.glyphMap
+  ) {
+    return icon as keyof typeof MaterialCommunityIcons.glyphMap;
+  }
+
+  return "tools";
+}
+
+/* ==============================================================
+   STATUS CONFIG
+============================================================== */
+
+function getStatusConfig(
+  status: WorkerOrder["status"],
+): StatusConfig {
+  switch (status) {
+    case "accepted":
+      return {
+        label:
+          "ACCEPTED",
+
+        backgroundColor:
+          Colors.infoSoft,
+
+        color:
+          Colors.info,
+      };
+
+    case "in-progress":
+      return {
+        label:
+          "IN PROGRESS",
+
+        backgroundColor:
+          Colors.infoSoft,
+
+        color:
+          Colors.info,
+      };
+
+    case "completed":
+      return {
+        label:
+          "COMPLETED",
+
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
+      };
+
+    case "cancelled":
+      return {
+        label:
+          "CANCELLED",
+
+        backgroundColor:
+          Colors.errorSoft,
+
+        color:
+          Colors.error,
+      };
+
+    case "expired":
+      return {
+        label:
+          "EXPIRED",
+
+        backgroundColor:
+          Colors.disabledBackground,
+
+        color:
+          Colors.textSecondary,
+      };
+
+    case "pending":
+    default:
+      return {
+        label:
+          "PENDING",
+
+        backgroundColor:
+          Colors.warningSoft,
+
+        color:
+          Colors.warning,
+      };
+  }
+}
+
+/* ==============================================================
+   STATUS BADGE
+============================================================== */
+
+const StatusBadge =
+  memo(
+    function StatusBadge({
+      status,
+    }: {
+      status: WorkerOrder["status"];
+    }) {
+      const config =
+        getStatusConfig(
+          status,
+        );
+
+      return (
+        <View
+          style={[
+            styles.statusBadge,
+
+            {
+              backgroundColor:
+                config.backgroundColor,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+
+              {
+                backgroundColor:
+                  config.color,
+              },
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={[
+              styles.statusText,
+
+              {
+                color:
+                  config.color,
+              },
+            ]}
+          >
+            {config.label}
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+StatusBadge.displayName =
+  "WorkerServiceOrderStatusBadge";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function WorkerServiceOrderCard({
   order,
   onPress,
 }: WorkerServiceOrderCardProps) {
+  /* ============================================================
+     DISPLAY VALUES
+  ============================================================ */
+
+  const orderId =
+    useMemo(
+      () =>
+        getSafeText(
+          order.id,
+        ),
+      [
+        order.id,
+      ],
+    );
+
+  const serviceName =
+    useMemo(
+      () =>
+        getSafeText(
+          order.serviceName,
+          "Service",
+        ),
+      [
+        order.serviceName,
+      ],
+    );
+
+  const customerName =
+    useMemo(
+      () =>
+        getSafeText(
+          order.customerName,
+          "Customer",
+        ),
+      [
+        order.customerName,
+      ],
+    );
+
+  const locationText =
+    useMemo(
+      () =>
+        getSafeText(
+          order.location,
+          "Location unavailable",
+        ),
+      [
+        order.location,
+      ],
+    );
+
+  const dateText =
+    useMemo(
+      () =>
+        getSafeText(
+          order.date,
+          "Date unavailable",
+        ),
+      [
+        order.date,
+      ],
+    );
+
+  const serviceIcon =
+    useMemo(
+      () =>
+        resolveServiceIcon(
+          order.serviceIcon,
+        ),
+      [
+        order.serviceIcon,
+      ],
+    );
+
+  const serviceColor =
+    getSafeText(
+      order.serviceColor,
+      WorkerColors.primary,
+    );
+
+  const serviceBackgroundColor =
+    getSafeText(
+      order.serviceBackgroundColor,
+      WorkerColors.primarySoft,
+    );
+
   const isPending =
-    order.status === "pending";
+    order.status ===
+    "pending";
+
+  /* ============================================================
+     PRESS
+  ============================================================ */
+
+  const handlePress =
+    useCallback(() => {
+      if (!orderId) {
+        return;
+      }
+
+      onPress(
+        order,
+      );
+    }, [
+      onPress,
+      order,
+      orderId,
+    ]);
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <Pressable
-      onPress={() => onPress(order)}
+      onPress={
+        handlePress
+      }
       accessibilityRole="button"
-      accessibilityLabel={`View job ${order.serviceName}`}
-      style={({ pressed }) => [
+      accessibilityLabel={`View job ${serviceName}`}
+      style={({
+        pressed,
+      }) => [
         styles.card,
-        pressed && styles.pressed,
+
+        pressed
+          ? styles.pressed
+          : null,
       ]}
     >
-      {/* TOP */}
-      <View style={styles.topRow}>
-        <StatusBadge status={order.status} />
+      {/* ========================================================
+          TOP
+      ======================================================== */}
 
-        <View style={styles.idRow}>
-          <AppText
-            numberOfLines={1}
-            style={styles.orderId}
-          >
-            #{order.id}
-          </AppText>
+      <View
+        style={
+          styles.topRow
+        }
+      >
+        <StatusBadge
+          status={
+            order.status
+          }
+        />
 
-          <Ionicons
-            name="copy-outline"
-            size={15}
-            color="#94A3B8"
+        <View
+          style={
+            styles.idRow
+          }
+        >
+          <AppIcon
+            name="file"
+            size="xs"
+            color={
+              Colors.textMuted
+            }
           />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.orderId
+            }
+          >
+            {orderId
+              ? `#${orderId}`
+              : "#—"}
+          </AppText>
         </View>
       </View>
 
-      {/* SERVICE */}
-      <View style={styles.mainRow}>
+      {/* ========================================================
+          SERVICE
+      ======================================================== */}
+
+      <View
+        style={
+          styles.mainRow
+        }
+      >
+        {/* ======================================================
+            MATERIAL COMMUNITY ICONS PRESERVED
+        ====================================================== */}
+
         <View
           style={[
             styles.serviceIcon,
+
             {
               backgroundColor:
-                order.serviceBackgroundColor ??
-                "#EFF6FF",
+                serviceBackgroundColor,
             },
           ]}
         >
           <MaterialCommunityIcons
-            name={order.serviceIcon}
+            name={
+              serviceIcon
+            }
             size={24}
             color={
-              order.serviceColor ??
-              "#2563EB"
+              serviceColor
             }
           />
         </View>
 
-        <View style={styles.info}>
+        <View
+          style={
+            styles.info
+          }
+        >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
-            style={styles.serviceName}
+            style={
+              styles.serviceName
+            }
           >
-            {order.serviceName}
+            {serviceName}
           </AppText>
 
-          <View style={styles.customerRow}>
-            <View style={styles.customerAvatar}>
-              <Ionicons
-                name="person"
-                size={14}
-                color="#94A3B8"
+          {/* ====================================================
+              CUSTOMER
+          ==================================================== */}
+
+          <View
+            style={
+              styles.customerRow
+            }
+          >
+            <View
+              style={
+                styles.customerAvatar
+              }
+            >
+              <AppIcon
+                name="profile"
+                size="xs"
+                color={
+                  Colors.textMuted
+                }
               />
             </View>
 
-            <View style={styles.customerInfo}>
+            <View
+              style={
+                styles.customerInfo
+              }
+            >
               <AppText
+                variant="caption"
                 weight="bold"
                 numberOfLines={1}
-                style={styles.customerName}
+                style={
+                  styles.customerName
+                }
               >
-                {order.customerName}
+                {customerName}
               </AppText>
 
               <AppText
-                style={styles.customerLabel}
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.customerLabel
+                }
               >
                 Customer
               </AppText>
@@ -116,86 +528,199 @@ function WorkerServiceOrderCard({
           </View>
         </View>
 
-        <View style={styles.arrow}>
-          <Ionicons
-            name="chevron-forward"
-            size={17}
-            color="#64748B"
+        <View
+          style={
+            styles.arrow
+          }
+        >
+          <AppIcon
+            name="next"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
       </View>
 
-      {/* META */}
-      <View style={styles.metaRow}>
-        <Ionicons
-          name="location-outline"
-          size={15}
-          color="#64748B"
-        />
+      {/* ========================================================
+          META
+      ======================================================== */}
 
-        <AppText
-          numberOfLines={1}
-          style={styles.location}
+      <View
+        style={
+          styles.metaRow
+        }
+      >
+        <View
+          style={
+            styles.locationRow
+          }
         >
-          {order.location}
-        </AppText>
-
-        <View style={styles.divider} />
-
-        <Ionicons
-          name="calendar-outline"
-          size={14}
-          color="#64748B"
-        />
-
-        <AppText
-          numberOfLines={1}
-          style={styles.date}
-        >
-          {order.date}
-        </AppText>
-      </View>
-
-      {/* NEW REQUEST */}
-      {isPending && (
-        <View style={styles.pendingNotice}>
-          <Ionicons
-            name="time-outline"
-            size={15}
-            color="#D97706"
+          <AppIcon
+            name="location"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
           />
 
           <AppText
-            weight="bold"
-            style={styles.pendingText}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={
+              styles.location
+            }
           >
-            NEW REQUEST
+            {locationText}
           </AppText>
+        </View>
 
-          <AppText style={styles.pendingHint}>
+        <View
+          style={
+            styles.divider
+          }
+        />
+
+        <View
+          style={
+            styles.dateRow
+          }
+        >
+          <AppIcon
+            name="calendar"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.date
+            }
+          >
+            {dateText}
+          </AppText>
+        </View>
+      </View>
+
+      {/* ========================================================
+          NEW REQUEST
+      ======================================================== */}
+
+      {isPending ? (
+        <View
+          style={
+            styles.pendingNotice
+          }
+        >
+          <View
+            style={
+              styles.pendingLeft
+            }
+          >
+            <View
+              style={
+                styles.pendingIcon
+              }
+            >
+              <AppIcon
+                name="clock"
+                size="xs"
+                color={
+                  Colors.warning
+                }
+              />
+            </View>
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.pendingText
+              }
+            >
+              NEW REQUEST
+            </AppText>
+          </View>
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.pendingHint
+            }
+          >
             Review & respond
           </AppText>
         </View>
-      )}
+      ) : null}
 
-      {/* FOOTER */}
-      <View style={styles.footer}>
-        <AppText style={styles.requestedText}>
-          Requested on {order.date}
-        </AppText>
+      {/* ========================================================
+          FOOTER
+      ======================================================== */}
 
-        <View style={styles.viewButton}>
+      <View
+        style={
+          styles.footer
+        }
+      >
+        <View
+          style={
+            styles.requestedContainer
+          }
+        >
           <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.requestedLabel
+            }
+          >
+            Requested on
+          </AppText>
+
+          <AppText
+            variant="caption"
             weight="bold"
-            style={styles.viewButtonText}
+            numberOfLines={1}
+            style={
+              styles.requestedDate
+            }
+          >
+            {dateText}
+          </AppText>
+        </View>
+
+        <View
+          style={
+            styles.viewButton
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.viewButtonText
+            }
           >
             VIEW JOB
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={16}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
       </View>
@@ -204,387 +729,502 @@ function WorkerServiceOrderCard({
 }
 
 /* ==============================================================
-   STATUS
+   MEMO
 ============================================================== */
 
-const StatusBadge = memo(
-  ({
-    status,
-  }: {
-    status: WorkerOrder["status"];
-  }) => {
-    const config = getStatusConfig(status);
+WorkerServiceOrderCard.displayName =
+  "WorkerServiceOrderCard";
 
-    return (
-      <View
-        style={[
-          styles.statusBadge,
-          config.background,
-        ]}
-      >
-        <View
-          style={[
-            styles.statusDot,
-            config.dot,
-          ]}
-        />
-
-        <AppText
-          weight="bold"
-          style={[
-            styles.statusText,
-            config.text,
-          ]}
-        >
-          {config.label}
-        </AppText>
-      </View>
-    );
-  },
+export default memo(
+  WorkerServiceOrderCard,
 );
-
-/* ==============================================================
-   STATUS CONFIG
-============================================================== */
-
-function getStatusConfig(
-  status: WorkerOrder["status"],
-) {
-  switch (status) {
-    case "accepted":
-      return {
-        label: "ACCEPTED",
-        background: styles.acceptedBackground,
-        dot: styles.acceptedDot,
-        text: styles.acceptedText,
-      };
-
-    case "in-progress":
-      return {
-        label: "IN PROGRESS",
-        background: styles.progressBackground,
-        dot: styles.progressDot,
-        text: styles.progressText,
-      };
-
-    case "completed":
-      return {
-        label: "COMPLETED",
-        background: styles.completedBackground,
-        dot: styles.completedDot,
-        text: styles.completedText,
-      };
-
-    case "cancelled":
-      return {
-        label: "CANCELLED",
-        background: styles.cancelledBackground,
-        dot: styles.cancelledDot,
-        text: styles.cancelledText,
-      };
-
-    case "pending":
-    default:
-      return {
-        label: "PENDING",
-        background: styles.pendingBackground,
-        dot: styles.pendingDot,
-        text: styles.pendingStatusText,
-      };
-  }
-}
 
 /* ==============================================================
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  card: {
-    width: "100%",
-    padding: 11,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.045,
-    shadowRadius: 7,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  pressed: {
-    opacity: 0.88,
-    transform: [
-      {
-        scale: 0.987,
-      },
-    ],
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
+    /* ==========================================================
+       TOP
+    ========================================================== */
 
-  idRow: {
-    maxWidth: "52%",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
+    topRow: {
+      minHeight: 28,
 
-  orderId: {
-    flexShrink: 1,
-    fontSize: 8.5,
-    color: "#64748B",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
+      flexDirection:
+        "row",
 
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
+      alignItems:
+        "center",
 
-  statusText: {
-    fontSize: 7.5,
-    lineHeight: 10,
-  },
+      justifyContent:
+        "space-between",
 
-  pendingBackground: {
-    backgroundColor: "#FFF7E8",
-  },
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-  pendingDot: {
-    backgroundColor: "#F59E0B",
-  },
+    idRow: {
+      maxWidth: "55%",
 
-  pendingStatusText: {
-    color: "#D97706",
-  },
+      flexDirection:
+        "row",
 
-  acceptedBackground: {
-    backgroundColor: "#EFF6FF",
-  },
+      alignItems:
+        "center",
 
-  acceptedDot: {
-    backgroundColor: "#2563EB",
-  },
+      gap:
+        FixxamTokens.spacing.xs,
+    },
 
-  acceptedText: {
-    color: "#1D4ED8",
-  },
+    orderId: {
+      flexShrink: 1,
 
-  progressBackground: {
-    backgroundColor: "#F3E8FF",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  progressDot: {
-    backgroundColor: "#7C3AED",
-  },
+    /* ==========================================================
+       STATUS
+    ========================================================== */
 
-  progressText: {
-    color: "#6D28D9",
-  },
+    statusBadge: {
+      minHeight: 26,
 
-  completedBackground: {
-    backgroundColor: "#ECFDF5",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-  completedDot: {
-    backgroundColor: "#16A34A",
-  },
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
-  completedText: {
-    color: "#15803D",
-  },
+      flexDirection:
+        "row",
 
-  cancelledBackground: {
-    backgroundColor: "#FEF2F2",
-  },
+      alignItems:
+        "center",
 
-  cancelledDot: {
-    backgroundColor: "#DC2626",
-  },
+      gap:
+        FixxamTokens.spacing.xs,
 
-  cancelledText: {
-    color: "#B91C1C",
-  },
+      borderRadius:
+        FixxamTokens.radius.sm,
+    },
 
-  mainRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    statusDot: {
+      width: 6,
 
-  serviceIcon: {
-    width: 57,
-    height: 57,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      height: 6,
 
-  info: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 10,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
 
-  serviceName: {
-    fontSize: 14,
-    lineHeight: 18,
-    color: "#0F172A",
-  },
+    statusText: {
+      lineHeight: 14,
+    },
 
-  customerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 5,
-  },
+    /* ==========================================================
+       SERVICE
+    ========================================================== */
 
-  customerAvatar: {
-    width: 27,
-    height: 27,
-    borderRadius: 14,
-    backgroundColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    mainRow: {
+      flexDirection:
+        "row",
 
-  customerInfo: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 7,
-  },
+      alignItems:
+        "center",
+    },
 
-  customerName: {
-    fontSize: 10,
-    lineHeight: 13,
-    color: "#334155",
-  },
+    serviceIcon: {
+      width: 56,
 
-  customerLabel: {
-    marginTop: 0,
-    fontSize: 8.5,
-    lineHeight: 11,
-    color: "#94A3B8",
-  },
+      height: 56,
 
-  arrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      flexShrink: 0,
 
-  metaRow: {
-    minHeight: 35,
-    marginTop: 9,
-    paddingVertical: 7,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
+      alignItems:
+        "center",
 
-  location: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 8.5,
-    color: "#64748B",
-  },
+      justifyContent:
+        "center",
 
-  divider: {
-    width: 1,
-    height: 15,
-    marginHorizontal: 3,
-    backgroundColor: "#E2E8F0",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
 
-  date: {
-    flexShrink: 1,
-    fontSize: 8.5,
-    color: "#64748B",
-  },
+    info: {
+      flex: 1,
 
-  pendingNotice: {
-    minHeight: 34,
-    marginTop: 8,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: "#FFF7E8",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
+      minWidth: 0,
 
-  pendingText: {
-    fontSize: 8,
-    color: "#D97706",
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  pendingHint: {
-    flex: 1,
-    textAlign: "right",
-    fontSize: 8.5,
-    color: "#92400E",
-  },
+    serviceName: {
+      color:
+        Colors.textPrimary,
+    },
 
-  footer: {
-    minHeight: 36,
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
+    /* ==========================================================
+       CUSTOMER
+    ========================================================== */
 
-  requestedText: {
-    flex: 1,
-    fontSize: 8.5,
-    lineHeight: 12,
-    color: "#64748B",
-  },
+    customerRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-  viewButton: {
-    minWidth: 118,
-    height: 36,
-    paddingHorizontal: 11,
-    borderRadius: 11,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+      flexDirection:
+        "row",
 
-  viewButtonText: {
-    fontSize: 8.5,
-    color: "#FFFFFF",
-  },
-});
+      alignItems:
+        "center",
+    },
 
-export default memo(WorkerServiceOrderCard);
+    customerAvatar: {
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    customerInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    customerName: {
+      color:
+        Colors.textSecondary,
+    },
+
+    customerLabel: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
+    },
+
+    arrow: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    /* ==========================================================
+       META
+    ========================================================== */
+
+    metaRow: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderTopWidth: 1,
+
+      borderBottomWidth: 1,
+
+      borderColor:
+        Colors.divider,
+    },
+
+    locationRow: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    location: {
+      flex: 1,
+
+      minWidth: 0,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    divider: {
+      width: 1,
+
+      height: 18,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    dateRow: {
+      maxWidth: 120,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    date: {
+      flexShrink: 1,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       PENDING
+    ========================================================== */
+
+    pendingNotice: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.warning,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    pendingLeft: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    pendingIcon: {
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    pendingText: {
+      color:
+        Colors.warning,
+    },
+
+    pendingHint: {
+      flexShrink: 0,
+
+      color:
+        Colors.warning,
+    },
+
+    /* ==========================================================
+       FOOTER
+    ========================================================== */
+
+    footer: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    requestedContainer: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    requestedLabel: {
+      color:
+        Colors.textMuted,
+    },
+
+    requestedDate: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    viewButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    viewButtonText: {
+      color:
+        Colors.textInverse,
+    },
+  });

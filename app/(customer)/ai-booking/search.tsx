@@ -8,8 +8,6 @@ import React, {
 import {
   ActivityIndicator,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -18,13 +16,25 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import { Ionicons } from "@expo/vector-icons";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-import { AppScreen } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
 
-import { imageToBase64 } from "@/utils/aiBooking/imageToBase64";
+import {
+  imageToBase64,
+} from "@/utils/aiBooking/imageToBase64";
 
 import {
   resolveAiBookingRequest,
@@ -43,16 +53,22 @@ type AiResponseReason =
 
 type AiResponseState = {
   message: string;
+
   reason: AiResponseReason;
 };
 
 type SearchParams = {
-  description?: string | string[];
-  imageUri?: string | string[];
+  description?:
+    | string
+    | string[];
+
+  imageUri?:
+    | string
+    | string[];
 };
 
 /* ==============================================================
-   HELPERS
+   PARAM
 ============================================================== */
 
 function getParamValue(
@@ -61,7 +77,9 @@ function getParamValue(
     | string[]
     | undefined,
 ): string {
-  if (Array.isArray(value)) {
+  if (
+    Array.isArray(value)
+  ) {
     return (
       value[0]?.trim() ??
       ""
@@ -72,6 +90,25 @@ function getParamValue(
     value?.trim() ??
     ""
   );
+}
+
+/* ==============================================================
+   RESPONSE REASON
+============================================================== */
+
+function normalizeReason(
+  value: unknown,
+): AiResponseReason {
+  switch (value) {
+    case "unclear_request":
+    case "unsupported_service":
+    case "unclear_image":
+    case "no_worker":
+      return value;
+
+    default:
+      return null;
+  }
 }
 
 /* ==============================================================
@@ -89,7 +126,8 @@ export default function AiBookingSearchScreen() {
     location,
     loading:
       locationLoading,
-  } = useCurrentLocation();
+  } =
+    useCurrentLocation();
 
   /* ============================================================
      STATE
@@ -98,17 +136,16 @@ export default function AiBookingSearchScreen() {
   const [
     status,
     setStatus,
-  ] = useState(
-    "Preparing your request...",
-  );
+  ] =
+    useState(
+      "Preparing your request...",
+    );
 
   const [
     error,
     setError,
   ] =
-    useState<string | null>(
-      null,
-    );
+    useState(false);
 
   const [
     aiResponse,
@@ -118,19 +155,24 @@ export default function AiBookingSearchScreen() {
       null,
     );
 
-  const [
-    started,
-    setStarted,
-  ] = useState(false);
-
   /* ============================================================
-     MOUNT STATE
+     REFS
   ============================================================ */
 
   const mountedRef =
     useRef(true);
 
+  const startedRef =
+    useRef(false);
+
+  /* ============================================================
+     MOUNT
+  ============================================================ */
+
   useEffect(() => {
+    mountedRef.current =
+      true;
+
     return () => {
       mountedRef.current =
         false;
@@ -138,21 +180,30 @@ export default function AiBookingSearchScreen() {
   }, []);
 
   /* ============================================================
-     RUN SEARCH
+     SEARCH
   ============================================================ */
 
   const runSearch =
     useCallback(async () => {
       if (
-        started ||
+        startedRef.current ||
         locationLoading
       ) {
         return;
       }
 
-      setStarted(true);
-      setError(null);
-      setAiResponse(null);
+      startedRef.current =
+        true;
+
+      setError(false);
+
+      setAiResponse(
+        null,
+      );
+
+      setStatus(
+        "Preparing your request...",
+      );
 
       try {
         /* ======================================================
@@ -221,40 +272,19 @@ export default function AiBookingSearchScreen() {
             image.mimeType;
         }
 
-        /* ======================================================
-           AI STATUS
-        ====================================================== */
-
-        if (
-          mountedRef.current
-        ) {
-          setStatus(
-            "Understanding your request...",
-          );
-        }
-
-        await new Promise<void>(
-          (resolve) => {
-            setTimeout(
-              resolve,
-              250,
-            );
-          },
-        );
-
         if (
           !mountedRef.current
         ) {
           return;
         }
 
-        setStatus(
-          "Finding the right service...",
-        );
-
         /* ======================================================
-           CALL AI
+           AI REQUEST
         ====================================================== */
+
+        setStatus(
+          "Understanding your problem and finding the right service...",
+        );
 
         const result =
           await resolveAiBookingRequest({
@@ -280,10 +310,6 @@ export default function AiBookingSearchScreen() {
               location?.address,
           });
 
-        /* ======================================================
-           SCREEN SAFETY
-        ====================================================== */
-
         if (
           !mountedRef.current
         ) {
@@ -304,8 +330,9 @@ export default function AiBookingSearchScreen() {
               "We couldn't understand your request. Please try again with a little more detail.",
 
             reason:
-              result.reason ??
-              null,
+              normalizeReason(
+                result.reason,
+              ),
           });
 
           return;
@@ -372,7 +399,8 @@ export default function AiBookingSearchScreen() {
         const customerDescription =
           String(
             result.customerDescription ??
-              result.booking.description ??
+              result.booking
+                .description ??
               text ??
               "",
           ).trim();
@@ -405,7 +433,8 @@ export default function AiBookingSearchScreen() {
 
         const bookingAddress =
           location?.address?.trim() ||
-          result.booking.address?.trim() ||
+          result.booking.address
+            ?.trim() ||
           "";
 
         /* ======================================================
@@ -414,64 +443,48 @@ export default function AiBookingSearchScreen() {
 
         const bookingPhotos =
           photoUri
-            ? [photoUri]
+            ? [
+                photoUri,
+              ]
             : Array.isArray(
-                result.booking.photos,
-              )
-            ? result.booking.photos.filter(
-                (
-                  photo,
-                ): photo is string =>
-                  typeof photo ===
-                    "string" &&
-                  photo.trim()
-                    .length > 0,
-              )
-            : [];
+                  result.booking
+                    .photos,
+                )
+              ? result.booking.photos.filter(
+                  (
+                    photo,
+                  ): photo is string =>
+                    typeof photo ===
+                      "string" &&
+                    photo.trim()
+                      .length >
+                      0,
+                )
+              : [];
 
         /* ======================================================
            BOOKING PREVIEW
         ====================================================== */
 
-        const bookingPreview = {
-          ...result.booking,
+        const bookingPreview =
+          {
+            ...result.booking,
 
-          description:
-            customerDescription,
+            description:
+              customerDescription,
 
-          photos:
-            bookingPhotos,
+            photos:
+              bookingPhotos,
 
-          latitude:
-            bookingLatitude,
+            latitude:
+              bookingLatitude,
 
-          longitude:
-            bookingLongitude,
+            longitude:
+              bookingLongitude,
 
-          address:
-            bookingAddress,
-        };
-
-        /* ======================================================
-           PREPARE NAVIGATION
-        ====================================================== */
-
-        if (
-          mountedRef.current
-        ) {
-          setStatus(
-            `We found ${result.worker.name}. Preparing your booking...`,
-          );
-        }
-
-        await new Promise<void>(
-          (resolve) => {
-            setTimeout(
-              resolve,
-              300,
-            );
-          },
-        );
+            address:
+              bookingAddress,
+          };
 
         if (
           !mountedRef.current
@@ -479,8 +492,12 @@ export default function AiBookingSearchScreen() {
           return;
         }
 
+        setStatus(
+          `We found ${result.worker.name}. Preparing your booking...`,
+        );
+
         /* ======================================================
-           GO TO BOOKING
+           NAVIGATION
         ====================================================== */
 
         router.replace({
@@ -504,7 +521,8 @@ export default function AiBookingSearchScreen() {
 
             workerRating:
               String(
-                result.worker.rating ??
+                result.worker
+                  .rating ??
                   0,
               ),
 
@@ -517,7 +535,8 @@ export default function AiBookingSearchScreen() {
 
             workerVerified:
               String(
-                result.worker.verified ??
+                result.worker
+                  .verified ??
                   false,
               ),
 
@@ -543,7 +562,7 @@ export default function AiBookingSearchScreen() {
               result.service.name,
 
             /* ==================================================
-               CUSTOMER DESCRIPTION
+               DESCRIPTION
             ================================================== */
 
             customerDescription:
@@ -559,9 +578,9 @@ export default function AiBookingSearchScreen() {
               ),
           },
         });
-      } catch (err: unknown) {
+      } catch (err) {
         console.error(
-          "AI BOOKING SEARCH ERROR",
+          "AI_BOOKING_SEARCH_ERROR:",
           err,
         );
 
@@ -571,18 +590,13 @@ export default function AiBookingSearchScreen() {
           return;
         }
 
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to complete automatic booking.",
-        );
+        setError(true);
       }
     }, [
       description,
       imageUri,
       location,
       locationLoading,
-      started,
     ]);
 
   /* ============================================================
@@ -603,64 +617,137 @@ export default function AiBookingSearchScreen() {
   ]);
 
   /* ============================================================
-     ERROR SCREEN
+     RETRY
+  ============================================================ */
+
+  const handleRetry =
+    useCallback(() => {
+      startedRef.current =
+        false;
+
+      setError(false);
+
+      setAiResponse(
+        null,
+      );
+
+      setStatus(
+        "Preparing your request...",
+      );
+
+      void runSearch();
+    }, [
+      runSearch,
+    ]);
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/ai-booking",
+      );
+    }, []);
+
+  /* ============================================================
+     MANUAL BOOKING
+  ============================================================ */
+
+  const handleManualBooking =
+    useCallback(() => {
+      router.replace(
+        "/(customer)/search",
+      );
+    }, []);
+
+  /* ============================================================
+     ERROR
   ============================================================ */
 
   if (error) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <View
           style={
-            styles.errorContainer
+            styles.stateContainer
           }
         >
           <View
-            style={
-              styles.errorIcon
-            }
+            style={[
+              styles.stateIcon,
+              styles.errorIcon,
+            ]}
           >
-            <Ionicons
-              name="alert-circle-outline"
-              size={38}
-              color="#DC2626"
+            <AppIcon
+              name="error"
+              role="customer"
+              size="xl"
+              state="error"
             />
           </View>
 
-          <Text
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
             style={
-              styles.errorTitle
+              styles.stateTitle
             }
           >
             Something went wrong
-          </Text>
+          </AppText>
 
-          <Text
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
-              styles.errorMessage
+              styles.stateMessage
             }
           >
-            {error}
-          </Text>
+            We couldn't complete the
+            automatic booking right now.
+            Please check your connection
+            and try again.
+          </AppText>
 
-          <TouchableOpacity
+          <AppButton
+            title="Try Again"
+            role="customer"
+            leftIconName="refresh"
+            onPress={
+              handleRetry
+            }
             style={
-              styles.retryButton
+              styles.stateButton
             }
-            onPress={() =>
-              router.back()
+          />
+
+          <AppButton
+            title="Go Back"
+            role="customer"
+            variant="ghost"
+            leftIconName="back"
+            onPress={
+              handleBack
             }
-            activeOpacity={0.88}
-            accessibilityRole="button"
-            accessibilityLabel="Try again"
-          >
-            <Text
-              style={
-                styles.retryText
-              }
-            >
-              Try Again
-            </Text>
-          </TouchableOpacity>
+            style={
+              styles.secondaryStateButton
+            }
+          />
         </View>
       </AppScreen>
     );
@@ -683,84 +770,102 @@ export default function AiBookingSearchScreen() {
       aiResponse.reason ===
       "unclear_image";
 
+    const responseTitle =
+      isUnsupportedService
+        ? "Service Not Available"
+        : isNoWorker
+          ? "No Worker Available"
+          : isUnclearImage
+            ? "We Need a Clearer Photo"
+            : "Fixxam Needs More Details";
+
+    const responseIcon =
+      isUnsupportedService
+        ? "service"
+        : isNoWorker
+          ? "users"
+          : isUnclearImage
+            ? "image"
+            : "professional";
+
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <View
           style={
-            styles.responseContainer
+            styles.stateContainer
           }
         >
           <View
             style={[
-              styles.responseIcon,
+              styles.stateIcon,
 
-              isUnsupportedService &&
-                styles.responseIconBlue,
-
-              isNoWorker &&
-                styles.responseIconOrange,
-
-              isUnclearImage &&
-                styles.responseIconPurple,
+              isNoWorker
+                ? styles.warningIcon
+                : styles.primaryIcon,
             ]}
           >
-            <Ionicons
+            <AppIcon
               name={
-                isUnsupportedService
-                  ? "construct-outline"
-                  : isNoWorker
-                  ? "people-outline"
-                  : isUnclearImage
-                  ? "image-outline"
-                  : "sparkles-outline"
+                responseIcon
               }
-              size={40}
-              color={
-                isUnsupportedService
-                  ? "#2563EB"
-                  : isNoWorker
-                  ? "#F97316"
-                  : isUnclearImage
-                  ? "#7C3AED"
-                  : "#F97316"
+              role="customer"
+              size="xl"
+              state={
+                isNoWorker
+                  ? "warning"
+                  : "active"
               }
             />
           </View>
 
-          <Text
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
             style={
-              styles.responseTitle
+              styles.stateTitle
             }
           >
-            {isUnsupportedService
-              ? "Service Not Available"
-              : isNoWorker
-              ? "No Worker Available"
-              : isUnclearImage
-              ? "We Need a Clearer Photo"
-              : "Fixxam Needs More Details"}
-          </Text>
+            {responseTitle}
+          </AppText>
 
-          <Text
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
-              styles.responseMessage
+              styles.stateMessage
             }
           >
             {aiResponse.message}
-          </Text>
+          </AppText>
 
-          <View
+          <AppCard
+            role="customer"
+            variant="outlined"
             style={
               styles.responseInfoCard
             }
           >
-            <Ionicons
-              name="sparkles"
-              size={20}
-              color="#F97316"
-            />
+            <View
+              style={
+                styles.responseInfoIcon
+              }
+            >
+              <AppIcon
+                name="professional"
+                role="customer"
+                size="sm"
+                state="active"
+              />
+            </View>
 
-            <Text
+            <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.responseInfoText
               }
@@ -769,62 +874,33 @@ export default function AiBookingSearchScreen() {
               more details, or continue
               manually and choose the
               service yourself.
-            </Text>
-          </View>
+            </AppText>
+          </AppCard>
 
-          <TouchableOpacity
+          <AppButton
+            title="Try Again"
+            role="customer"
+            leftIconName="back"
+            onPress={
+              handleBack
+            }
             style={
-              styles.primaryResponseButton
+              styles.stateButton
             }
-            onPress={() =>
-              router.back()
+          />
+
+          <AppButton
+            title="Book Manually"
+            role="customer"
+            variant="outline"
+            leftIconName="search"
+            onPress={
+              handleManualBooking
             }
-            activeOpacity={0.88}
-            accessibilityRole="button"
-            accessibilityLabel="Try again"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={20}
-              color="#FFFFFF"
-            />
-
-            <Text
-              style={
-                styles.primaryResponseText
-              }
-            >
-              Try Again
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={
-              styles.secondaryResponseButton
+              styles.secondaryStateButton
             }
-            onPress={() =>
-              router.replace(
-                "/(customer)/search",
-              )
-            }
-            activeOpacity={0.88}
-            accessibilityRole="button"
-            accessibilityLabel="Book manually"
-          >
-            <Ionicons
-              name="list-outline"
-              size={20}
-              color="#F97316"
-            />
-
-            <Text
-              style={
-                styles.secondaryResponseText
-              }
-            >
-              Book Manually
-            </Text>
-          </TouchableOpacity>
+          />
         </View>
       </AppScreen>
     );
@@ -835,75 +911,100 @@ export default function AiBookingSearchScreen() {
   ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <View
         style={
-          styles.container
+          styles.loadingContainer
         }
       >
         <View
-          style={styles.center}
+          style={
+            styles.searchCircle
+          }
+        >
+          <AppIcon
+            name="search"
+            role="customer"
+            size="xl"
+            state="active"
+          />
+        </View>
+
+        <AppText
+          variant="heading1"
+          weight="bold"
+          center
+          style={
+            styles.loadingTitle
+          }
+        >
+          Fixxam is finding
+          {"\n"}
+          your worker
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.loadingSubtitle
+          }
+        >
+          {locationLoading
+            ? "Getting your location..."
+            : status}
+        </AppText>
+
+        <View
+          style={
+            styles.loader
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        <AppCard
+          role="customer"
+          variant="outlined"
+          style={
+            styles.infoCard
+          }
         >
           <View
             style={
-              styles.searchCircle
+              styles.infoIcon
             }
           >
-            <Ionicons
-              name="search"
-              size={42}
-              color="#2563EB"
+            <AppIcon
+              name="verified"
+              role="customer"
+              size="sm"
+              state="success"
             />
           </View>
 
-          <Text
-            style={styles.title}
-          >
-            Fixxam is finding
-            {"\n"}
-            your worker
-          </Text>
-
-          <Text
+          <AppText
+            variant="caption"
             style={
-              styles.subtitle
+              styles.infoText
             }
           >
-            {locationLoading
-              ? "Getting your location..."
-              : status}
-          </Text>
-
-          <View
-            style={styles.loader}
-          >
-            <ActivityIndicator
-              size="small"
-              color="#F97316"
-            />
-          </View>
-
-          <View
-            style={
-              styles.infoCard
-            }
-          >
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={22}
-              color="#16A34A"
-            />
-
-            <Text
-              style={styles.infoText}
-            >
-              Fixxam will prepare a
-              booking preview for you.
-              Nothing will be booked
-              until you confirm.
-            </Text>
-          </View>
-        </View>
+            Fixxam will prepare a
+            booking preview for you.
+            Nothing will be booked
+            until you review and
+            confirm it.
+          </AppText>
+        </AppCard>
       </View>
     </AppScreen>
   );
@@ -915,284 +1016,309 @@ export default function AiBookingSearchScreen() {
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       SEARCH
-    ========================================================== */
+    /* ========================================================
+       COMMON STATE
+    ======================================================== */
 
-    container: {
+    stateContainer: {
       flex: 1,
-      backgroundColor:
-        "#FFFFFF",
-    },
 
-    center: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 28,
-      paddingBottom: 70,
-    },
+      alignItems:
+        "center",
 
-    searchCircle: {
-      width: 92,
-      height: 92,
-      borderRadius: 46,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E8EEF7",
-      alignItems: "center",
       justifyContent:
         "center",
-      shadowColor:
-        "#2563EB",
-      shadowOpacity: 0.08,
-      shadowRadius: 14,
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-      elevation: 3,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      backgroundColor:
+        Colors.background,
     },
 
-    title: {
-      marginTop: 28,
-      color: "#0F172A",
-      fontSize: 25,
-      lineHeight: 32,
-      fontWeight: "800",
-      textAlign: "center",
-      letterSpacing: -0.3,
-    },
+    stateIcon: {
+      width:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    subtitle: {
-      marginTop: 10,
-      maxWidth: 310,
-      color: "#94A3B8",
-      fontSize: 14.5,
-      lineHeight: 21,
-      fontWeight: "500",
-      textAlign: "center",
-    },
+      height:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    loader: {
-      marginTop: 24,
-      width: 28,
-      height: 28,
-      alignItems: "center",
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-    },
 
-    infoCard: {
-      marginTop: 34,
-      width: "100%",
-      paddingHorizontal: 16,
-      paddingVertical: 15,
-      borderRadius: 17,
-      backgroundColor:
-        "#F0FDF4",
+      borderRadius:
+        FixxamTokens.radius.full,
+
       borderWidth: 1,
+    },
+
+    primaryIcon: {
       borderColor:
-        "#DCFCE7",
-      flexDirection: "row",
-      alignItems: "center",
+        CustomerColors.primaryLight,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
-    infoText: {
-      flex: 1,
-      marginLeft: 10,
-      color: "#166534",
-      fontSize: 12.5,
-      lineHeight: 19,
-      fontWeight: "600",
-    },
+    warningIcon: {
+      borderColor:
+        Colors.warning,
 
-    /* ==========================================================
-       ERROR
-    ========================================================== */
-
-    errorContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 28,
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     errorIcon: {
-      width: 76,
-      height: 76,
-      borderRadius: 38,
-      backgroundColor:
-        "#FEF2F2",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    errorTitle: {
-      marginTop: 20,
-      color: "#0F172A",
-      fontSize: 22,
-      fontWeight: "800",
-      textAlign: "center",
-    },
-
-    errorMessage: {
-      marginTop: 8,
-      color: "#64748B",
-      fontSize: 14,
-      lineHeight: 21,
-      textAlign: "center",
-    },
-
-    retryButton: {
-      marginTop: 24,
-      minWidth: 150,
-      height: 48,
-      borderRadius: 15,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    retryText: {
-      color: "#FFFFFF",
-      fontSize: 14,
-      fontWeight: "800",
-    },
-
-    /* ==========================================================
-       AI RESPONSE
-    ========================================================== */
-
-    responseContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 26,
-    },
-
-    responseIcon: {
-      width: 88,
-      height: 88,
-      borderRadius: 44,
-      backgroundColor:
-        "#FFF7ED",
-      borderWidth: 1,
       borderColor:
-        "#FED7AA",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
+        Colors.error,
 
-    responseIconBlue: {
       backgroundColor:
-        "#EFF6FF",
-      borderColor:
-        "#BFDBFE",
+        Colors.errorSoft,
     },
 
-    responseIconOrange: {
-      backgroundColor:
-        "#FFF7ED",
-      borderColor:
-        "#FED7AA",
+    stateTitle: {
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    responseIconPurple: {
-      backgroundColor:
-        "#F5F3FF",
-      borderColor:
-        "#DDD6FE",
+    stateMessage: {
+      maxWidth: 360,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    responseTitle: {
-      marginTop: 22,
-      color: "#0F172A",
-      fontSize: 23,
-      lineHeight: 30,
-      fontWeight: "800",
-      textAlign: "center",
+    stateButton: {
+      width: "100%",
+
+      maxWidth: 360,
+
+      marginTop:
+        FixxamTokens.spacing.xxl,
     },
 
-    responseMessage: {
-      marginTop: 10,
-      color: "#64748B",
-      fontSize: 14,
-      lineHeight: 22,
-      fontWeight: "500",
-      textAlign: "center",
+    secondaryStateButton: {
+      width: "100%",
+
+      maxWidth: 360,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
+
+    /* ========================================================
+       RESPONSE INFO
+    ======================================================== */
 
     responseInfoCard: {
-      marginTop: 24,
       width: "100%",
-      padding: 15,
-      borderRadius: 17,
-      backgroundColor:
-        "#FFF7ED",
-      borderWidth: 1,
-      borderColor:
-        "#FFEDD5",
-      flexDirection: "row",
+
+      maxWidth: 360,
+
+      flexDirection:
+        "row",
+
       alignItems:
         "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    responseInfoIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     responseInfoText: {
       flex: 1,
-      marginLeft: 9,
-      color: "#9A3412",
-      fontSize: 12.5,
-      lineHeight: 19,
-      fontWeight: "600",
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
-    primaryResponseButton: {
-      marginTop: 24,
-      width: "100%",
-      height: 52,
-      borderRadius: 16,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      gap: 9,
-    },
 
-    primaryResponseText: {
-      color: "#FFFFFF",
-      fontSize: 15,
-      fontWeight: "800",
-    },
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
 
-    secondaryResponseButton: {
-      marginTop: 12,
-      width: "100%",
-      height: 52,
-      borderRadius: 16,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.background,
+    },
+
+    searchCircle: {
+      width:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      height:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 9,
+        CustomerColors.primaryLight,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    secondaryResponseText: {
-      color: "#0F172A",
-      fontSize: 15,
-      fontWeight: "800",
+    loadingTitle: {
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.xxl,
+    },
+
+    loadingSubtitle: {
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    loader: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    /* ========================================================
+       SECURITY INFO
+    ======================================================== */
+
+    infoCard: {
+      width: "100%",
+
+      maxWidth: 360,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderColor:
+        Colors.success,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.success,
     },
   });

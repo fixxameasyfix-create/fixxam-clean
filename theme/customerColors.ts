@@ -1,83 +1,72 @@
 export const CustomerColors = {
-  /*
-   * Brand
-   */
-  primary: "#0A4DCC",
-  primaryDark: "#083A99",
-  secondary: "#FFB800",
+  // Fixxam Customer Brand
+  primary: "#3B82F6",
+  primaryDark: "#1D4ED8",
+  primaryLight: "#93C5FD",
+  primarySoft: "#EFF6FF",
+  primaryPressed: "#2563EB",
+  primaryDisabled: "#BFDBFE",
 
-  /*
-   * Backgrounds
-   */
-  background: "#FFFFFF",
-  surface: "#F8FAFC",
+  secondary: "#3B82F6",
+
+  // Backgrounds
+  background: "#F8FAFC",
+  surface: "#FFFFFF",
   card: "#FFFFFF",
 
-  /*
-   * Text
-   */
+  // Text
   textPrimary: "#0F172A",
   textSecondary: "#64748B",
+  textMuted: "#94A3B8",
   primaryText: "#111827",
   white: "#FFFFFF",
 
-  /*
-   * Borders
-   */
+  // Borders
   border: "#E2E8F0",
+  borderStrong: "#CBD5E1",
+  borderFocus: "#3B82F6",
 
-  /*
-   * Status
-   */
+  // Status
   success: "#16A34A",
   warning: "#F59E0B",
   error: "#DC2626",
+  info: "#0EA5E9",
 
-  /*
-   * Diagnosis
-   */
+  // Diagnosis
   diagnosisBackground: "#EFF6FF",
   diagnosisBorder: "#BFDBFE",
 
-  /*
-   * Problem
-   */
+  // Problem
   problemBackground: "#F8FAFC",
 
-  /*
-   * Success
-   */
-  successBackground: "#ECFDF5",
+  // Success
+  successBackground: "#F0FDF4",
 
-  /*
-   * Warning / Professional
-   */
+  // Professional
   professionalBackground: "#FFF7ED",
 
-  /*
-   * Emergency
-   */
+  // Emergency
   emergencyBackground: "#FEF2F2",
 
-  /*
-   * Safety
-   */
+  // Safety
   safetyBackground: "#FEFCE8",
 
-  /*
-   * Icon Backgrounds
-   */
+  // Icons
+  icon: "#475569",
+  iconActive: "#3B82F6",
   iconBackground: "#F1F5F9",
+  iconActiveBackground: "#EFF6FF",
 
-  /*
-   * Divider
-   */
+  // Divider
   divider: "#E5E7EB",
 
-  /*
-   * Shadow
-   */
+  // Disabled
+  disabled: "#CBD5E1",
+  disabledBackground: "#F1F5F9",
+
+  // Overlay / Shadow
+  overlay: "rgba(15, 23, 42, 0.45)",
   shadow: "#000000",
-};
+} as const;
 
 export default CustomerColors;

@@ -1,40 +1,94 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-export default function ProfilePhotoSuccess() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+function ProfilePhotoSuccess() {
   return (
-    <View style={styles.container}>
+    <View
+      accessibilityRole="text"
+      style={
+        styles.container
+      }
+    >
+      <AppIcon
+        name="success"
+        size="sm"
+        state="success"
+      />
+
       <AppText
-        color="#16A34A"
-        weight="semibold"
+        variant="caption"
+        weight="medium"
+        style={
+          styles.text
+        }
       >
-        ✓ Verified Photo
+        Verified Photo
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-  alignSelf: "center",
-  flexDirection: "row",
+export default memo(
+  ProfilePhotoSuccess,
+);
 
-  backgroundColor: "#ECFDF5",
+const styles =
+  StyleSheet.create({
+    container: {
+      alignSelf:
+        "center",
 
-  borderWidth: 1,
-  borderColor: "#BBF7D0",
+      flexDirection:
+        "row",
 
-  paddingHorizontal: 16,
-  paddingVertical: 8,
+      alignItems:
+        "center",
 
-  borderRadius: 999,
+      gap:
+        FixxamTokens.spacing.xs,
 
-  marginTop: 16,
-  marginBottom: 24,
-},
-});
+      backgroundColor:
+        Colors.successSoft,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
+
+    text: {
+      color:
+        Colors.success,
+    },
+  });

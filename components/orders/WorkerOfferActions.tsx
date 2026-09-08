@@ -1,4 +1,8 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
   ActivityIndicator,
   Pressable,
@@ -6,19 +10,54 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   amount: number;
 
   onAccept: () => void;
+
   onCounter: () => void;
+
   onDecline: () => void;
 
   loading?: boolean;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeAmount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return 0;
+  }
+
+  return Math.round(value);
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function WorkerOfferActions({
   amount,
@@ -27,11 +66,28 @@ function WorkerOfferActions({
   onDecline,
   loading = false,
 }: Props) {
+  const safeAmount =
+    useMemo(
+      () =>
+        normalizeAmount(
+          amount,
+        ),
+      [amount],
+    );
+
   const formattedAmount =
-    amount.toLocaleString("en-NG");
+    useMemo(
+      () =>
+        safeAmount.toLocaleString(
+          "en-NG",
+        ),
+      [safeAmount],
+    );
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+    >
       {/* =====================================================
           ACCEPT
       ===================================================== */}
@@ -47,33 +103,51 @@ function WorkerOfferActions({
         }}
         style={({ pressed }) => [
           styles.acceptButton,
+
           pressed &&
-            !loading &&
-            styles.pressed,
-          loading &&
-            styles.disabled,
+          !loading
+            ? styles.pressed
+            : null,
+
+          loading
+            ? styles.disabled
+            : null,
         ]}
       >
         {loading ? (
           <ActivityIndicator
             size="small"
-            color="#FFFFFF"
+            color={
+              Colors.textInverse
+            }
           />
         ) : (
           <>
-            <View style={styles.acceptIcon}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={21}
-                color="#FFFFFF"
+            <View
+              style={
+                styles.acceptIcon
+              }
+            >
+              <AppIcon
+                name="check"
+                role="worker"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.acceptText}
+              numberOfLines={1}
+              style={
+                styles.acceptText
+              }
             >
-              ACCEPT ₦{formattedAmount}
+              ACCEPT ₦
+              {formattedAmount}
             </AppText>
           </>
         )}
@@ -83,10 +157,12 @@ function WorkerOfferActions({
           COUNTER + DECLINE
       ===================================================== */}
 
-      <View style={styles.bottomRow}>
-        {/* ---------------------------------------------------
+      <View
+        style={styles.bottomRow}
+      >
+        {/* ===================================================
             COUNTER
-        --------------------------------------------------- */}
+        =================================================== */}
 
         <Pressable
           disabled={loading}
@@ -98,32 +174,47 @@ function WorkerOfferActions({
           }}
           style={({ pressed }) => [
             styles.counterButton,
+
             pressed &&
-              !loading &&
-              styles.pressed,
-            loading &&
-              styles.disabled,
+            !loading
+              ? styles.pressed
+              : null,
+
+            loading
+              ? styles.disabled
+              : null,
           ]}
         >
-          <View style={styles.counterIcon}>
-            <Ionicons
-              name="swap-horizontal-outline"
-              size={19}
-              color="#2563EB"
+          <View
+            style={
+              styles.counterIcon
+            }
+          >
+            <AppIcon
+              name="refresh"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
             />
           </View>
 
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.counterText}
+            numberOfLines={1}
+            style={
+              styles.counterText
+            }
           >
             COUNTER
           </AppText>
         </Pressable>
 
-        {/* ---------------------------------------------------
+        {/* ===================================================
             DECLINE
-        --------------------------------------------------- */}
+        =================================================== */}
 
         <Pressable
           disabled={loading}
@@ -135,24 +226,38 @@ function WorkerOfferActions({
           }}
           style={({ pressed }) => [
             styles.declineButton,
+
             pressed &&
-              !loading &&
-              styles.pressed,
-            loading &&
-              styles.disabled,
+            !loading
+              ? styles.pressed
+              : null,
+
+            loading
+              ? styles.disabled
+              : null,
           ]}
         >
-          <View style={styles.declineIcon}>
-            <Ionicons
-              name="close-circle-outline"
-              size={19}
-              color="#DC2626"
+          <View
+            style={
+              styles.declineIcon
+            }
+          >
+            <AppIcon
+              name="error"
+              size="sm"
+              color={
+                Colors.error
+              }
             />
           </View>
 
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.declineText}
+            numberOfLines={1}
+            style={
+              styles.declineText
+            }
           >
             DECLINE
           </AppText>
@@ -166,132 +271,237 @@ export default memo(
   WorkerOfferActions,
 );
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 13,
-    width: "100%",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  /* =========================================================
-     ACCEPT
-  ========================================================= */
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  acceptButton: {
-    minHeight: 56,
-    borderRadius: 16,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
 
-  acceptIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#3B82F6",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
+    /* ========================================================
+       ACCEPT
+    ======================================================== */
 
-  acceptText: {
-    fontSize: 10.5,
-    letterSpacing: 0.2,
-    color: "#FFFFFF",
-  },
+    acceptButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-  /* =========================================================
-     BOTTOM ROW
-  ========================================================= */
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  bottomRow: {
-    marginTop: 9,
-    flexDirection: "row",
-    gap: 10,
-  },
+      flexDirection: "row",
 
-  /* =========================================================
-     COUNTER
-  ========================================================= */
+      alignItems: "center",
 
-  counterButton: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
+      justifyContent:
+        "center",
 
-  counterIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#DBEAFE",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
+      borderRadius:
+        FixxamTokens.radius.button,
 
-  counterText: {
-    fontSize: 10,
-    letterSpacing: 0.2,
-    color: "#2563EB",
-  },
+      backgroundColor:
+        WorkerColors.primary,
+    },
 
-  /* =========================================================
-     DECLINE
-  ========================================================= */
+    acceptIcon: {
+      width: 38,
 
-  declineButton: {
-    flex: 1,
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: "#FFF7F7",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
+      height: 38,
 
-  declineIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#FEE2E2",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-  declineText: {
-    fontSize: 10,
-    letterSpacing: 0.2,
-    color: "#DC2626",
-  },
+      alignItems: "center",
 
-  /* =========================================================
-     STATES
-  ========================================================= */
+      justifyContent:
+        "center",
 
-  pressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  disabled: {
-    opacity: 0.45,
-  },
-});
+      backgroundColor:
+        "rgba(255,255,255,0.18)",
+    },
+
+    acceptText: {
+      flexShrink: 1,
+
+      letterSpacing: 0.2,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       BOTTOM ROW
+    ======================================================== */
+
+    bottomRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       COUNTER
+    ======================================================== */
+
+    counterButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    counterIcon: {
+      width: 38,
+
+      height: 38,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    counterText: {
+      flexShrink: 1,
+
+      letterSpacing: 0.2,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       DECLINE
+    ======================================================== */
+
+    declineButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    declineIcon: {
+      width: 38,
+
+      height: 38,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    declineText: {
+      flexShrink: 1,
+
+      letterSpacing: 0.2,
+
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+  });

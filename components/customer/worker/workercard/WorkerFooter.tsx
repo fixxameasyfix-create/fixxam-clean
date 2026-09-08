@@ -1,92 +1,187 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   hourlyRate?: number;
+
   onBook: () => void;
 };
 
-export default function WorkerFooter({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeRate(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function formatAmount(
+  value: number,
+): string {
+  return new Intl.NumberFormat(
+    "en-NG",
+    {
+      maximumFractionDigits: 0,
+    },
+  ).format(value);
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerFooter({
   hourlyRate,
   onBook,
 }: Props) {
+  const safeRate =
+    normalizeRate(
+      hourlyRate,
+    );
+
+  const priceLabel =
+    useMemo(
+      () =>
+        safeRate !== null
+          ? `₦${formatAmount(
+              safeRate,
+            )}/hr`
+          : "Negotiable",
+      [safeRate],
+    );
+
   return (
-    <View style={styles.container}>
-      <View>
-        <AppText style={styles.label}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          PRICE
+      ====================================================== */}
+
+      <View
+        style={
+          styles.priceContent
+        }
+      >
+        <AppText
+          variant="caption"
+          tone="secondary"
+        >
           Starting From
         </AppText>
 
         <AppText
+          variant="bodyLarge"
           weight="bold"
-          style={styles.price}
+          numberOfLines={1}
+          style={
+            styles.price
+          }
         >
-          ₦{(hourlyRate ?? 0).toLocaleString()}/hr
+          {priceLabel}
         </AppText>
       </View>
 
-      <Pressable
-        onPress={onBook}
-        style={({ pressed }) => [
-          styles.button,
-          pressed && styles.buttonPressed,
-        ]}
-      >
-        <AppText
-          weight="bold"
-          style={styles.buttonText}
-        >
-          Request Now
-        </AppText>
-      </Pressable>
+      {/* ======================================================
+          REQUEST
+      ====================================================== */}
+
+      <AppButton
+        title="Request Now"
+        role="customer"
+        onPress={
+          onBook
+        }
+        style={
+          styles.button
+        }
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 20,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-  label: {
-    fontSize: 12,
-    color: "#64748B",
-  },
+      flexDirection:
+        "row",
 
-  price: {
-    marginTop: 2,
-    fontSize: 22,
-    color: "#0F172A",
-  },
+      alignItems:
+        "center",
 
-  button: {
-    backgroundColor: "#2563EB",
+      justifyContent:
+        "space-between",
 
-    paddingHorizontal: 22,
-    paddingVertical: 12,
+      gap:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 12,
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
 
-    minWidth: 120,
-    alignItems: "center",
-  },
+    priceContent: {
+      flex: 1,
 
-  buttonPressed: {
-    opacity: 0.85,
-  },
+      minWidth: 0,
+    },
 
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-  },
-});
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    button: {
+      minWidth: 130,
+
+      flexShrink: 0,
+    },
+  });
+
+export default memo(
+  WorkerFooter,
+);

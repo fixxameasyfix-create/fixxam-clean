@@ -1,15 +1,28 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -17,9 +30,23 @@ import { AppText } from "@/components/ui";
 
 type Props = {
   name: string;
+
   photoURL?: string | null;
+
   onProfile: () => void;
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
 
 /* ==============================================================
    COMPONENT
@@ -31,47 +58,90 @@ const WorkerCustomerCard = memo(
     photoURL,
     onProfile,
   }: Props) {
-    const hasPhoto =
-      typeof photoURL === "string" &&
-      photoURL.trim().length > 0;
+    const safeName =
+      useMemo(
+        () =>
+          cleanText(name) ||
+          "Customer",
+        [name],
+      );
+
+    const safePhotoURL =
+      useMemo(
+        () =>
+          cleanText(photoURL),
+        [photoURL],
+      );
 
     return (
-      <View style={styles.customerCard}>
+      <View
+        style={
+          styles.customerCard
+        }
+        accessible
+        accessibilityRole="summary"
+        accessibilityLabel={`${safeName}. Customer requesting service.`}
+      >
         {/* ====================================================
             CUSTOMER INFO
         ==================================================== */}
 
-        <View style={styles.customerTop}>
-          <View style={styles.customerAvatar}>
-            {hasPhoto ? (
+        <View
+          style={
+            styles.customerTop
+          }
+        >
+          <View
+            style={
+              styles.customerAvatar
+            }
+          >
+            {safePhotoURL ? (
               <Image
                 source={{
-                  uri: photoURL,
+                  uri: safePhotoURL,
                 }}
-                style={styles.avatarImage}
-                resizeMode="cover"
-                accessibilityLabel={`${name} profile photo`}
+                style={
+                  styles.avatarImage
+                }
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={150}
+                accessibilityLabel={`${safeName} profile photo`}
               />
             ) : (
-              <Ionicons
-                name="person"
-                size={27}
-                color="#94A3B8"
+              <AppIcon
+                name="profile"
+                size="lg"
+                color={
+                  Colors.textMuted
+                }
               />
             )}
           </View>
 
-          <View style={styles.customerInfo}>
+          <View
+            style={
+              styles.customerInfo
+            }
+          >
             <AppText
+              variant="body"
               weight="bold"
               numberOfLines={1}
-              style={styles.customerName}
+              style={
+                styles.customerName
+              }
             >
-              {name.trim() || "Customer"}
+              {safeName}
             </AppText>
 
             <AppText
-              style={styles.customerCategory}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.customerCategory
+              }
             >
               Customer
             </AppText>
@@ -82,10 +152,14 @@ const WorkerCustomerCard = memo(
               }
             >
               <View
-                style={styles.customerDot}
+                style={
+                  styles.customerDot
+                }
               />
 
               <AppText
+                variant="caption"
+                weight="semibold"
                 style={
                   styles.customerStatus
                 }
@@ -103,24 +177,44 @@ const WorkerCustomerCard = memo(
         <Pressable
           onPress={onProfile}
           accessibilityRole="button"
-          accessibilityLabel={`View ${name} profile`}
+          accessibilityLabel={`View ${safeName} profile`}
           hitSlop={6}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.profileButton,
-            pressed && styles.buttonPressed,
+
+            pressed
+              ? styles.buttonPressed
+              : null,
           ]}
         >
+          <AppIcon
+            name="profile"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
+          />
+
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.profileText}
+            style={
+              styles.profileText
+            }
           >
             VIEW PROFILE
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={15}
-            color="#2563EB"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
           />
         </Pressable>
       </View>
@@ -137,108 +231,176 @@ export default WorkerCustomerCard;
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CARD
-  ========================================================== */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  customerCard: {
-    padding: 12,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    customerCard: {
+      padding:
+        FixxamTokens.spacing.md,
 
-  /* ==========================================================
-     CUSTOMER TOP
-  ========================================================== */
+      borderWidth: 1,
 
-  customerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderColor:
+        Colors.border,
 
-  customerAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  customerInfo: {
-    flex: 1,
-    marginLeft: 11,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  customerName: {
-    fontSize: 14,
-    color: "#0F172A",
-  },
+    /* ========================================================
+       CUSTOMER TOP
+    ======================================================== */
 
-  customerCategory: {
-    marginTop: 2,
-    fontSize: 10,
-    color: "#64748B",
-  },
+    customerTop: {
+      flexDirection: "row",
 
-  customerStatusRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
+      alignItems: "center",
+    },
 
-  customerDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
+    customerAvatar: {
+      width:
+        FixxamTokens.size
+          .avatarLg,
 
-  customerStatus: {
-    fontSize: 9.5,
-    color: "#16A34A",
-  },
+      height:
+        FixxamTokens.size
+          .avatarLg,
 
-  /* ==========================================================
-     PROFILE BUTTON
-  ========================================================== */
+      flexShrink: 0,
 
-  profileButton: {
-    height: 38,
-    marginTop: 10,
-    borderRadius: 11,
-    backgroundColor: "#F8FAFF",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
+      alignItems: "center",
 
-  profileText: {
-    fontSize: 9.5,
-    color: "#2563EB",
-  },
+      justifyContent:
+        "center",
 
-  /* ==========================================================
-     PRESS
-  ========================================================== */
+      overflow: "hidden",
 
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    avatarImage: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    customerInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    customerName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    customerCategory: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    customerStatusRow: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    customerDot: {
+      width: 7,
+
+      height: 7,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    customerStatus: {
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       PROFILE BUTTON
+    ======================================================== */
+
+    profileButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    profileText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    buttonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

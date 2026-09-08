@@ -1,25 +1,30 @@
 import React, {
+  memo,
   useCallback,
 } from "react";
 
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
   doc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
+
+import Toast from "react-native-toast-message";
 
 import {
   auth,
@@ -27,16 +32,141 @@ import {
 } from "@/firebase/config";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
 import useCustomerNotifications, {
-  CustomerNotification,
+  type CustomerNotification,
 } from "@/hooks/customer/useCustomerNotification";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 /* ============================================================
-   CUSTOMER NOTIFICATIONS
+   CONSTANTS
+============================================================ */
+
+const FIRESTORE_BATCH_LIMIT =
+  450;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function getNotificationIcon(
+  type:
+    CustomerNotification["type"],
+): AppIconName {
+  switch (type) {
+    case "service_request":
+      return "service";
+
+    case "booking":
+      return "calendar";
+
+    case "system":
+    default:
+      return "notifications";
+  }
+}
+
+function formatNotificationDate(
+  createdAt:
+    CustomerNotification["createdAt"],
+): string {
+  if (!createdAt) {
+    return "Just now";
+  }
+
+  try {
+    const date =
+      typeof createdAt.toDate ===
+      "function"
+        ? createdAt.toDate()
+        : null;
+
+    if (
+      !date ||
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return "Just now";
+    }
+
+    const now =
+      new Date();
+
+    const diff =
+      Math.max(
+        0,
+        now.getTime() -
+          date.getTime(),
+      );
+
+    const minute =
+      60 * 1000;
+
+    const hour =
+      60 * minute;
+
+    const day =
+      24 * hour;
+
+    if (diff < minute) {
+      return "Just now";
+    }
+
+    if (diff < hour) {
+      return `${Math.floor(
+        diff / minute,
+      )}m ago`;
+    }
+
+    if (diff < day) {
+      return `${Math.floor(
+        diff / hour,
+      )}h ago`;
+    }
+
+    if (diff < 7 * day) {
+      return `${Math.floor(
+        diff / day,
+      )}d ago`;
+    }
+
+    return date.toLocaleDateString(
+      undefined,
+      {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      },
+    );
+  } catch {
+    return "Just now";
+  }
+}
+
+/* ============================================================
+   SCREEN
 ============================================================ */
 
 export default function CustomerNotificationsScreen() {
@@ -45,88 +175,155 @@ export default function CustomerNotificationsScreen() {
     unreadCount,
     loading,
     error,
-  } = useCustomerNotifications();
+  } =
+    useCustomerNotifications();
 
   /* ==========================================================
-     MARK AS READ
+     MARK ONE AS READ
   ========================================================== */
 
-  const markAsRead = useCallback(
-    async (
-      notificationId: string,
-    ) => {
-      const uid =
-        auth.currentUser?.uid;
+  const markAsRead =
+    useCallback(
+      async (
+        notificationId: string,
+      ) => {
+        const uid =
+          auth.currentUser?.uid;
 
-      if (!uid || !notificationId) {
-        return;
-      }
-
-      try {
-        await updateDoc(
-          doc(
-            db,
-            "users",
-            uid,
-            "notifications",
+        const safeId =
+          cleanString(
             notificationId,
-          ),
-          {
-            read: true,
-          },
-        );
-      } catch (error) {
-        console.error(
-          "CUSTOMER_MARK_NOTIFICATION_READ_ERROR:",
-          error,
-        );
-      }
-    },
-    [],
-  );
+          );
+
+        if (
+          !uid ||
+          !safeId
+        ) {
+          return;
+        }
+
+        try {
+          await updateDoc(
+            doc(
+              db,
+              "users",
+              uid,
+              "notifications",
+              safeId,
+            ),
+            {
+              read: true,
+            },
+          );
+        } catch (markError) {
+          console.error(
+            "CUSTOMER_MARK_NOTIFICATION_READ_ERROR:",
+            markError,
+          );
+
+          throw markError;
+        }
+      },
+      [],
+    );
 
   /* ==========================================================
      MARK ALL AS READ
   ========================================================== */
 
-  const markAllAsRead = useCallback(
-    async () => {
-      const unread =
-        notifications.filter(
-          (notification) =>
-            !notification.read,
-        );
+  const markAllAsRead =
+    useCallback(
+      async () => {
+        const uid =
+          auth.currentUser?.uid;
 
-      if (unread.length === 0) {
-        return;
-      }
+        if (!uid) {
+          Toast.show({
+            type: "error",
+            text1:
+              "Unable to update",
+            text2:
+              "Please sign in again.",
+          });
 
-      try {
-        await Promise.all(
-          unread.map(
-            (notification) =>
-              markAsRead(
+          return;
+        }
+
+        const unread =
+          notifications.filter(
+            (
+              notification,
+            ) =>
+              !notification.read &&
+              cleanString(
                 notification.id,
               ),
-          ),
-        );
-      } catch (error) {
-        console.error(
-          "CUSTOMER_MARK_ALL_READ_ERROR:",
-          error,
-        );
+          );
 
-        Alert.alert(
-          "Unable to update",
-          "Some notifications could not be marked as read.",
-        );
-      }
-    },
-    [
-      markAsRead,
-      notifications,
-    ],
-  );
+        if (
+          unread.length === 0
+        ) {
+          return;
+        }
+
+        try {
+          for (
+            let index = 0;
+            index <
+            unread.length;
+            index +=
+              FIRESTORE_BATCH_LIMIT
+          ) {
+            const chunk =
+              unread.slice(
+                index,
+                index +
+                  FIRESTORE_BATCH_LIMIT,
+              );
+
+            const batch =
+              writeBatch(db);
+
+            chunk.forEach(
+              (
+                notification,
+              ) => {
+                batch.update(
+                  doc(
+                    db,
+                    "users",
+                    uid,
+                    "notifications",
+                    notification.id,
+                  ),
+                  {
+                    read: true,
+                  },
+                );
+              },
+            );
+
+            await batch.commit();
+          }
+        } catch (markError) {
+          console.error(
+            "CUSTOMER_MARK_ALL_READ_ERROR:",
+            markError,
+          );
+
+          Toast.show({
+            type: "error",
+            text1:
+              "Unable to update",
+            text2:
+              "Some notifications could not be marked as read.",
+          });
+        }
+      },
+      [
+        notifications,
+      ],
+    );
 
   /* ==========================================================
      CALL WORKER
@@ -135,23 +332,47 @@ export default function CustomerNotificationsScreen() {
   const handleCallWorker =
     useCallback(
       async (
-        notification: CustomerNotification,
+        notification:
+          CustomerNotification,
       ) => {
         const phone =
-          notification.workerPhone?.trim();
+          cleanString(
+            notification.workerPhone,
+          );
 
         if (!phone) {
-          Alert.alert(
-            "Phone unavailable",
-            "This worker does not have a phone number available.",
+          Toast.show({
+            type: "error",
+            text1:
+              "Phone unavailable",
+            text2:
+              "This worker does not have a phone number available.",
+          });
+
+          return;
+        }
+
+        const safePhone =
+          phone.replace(
+            /[^+\d]/g,
+            "",
           );
+
+        if (!safePhone) {
+          Toast.show({
+            type: "error",
+            text1:
+              "Invalid phone number",
+            text2:
+              "This worker's phone number is unavailable.",
+          });
 
           return;
         }
 
         try {
           const phoneUrl =
-            `tel:${phone}`;
+            `tel:${safePhone}`;
 
           const supported =
             await Linking.canOpenURL(
@@ -159,10 +380,13 @@ export default function CustomerNotificationsScreen() {
             );
 
           if (!supported) {
-            Alert.alert(
-              "Calling unavailable",
-              "Calling is not available on this device.",
-            );
+            Toast.show({
+              type: "error",
+              text1:
+                "Calling unavailable",
+              text2:
+                "Calling is not available on this device.",
+            });
 
             return;
           }
@@ -170,16 +394,19 @@ export default function CustomerNotificationsScreen() {
           await Linking.openURL(
             phoneUrl,
           );
-        } catch (error) {
+        } catch (callError) {
           console.error(
             "CUSTOMER_CALL_WORKER_ERROR:",
-            error,
+            callError,
           );
 
-          Alert.alert(
-            "Calling unavailable",
-            "Calling is not available on this device.",
-          );
+          Toast.show({
+            type: "error",
+            text1:
+              "Calling unavailable",
+            text2:
+              "Please try again later.",
+          });
         }
       },
       [],
@@ -192,31 +419,49 @@ export default function CustomerNotificationsScreen() {
   const handleNotificationPress =
     useCallback(
       async (
-        notification: CustomerNotification,
+        notification:
+          CustomerNotification,
       ) => {
-        if (!notification.read) {
-          await markAsRead(
-            notification.id,
-          );
+        if (
+          !notification.read
+        ) {
+          try {
+            await markAsRead(
+              notification.id,
+            );
+          } catch {
+            /*
+             * Do not block opening the
+             * notification if marking
+             * as read fails.
+             */
+          }
         }
 
-        /*
-         * Service request
-         */
+        /* ====================================================
+           SERVICE REQUEST
+        ==================================================== */
+
         if (
           notification.type ===
           "service_request"
         ) {
           const worker =
-            notification.workerName ||
+            cleanString(
+              notification.workerName,
+            ) ||
             "Fixxam Worker";
 
           const service =
-            notification.service ||
+            cleanString(
+              notification.service,
+            ) ||
             "Service request";
 
           const location =
-            notification.location ||
+            cleanString(
+              notification.location,
+            ) ||
             "Location unavailable";
 
           Alert.alert(
@@ -228,14 +473,19 @@ export default function CustomerNotificationsScreen() {
                 style: "cancel",
               },
 
-              ...(notification.workerPhone
+              ...(cleanString(
+                notification.workerPhone,
+              )
                 ? [
                     {
-                      text: "Call Worker",
-                      onPress: () =>
-                        handleCallWorker(
+                      text:
+                        "Call Worker",
+
+                      onPress: () => {
+                        void handleCallWorker(
                           notification,
-                        ),
+                        );
+                      },
                     },
                   ]
                 : []),
@@ -245,32 +495,52 @@ export default function CustomerNotificationsScreen() {
           return;
         }
 
-        /*
-         * Booking notification
-         */
+        /* ====================================================
+           BOOKING
+        ==================================================== */
+
         if (
           notification.type ===
           "booking"
         ) {
-          Alert.alert(
-            notification.title ||
+          Toast.show({
+            type: "info",
+
+            text1:
+              cleanString(
+                notification.title,
+              ) ||
               "Booking Update",
-            notification.message ||
+
+            text2:
+              cleanString(
+                notification.message,
+              ) ||
               "Your booking has been updated.",
-          );
+          });
 
           return;
         }
 
-        /*
-         * System notification
-         */
-        Alert.alert(
-          notification.title ||
+        /* ====================================================
+           SYSTEM
+        ==================================================== */
+
+        Toast.show({
+          type: "info",
+
+          text1:
+            cleanString(
+              notification.title,
+            ) ||
             "Fixxam",
-          notification.message ||
+
+          text2:
+            cleanString(
+              notification.message,
+            ) ||
             "You have a new notification.",
-        );
+        });
       },
       [
         handleCallWorker,
@@ -279,103 +549,44 @@ export default function CustomerNotificationsScreen() {
     );
 
   /* ==========================================================
-     FORMAT DATE
+     RENDER ITEM
   ========================================================== */
 
-  const formatNotificationDate =
-    useCallback(
-      (
-        createdAt:
-          CustomerNotification["createdAt"],
-      ) => {
-        if (!createdAt) {
-          return "Just now";
-        }
-
-        const date =
-          createdAt.toDate();
-
-        const now =
-          new Date();
-
-        const diff =
-          now.getTime() -
-          date.getTime();
-
-        const minute =
-          60 * 1000;
-
-        const hour =
-          60 * minute;
-
-        const day =
-          24 * hour;
-
-        if (diff < minute) {
-          return "Just now";
-        }
-
-        if (diff < hour) {
-          const minutes =
-            Math.floor(
-              diff / minute,
-            );
-
-          return `${minutes}m ago`;
-        }
-
-        if (diff < day) {
-          const hours =
-            Math.floor(
-              diff / hour,
-            );
-
-          return `${hours}h ago`;
-        }
-
-        if (diff < 7 * day) {
-          const days =
-            Math.floor(
-              diff / day,
-            );
-
-          return `${days}d ago`;
-        }
-
-        return date.toLocaleDateString(
-          undefined,
-          {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          },
-        );
-      },
-      [],
+  const renderNotification =
+    useCallback<
+      ListRenderItem<CustomerNotification>
+    >(
+      ({
+        item,
+      }) => (
+        <NotificationCard
+          notification={
+            item
+          }
+          onPress={() =>
+            handleNotificationPress(
+              item,
+            )
+          }
+          onCall={() =>
+            handleCallWorker(
+              item,
+            )
+          }
+        />
+      ),
+      [
+        handleCallWorker,
+        handleNotificationPress,
+      ],
     );
 
-  /* ==========================================================
-     NOTIFICATION ICON
-  ========================================================== */
-
-  const getNotificationIcon =
+  const keyExtractor =
     useCallback(
       (
-        type:
-          CustomerNotification["type"],
-      ): keyof typeof Ionicons.glyphMap => {
-        switch (type) {
-          case "service_request":
-            return "construct-outline";
-
-          case "booking":
-            return "calendar-outline";
-
-          case "system":
-          default:
-            return "notifications-outline";
-        }
-      },
+        item:
+          CustomerNotification,
+      ) => item.id,
       [],
     );
 
@@ -386,22 +597,33 @@ export default function CustomerNotificationsScreen() {
   if (loading) {
     return (
       <AppScreen
-        contentContainerStyle={
-          styles.loadingContainer
+        role="customer"
+        style={
+          styles.screen
         }
       >
-        <ActivityIndicator
-          size="small"
-          color="#2563EB"
-        />
-
-        <AppText
+        <View
           style={
-            styles.loadingText
+            styles.loadingContainer
           }
         >
-          Loading notifications...
-        </AppText>
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading notifications...
+          </AppText>
+        </View>
       </AppScreen>
     );
   }
@@ -412,449 +634,574 @@ export default function CustomerNotificationsScreen() {
 
   return (
     <AppScreen
-      contentContainerStyle={
-        styles.screen
-      }
+      role="customer"
+      style={styles.screen}
     >
-      <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.content
-        }
+      {/* ====================================================
+          HEADER
+      ==================================================== */}
+
+      <View
+        style={styles.header}
       >
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+        <Pressable
+          onPress={() =>
+            router.back()
+          }
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="back"
+            role="customer"
+            size="md"
+            color={
+              Colors.textPrimary
+            }
+          />
+        </Pressable>
 
         <View
           style={
-            styles.header
+            styles.headerContent
           }
         >
-          <Pressable
-            onPress={() =>
-              router.back()
-            }
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed &&
-                styles.pressedButton,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={8}
+          <AppText
+            variant="heading2"
+            weight="bold"
+            style={styles.title}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
-            />
-          </Pressable>
+            Notifications
+          </AppText>
 
-          <View
+          <AppText
+            variant="caption"
+            tone="secondary"
             style={
-              styles.headerContent
+              styles.subtitle
             }
           >
-            <AppText
-              weight="bold"
-              style={
-                styles.title
-              }
-            >
-              Notifications
-            </AppText>
-
-            <AppText
-              style={
-                styles.subtitle
-              }
-            >
-              Stay updated with Fixxam
-            </AppText>
-          </View>
-
-          {unreadCount > 0 && (
-            <View
-              style={
-                styles.unreadBadge
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.unreadBadgeText
-                }
-              >
-                {unreadCount}
-              </AppText>
-            </View>
-          )}
+            Stay updated with Fixxam
+          </AppText>
         </View>
 
-        {/* ==================================================
-            UNREAD ACTION
-        ================================================== */}
-
-        {unreadCount > 0 && (
-          <Pressable
-            onPress={
-              markAllAsRead
-            }
-            style={({ pressed }) => [
-              styles.markAllButton,
-              pressed &&
-                styles.markAllPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Mark all notifications as read"
-          >
-            <Ionicons
-              name="checkmark-done-outline"
-              size={17}
-              color="#2563EB"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.markAllText
-              }
-            >
-              Mark all as read
-            </AppText>
-          </Pressable>
-        )}
-
-        {/* ==================================================
-            ERROR
-        ================================================== */}
-
-        {error && (
+        {unreadCount >
+        0 ? (
           <View
             style={
-              styles.errorCard
+              styles.unreadBadge
+            }
+            accessibilityLabel={`${unreadCount} unread notifications`}
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.unreadBadgeText
+              }
+            >
+              {unreadCount >
+              99
+                ? "99+"
+                : unreadCount}
+            </AppText>
+          </View>
+        ) : null}
+      </View>
+
+      {/* ====================================================
+          MARK ALL
+      ==================================================== */}
+
+      {unreadCount >
+      0 ? (
+        <Pressable
+          onPress={
+            markAllAsRead
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Mark all notifications as read"
+          style={({
+            pressed,
+          }) => [
+            styles.markAllButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="check"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.markAllText
             }
           >
-            <View
-              style={
-                styles.errorIcon
-              }
-            >
-              <Ionicons
-                name="alert-circle-outline"
-                size={20}
-                color="#DC2626"
-              />
-            </View>
+            Mark all as read
+          </AppText>
+        </Pressable>
+      ) : null}
 
-            <View
-              style={
-                styles.errorContent
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.errorTitle
-                }
-              >
-                Unable to load
-              </AppText>
+      {/* ====================================================
+          ERROR
+      ==================================================== */}
 
-              <AppText
-                style={
-                  styles.errorText
-                }
-              >
-                {error}
-              </AppText>
-            </View>
+      {error ? (
+        <View
+          style={
+            styles.errorCard
+          }
+        >
+          <View
+            style={
+              styles.errorIcon
+            }
+          >
+            <AppIcon
+              name="error"
+              size="sm"
+              color={
+                Colors.error
+              }
+            />
           </View>
-        )}
 
-        {/* ==================================================
-            EMPTY
-        ================================================== */}
-
-        {!error &&
-          notifications.length === 0 && (
-            <View
+          <View
+            style={
+              styles.errorContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
               style={
-                styles.emptyCard
+                styles.errorTitle
               }
             >
-              <View
-                style={
-                  styles.emptyIcon
-                }
-              >
-                <Ionicons
-                  name="notifications-off-outline"
-                  size={31}
-                  color="#64748B"
-                />
-              </View>
+              Unable to load
+            </AppText>
 
+            <AppText
+              variant="caption"
+              numberOfLines={3}
+              style={
+                styles.errorText
+              }
+            >
+              {error}
+            </AppText>
+          </View>
+        </View>
+      ) : null}
+
+      {/* ====================================================
+          LIST
+      ==================================================== */}
+
+      <FlatList
+        data={
+          error
+            ? []
+            : notifications
+        }
+        keyExtractor={
+          keyExtractor
+        }
+        renderItem={
+          renderNotification
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={[
+          styles.content,
+
+          !error &&
+          notifications.length ===
+            0
+            ? styles.emptyContent
+            : null,
+        ]}
+        ListEmptyComponent={
+          !error ? (
+            <NotificationEmpty />
+          ) : null
+        }
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews
+      />
+    </AppScreen>
+  );
+}
+
+/* ============================================================
+   NOTIFICATION CARD
+============================================================ */
+
+type NotificationCardProps = {
+  notification:
+    CustomerNotification;
+
+  onPress: () => void;
+
+  onCall: () => void;
+};
+
+const NotificationCard =
+  memo(
+    function NotificationCard({
+      notification,
+      onPress,
+      onCall,
+    }: NotificationCardProps) {
+      const unread =
+        !notification.read;
+
+      const title =
+        cleanString(
+          notification.title,
+        ) ||
+        "Fixxam notification";
+
+      const workerName =
+        cleanString(
+          notification.workerName,
+        );
+
+      const service =
+        cleanString(
+          notification.service,
+        );
+
+      const message =
+        cleanString(
+          notification.message,
+        );
+
+      const location =
+        cleanString(
+          notification.location,
+        );
+
+      const hasPhone =
+        Boolean(
+          cleanString(
+            notification.workerPhone,
+          ),
+        );
+
+      return (
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.notificationCard,
+
+            unread
+              ? styles.unreadCard
+              : null,
+
+            pressed
+              ? styles.pressedCard
+              : null,
+          ]}
+        >
+          {/* ICON */}
+
+          <View
+            style={[
+              styles.notificationIcon,
+
+              unread
+                ? styles.notificationIconUnread
+                : null,
+            ]}
+          >
+            <AppIcon
+              name={getNotificationIcon(
+                notification.type,
+              )}
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          {/* CONTENT */}
+
+          <View
+            style={
+              styles.notificationContent
+            }
+          >
+            {/* TITLE */}
+
+            <View
+              style={
+                styles.titleRow
+              }
+            >
               <AppText
+                variant="body"
                 weight="bold"
+                numberOfLines={2}
                 style={
-                  styles.emptyTitle
+                  styles.notificationTitle
                 }
               >
-                No notifications yet
+                {title}
               </AppText>
 
-              <AppText
-                style={
-                  styles.emptyText
-                }
-              >
-                New Fixxam updates and service
-                requests will appear here.
-              </AppText>
-            </View>
-          )}
-
-        {/* ==================================================
-            NOTIFICATION LIST
-        ================================================== */}
-
-        {notifications.map(
-          (notification) => {
-            const unread =
-              !notification.read;
-
-            return (
-              <Pressable
-                key={
-                  notification.id
-                }
-                onPress={() =>
-                  handleNotificationPress(
-                    notification,
-                  )
-                }
-                style={({ pressed }) => [
-                  styles.notificationCard,
-
-                  unread &&
-                    styles.unreadCard,
-
-                  pressed &&
-                    styles.pressedCard,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  notification.title
-                }
-              >
-                {/* ICON */}
-
-                <View
-                  style={[
-                    styles.notificationIcon,
-                    unread &&
-                      styles.notificationIconUnread,
-                  ]}
-                >
-                  <Ionicons
-                    name={getNotificationIcon(
-                      notification.type,
-                    )}
-                    size={21}
-                    color="#2563EB"
-                  />
-                </View>
-
-                {/* CONTENT */}
-
+              {unread ? (
                 <View
                   style={
-                    styles.notificationContent
+                    styles.unreadDot
                   }
+                  accessibilityLabel="Unread"
+                />
+              ) : null}
+            </View>
+
+            {/* WORKER */}
+
+            {workerName ? (
+              <DetailRow
+                icon="profile"
+                text={
+                  workerName
+                }
+              />
+            ) : null}
+
+            {/* SERVICE */}
+
+            {service ? (
+              <DetailRow
+                icon="service"
+                text={
+                  service
+                }
+              />
+            ) : null}
+
+            {/* MESSAGE */}
+
+            {message ? (
+              <AppText
+                variant="caption"
+                numberOfLines={3}
+                style={
+                  styles.notificationMessage
+                }
+              >
+                {message}
+              </AppText>
+            ) : null}
+
+            {/* LOCATION */}
+
+            {location ? (
+              <DetailRow
+                icon="location"
+                text={
+                  location
+                }
+                numberOfLines={
+                  2
+                }
+              />
+            ) : null}
+
+            {/* FOOTER */}
+
+            <View
+              style={
+                styles.notificationFooter
+              }
+            >
+              <AppText
+                variant="caption"
+                style={
+                  styles.timeText
+                }
+              >
+                {formatNotificationDate(
+                  notification.createdAt,
+                )}
+              </AppText>
+
+              {hasPhone ? (
+                <Pressable
+                  onPress={(
+                    event,
+                  ) => {
+                    event.stopPropagation();
+
+                    onCall();
+                  }}
+                  hitSlop={5}
+                  accessibilityRole="button"
+                  accessibilityLabel="Call worker"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.callButton,
+
+                    pressed
+                      ? styles.callButtonPressed
+                      : null,
+                  ]}
                 >
-                  {/* TITLE */}
+                  <AppIcon
+                    name="phone"
+                    role="customer"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
 
-                  <View
+                  <AppText
+                    variant="caption"
+                    weight="bold"
                     style={
-                      styles.titleRow
+                      styles.callButtonText
                     }
                   >
-                    <AppText
-                      weight="bold"
-                      style={
-                        styles.notificationTitle
-                      }
-                      numberOfLines={2}
-                    >
-                      {notification.title}
-                    </AppText>
+                    Call
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </Pressable>
+      );
+    },
+  );
 
-                    {unread && (
-                      <View
-                        style={
-                          styles.unreadDot
-                        }
-                      />
-                    )}
-                  </View>
+/* ============================================================
+   DETAIL ROW
+============================================================ */
 
-                  {/* WORKER */}
+function DetailRow({
+  icon,
+  text,
+  numberOfLines = 1,
+}: {
+  icon: AppIconName;
 
-                  {notification.workerName && (
-                    <View
-                      style={
-                        styles.detailRow
-                      }
-                    >
-                      <Ionicons
-                        name="person-outline"
-                        size={13}
-                        color="#64748B"
-                      />
+  text: string;
 
-                      <AppText
-                        style={
-                          styles.detailText
-                        }
-                        numberOfLines={1}
-                      >
-                        {
-                          notification.workerName
-                        }
-                      </AppText>
-                    </View>
-                  )}
+  numberOfLines?: number;
+}) {
+  return (
+    <View
+      style={
+        styles.detailRow
+      }
+    >
+      <AppIcon
+        name={icon}
+        size="xs"
+        color={
+          Colors.textSecondary
+        }
+      />
 
-                  {/* SERVICE */}
+      <AppText
+        variant="caption"
+        tone="secondary"
+        numberOfLines={
+          numberOfLines
+        }
+        style={
+          styles.detailText
+        }
+      >
+        {text}
+      </AppText>
+    </View>
+  );
+}
 
-                  {notification.service && (
-                    <View
-                      style={
-                        styles.detailRow
-                      }
-                    >
-                      <Ionicons
-                        name="construct-outline"
-                        size={13}
-                        color="#64748B"
-                      />
+/* ============================================================
+   EMPTY
+============================================================ */
 
-                      <AppText
-                        style={
-                          styles.detailText
-                        }
-                        numberOfLines={1}
-                      >
-                        {
-                          notification.service
-                        }
-                      </AppText>
-                    </View>
-                  )}
+function NotificationEmpty() {
+  return (
+    <View
+      style={
+        styles.emptyCard
+      }
+    >
+      <View
+        style={
+          styles.emptyIcon
+        }
+      >
+        <AppIcon
+          name="notifications"
+          size="lg"
+          state="muted"
+          color={
+            Colors.textMuted
+          }
+        />
+      </View>
 
-                  {/* MESSAGE */}
+      <AppText
+        variant="heading3"
+        weight="bold"
+        center
+        style={
+          styles.emptyTitle
+        }
+      >
+        No notifications yet
+      </AppText>
 
-                  {notification.message ? (
-                    <AppText
-                      style={
-                        styles.notificationMessage
-                      }
-                      numberOfLines={3}
-                    >
-                      {
-                        notification.message
-                      }
-                    </AppText>
-                  ) : null}
-
-                  {/* LOCATION */}
-
-                  {notification.location && (
-                    <View
-                      style={
-                        styles.detailRow
-                      }
-                    >
-                      <Ionicons
-                        name="location-outline"
-                        size={13}
-                        color="#64748B"
-                      />
-
-                      <AppText
-                        style={
-                          styles.detailText
-                        }
-                        numberOfLines={2}
-                      >
-                        {
-                          notification.location
-                        }
-                      </AppText>
-                    </View>
-                  )}
-
-                  {/* FOOTER */}
-
-                  <View
-                    style={
-                      styles.notificationFooter
-                    }
-                  >
-                    <AppText
-                      style={
-                        styles.timeText
-                      }
-                    >
-                      {formatNotificationDate(
-                        notification.createdAt,
-                      )}
-                    </AppText>
-
-                    {notification.workerPhone && (
-                      <Pressable
-                        onPress={() =>
-                          handleCallWorker(
-                            notification,
-                          )
-                        }
-                        style={({ pressed }) => [
-                          styles.callButton,
-                          pressed &&
-                            styles.callButtonPressed,
-                        ]}
-                        hitSlop={5}
-                        accessibilityRole="button"
-                        accessibilityLabel="Call worker"
-                      >
-                        <Ionicons
-                          name="call-outline"
-                          size={15}
-                          color="#FFFFFF"
-                        />
-
-                        <AppText
-                          weight="bold"
-                          style={
-                            styles.callButtonText
-                          }
-                        >
-                          Call
-                        </AppText>
-                      </Pressable>
-                    )}
-                  </View>
-                </View>
-              </Pressable>
-            );
-          },
-        )}
-      </ScrollView>
-    </AppScreen>
+      <AppText
+        variant="caption"
+        tone="secondary"
+        center
+        style={
+          styles.emptyText
+        }
+      >
+        New Fixxam updates and service requests will appear here.
+      </AppText>
+    </View>
   );
 }
 
@@ -864,16 +1211,27 @@ export default function CustomerNotificationsScreen() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
-      paddingHorizontal: 0,
-      paddingTop: 0,
-      paddingBottom: 0,
+      backgroundColor:
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 120,
+      flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+    },
+
+    emptyContent: {
+      flexGrow: 1,
     },
 
     /* ========================================================
@@ -882,14 +1240,19 @@ const styles =
 
     loadingContainer: {
       flex: 1,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 8,
-      fontSize: 12,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -897,55 +1260,95 @@ const styles =
     ======================================================== */
 
     header: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      marginBottom: 14,
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerContent: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 20,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 11,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     unreadBadge: {
-      minWidth: 29,
-      height: 29,
-      paddingHorizontal: 8,
-      borderRadius: 15,
-      backgroundColor: "#2563EB",
+      minWidth: 30,
+
+      minHeight: 30,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     unreadBadgeText: {
-      fontSize: 10.5,
-      color: "#FFFFFF",
-    },
-
-    pressedButton: {
-      opacity: 0.7,
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
@@ -953,25 +1356,42 @@ const styles =
     ======================================================== */
 
     markAllButton: {
-      alignSelf: "flex-end",
-      minHeight: 36,
-      paddingHorizontal: 11,
-      borderRadius: 10,
-      backgroundColor: "#EFF6FF",
+      alignSelf:
+        "flex-end",
+
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      marginBottom: 10,
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     markAllText: {
-      fontSize: 10.5,
-      color: "#2563EB",
-    },
-
-    markAllPressed: {
-      opacity: 0.7,
+      color:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -979,40 +1399,76 @@ const styles =
     ======================================================== */
 
     errorCard: {
-      padding: 12,
-      borderRadius: 15,
-      backgroundColor: "#FEF2F2",
-      borderWidth: 1,
-      borderColor: "#FECACA",
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      marginBottom: 10,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     errorContent: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     errorTitle: {
-      fontSize: 12,
-      color: "#991B1B",
+      color:
+        Colors.error,
     },
 
     errorText: {
-      marginTop: 2,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#B91C1C",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.error,
     },
 
     /* ========================================================
@@ -1020,37 +1476,54 @@ const styles =
     ======================================================== */
 
     emptyCard: {
-      marginTop: 35,
-      padding: 25,
-      borderRadius: 18,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      flex: 1,
+
+      minHeight: 300,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems: "center",
+
+      justifyContent:
+        "center",
     },
 
     emptyIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
-      backgroundColor: "#F1F5F9",
+      width: 68,
+
+      height: 68,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 13,
-      fontSize: 15,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      maxWidth: 270,
-      marginTop: 5,
-      fontSize: 10.5,
-      lineHeight: 16,
-      textAlign: "center",
-      color: "#64748B",
+      maxWidth: 280,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1058,45 +1531,69 @@ const styles =
     ======================================================== */
 
     notificationCard: {
-      marginBottom: 10,
-      padding: 13,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     unreadCard: {
-      backgroundColor: "#F8FBFF",
-      borderColor: "#BFDBFE",
-    },
+      borderColor:
+        CustomerColors.primary,
 
-    pressedCard: {
-      opacity: 0.72,
-      transform: [
-        {
-          scale: 0.995,
-        },
-      ],
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     notificationIcon: {
-      width: 43,
-      height: 43,
-      borderRadius: 13,
-      backgroundColor: "#F1F5F9",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     notificationIconUnread: {
-      backgroundColor: "#DBEAFE",
+      backgroundColor:
+        Colors.surface,
     },
 
     notificationContent: {
       flex: 1,
-      marginLeft: 11,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
@@ -1105,23 +1602,36 @@ const styles =
 
     titleRow: {
       flexDirection: "row",
-      alignItems: "flex-start",
+
+      alignItems:
+        "flex-start",
     },
 
     notificationTitle: {
       flex: 1,
-      fontSize: 13.5,
-      lineHeight: 18,
-      color: "#0F172A",
+
+      minWidth: 0,
+
+      color:
+        Colors.textPrimary,
     },
 
     unreadDot: {
       width: 8,
+
       height: 8,
-      borderRadius: 4,
-      backgroundColor: "#2563EB",
-      marginTop: 5,
-      marginLeft: 7,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -1129,24 +1639,34 @@ const styles =
     ======================================================== */
 
     detailRow: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       flexDirection: "row",
+
       alignItems: "center",
-      marginTop: 5,
-      gap: 5,
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     detailText: {
       flex: 1,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#64748B",
+
+      minWidth: 0,
+
+      color:
+        Colors.textSecondary,
     },
 
     notificationMessage: {
-      marginTop: 6,
-      fontSize: 11,
-      lineHeight: 16,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1154,15 +1674,20 @@ const styles =
     ======================================================== */
 
     notificationFooter: {
-      marginTop: 9,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "space-between",
+
+      justifyContent:
+        "space-between",
     },
 
     timeText: {
-      fontSize: 9.5,
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
@@ -1170,22 +1695,70 @@ const styles =
     ======================================================== */
 
     callButton: {
-      minHeight: 34,
-      paddingHorizontal: 11,
-      borderRadius: 9,
-      backgroundColor: "#2563EB",
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "center",
-      gap: 5,
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     callButtonPressed: {
-      opacity: 0.78,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     callButtonText: {
-      fontSize: 10.5,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    pressedCard: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

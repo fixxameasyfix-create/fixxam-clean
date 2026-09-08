@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 
 import {
   Pressable,
@@ -7,33 +7,49 @@ import {
   View,
 } from "react-native";
 
-import { router, useLocalSearchParams } from "expo-router";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+  useLocalSearchParams,
+} from "expo-router";
 
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-type IoniconName =
-  React.ComponentProps<typeof Ionicons>["name"];
-
 type GuideSection = {
   title: string;
+
   items: string[];
 };
 
 type Guide = {
   title: string;
+
   subtitle: string;
-  icon: IoniconName;
+
+  icon: AppIconName;
+
   iconColor: string;
+
   iconBackground: string;
+
   sections: GuideSection[];
 };
 
@@ -41,18 +57,31 @@ type Guide = {
    GUIDES
 ============================================================ */
 
-const GUIDES: Record<string, Guide> = {
+const GUIDES: Record<
+  string,
+  Guide
+> = {
   prepare: {
-    title: "Prepare for a Job",
+    title:
+      "Prepare for a Job",
+
     subtitle:
       "Get everything ready before you start.",
-    icon: "briefcase-outline",
-    iconColor: "#F97316",
-    iconBackground: "#FFF7ED",
+
+    icon:
+      "jobs",
+
+    iconColor:
+      WorkerColors.primary,
+
+    iconBackground:
+      WorkerColors.primarySoft,
 
     sections: [
       {
-        title: "Before You Leave",
+        title:
+          "Before You Leave",
+
         items: [
           "Confirm the customer's location.",
           "Review the service requested.",
@@ -61,8 +90,11 @@ const GUIDES: Record<string, Guide> = {
           "Keep your phone charged.",
         ],
       },
+
       {
-        title: "Before Starting",
+        title:
+          "Before Starting",
+
         items: [
           "Introduce yourself professionally.",
           "Confirm the customer's request.",
@@ -75,17 +107,26 @@ const GUIDES: Record<string, Guide> = {
   },
 
   checklist: {
-    title: "Job Checklist",
+    title:
+      "Job Checklist",
+
     subtitle:
       "Make sure nothing important is missed.",
 
-    icon: "checkbox-outline",
-    iconColor: "#2563EB",
-    iconBackground: "#EFF6FF",
+    icon:
+      "check",
+
+    iconColor:
+      Colors.info,
+
+    iconBackground:
+      Colors.infoSoft,
 
     sections: [
       {
-        title: "Job Preparation",
+        title:
+          "Job Preparation",
+
         items: [
           "Confirm service and location.",
           "Check tools and equipment.",
@@ -93,8 +134,11 @@ const GUIDES: Record<string, Guide> = {
           "Understand the customer's expectations.",
         ],
       },
+
       {
-        title: "During the Job",
+        title:
+          "During the Job",
+
         items: [
           "Keep the work area organised.",
           "Work carefully and professionally.",
@@ -102,8 +146,11 @@ const GUIDES: Record<string, Guide> = {
           "Communicate if the scope changes.",
         ],
       },
+
       {
-        title: "Before Leaving",
+        title:
+          "Before Leaving",
+
         items: [
           "Check the completed work.",
           "Clean the work area.",
@@ -115,17 +162,26 @@ const GUIDES: Record<string, Guide> = {
   },
 
   tips: {
-    title: "Job Tips",
+    title:
+      "Job Tips",
+
     subtitle:
       "Practical tips to improve your work.",
 
-    icon: "bulb-outline",
-    iconColor: "#CA8A04",
-    iconBackground: "#FEFCE8",
+    icon:
+      "info",
+
+    iconColor:
+      Colors.warning,
+
+    iconBackground:
+      Colors.warningSoft,
 
     sections: [
       {
-        title: "Work Professionally",
+        title:
+          "Work Professionally",
+
         items: [
           "Arrive on time.",
           "Dress appropriately for the job.",
@@ -133,8 +189,11 @@ const GUIDES: Record<string, Guide> = {
           "Keep communication clear and respectful.",
         ],
       },
+
       {
-        title: "Build Trust",
+        title:
+          "Build Trust",
+
         items: [
           "Be honest about what you can do.",
           "Explain unexpected problems early.",
@@ -146,17 +205,26 @@ const GUIDES: Record<string, Guide> = {
   },
 
   safety: {
-    title: "Safety",
+    title:
+      "Safety",
+
     subtitle:
       "Stay safe while working on every job.",
 
-    icon: "shield-checkmark-outline",
-    iconColor: "#16A34A",
-    iconBackground: "#F0FDF4",
+    icon:
+      "shield",
+
+    iconColor:
+      Colors.success,
+
+    iconBackground:
+      Colors.successSoft,
 
     sections: [
       {
-        title: "Before Work",
+        title:
+          "Before Work",
+
         items: [
           "Inspect the work environment.",
           "Identify possible hazards.",
@@ -164,8 +232,11 @@ const GUIDES: Record<string, Guide> = {
           "Wear appropriate protective equipment.",
         ],
       },
+
       {
-        title: "While Working",
+        title:
+          "While Working",
+
         items: [
           "Do not use damaged tools.",
           "Keep electrical and hazardous areas controlled.",
@@ -173,8 +244,11 @@ const GUIDES: Record<string, Guide> = {
           "Stop work if the environment becomes unsafe.",
         ],
       },
+
       {
-        title: "Important",
+        title:
+          "Important",
+
         items: [
           "Never take unnecessary risks to finish a job quickly.",
           "Ask for professional assistance when a task is beyond your capability.",
@@ -184,17 +258,26 @@ const GUIDES: Record<string, Guide> = {
   },
 
   pricing: {
-    title: "Pricing Guide",
+    title:
+      "Pricing Guide",
+
     subtitle:
       "Think clearly about labour and materials.",
 
-    icon: "cash-outline",
-    iconColor: "#0891B2",
-    iconBackground: "#ECFEFF",
+    icon:
+      "payment",
+
+    iconColor:
+      WorkerColors.primary,
+
+    iconBackground:
+      WorkerColors.primarySoft,
 
     sections: [
       {
-        title: "Consider These Costs",
+        title:
+          "Consider These Costs",
+
         items: [
           "Labour and time.",
           "Materials required.",
@@ -203,8 +286,11 @@ const GUIDES: Record<string, Guide> = {
           "Complexity of the job.",
         ],
       },
+
       {
-        title: "Before Agreeing",
+        title:
+          "Before Agreeing",
+
         items: [
           "Understand exactly what the customer needs.",
           "Explain what is included in the price.",
@@ -216,17 +302,26 @@ const GUIDES: Record<string, Guide> = {
   },
 
   customer: {
-    title: "Customer Handling",
+    title:
+      "Customer Handling",
+
     subtitle:
       "Communicate professionally with customers.",
 
-    icon: "people-outline",
-    iconColor: "#7C3AED",
-    iconBackground: "#F5F3FF",
+    icon:
+      "users",
+
+    iconColor:
+      WorkerColors.primary,
+
+    iconBackground:
+      WorkerColors.primarySoft,
 
     sections: [
       {
-        title: "Communication",
+        title:
+          "Communication",
+
         items: [
           "Greet the customer respectfully.",
           "Listen before giving your opinion.",
@@ -234,8 +329,11 @@ const GUIDES: Record<string, Guide> = {
           "Keep the customer informed about progress.",
         ],
       },
+
       {
-        title: "Professional Behaviour",
+        title:
+          "Professional Behaviour",
+
         items: [
           "Respect the customer's home and property.",
           "Avoid arguments.",
@@ -243,8 +341,11 @@ const GUIDES: Record<string, Guide> = {
           "Handle complaints calmly.",
         ],
       },
+
       {
-        title: "After the Job",
+        title:
+          "After the Job",
+
         items: [
           "Explain what was completed.",
           "Answer reasonable questions.",
@@ -263,78 +364,111 @@ const GUIDES: Record<string, Guide> = {
 export default function HelpingBoxTopicScreen() {
   const params =
     useLocalSearchParams<{
-      topic?: string;
+      topic?:
+        | string
+        | string[];
     }>();
 
-  const topic =
-    Array.isArray(params.topic)
+  const rawTopic =
+    Array.isArray(
+      params.topic,
+    )
       ? params.topic[0]
       : params.topic;
 
-  const guide = useMemo(
-    () =>
-      topic
-        ? GUIDES[topic]
-        : undefined,
-    [topic],
-  );
+  const topic =
+    typeof rawTopic ===
+    "string"
+      ? rawTopic.trim()
+      : "";
 
-  /* ============================================================
+  const guide =
+    topic
+      ? GUIDES[topic]
+      : undefined;
+
+  /* ==========================================================
      INVALID TOPIC
-  ============================================================ */
+  ========================================================== */
 
   if (!guide) {
     return (
-      <AppScreen>
-        <View style={styles.invalidContainer}>
-          <View style={styles.invalidIcon}>
-            <Ionicons
-              name="help-circle-outline"
-              size={38}
-              color="#94A3B8"
+      <AppScreen
+        role="worker"
+      >
+        <View
+          style={
+            styles.invalidContainer
+          }
+        >
+          <View
+            style={
+              styles.invalidIcon
+            }
+          >
+            <AppIcon
+              name="help"
+              size="xl"
+              color={
+                Colors.textMuted
+              }
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.invalidTitle}
+            center
+            style={
+              styles.invalidTitle
+            }
           >
             Guide Not Found
           </AppText>
 
-          <AppText style={styles.invalidText}>
-            This Helping Box guide is not
-            available.
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.invalidText
+            }
+          >
+            This Helping Box guide is not available.
           </AppText>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            style={styles.backAction}
+          <View
+            style={
+              styles.invalidAction
+            }
           >
-            <Ionicons
-              name="arrow-back"
-              size={19}
-              color="#FFFFFF"
+            <AppButton
+              title="Go Back"
+              role="worker"
+              variant="primary"
+              leftIconName="back"
+              onPress={() => {
+                router.back();
+              }}
             />
-
-            <AppText
-              weight="bold"
-              style={styles.backActionText}
-            >
-              Go Back
-            </AppText>
-          </Pressable>
+          </View>
         </View>
       </AppScreen>
     );
   }
 
+  /* ==========================================================
+     MAIN
+  ========================================================== */
+
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+    >
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.container
         }
@@ -343,34 +477,60 @@ export default function HelpingBoxTopicScreen() {
             HEADER
         ==================================================== */}
 
-        <View style={styles.header}>
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            hitSlop={10}
-            onPress={() => router.back()}
-            style={({ pressed }) => [
+            hitSlop={6}
+            onPress={() => {
+              router.back();
+            }}
+            style={({
+              pressed,
+            }) => [
               styles.backButton,
-              pressed && styles.pressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={23}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
-          <View style={styles.headerContent}>
+          <View
+            style={
+              styles.headerContent
+            }
+          >
             <AppText
+              variant="heading2"
               weight="bold"
-              style={styles.headerTitle}
               numberOfLines={2}
+              style={
+                styles.headerTitle
+              }
             >
               {guide.title}
             </AppText>
 
-            <AppText style={styles.headerSubtitle}>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.headerSubtitle
+              }
+            >
               {guide.subtitle}
             </AppText>
           </View>
@@ -380,34 +540,55 @@ export default function HelpingBoxTopicScreen() {
             GUIDE HERO
         ==================================================== */}
 
-        <View style={styles.hero}>
+        <View
+          style={
+            styles.hero
+          }
+        >
           <View
             style={[
               styles.heroIcon,
+
               {
                 backgroundColor:
                   guide.iconBackground,
               },
             ]}
           >
-            <Ionicons
-              name={guide.icon}
-              size={30}
-              color={guide.iconColor}
+            <AppIcon
+              name={
+                guide.icon
+              }
+              size="lg"
+              color={
+                guide.iconColor
+              }
             />
           </View>
 
-          <View style={styles.heroContent}>
+          <View
+            style={
+              styles.heroContent
+            }
+          >
             <AppText
+              variant="bodyLarge"
               weight="bold"
-              style={styles.heroTitle}
+              style={
+                styles.heroTitle
+              }
             >
               Work professionally
             </AppText>
 
-            <AppText style={styles.heroText}>
-              Follow these simple steps to help
-              deliver a better job experience.
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.heroText
+              }
+            >
+              Follow these simple steps to help deliver a better job experience.
             </AppText>
           </View>
         </View>
@@ -417,51 +598,99 @@ export default function HelpingBoxTopicScreen() {
         ==================================================== */}
 
         {guide.sections.map(
-          (section, sectionIndex) => (
+          (
+            section,
+            sectionIndex,
+          ) => (
             <View
-              key={section.title}
-              style={styles.section}
+              key={
+                section.title
+              }
+              style={
+                styles.section
+              }
             >
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionNumber}>
+              <View
+                style={
+                  styles.sectionHeader
+                }
+              >
+                <View
+                  style={
+                    styles.sectionNumber
+                  }
+                >
                   <AppText
+                    variant="caption"
                     weight="bold"
-                    style={styles.sectionNumberText}
+                    center
+                    style={
+                      styles.sectionNumberText
+                    }
                   >
-                    {sectionIndex + 1}
+                    {sectionIndex +
+                      1}
                   </AppText>
                 </View>
 
                 <AppText
+                  variant="bodyLarge"
                   weight="bold"
-                  style={styles.sectionTitle}
+                  style={
+                    styles.sectionTitle
+                  }
                 >
                   {section.title}
                 </AppText>
               </View>
 
-              <View style={styles.itemsCard}>
+              {/* ==============================================
+                  ITEMS
+              =============================================== */}
+
+              <View
+                style={
+                  styles.itemsCard
+                }
+              >
                 {section.items.map(
-                  (item, itemIndex) => (
+                  (
+                    item,
+                    itemIndex,
+                  ) => (
                     <View
                       key={`${section.title}-${itemIndex}`}
                       style={[
                         styles.item,
+
                         itemIndex <
-                          section.items.length - 1 &&
-                          styles.itemBorder,
+                        section.items
+                          .length -
+                          1
+                          ? styles.itemBorder
+                          : null,
                       ]}
                     >
-                      <View style={styles.checkIcon}>
-                        <Ionicons
-                          name="checkmark"
-                          size={15}
-                          color="#16A34A"
+                      <View
+                        style={
+                          styles.checkIcon
+                        }
+                      >
+                        <AppIcon
+                          name="check"
+                          size="xs"
+                          color={
+                            Colors.success
+                          }
                         />
                       </View>
 
                       <AppText
-                        style={styles.itemText}
+                        variant="body"
+                        tone="secondary"
+                        style={
+                          styles.itemText
+                        }
                       >
                         {item}
                       </AppText>
@@ -477,17 +706,34 @@ export default function HelpingBoxTopicScreen() {
             BOTTOM NOTE
         ==================================================== */}
 
-        <View style={styles.note}>
-          <Ionicons
-            name="information-circle-outline"
-            size={19}
-            color="#2563EB"
-          />
+        <View
+          style={
+            styles.note
+          }
+        >
+          <View
+            style={
+              styles.noteIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
 
-          <AppText style={styles.noteText}>
-            Good communication, safe working
-            practices and quality work help build
-            customer trust.
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.noteText
+            }
+          >
+            Good communication, safe working practices and quality work help build customer trust.
           </AppText>
         </View>
       </ScrollView>
@@ -499,263 +745,434 @@ export default function HelpingBoxTopicScreen() {
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 35,
-    backgroundColor: "#F8FAFC",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
 
-  /* ==========================================================
-     HEADER
-  ========================================================== */
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 22,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  backButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 11,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 7,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
-    elevation: 2,
-  },
 
-  pressed: {
-    opacity: 0.7,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  headerContent: {
-    flex: 1,
-    minWidth: 0,
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  headerTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    color: "#0F172A",
-  },
+      flexDirection:
+        "row",
 
-  headerSubtitle: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#64748B",
-  },
-
-  /* ==========================================================
-     HERO
-  ========================================================== */
-
-  hero: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 21,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-    marginBottom: 27,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.04,
-    shadowRadius: 7,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      alignItems:
+        "center",
     },
-    elevation: 2,
-  },
 
-  heroIcon: {
-    width: 62,
-    height: 62,
-    borderRadius: 19,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 14,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  heroContent: {
-    flex: 1,
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  heroTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-  heroText: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#64748B",
-  },
+      flexShrink: 0,
 
-  /* ==========================================================
-     SECTION
-  ========================================================== */
+      alignItems:
+        "center",
 
-  section: {
-    marginBottom: 22,
-  },
+      justifyContent:
+        "center",
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
+      borderWidth: 1,
 
-  sectionNumber: {
-    width: 31,
-    height: 31,
-    borderRadius: 10,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
+      borderColor:
+        Colors.border,
 
-  sectionNumberText: {
-    fontSize: 13,
-    color: "#2563EB",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  sectionTitle: {
-    flex: 1,
-    fontSize: 17,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  /* ==========================================================
-     ITEMS
-  ========================================================== */
+      ...FixxamTokens.shadow.card,
+    },
 
-  itemsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-    overflow: "hidden",
-  },
+    headerContent: {
+      flex: 1,
 
-  item: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 15,
-    paddingVertical: 14,
-  },
+      minWidth: 0,
+    },
 
-  itemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
+    headerTitle: {
+      color:
+        Colors.textPrimary,
+    },
 
-  checkIcon: {
-    width: 25,
-    height: 25,
-    borderRadius: 13,
-    backgroundColor: "#F0FDF4",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-  itemText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#475569",
-  },
+      lineHeight: 18,
 
-  /* ==========================================================
-     NOTE
-  ========================================================== */
+      color:
+        Colors.textSecondary,
+    },
 
-  note: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 14,
-    borderRadius: 17,
-    backgroundColor: "#EFF6FF",
-    marginTop: 2,
-  },
+    /* ========================================================
+       HERO
+    ======================================================== */
 
-  noteText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 11,
-    lineHeight: 17,
-    color: "#475569",
-  },
+    hero: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  /* ==========================================================
-     INVALID
-  ========================================================== */
+      padding:
+        FixxamTokens.spacing.lg,
 
-  invalidContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    backgroundColor: "#F8FAFC",
-  },
+      flexDirection:
+        "row",
 
-  invalidIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 15,
-  },
+      alignItems:
+        "center",
 
-  invalidTitle: {
-    fontSize: 20,
-    color: "#0F172A",
-  },
+      borderWidth: 1,
 
-  invalidText: {
-    marginTop: 6,
-    textAlign: "center",
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
+      borderColor:
+        Colors.border,
 
-  backAction: {
-    marginTop: 22,
-    minHeight: 48,
-    paddingHorizontal: 18,
-    borderRadius: 15,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-  backActionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-  },
-});
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    heroIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    heroContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    heroTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    heroText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SECTION
+    ======================================================== */
+
+    section: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
+
+    sectionHeader: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    sectionNumber: {
+      width: 32,
+
+      height: 32,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    sectionNumberText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    sectionTitle: {
+      flex: 1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       ITEMS
+    ======================================================== */
+
+    itemsCard: {
+      overflow:
+        "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    item: {
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+    },
+
+    itemBorder: {
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+
+      borderBottomColor:
+        Colors.divider,
+    },
+
+    checkIcon: {
+      width: 26,
+
+      height: 26,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    itemText: {
+      flex: 1,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       NOTE
+    ======================================================== */
+
+    note: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    noteIcon: {
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    noteText: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       INVALID
+    ======================================================== */
+
+    invalidContainer: {
+      flex: 1,
+
+      minHeight: 420,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    invalidIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    invalidTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    invalidText: {
+      maxWidth: 280,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    invalidAction: {
+      width: "100%",
+
+      maxWidth: 220,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

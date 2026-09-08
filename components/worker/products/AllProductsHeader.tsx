@@ -1,82 +1,205 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
 
-export default function AllProductsHeader() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AllProductsHeader() {
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        activeOpacity={0.8}
-        onPress={() => router.back()}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          BACK
+      ====================================================== */}
+
+      <Pressable
+        onPress={
+          handleBack
+        }
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={6}
+        style={({
+          pressed,
+        }) => [
+          styles.backButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
         <MaterialCommunityIcons
           name="arrow-left"
           size={24}
-          color="#111827"
+          color={
+            Colors.textPrimary
+          }
         />
-      </TouchableOpacity>
+      </Pressable>
+
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
 
       <AppText
+        variant="heading1"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         All Products
       </AppText>
 
-      <AppText style={styles.subtitle}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
         Manage all your products in one place.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 20,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 18,
+AllProductsHeader.displayName =
+  "AllProductsHeader";
 
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+export default memo(
+  AllProductsHeader,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+
+      backgroundColor:
+        Colors.background,
     },
-    elevation: 2,
-  },
 
-  title: {
-    fontSize: 30,
-    color: "#111827",
-  },
+    /* ========================================================
+       BACK
+    ======================================================== */
 
-  subtitle: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#6B7280",
-  },
-});
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

@@ -1,46 +1,94 @@
-import React from "react";
+import React, {
+  memo,
+  type ReactNode,
+} from "react";
+
 import {
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  FixxamTokens,
+} from "@/theme";
+
+export interface AppSectionProps {
   title: string;
-  subtitle?: string;
-  rightComponent?: React.ReactNode;
-  children: React.ReactNode;
-};
 
-export default function AppSection({
+  subtitle?: string;
+
+  rightComponent?: ReactNode;
+
+  children: ReactNode;
+
+  style?: StyleProp<ViewStyle>;
+
+  contentStyle?: StyleProp<ViewStyle>;
+
+  /*
+   * Useful when the screen/container
+   * already controls section spacing.
+   */
+  spacingBottom?: boolean;
+}
+
+function AppSection({
   title,
   subtitle,
   rightComponent,
   children,
-}: Props) {
+  style,
+  contentStyle,
+  spacingBottom = true,
+}: AppSectionProps) {
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        spacingBottom
+          ? styles.withBottomSpacing
+          : null,
+        style,
+      ]}
+    >
       <View style={styles.header}>
         <View style={styles.left}>
           <AppText
-            weight="bold"
-            style={styles.title}
+            variant="heading3"
+            numberOfLines={2}
           >
             {title}
           </AppText>
 
           {subtitle ? (
-            <AppText style={styles.subtitle}>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={styles.subtitle}
+              numberOfLines={3}
+            >
               {subtitle}
             </AppText>
           ) : null}
         </View>
 
-        {rightComponent}
+        {rightComponent ? (
+          <View style={styles.right}>
+            {rightComponent}
+          </View>
+        ) : null}
       </View>
 
-      <View style={styles.content}>
+      <View
+        style={[
+          styles.content,
+          contentStyle,
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -49,32 +97,43 @@ export default function AppSection({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 24,
+    width: "100%",
+  },
+
+  withBottomSpacing: {
+    marginBottom:
+      FixxamTokens.spacing.section,
   },
 
   header: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 14,
+
+    marginBottom:
+      FixxamTokens.spacing.md,
   },
 
   left: {
     flex: 1,
+    minWidth: 0,
   },
 
-  title: {
-    fontSize: 20,
-    color: "#0F172A",
+  right: {
+    flexShrink: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
   },
 
   subtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: "#64748B",
+    marginTop:
+      FixxamTokens.spacing.xs,
   },
 
   content: {
-    marginTop: 2,
+    width: "100%",
   },
 });
+
+export default memo(AppSection);

@@ -1,63 +1,73 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  TouchableOpacity,
   StyleSheet,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+} from "@/components/ui";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   disabled: boolean;
+
   onPress: () => void;
 };
 
-export default function ContinueBookingButton({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ContinueBookingButton({
   disabled,
   onPress,
 }: Props) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      disabled={disabled}
-      onPress={onPress}
-      style={[
-        styles.button,
-        disabled && styles.disabled,
-      ]}
-    >
-      <AppText
-        weight="bold"
-        style={styles.text}
-      >
-        Continue Booking
-      </AppText>
-    </TouchableOpacity>
+    <AppButton
+      title="Continue Booking"
+      role="customer"
+      disabled={
+        disabled
+      }
+      onPress={
+        onPress
+      }
+      style={
+        styles.button
+      }
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    marginHorizontal: 16,
-    marginBottom: 40,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    height: 56,
+const styles =
+  StyleSheet.create({
+    button: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    borderRadius: 18,
+      marginBottom:
+        FixxamTokens.spacing.xxxl,
 
-    justifyContent: "center",
-    alignItems: "center",
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+    },
+  });
 
-    backgroundColor: "#FF6B00",
-
-    elevation: 3,
-  },
-
-  disabled: {
-    backgroundColor: "#CBD5E1",
-  },
-
-  text: {
-    color: "#FFFFFF",
-    fontSize: 17,
-  },
-});
+export default memo(
+  ContinueBookingButton,
+);

@@ -1,16 +1,26 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  ActivityIndicator,
   Modal,
-  Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppButton,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -35,10 +45,25 @@ type Props = {
 };
 
 /* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeText(
+  value: string,
+  fallback: string,
+): string {
+  const normalized =
+    value.trim();
+
+  return normalized ||
+    fallback;
+}
+
+/* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function RequestConfirmationModal({
+function RequestConfirmationModal({
   visible,
   workerName,
   service,
@@ -49,29 +74,61 @@ export default function RequestConfirmationModal({
   onConfirm,
 }: Props) {
   /*
-   * IMPORTANT:
+   * Do not copy these props into local state.
    *
-   * Do NOT copy these props into useState.
-   *
-   * The modal always displays the latest values
-   * coming from SpecialiseYourMarketScreen.
+   * The modal must always display the latest
+   * values received from the parent screen.
    */
 
   const displayWorkerName =
-    workerName.trim() || "Worker";
+    useMemo(
+      () =>
+        normalizeText(
+          workerName,
+          "Worker",
+        ),
+      [workerName],
+    );
 
   const displayService =
-    service.trim() || "Not specified";
+    useMemo(
+      () =>
+        normalizeText(
+          service,
+          "Not specified",
+        ),
+      [service],
+    );
 
   const displayLocation =
-    location.trim() || "Not specified";
+    useMemo(
+      () =>
+        normalizeText(
+          location,
+          "Not specified",
+        ),
+      [location],
+    );
 
   const displayPhone =
-    phone.trim() || "Not specified";
+    useMemo(
+      () =>
+        normalizeText(
+          phone,
+          "Not specified",
+        ),
+      [phone],
+    );
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="fade"
       statusBarTranslucent
@@ -81,252 +138,259 @@ export default function RequestConfirmationModal({
         }
       }}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          {/* ==================================================
-              HEADER
-          ================================================== */}
+      <View
+        style={
+          styles.overlay
+        }
+      >
+        <View
+          style={
+            styles.modal
+          }
+        >
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            bounces={false}
+            contentContainerStyle={
+              styles.content
+            }
+          >
+            {/* ==================================================
+                HEADER
+            ================================================== */}
 
-          <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons
-                name="notifications-outline"
-                size={23}
-                color="#FF6B00"
+            <View
+              style={
+                styles.header
+              }
+            >
+              <View
+                style={
+                  styles.headerIcon
+                }
+              >
+                <AppIcon
+                  name="notifications"
+                  role="worker"
+                  size="md"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.headerText
+                }
+              >
+                <AppText
+                  variant="heading2"
+                  weight="bold"
+                  numberOfLines={1}
+                  style={
+                    styles.title
+                  }
+                >
+                  New Service Request
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.subtitle
+                  }
+                >
+                  Review your request before sending.
+                </AppText>
+              </View>
+            </View>
+
+            {/* ==================================================
+                WORKER
+            ================================================== */}
+
+            <View
+              style={
+                styles.workerCard
+              }
+            >
+              <View
+                style={
+                  styles.workerIcon
+                }
+              >
+                <AppIcon
+                  name="profile"
+                  role="worker"
+                  size="sm"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.workerInfo
+                }
+              >
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.smallLabel
+                  }
+                >
+                  Worker
+                </AppText>
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  numberOfLines={1}
+                  style={
+                    styles.workerName
+                  }
+                >
+                  {displayWorkerName}
+                </AppText>
+              </View>
+            </View>
+
+            {/* ==================================================
+                DETAILS
+            ================================================== */}
+
+            <View
+              style={
+                styles.details
+              }
+            >
+              <DetailRow
+                icon="service"
+                label="Service"
+                value={
+                  displayService
+                }
+              />
+
+              <DetailRow
+                icon="location"
+                label="Location"
+                value={
+                  displayLocation
+                }
+                numberOfLines={3}
+              />
+
+              <DetailRow
+                icon="phone"
+                label="Phone"
+                value={
+                  displayPhone
+                }
               />
             </View>
 
-            <View style={styles.headerText}>
-              <AppText
-                weight="bold"
-                style={styles.title}
-              >
-                New Service Request
-              </AppText>
+            {/* ==================================================
+                INFORMATION
+            ================================================== */}
 
-              <AppText style={styles.subtitle}>
-                Review your request before sending.
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              WORKER
-          ================================================== */}
-
-          <View style={styles.workerCard}>
-            <View style={styles.workerIcon}>
-              <Ionicons
-                name="person-outline"
-                size={22}
-                color="#FF6B00"
-              />
-            </View>
-
-            <View style={styles.workerInfo}>
-              <AppText style={styles.smallLabel}>
-                Worker
-              </AppText>
-
-              <AppText
-                weight="bold"
-                numberOfLines={1}
-                style={styles.workerName}
-              >
-                {displayWorkerName}
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              DETAILS
-          ================================================== */}
-
-          <View style={styles.details}>
-            {/* SERVICE */}
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons
-                  name="briefcase-outline"
-                  size={19}
-                  color="#64748B"
-                />
-              </View>
-
-              <View style={styles.detailContent}>
-                <AppText style={styles.smallLabel}>
-                  Service
-                </AppText>
-
-                <AppText
-                  weight="bold"
-                  numberOfLines={1}
-                  style={styles.value}
-                >
-                  {displayService}
-                </AppText>
-              </View>
-            </View>
-
-            {/* LOCATION */}
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons
-                  name="location-outline"
-                  size={19}
-                  color="#64748B"
-                />
-              </View>
-
-              <View style={styles.detailContent}>
-                <AppText style={styles.smallLabel}>
-                  Location
-                </AppText>
-
-                <AppText
-                  weight="bold"
-                  numberOfLines={3}
-                  style={styles.value}
-                >
-                  {displayLocation}
-                </AppText>
-              </View>
-            </View>
-
-            {/* PHONE */}
-
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons
-                  name="call-outline"
-                  size={19}
-                  color="#64748B"
-                />
-              </View>
-
-              <View style={styles.detailContent}>
-                <AppText style={styles.smallLabel}>
-                  Phone
-                </AppText>
-
-                <AppText
-                  weight="bold"
-                  numberOfLines={1}
-                  style={styles.value}
-                >
-                  {displayPhone}
-                </AppText>
-              </View>
-            </View>
-          </View>
-
-          {/* ==================================================
-              INFORMATION
-          ================================================== */}
-
-          <View style={styles.infoBox}>
-            <Ionicons
-              name="information-circle-outline"
-              size={20}
-              color="#FF6B00"
-            />
-
-            <AppText style={styles.infoText}>
-              Your request will be sent to up to{" "}
-              <AppText
-                weight="bold"
-                style={styles.infoBold}
-              >
-                5 customers
-              </AppText>{" "}
-              in{" "}
-              <AppText
-                weight="bold"
-                style={styles.infoBold}
-              >
-                {displayLocation}
-              </AppText>
-              .
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              ACTIONS
-          ================================================== */}
-
-          <View style={styles.actions}>
-            {/* CANCEL */}
-
-            <Pressable
-              disabled={loading}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel request"
-              accessibilityState={{
-                disabled: loading,
-              }}
-              onPress={onCancel}
-              style={({ pressed }) => [
-                styles.cancelButton,
-                pressed &&
-                  !loading &&
-                  styles.buttonPressed,
-                loading &&
-                  styles.disabledButton,
-              ]}
+            <View
+              style={
+                styles.infoBox
+              }
             >
-              <AppText
-                weight="bold"
-                style={styles.cancelText}
+              <View
+                style={
+                  styles.infoIcon
+                }
               >
-                Cancel
+                <AppIcon
+                  name="info"
+                  role="worker"
+                  size="sm"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.infoText
+                }
+              >
+                Your request will be sent to up to 5 customers in {displayLocation}.
               </AppText>
-            </Pressable>
+            </View>
 
-            {/* SEND */}
+            {/* ==================================================
+                ACTIONS
+            ================================================== */}
 
-            <Pressable
-              disabled={loading}
-              accessibilityRole="button"
-              accessibilityLabel="Send service request"
-              accessibilityState={{
-                busy: loading,
-                disabled: loading,
-              }}
-              onPress={onConfirm}
-              style={({ pressed }) => [
-                styles.sendButton,
-                pressed &&
-                  !loading &&
-                  styles.sendPressed,
-                loading &&
-                  styles.disabledSendButton,
-              ]}
+            <View
+              style={
+                styles.actions
+              }
             >
-              {loading ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
-              ) : (
-                <Ionicons
-                  name="send-outline"
-                  size={18}
-                  color="#FFFFFF"
-                />
-              )}
-
-              <AppText
-                weight="bold"
-                style={styles.sendText}
+              <View
+                style={
+                  styles.cancelAction
+                }
               >
-                {loading
-                  ? "Sending..."
-                  : "Send Request"}
-              </AppText>
-            </Pressable>
-          </View>
+                <AppButton
+                  title="Cancel"
+                  role="worker"
+                  variant="outline"
+                  disabled={
+                    loading
+                  }
+                  onPress={
+                    onCancel
+                  }
+                  style={
+                    styles.actionButton
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.confirmAction
+                }
+              >
+                <AppButton
+                  title={
+                    loading
+                      ? "Sending..."
+                      : "Send Request"
+                  }
+                  role="worker"
+                  variant="primary"
+                  leftIconName="next"
+                  loading={
+                    loading
+                  }
+                  disabled={
+                    loading
+                  }
+                  onPress={
+                    onConfirm
+                  }
+                  style={
+                    styles.actionButton
+                  }
+                />
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -334,230 +398,413 @@ export default function RequestConfirmationModal({
 }
 
 /* ==============================================================
+   DETAIL ROW
+============================================================== */
+
+function DetailRow({
+  icon,
+  label,
+  value,
+  numberOfLines = 1,
+}: {
+  icon:
+    | "service"
+    | "location"
+    | "phone";
+
+  label: string;
+
+  value: string;
+
+  numberOfLines?: number;
+}) {
+  return (
+    <View
+      style={
+        styles.detailRow
+      }
+    >
+      <View
+        style={
+          styles.detailIcon
+        }
+      >
+        <AppIcon
+          name={
+            icon
+          }
+          size="sm"
+          color={
+            Colors.textSecondary
+          }
+        />
+      </View>
+
+      <View
+        style={
+          styles.detailContent
+        }
+      >
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.smallLabel
+          }
+        >
+          {label}
+        </AppText>
+
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={
+            numberOfLines
+          }
+          style={
+            styles.value
+          }
+        >
+          {value}
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+RequestConfirmationModal.displayName =
+  "RequestConfirmationModal";
+
+export default memo(
+  RequestConfirmationModal,
+);
+
+/* ==============================================================
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.48)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
+const styles =
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
 
-  modal: {
-    width: "100%",
-    maxWidth: 430,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 18,
+      alignItems:
+        "center",
 
-    shadowColor: "#000000",
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    shadowOffset: {
-      width: 0,
-      height: 10,
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
-    elevation: 12,
-  },
+    modal: {
+      width: "100%",
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
+      maxWidth: 430,
 
-  headerIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 11,
-  },
+      maxHeight: "90%",
 
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-  },
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-  title: {
-    fontSize: 20,
-    lineHeight: 25,
-    color: "#0F172A",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  subtitle: {
-    marginTop: 2,
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#64748B",
-  },
-
-  workerCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 16,
-    padding: 11,
-    marginBottom: 12,
-  },
-
-  workerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-
-  workerInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  smallLabel: {
-    fontSize: 10,
-    lineHeight: 14,
-    color: "#94A3B8",
-  },
-
-  workerName: {
-    marginTop: 1,
-    fontSize: 15,
-    lineHeight: 20,
-    color: "#0F172A",
-  },
-
-  details: {
-    gap: 5,
-    marginBottom: 12,
-  },
-
-  detailRow: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 3,
-  },
-
-  detailIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-
-  detailContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  value: {
-    marginTop: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#0F172A",
-  },
-
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#FFF7ED",
-    borderRadius: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    marginTop: 2,
-    marginBottom: 16,
-  },
-
-  infoText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color: "#64748B",
-  },
-
-  infoBold: {
-    color: "#334155",
-    fontSize: 11.5,
-  },
-
-  actions: {
-    flexDirection: "row",
-    gap: 9,
-  },
-
-  cancelButton: {
-    flex: 0.85,
-    minHeight: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  cancelText: {
-    color: "#475569",
-    fontSize: 13,
-  },
-
-  sendButton: {
-    flex: 1.15,
-    minHeight: 48,
-    borderRadius: 14,
-    backgroundColor: "#FF6B00",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-
-    shadowColor: "#FF6B00",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 3,
-  },
+    content: {
+      padding:
+        FixxamTokens.spacing.lg,
+    },
 
-  sendText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-  },
+    /* ==========================================================
+       HEADER
+    ========================================================== */
 
-  buttonPressed: {
-    backgroundColor: "#F1F5F9",
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  sendPressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+      flexDirection:
+        "row",
 
-  disabledButton: {
-    opacity: 0.5,
-  },
+      alignItems:
+        "center",
 
-  disabledSendButton: {
-    opacity: 0.65,
-  },
-});
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    headerIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    headerText: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       WORKER
+    ========================================================== */
+
+    workerCard: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    workerIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    workerInfo: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    workerName: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    smallLabel: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ==========================================================
+       DETAILS
+    ========================================================== */
+
+    details: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    detailRow: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    detailIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    detailContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    value: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ==========================================================
+       INFO
+    ========================================================== */
+
+    infoBox: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    infoIcon: {
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       ACTIONS
+    ========================================================== */
+
+    actions: {
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    cancelAction: {
+      flex: 0.9,
+    },
+
+    confirmAction: {
+      flex: 1.1,
+    },
+
+    actionButton: {
+      width: "100%",
+    },
+  });

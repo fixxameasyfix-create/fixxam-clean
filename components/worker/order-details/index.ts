@@ -1,4 +1,4 @@
-export { default as WorkerOrderHero } from "./WorkerOrderHero";
+
 export { default as WorkerOrderCustomer } from "./WorkerOrderCustomer";
 export { default as WorkerOrderService } from "./WorkerOrderService";
 export { default as WorkerOrderPhotos } from "./WorkerOrderPhotos";

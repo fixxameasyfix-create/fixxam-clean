@@ -1,49 +1,106 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import type {
   WorkerFilterType,
 } from "@/types/workerOrders";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type WorkerOrdersEmptyProps = {
   filter: WorkerFilterType;
 };
+
+type EmptyContent = {
+  title: string;
+
+  description: string;
+};
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function WorkerOrdersEmpty({
   filter,
 }: WorkerOrdersEmptyProps) {
   const content =
-    getEmptyContent(filter);
+    getEmptyContent(
+      filter,
+    );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.iconContainer}>
-        <Ionicons
-          name="briefcase-outline"
-          size={26}
-          color="#2563EB"
+    <View
+      style={
+        styles.container
+      }
+      accessibilityRole="text"
+      accessibilityLabel={`${content.title}. ${content.description}`}
+    >
+      {/* ========================================================
+          ICON
+      ======================================================== */}
+
+      <View
+        style={
+          styles.iconContainer
+        }
+      >
+        <AppIcon
+          name="jobs"
+          role="worker"
+          size="lg"
+          color={
+            WorkerColors.primary
+          }
         />
       </View>
 
+      {/* ========================================================
+          TITLE
+      ======================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        center
+        style={
+          styles.title
+        }
       >
         {content.title}
       </AppText>
 
+      {/* ========================================================
+          DESCRIPTION
+      ======================================================== */}
+
       <AppText
+        variant="body"
+        tone="secondary"
         center
-        style={styles.description}
+        style={
+          styles.description
+        }
       >
         {content.description}
       </AppText>
@@ -51,78 +108,134 @@ function WorkerOrdersEmpty({
   );
 }
 
+/* ==============================================================
+   EMPTY CONTENT
+============================================================== */
+
 function getEmptyContent(
   filter: WorkerFilterType,
-) {
+): EmptyContent {
   switch (filter) {
     case "pending":
       return {
-        title: "No new requests",
+        title:
+          "No new requests",
+
         description:
-          "New customer requests assigned to you will appear here.",
+          "New service requests and market orders will appear here.",
       };
 
     case "active":
       return {
-        title: "No active jobs",
+        title:
+          "No active jobs",
+
         description:
-          "Accepted and ongoing jobs will appear here.",
+          "Accepted and ongoing jobs or orders will appear here.",
       };
 
     case "completed":
       return {
-        title: "No completed jobs",
+        title:
+          "No completed jobs",
+
         description:
-          "Jobs you complete will appear here.",
+          "Completed jobs and market orders will appear here.",
       };
 
     case "cancelled":
       return {
-        title: "No cancelled jobs",
+        title:
+          "No cancelled jobs",
+
         description:
-          "Cancelled jobs will appear here.",
+          "Cancelled or expired jobs and orders will appear here.",
       };
 
     case "all":
     default:
       return {
-        title: "No jobs yet",
+        title:
+          "No jobs yet",
+
         description:
-          "Customer service requests assigned to you will appear here.",
+          "Your service requests and market orders will appear here.",
       };
   }
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+WorkerOrdersEmpty.displayName =
+  "WorkerOrdersEmpty";
 
 export default memo(
   WorkerOrdersEmpty,
 );
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    paddingTop: 55,
-    paddingHorizontal: 25,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  title: {
-    marginTop: 12,
-    fontSize: 15,
-    color: "#0F172A",
-  },
+      minHeight: 260,
 
-  description: {
-    marginTop: 5,
-    fontSize: 10,
-    lineHeight: 15,
-    color: "#64748B",
-  },
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    iconContainer: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

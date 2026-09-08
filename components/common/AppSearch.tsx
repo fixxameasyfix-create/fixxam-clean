@@ -1,86 +1,50 @@
-import React from "react";
-import {
-  View,
-  TextInput,
-  StyleSheet,
-} from "react-native";
+import React, { memo } from "react";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import AppSearchBar from "@/components/ui/AppSearchBar";
 
-type Props = {
+import type { FixxamRole } from "@/theme";
+
+export interface AppSearchProps {
   value: string;
-  onChangeText: (text: string) => void;
-  placeholder?: string;
-};
 
-export default function AppSearch({
+  onChangeText: (text: string) => void;
+
+  placeholder?: string;
+
+  role?: FixxamRole;
+
+  loading?: boolean;
+
+  showFilterButton?: boolean;
+
+  filterActive?: boolean;
+
+  onFilterPress?: () => void;
+}
+
+function AppSearch({
   value,
   onChangeText,
   placeholder = "Search...",
-}: Props) {
+  role = "customer",
+  loading = false,
+  showFilterButton = false,
+  filterActive = false,
+  onFilterPress,
+}: AppSearchProps) {
   return (
-    <View style={styles.container}>
-      <Ionicons
-        name="search"
-        size={22}
-        color="#64748B"
-      />
-
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#94A3B8"
-        style={styles.input}
-      />
-
-      {value.length > 0 && (
-        <Ionicons
-          name="close-circle"
-          size={22}
-          color="#94A3B8"
-          onPress={() => onChangeText("")}
-        />
-      )}
-    </View>
+    <AppSearchBar
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      role={role}
+      loading={loading}
+      showClearButton
+      showFilterButton={showFilterButton}
+      filterActive={filterActive}
+      onFilterPress={onFilterPress}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 56,
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 18,
-
-    paddingHorizontal: 16,
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-
-    elevation: 2,
-  },
-
-  input: {
-    flex: 1,
-
-    marginLeft: 12,
-
-    fontSize: 16,
-
-    color: "#0F172A",
-  },
-});
+export default memo(AppSearch);

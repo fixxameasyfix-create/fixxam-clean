@@ -1,121 +1,234 @@
-import React from "react";
+import React, {
+  memo,
+  type ReactNode,
+} from "react";
+
 import {
-  View,
+  Pressable,
+  StyleProp,
   StyleSheet,
-  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
 
-type Props = {
+export interface AppHeaderProps {
   title: string;
 
   subtitle?: string;
+
+  role?: FixxamRole;
 
   showBackButton?: boolean;
 
   onBackPress?: () => void;
 
-  rightComponent?: React.ReactNode;
-};
+  rightComponent?: ReactNode;
 
-export default function AppHeader({
+  /*
+   * Use false when AppScreen already
+   * provides horizontal screen padding.
+   */
+  padded?: boolean;
+
+  /*
+   * Optional bottom separator.
+   */
+  showDivider?: boolean;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppHeader({
   title,
   subtitle,
+  role = "customer",
   showBackButton = false,
   onBackPress,
   rightComponent,
-}: Props) {
+  padded = true,
+  showDivider = false,
+  style,
+}: AppHeaderProps) {
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const canGoBack =
+    showBackButton &&
+    typeof onBackPress === "function";
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+
+        padded
+          ? styles.padded
+          : null,
+
+        showDivider && {
+          borderBottomWidth:
+            StyleSheet.hairlineWidth,
+
+          borderBottomColor:
+            Colors.divider,
+        },
+
+        style,
+      ]}
+    >
       <View style={styles.left}>
-        {showBackButton && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.backButton}
+        {showBackButton ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            disabled={!canGoBack}
+            hitSlop={8}
             onPress={onBackPress}
+            style={({ pressed }) => [
+              styles.backButton,
+
+              {
+                backgroundColor:
+                  pressed && canGoBack
+                    ? colors.primarySoft
+                    : Colors.iconBackground,
+              },
+
+              !canGoBack
+                ? styles.disabled
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              role={role}
+              size="sm"
+              state={
+                canGoBack
+                  ? "default"
+                  : "muted"
+              }
+              strokeWidth="medium"
             />
-          </TouchableOpacity>
-        )}
+          </Pressable>
+        ) : null}
 
         <View style={styles.textContainer}>
           <AppText
-            weight="bold"
-            style={styles.title}
+            variant="heading3"
+            numberOfLines={1}
           >
             {title}
           </AppText>
 
           {subtitle ? (
-            <AppText style={styles.subtitle}>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={styles.subtitle}
+            >
               {subtitle}
             </AppText>
           ) : null}
         </View>
       </View>
 
-      {rightComponent}
+      {rightComponent ? (
+        <View style={styles.right}>
+          {rightComponent}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    height: 72,
+    width: "100%",
+
+    minHeight:
+      FixxamTokens.size.headerHeight,
 
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "space-between",
 
-    paddingHorizontal: 16,
+    paddingVertical:
+      FixxamTokens.spacing.sm,
 
-    backgroundColor: "#FFFFFF",
+    backgroundColor:
+      Colors.surface,
+  },
+
+  padded: {
+    paddingHorizontal:
+      FixxamTokens.spacing.screen,
   },
 
   left: {
-    flexDirection: "row",
+    flex: 1,
 
+    flexDirection: "row",
     alignItems: "center",
 
-    flex: 1,
+    minWidth: 0,
   },
 
   backButton: {
-    width: 44,
-    height: 44,
+    width:
+      FixxamTokens.size.minimumTouchTarget,
 
-    borderRadius: 14,
-
-    backgroundColor: "#F8FAFC",
-
-    justifyContent: "center",
+    height:
+      FixxamTokens.size.minimumTouchTarget,
 
     alignItems: "center",
+    justifyContent: "center",
 
-    marginRight: 14,
+    borderRadius:
+      FixxamTokens.radius.iconButton,
+
+    marginRight:
+      FixxamTokens.spacing.sm,
   },
 
   textContainer: {
     flex: 1,
-  },
-
-  title: {
-    fontSize: 22,
-    color: "#0F172A",
+    minWidth: 0,
   },
 
   subtitle: {
-    marginTop: 2,
-    fontSize: 13,
-    color: "#64748B",
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
+
+  right: {
+    flexShrink: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  disabled: {
+    opacity:
+      FixxamTokens.motion.disabledOpacity,
   },
 });
+
+export default memo(AppHeader);

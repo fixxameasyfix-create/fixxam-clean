@@ -1,41 +1,177 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
+
 import {
-  View,
+  Animated,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
+  type DimensionValue,
 } from "react-native";
 
-type Props = {
-  loading: boolean;
-  children?: React.ReactNode;
-};
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-export default function AppSkeleton({
+export interface AppSkeletonProps {
+  loading: boolean;
+
+  children?: ReactNode;
+
+  count?: number;
+
+  width?: DimensionValue;
+
+  height?: number;
+
+  borderRadius?: number;
+
+  gap?: number;
+
+  animated?: boolean;
+
+  padded?: boolean;
+
+  style?: StyleProp<ViewStyle>;
+
+  itemStyle?: StyleProp<ViewStyle>;
+}
+
+function AppSkeleton({
   loading,
   children,
-}: Props) {
+
+  count = 3,
+
+  width = "100%",
+  height = 88,
+
+  borderRadius =
+    FixxamTokens.radius.card,
+
+  gap = FixxamTokens.spacing.md,
+
+  animated = true,
+
+  padded = false,
+
+  style,
+  itemStyle,
+}: AppSkeletonProps) {
+  const opacity = useRef(
+    new Animated.Value(0.55),
+  ).current;
+
+  useEffect(() => {
+    if (!loading || !animated) {
+      opacity.stopAnimation();
+      opacity.setValue(1);
+
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration:
+            FixxamTokens.motion.slow,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(opacity, {
+          toValue: 0.55,
+          duration:
+            FixxamTokens.motion.slow,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [
+    animated,
+    loading,
+    opacity,
+  ]);
+
   if (!loading) {
     return <>{children}</>;
   }
 
+  const safeCount = Math.max(
+    1,
+    Math.floor(count),
+  );
+
   return (
-    <View style={styles.container}>
-      <View style={styles.card} />
-      <View style={styles.card} />
-      <View style={styles.card} />
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading content"
+      style={[
+        styles.container,
+
+        padded
+          ? styles.padded
+          : null,
+
+        style,
+      ]}
+    >
+      {Array.from({
+        length: safeCount,
+      }).map((_, index) => (
+        <Animated.View
+          key={index}
+          style={[
+            styles.item,
+
+            {
+              width,
+              height,
+              borderRadius,
+              opacity,
+
+              marginBottom:
+                index === safeCount - 1
+                  ? 0
+                  : gap,
+            },
+
+            itemStyle,
+          ]}
+        />
+      ))}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    width: "100%",
   },
 
-  card: {
-    width: "100%",
-    height: 90,
-    borderRadius: 20,
-    marginBottom: 16,
-    backgroundColor: "#E2E8F0",
+  padded: {
+    padding:
+      FixxamTokens.spacing.lg,
+  },
+
+  item: {
+    backgroundColor:
+      Colors.iconBackground,
+
+    overflow: "hidden",
   },
 });
+
+export default memo(AppSkeleton);

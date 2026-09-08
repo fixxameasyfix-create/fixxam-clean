@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,16 +8,43 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const CALL_COLOR =
+  "#F97316";
+
+const CALL_ICON_BACKGROUND =
+  "#FB923C";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type CustomerOrderActionsProps = {
   onCall: () => void;
+
   onCancel: () => void;
+
   callDisabled?: boolean;
+
   cancelDisabled?: boolean;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function CustomerOrderActions({
   onCall,
@@ -24,7 +53,9 @@ function CustomerOrderActions({
   cancelDisabled = false,
 }: CustomerOrderActionsProps) {
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+    >
       {/* ======================================================
           CALL
       ====================================================== */}
@@ -35,32 +66,42 @@ function CustomerOrderActions({
         accessibilityRole="button"
         accessibilityLabel="Call worker"
         accessibilityState={{
-          disabled: callDisabled,
+          disabled:
+            callDisabled,
         }}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.callButton,
 
           /*
-           * IMPORTANT:
-           * Call remains disabled until the offer is accepted,
-           * but its visual appearance stays full orange.
+           * Intentionally remains visually
+           * orange while disabled.
            */
           pressed &&
-            !callDisabled &&
-            styles.pressed,
+          !callDisabled
+            ? styles.pressed
+            : null,
         ]}
       >
-        <View style={styles.callIcon}>
-          <Ionicons
-            name="call-outline"
-            size={20}
-            color="#FFFFFF"
+        <View
+          style={styles.callIcon}
+        >
+          <AppIcon
+            name="phone"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.callText}
+          style={
+            styles.callText
+          }
         >
           CALL
         </AppText>
@@ -72,47 +113,59 @@ function CustomerOrderActions({
 
       <Pressable
         onPress={onCancel}
-        disabled={cancelDisabled}
+        disabled={
+          cancelDisabled
+        }
         accessibilityRole="button"
         accessibilityLabel="Cancel order"
         accessibilityState={{
-          disabled: cancelDisabled,
+          disabled:
+            cancelDisabled,
         }}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.cancelButton,
 
-          cancelDisabled &&
-            styles.cancelButtonDisabled,
+          cancelDisabled
+            ? styles.cancelButtonDisabled
+            : null,
 
           pressed &&
-            !cancelDisabled &&
-            styles.pressed,
+          !cancelDisabled
+            ? styles.pressed
+            : null,
         ]}
       >
         <View
           style={[
             styles.cancelIcon,
-            cancelDisabled &&
-              styles.disabledIcon,
+
+            cancelDisabled
+              ? styles.disabledIcon
+              : null,
           ]}
         >
-          <Ionicons
-            name="close-circle-outline"
-            size={20}
+          <AppIcon
+            name="error"
+            size="sm"
             color={
               cancelDisabled
-                ? "#94A3B8"
-                : "#FFFFFF"
+                ? Colors.textMuted
+                : Colors.textInverse
             }
           />
         </View>
 
         <AppText
+          variant="caption"
           weight="bold"
           style={[
             styles.cancelText,
-            cancelDisabled &&
-              styles.disabledText,
+
+            cancelDisabled
+              ? styles.disabledText
+              : null,
           ]}
         >
           CANCEL ORDER
@@ -126,119 +179,170 @@ export default memo(
   CustomerOrderActions,
 );
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CONTAINER
-  ========================================================== */
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  container: {
-    marginTop: 10,
-    width: "100%",
-    flexDirection: "row",
-    gap: 10,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  /* ==========================================================
-     CALL
-  ========================================================== */
+    container: {
+      width: "100%",
 
-  callButton: {
-    flex: 1,
-    minHeight: 58,
-    borderRadius: 16,
-    backgroundColor: "#F97316",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      flexDirection: "row",
 
-    /*
-     * Keep disabled Call visually strong.
-     */
-    opacity: 1,
-  },
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-  callIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    /* ========================================================
+       CALL
+    ======================================================== */
 
-    backgroundColor: "#FB923C",
+    callButton: {
+      flex: 1,
 
-    alignItems: "center",
-    justifyContent: "center",
+      minHeight: 58,
 
-    marginRight: 8,
-  },
+      flexDirection: "row",
 
-  callText: {
-    fontSize: 10.5,
-    letterSpacing: 0.3,
-    color: "#FFFFFF",
-  },
+      alignItems: "center",
 
-  /* ==========================================================
-     CANCEL
-  ========================================================== */
+      justifyContent: "center",
 
-  cancelButton: {
-    flex: 1,
-    minHeight: 58,
-    borderRadius: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#DC2626",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        CALL_COLOR,
 
-  cancelButtonDisabled: {
-    backgroundColor: "#E2E8F0",
-  },
+      /*
+       * Preserve existing UX:
+       * disabled call remains visually strong.
+       */
+      opacity: 1,
+    },
 
-  cancelIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    callIcon: {
+      width: 38,
 
-    backgroundColor: "#EF4444",
+      height: 38,
 
-    alignItems: "center",
-    justifyContent: "center",
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-    marginRight: 8,
-  },
+      alignItems: "center",
 
-  cancelText: {
-    fontSize: 10,
-    letterSpacing: 0.2,
-    color: "#FFFFFF",
-  },
+      justifyContent: "center",
 
-  /* ==========================================================
-     DISABLED CANCEL
-  ========================================================== */
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  disabledIcon: {
-    backgroundColor: "#CBD5E1",
-  },
+      backgroundColor:
+        CALL_ICON_BACKGROUND,
+    },
 
-  disabledText: {
-    color: "#94A3B8",
-  },
+    callText: {
+      letterSpacing: 0.3,
 
-  /* ==========================================================
-     PRESS
-  ========================================================== */
+      color:
+        Colors.textInverse,
+    },
 
-  pressed: {
-    opacity: 0.82,
+    /* ========================================================
+       CANCEL
+    ======================================================== */
 
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-});
+    cancelButton: {
+      flex: 1,
+
+      minHeight: 58,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    cancelButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    cancelIcon: {
+      width: 38,
+
+      height: 38,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    cancelText: {
+      letterSpacing: 0.2,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       DISABLED
+    ======================================================== */
+
+    disabledIcon: {
+      backgroundColor:
+        Colors.disabled,
+    },
+
+    disabledText: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

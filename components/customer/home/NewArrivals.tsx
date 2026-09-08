@@ -1,5 +1,7 @@
 import React, {
+  useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -16,8 +18,15 @@ import {
 } from "expo-router";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import ProductGridCard from "./ProductGridCard";
 
@@ -31,11 +40,15 @@ import getActiveProductDeals, {
 
 interface Product {
   id: string;
+
   name: string;
+
   price: number;
+
   thumbnail: string;
 
   storeId?: string;
+
   workerId?: string;
 }
 
@@ -48,8 +61,17 @@ interface ProductWithDeal
 
 interface Props {
   products: Product[];
+
   loading: boolean;
 }
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const PRODUCT_LIMIT = 10;
+
+const PRODUCT_CARD_WIDTH = 200;
 
 /* ==============================================================
    COMPONENT
@@ -62,21 +84,59 @@ export default function NewArrivals({
   const [
     productsWithDeals,
     setProductsWithDeals,
-  ] = useState<
-    ProductWithDeal[]
-  >([]);
+  ] =
+    useState<
+      ProductWithDeal[]
+    >([]);
 
   const [
     dealsLoading,
     setDealsLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ============================================================
      VISIBLE PRODUCTS
   ============================================================ */
 
   const visibleProducts =
-    products.slice(0, 10);
+    useMemo(
+      () =>
+        Array.isArray(products)
+          ? products
+              .filter(
+                (product) =>
+                  typeof product.id ===
+                    "string" &&
+                  product.id.trim()
+                    .length > 0,
+              )
+              .slice(
+                0,
+                PRODUCT_LIMIT,
+              )
+          : [],
+      [products],
+    );
+
+  /* ============================================================
+     FALLBACK PRODUCTS
+  ============================================================ */
+
+  const fallbackProducts =
+    useMemo<
+      ProductWithDeal[]
+    >(
+      () =>
+        visibleProducts.map(
+          (product) => ({
+            ...product,
+
+            activeDeal: null,
+          }),
+        ),
+      [visibleProducts],
+    );
 
   /* ============================================================
      LOAD ACTIVE DEALS
@@ -87,49 +147,53 @@ export default function NewArrivals({
 
     const loadDeals =
       async () => {
-        /*
-         * No products.
-         */
         if (
           visibleProducts.length ===
           0
         ) {
-          setProductsWithDeals([]);
-          setDealsLoading(false);
+          setProductsWithDeals(
+            [],
+          );
+
+          setDealsLoading(
+            false,
+          );
+
           return;
         }
 
-        try {
-          setDealsLoading(true);
+        /*
+         * Immediately move to the latest
+         * product set so stale products
+         * from a previous render cannot
+         * remain visible while deal data
+         * is loading.
+         */
+        setProductsWithDeals(
+          fallbackProducts,
+        );
 
-          const productIds =
-            visibleProducts
-              .map(
+        try {
+          setDealsLoading(
+            true,
+          );
+
+          const productIds = [
+            ...new Set(
+              visibleProducts.map(
                 (product) =>
                   product.id,
-              )
-              .filter(Boolean);
+              ),
+            ),
+          ];
 
           if (
             productIds.length ===
             0
           ) {
-            setProductsWithDeals(
-              visibleProducts.map(
-                (product) => ({
-                  ...product,
-                  activeDeal: null,
-                }),
-              ),
-            );
-
             return;
           }
 
-          /*
-           * Get active deals for
-           * visible products.
-           */
           const dealsByProductId =
             await getActiveProductDeals(
               productIds,
@@ -139,9 +203,6 @@ export default function NewArrivals({
             return;
           }
 
-          /*
-           * Merge products + deals.
-           */
           const mergedProducts =
             visibleProducts.map(
               (product) => ({
@@ -159,7 +220,7 @@ export default function NewArrivals({
           );
         } catch (error) {
           console.error(
-            "NEW ARRIVALS DEAL LOAD ERROR:",
+            "NEW_ARRIVALS_DEAL_LOAD_ERROR",
             error,
           );
 
@@ -168,65 +229,121 @@ export default function NewArrivals({
           }
 
           /*
-           * Deal loading should
-           * never hide products.
+           * Deals are optional UI data.
+           * A deal failure must never
+           * hide valid market products.
            */
           setProductsWithDeals(
-            visibleProducts.map(
-              (product) => ({
-                ...product,
-                activeDeal: null,
-              }),
-            ),
+            fallbackProducts,
           );
         } finally {
           if (!cancelled) {
-            setDealsLoading(false);
+            setDealsLoading(
+              false,
+            );
           }
         }
       };
 
-    loadDeals();
+    void loadDeals();
 
     return () => {
       cancelled = true;
     };
-  }, [products]);
+  }, [
+    fallbackProducts,
+    visibleProducts,
+  ]);
+
+  /* ============================================================
+     DISPLAY DATA
+  ============================================================ */
+
+  const displayProducts =
+    productsWithDeals.length > 0
+      ? productsWithDeals
+      : fallbackProducts;
 
   /* ============================================================
      PRODUCT DETAILS
   ============================================================ */
 
-  const handleProductPress = (
-    productId: string,
-  ) => {
-    if (!productId) {
-      return;
-    }
+  const handleProductPress =
+    useCallback(
+      (
+        productId: string,
+      ) => {
+        const safeProductId =
+          productId.trim();
 
-    router.push({
-      pathname:
-        "/(customer)/product/[id]",
+        if (!safeProductId) {
+          return;
+        }
 
-      params: {
-        id: productId,
+        router.push({
+          pathname:
+            "/(customer)/product/[id]",
+
+          params: {
+            id: safeProductId,
+          },
+        });
       },
-    });
-  };
+      [],
+    );
 
   /* ============================================================
-     DATA
+     SEE ALL
   ============================================================ */
 
-  const displayProducts: ProductWithDeal[] =
-    productsWithDeals.length > 0
-      ? productsWithDeals
-      : visibleProducts.map(
-          (product) => ({
-            ...product,
-            activeDeal: null,
-          }),
-        );
+  const handleSeeAll =
+    useCallback(() => {
+      router.push(
+        "/(customer)/market/popular",
+      );
+    }, []);
+
+  /* ============================================================
+     RENDER PRODUCT
+  ============================================================ */
+
+  const renderProduct =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: ProductWithDeal;
+      }) => (
+        <View
+          style={styles.item}
+        >
+          <ProductGridCard
+            id={item.id}
+            name={item.name}
+            price={item.price}
+            image={
+              item.thumbnail
+            }
+            activeDeal={
+              item.activeDeal
+            }
+            onPress={() =>
+              handleProductPress(
+                item.id,
+              )
+            }
+            onBuy={() =>
+              handleProductPress(
+                item.id,
+              )
+            }
+          />
+        </View>
+      ),
+      [
+        handleProductPress,
+      ],
+    );
 
   /* ============================================================
      RENDER
@@ -234,18 +351,14 @@ export default function NewArrivals({
 
   return (
     <View
-      style={
-        styles.container
-      }
+      style={styles.container}
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
       <View
-        style={
-          styles.header
-        }
+        style={styles.header}
       >
         <View
           style={
@@ -253,43 +366,60 @@ export default function NewArrivals({
           }
         >
           <AppText
+            variant="heading3"
             weight="bold"
-            style={
-              styles.title
-            }
+            numberOfLines={1}
+            style={styles.title}
           >
             New Arrivals
           </AppText>
 
-          {dealsLoading && (
+          {dealsLoading ? (
             <ActivityIndicator
               size="small"
-              color="#2563EB"
+              color={
+                CustomerColors.primary
+              }
               style={
                 styles.dealLoader
               }
             />
-          )}
+          ) : null}
         </View>
 
         <Pressable
           hitSlop={8}
-          onPress={() =>
-            router.push(
-              "/(customer)/market/popular",
-            )
+          onPress={
+            handleSeeAll
           }
           accessibilityRole="button"
           accessibilityLabel="See all new arrivals"
+          style={({
+            pressed,
+          }) => [
+            styles.seeAllButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
           <AppText
-            weight="semibold"
-            style={
-              styles.seeAll
-            }
+            variant="caption"
+            weight="bold"
+            style={styles.seeAll}
           >
             See All
           </AppText>
+
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
         </Pressable>
       </View>
 
@@ -299,16 +429,18 @@ export default function NewArrivals({
 
       {loading ? (
         <View
-          style={
-            styles.center
-          }
+          style={styles.center}
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -316,23 +448,46 @@ export default function NewArrivals({
             Loading products...
           </AppText>
         </View>
-      ) : products.length ===
+      ) : displayProducts.length ===
         0 ? (
         /* ====================================================
            EMPTY
         ==================================================== */
 
         <View
-          style={
-            styles.center
-          }
+          style={styles.center}
         >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              size="lg"
+              state="muted"
+            />
+          </View>
+
           <AppText
+            variant="body"
+            weight="bold"
+            style={
+              styles.emptyTitle
+            }
+          >
+            No products available
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            center
             style={
               styles.emptyText
             }
           >
-            No products available
+            New market products will appear here when available.
           </AppText>
         </View>
       ) : (
@@ -348,59 +503,23 @@ export default function NewArrivals({
           keyExtractor={(
             item,
           ) => item.id}
+          renderItem={
+            renderProduct
+          }
           showsHorizontalScrollIndicator={
             false
           }
           contentContainerStyle={
             styles.list
           }
-          renderItem={({
-            item,
-          }) => (
-            <View
-              style={
-                styles.item
-              }
-            >
-              <ProductGridCard
-                id={
-                  item.id
-                }
-
-                name={
-                  item.name
-                }
-
-                price={
-                  item.price
-                }
-
-                image={
-                  item.thumbnail
-                }
-
-                activeDeal={
-                  item.activeDeal
-                }
-
-                onPress={() =>
-                  handleProductPress(
-                    item.id,
-                  )
-                }
-
-                /*
-                 * Buy button opens
-                 * product details.
-                 */
-                onBuy={() =>
-                  handleProductPress(
-                    item.id,
-                  )
-                }
-              />
-            </View>
-          )}
+          initialNumToRender={
+            5
+          }
+          maxToRenderPerBatch={
+            PRODUCT_LIMIT
+          }
+          windowSize={3}
+          keyboardShouldPersistTaps="handled"
         />
       )}
     </View>
@@ -413,8 +532,13 @@ export default function NewArrivals({
 
 const styles =
   StyleSheet.create({
+    /* ==========================================================
+       CONTAINER
+    ========================================================== */
+
     container: {
-      marginBottom: 15,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     /* ==========================================================
@@ -422,42 +546,69 @@ const styles =
     ========================================================== */
 
     header: {
-      flexDirection:
-        "row",
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
 
       justifyContent:
         "space-between",
 
-      alignItems:
-        "center",
-
-      marginBottom: 12,
+      alignItems: "center",
     },
 
     headerLeft: {
-      flexDirection:
-        "row",
+      flex: 1,
 
-      alignItems:
-        "center",
+      minWidth: 0,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 20,
+      flexShrink: 1,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     dealLoader: {
-      marginLeft: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     seeAll: {
-      fontSize: 14,
-
       color:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
     /* ==========================================================
@@ -465,13 +616,16 @@ const styles =
     ========================================================== */
 
     list: {
-      paddingRight: 16,
+      paddingRight:
+        FixxamTokens.spacing.lg,
     },
 
     item: {
-      width: 200,
+      width:
+        PRODUCT_CARD_WIDTH,
 
-      marginRight: 11,
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
@@ -479,31 +633,70 @@ const styles =
     ========================================================== */
 
     center: {
-      paddingVertical: 38,
+      minHeight: 150,
 
-      alignItems:
-        "center",
+      paddingVertical:
+        FixxamTokens.spacing.xl,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems: "center",
 
       justifyContent:
         "center",
     },
 
     loadingText: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-      fontSize: 12,
+    emptyIcon: {
+      width:
+        FixxamTokens.size
+          .avatarLg,
 
+      height:
+        FixxamTokens.size
+          .avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    emptyTitle: {
       color:
-        "#64748B",
+        Colors.textPrimary,
     },
 
     emptyText: {
-      fontSize: 13,
+      maxWidth: 280,
 
-      color:
-        "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      textAlign:
-        "center",
+      lineHeight: 17,
+    },
+
+    /* ==========================================================
+       PRESS
+    ========================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
   });

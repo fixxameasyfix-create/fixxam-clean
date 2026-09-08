@@ -4,8 +4,17 @@ import React, {
   useState,
 } from "react";
 
+import {
+  StyleSheet,
+  View,
+} from "react-native";
+
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
+
+import {
+  registerGlobals,
+} from "@livekit/react-native";
 
 import {
   Stack,
@@ -27,11 +36,6 @@ import {
 } from "react-native-keyboard-controller";
 
 import {
-  View,
-  StyleSheet,
-} from "react-native";
-
-import {
   CartProvider,
 } from "@/contexts/CartContext";
 
@@ -44,15 +48,30 @@ import {
   toastConfig,
 } from "@/components/ui/AppToast";
 
+import IncomingCallProvider from "@/providers/IncomingCallProvider";
+
 import useRegisterPushToken from "@/hooks/notifications/useRegisterPushToken";
+
+/* ============================================================
+   LIVEKIT WEBRTC GLOBALS
+============================================================ */
+
+/**
+ * Must run before LiveKit/WebRTC is used anywhere
+ * inside the application.
+ *
+ * Keep this outside React components so it runs
+ * only when the app bundle initializes.
+ */
+registerGlobals();
 
 /* ============================================================
    NATIVE SPLASH
 ============================================================ */
 
-SplashScreen.preventAutoHideAsync().catch(
-  () => {},
-);
+void SplashScreen
+  .preventAutoHideAsync()
+  .catch(() => {});
 
 SplashScreen.setOptions({
   duration: 220,
@@ -64,27 +83,78 @@ SplashScreen.setOptions({
 ============================================================ */
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (
+    notification,
+  ) => {
+    const data =
+      notification.request
+        .content.data as
+        | Record<string, unknown>
+        | undefined;
+
+    const type =
+      typeof data?.type ===
+      "string"
+        ? data.type
+        : "";
+
+    /*
+     * When Fixxam is already foregrounded,
+     * IncomingCallProvider owns the incoming-call UI.
+     *
+     * Do not show a second notification banner
+     * over IncomingCallModal.
+     */
+    if (
+      type ===
+      "incoming_call"
+    ) {
+      return {
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      };
+    }
+
+    return {
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 /* ============================================================
    TYPES
 ============================================================ */
 
+type NotificationRecipientRole =
+  | "customer"
+  | "worker";
+
+type NotificationType =
+  | "incoming_call"
+  | "missed_call"
+  | "service_request"
+  | "booking"
+  | "market_order"
+  | "system"
+  | string;
+
 type NotificationData = {
-  type?:
-    | "service_request"
-    | "booking"
-    | "market_order"
-    | "system"
-    | string;
+  type?: NotificationType;
 
   action?: string;
+
+  recipientId?: string;
+
+  recipientRole?:
+    | NotificationRecipientRole
+    | string;
+
+  callId?: string;
 
   bookingId?: string;
 
@@ -93,6 +163,8 @@ type NotificationData = {
   requestId?: string;
 
   workerId?: string;
+
+  customerId?: string;
 
   [key: string]: unknown;
 };
@@ -132,12 +204,14 @@ export default function RootLayout() {
 function AppNavigation() {
   const {
     loading: authLoading,
-  } = useAuth();
+  } =
+    useAuth();
 
   const [
     appReady,
     setAppReady,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ==========================================================
      REGISTER PUSH TOKEN
@@ -150,12 +224,16 @@ function AppNavigation() {
   ========================================================== */
 
   useEffect(() => {
-    if (authLoading) {
+    if (
+      authLoading
+    ) {
       return;
     }
 
     setAppReady(true);
-  }, [authLoading]);
+  }, [
+    authLoading,
+  ]);
 
   /* ==========================================================
      HIDE SPLASH
@@ -163,19 +241,26 @@ function AppNavigation() {
 
   const handleLayout =
     useCallback(async () => {
-      if (!appReady) {
+      if (
+        !appReady
+      ) {
         return;
       }
 
       try {
-        await SplashScreen.hideAsync();
-      } catch (error) {
+        await SplashScreen
+          .hideAsync();
+      } catch (
+        error
+      ) {
         console.error(
           "FIXXAM_SPLASH_HIDE_ERROR:",
           error,
         );
       }
-    }, [appReady]);
+    }, [
+      appReady,
+    ]);
 
   /* ==========================================================
      NOTIFICATION NAVIGATION
@@ -184,92 +269,232 @@ function AppNavigation() {
   const handleNotificationResponse =
     useCallback(
       (
-        response: Notifications.NotificationResponse,
+        response:
+          Notifications.NotificationResponse,
       ) => {
         try {
           const rawData =
-            response.notification.request.content
+            response
+              .notification
+              .request
+              .content
               .data;
 
           const data =
             rawData as NotificationData;
 
-          const type = data?.type;
+          const type =
+            data?.type;
 
-          /* --------------------------------------------------
-             SERVICE REQUEST
-          -------------------------------------------------- */
+          const role =
+            data?.recipientRole;
+
+          /* ==================================================
+             VOICE CALL
+          ================================================== */
 
           if (
-            type === "service_request" &&
-            typeof data.requestId === "string"
+            (
+              type ===
+                "incoming_call" ||
+              type ===
+                "missed_call"
+            ) &&
+            typeof data.callId ===
+              "string"
           ) {
+            const callId =
+              data.callId.trim();
+
+            if (
+              callId
+            ) {
+              router.push({
+                pathname:
+                  "/voice-call/[callId]",
+
+                params: {
+                  callId,
+                },
+              } as never);
+
+              return;
+            }
+          }
+
+          /* ==================================================
+             WORKER NOTIFICATIONS
+          ================================================== */
+
+          if (
+            role ===
+            "worker"
+          ) {
+            /* ----------------------------------------------
+               MARKET ORDER
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "market_order" &&
+              typeof data.orderId ===
+                "string"
+            ) {
+              router.push(
+                `/(worker)/orders/${encodeURIComponent(
+                  data.orderId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               BOOKING
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "booking" &&
+              typeof data.bookingId ===
+                "string"
+            ) {
+              router.push(
+                `/(worker)/bookings/${encodeURIComponent(
+                  data.bookingId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               SERVICE REQUEST
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "service_request" &&
+              typeof data.requestId ===
+                "string"
+            ) {
+              router.push(
+                `/(worker)/notifications?requestId=${encodeURIComponent(
+                  data.requestId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               WORKER FALLBACK
+            ---------------------------------------------- */
+
             router.push(
-              `/(customer)/notifications?requestId=${encodeURIComponent(
-                data.requestId,
-              )}` as never,
+              "/(worker)/notifications" as never,
             );
 
             return;
           }
 
-          /* --------------------------------------------------
-             BOOKING
-          -------------------------------------------------- */
+          /* ==================================================
+             CUSTOMER NOTIFICATIONS
+          ================================================== */
 
           if (
-            type === "booking" &&
-            typeof data.bookingId === "string"
+            role ===
+            "customer"
           ) {
+            /* ----------------------------------------------
+               SERVICE REQUEST
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "service_request" &&
+              typeof data.requestId ===
+                "string"
+            ) {
+              router.push(
+                `/(customer)/notifications?requestId=${encodeURIComponent(
+                  data.requestId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               BOOKING
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "booking" &&
+              typeof data.bookingId ===
+                "string"
+            ) {
+              router.push(
+                `/(customer)/bookings/${encodeURIComponent(
+                  data.bookingId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               MARKET ORDER
+            ---------------------------------------------- */
+
+            if (
+              type ===
+                "market_order" &&
+              typeof data.orderId ===
+                "string"
+            ) {
+              router.push(
+                `/(customer)/orders/${encodeURIComponent(
+                  data.orderId,
+                )}` as never,
+              );
+
+              return;
+            }
+
+            /* ----------------------------------------------
+               CUSTOMER FALLBACK
+            ---------------------------------------------- */
+
             router.push(
-              `/(customer)/bookings/${encodeURIComponent(
-                data.bookingId,
-              )}` as never,
+              "/(customer)/notifications" as never,
             );
 
             return;
           }
 
-          /* --------------------------------------------------
-             MARKET ORDER
-          -------------------------------------------------- */
+          /* ==================================================
+             UNKNOWN / LEGACY
+          ================================================== */
 
-          if (
-            type === "market_order" &&
-            typeof data.orderId === "string"
-          ) {
-            router.push(
-              `/(customer)/orders/${encodeURIComponent(
-                data.orderId,
-              )}` as never,
-            );
+          console.warn(
+            "FIXXAM_UNKNOWN_NOTIFICATION_ROLE:",
+            {
+              type:
+                type ?? null,
 
-            return;
-          }
-
-          /* --------------------------------------------------
-             SYSTEM / UNKNOWN
-          -------------------------------------------------- */
-
-          router.push(
-            "/(customer)/notifications" as never,
+              recipientRole:
+                role ?? null,
+            },
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
             "FIXXAM_NOTIFICATION_NAVIGATION_ERROR:",
             error,
           );
-
-          try {
-            router.push(
-              "/(customer)/notifications" as never,
-            );
-          } catch (navigationError) {
-            console.error(
-              "FIXXAM_NOTIFICATION_FALLBACK_ERROR:",
-              navigationError,
-            );
-          }
         }
       },
       [],
@@ -280,14 +505,17 @@ function AppNavigation() {
   ========================================================== */
 
   useEffect(() => {
-    if (!appReady) {
+    if (
+      !appReady
+    ) {
       return;
     }
 
     const responseSubscription =
-      Notifications.addNotificationResponseReceivedListener(
-        handleNotificationResponse,
-      );
+      Notifications
+        .addNotificationResponseReceivedListener(
+          handleNotificationResponse,
+        );
 
     return () => {
       responseSubscription.remove();
@@ -298,49 +526,70 @@ function AppNavigation() {
   ]);
 
   /* ==========================================================
-     HANDLE NOTIFICATION THAT OPENED THE APP
+     COLD START / INITIAL NOTIFICATION
   ========================================================== */
 
   useEffect(() => {
-    if (!appReady) {
+    if (
+      !appReady
+    ) {
       return;
     }
 
-    let mounted = true;
+    let mounted =
+      true;
+
+    let navigationTimer:
+      ReturnType<
+        typeof setTimeout
+      > | null =
+      null;
 
     const handleInitialNotification =
       async () => {
         try {
           const response =
-            await Notifications.getLastNotificationResponseAsync();
+            await Notifications
+              .getLastNotificationResponseAsync();
 
-          if (!mounted || !response) {
+          if (
+            !mounted ||
+            !response
+          ) {
             return;
           }
 
-          setTimeout(() => {
-            if (!mounted) {
-              return;
-            }
+          navigationTimer =
+            setTimeout(
+              () => {
+                if (
+                  !mounted
+                ) {
+                  return;
+                }
 
-            handleNotificationResponse(
-              response,
-            );
-
-            /**
-             * Prevent the same notification from
-             * being processed again on a later mount.
-             */
-            void Notifications.clearLastNotificationResponseAsync().catch(
-              (error) => {
-                console.error(
-                  "FIXXAM_CLEAR_NOTIFICATION_RESPONSE_ERROR:",
-                  error,
+                handleNotificationResponse(
+                  response,
                 );
+
+                void Notifications
+                  .clearLastNotificationResponseAsync()
+                  .catch(
+                    (
+                      error,
+                    ) => {
+                      console.error(
+                        "FIXXAM_CLEAR_NOTIFICATION_RESPONSE_ERROR:",
+                        error,
+                      );
+                    },
+                  );
               },
+              300,
             );
-          }, 300);
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
             "FIXXAM_INITIAL_NOTIFICATION_ERROR:",
             error,
@@ -351,7 +600,16 @@ function AppNavigation() {
     void handleInitialNotification();
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
+
+      if (
+        navigationTimer
+      ) {
+        clearTimeout(
+          navigationTimer,
+        );
+      }
     };
   }, [
     appReady,
@@ -359,34 +617,44 @@ function AppNavigation() {
   ]);
 
   /* ==========================================================
-     KEEP NATIVE SPLASH
+     KEEP SPLASH UNTIL READY
   ========================================================== */
 
-  if (!appReady) {
+  if (
+    !appReady
+  ) {
     return null;
   }
 
   /* ==========================================================
-     NAVIGATION
+     NAVIGATION + GLOBAL INCOMING CALL
   ========================================================== */
 
   return (
     <View
-      style={styles.navigation}
-      onLayout={handleLayout}
+      style={
+        styles.navigation
+      }
+      onLayout={
+        handleLayout
+      }
     >
-      <Stack
-        screenOptions={{
-          headerShown: false,
+      <IncomingCallProvider>
+        <Stack
+          screenOptions={{
+            headerShown:
+              false,
 
-          animation: "fade",
+            animation:
+              "fade",
 
-          contentStyle: {
-            backgroundColor:
-              "#FFFFFF",
-          },
-        }}
-      />
+            contentStyle: {
+              backgroundColor:
+                "#FFFFFF",
+            },
+          }}
+        />
+      </IncomingCallProvider>
     </View>
   );
 }
@@ -403,6 +671,7 @@ const styles =
 
     navigation: {
       flex: 1,
+
       backgroundColor:
         "#FFFFFF",
     },

@@ -1,83 +1,223 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useState,
+} from "react";
+
+import { Image } from "expo-image";
+
 import {
-  Image,
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import UiAppIcon from "@/components/ui/AppIcon";
 
-type Props = {
-  uri?: string;
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
 
-  size?: number;
+type AvatarSize =
+  | "xs"
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl";
+
+export interface AppAvatarProps {
+  uri?: string | null;
+
+  /*
+   * Semantic size is preferred.
+   * Numbers remain supported for legacy screens.
+   */
+  size?: AvatarSize | number;
+
+  role?: FixxamRole;
 
   verified?: boolean;
 
   online?: boolean;
+
+  accessibilityLabel?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+const AVATAR_SIZES: Record<
+  AvatarSize,
+  number
+> = {
+  xs: FixxamTokens.size.avatarXs,
+  sm: FixxamTokens.size.avatarSm,
+  md: FixxamTokens.size.avatarMd,
+  lg: FixxamTokens.size.avatarLg,
+  xl: FixxamTokens.size.avatarXl,
 };
 
-export default function AppAvatar({
+function AppAvatar({
   uri,
-
-  size = 64,
-
+  size = "lg",
+  role = "customer",
   verified = false,
-
   online = false,
-}: Props) {
+  accessibilityLabel = "Profile photo",
+  style,
+}: AppAvatarProps) {
+  const [imageFailed, setImageFailed] =
+    useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [uri]);
+
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const resolvedSize =
+    typeof size === "number"
+      ? size
+      : AVATAR_SIZES[size];
+
+  const showImage =
+    Boolean(uri) && !imageFailed;
+
+  const placeholderIconSize =
+    Math.max(
+      FixxamTokens.size.iconMd,
+      resolvedSize * 0.46,
+    );
+
+  const verifiedSize =
+    Math.max(
+      18,
+      Math.min(24, resolvedSize * 0.32),
+    );
+
+  const onlineSize =
+    Math.max(
+      10,
+      Math.min(16, resolvedSize * 0.22),
+    );
+
   return (
     <View
+      accessibilityRole="image"
+      accessibilityLabel={
+        accessibilityLabel
+      }
       style={[
         styles.container,
         {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
+          width: resolvedSize,
+          height: resolvedSize,
+          borderRadius:
+            FixxamTokens.radius.full,
         },
+        style,
       ]}
     >
-      {uri ? (
+      {showImage ? (
         <Image
-          source={{ uri }}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-          }}
+          source={{ uri: uri! }}
+          style={[
+            styles.image,
+            {
+              width: resolvedSize,
+              height: resolvedSize,
+              borderRadius:
+                FixxamTokens.radius.full,
+            },
+          ]}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={150}
+          onError={() =>
+            setImageFailed(true)
+          }
         />
       ) : (
         <View
           style={[
             styles.placeholder,
             {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
+              width: resolvedSize,
+              height: resolvedSize,
+              borderRadius:
+                FixxamTokens.radius.full,
+
+              backgroundColor:
+                colors.iconBackground,
             },
           ]}
         >
-          <MaterialCommunityIcons
-            name="account"
-            size={size * 0.55}
-            color="#94A3B8"
+          <UiAppIcon
+            name="profile"
+            role={role}
+            size={placeholderIconSize}
+            state="muted"
           />
         </View>
       )}
 
-      {verified && (
-        <View style={styles.verified}>
-          <MaterialCommunityIcons
-            name="check-decagram"
-            size={20}
-            color="#2563EB"
+      {verified ? (
+        <View
+          style={[
+            styles.verified,
+            {
+              width: verifiedSize,
+              height: verifiedSize,
+
+              borderRadius:
+                FixxamTokens.radius.full,
+
+              backgroundColor:
+                Colors.surface,
+
+              borderColor:
+                Colors.surface,
+            },
+          ]}
+        >
+          <UiAppIcon
+            name="verified"
+            role={role}
+            size={verifiedSize * 0.72}
+            color={colors.primary}
+            strokeWidth="medium"
           />
         </View>
-      )}
+      ) : null}
 
-      {online && (
-        <View style={styles.online} />
-      )}
+      {online ? (
+        <View
+          accessibilityLabel="Online"
+          style={[
+            styles.online,
+            {
+              width: onlineSize,
+              height: onlineSize,
+
+              borderRadius:
+                FixxamTokens.radius.full,
+
+              backgroundColor:
+                Colors.success,
+
+              borderColor:
+                Colors.surface,
+            },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }
@@ -87,35 +227,37 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
+  image: {
+    backgroundColor:
+      Colors.disabledBackground,
+  },
+
   placeholder: {
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
 
   verified: {
     position: "absolute",
+
     right: -2,
     bottom: -2,
 
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderWidth: 2,
   },
 
   online: {
     position: "absolute",
 
-    top: 2,
-    right: 2,
-
-    width: 14,
-    height: 14,
-
-    borderRadius: 7,
-
-    backgroundColor: "#22C55E",
+    top: 1,
+    right: 1,
 
     borderWidth: 2,
-    borderColor: "#FFFFFF",
   },
 });
+
+export default memo(AppAvatar);

@@ -1,182 +1,400 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
   StyleSheet,
   Switch,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   rating: number;
+
   reviewCount: number;
+
   online: boolean;
-  onToggleOnline: (value: boolean) => void;
+
+  onToggleOnline: (
+    value: boolean,
+  ) => void;
 };
 
-export default function WorkerStatusCard({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafeRating(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+function getSafeReviewCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerStatusCard({
   rating,
   reviewCount,
   online,
   onToggleOnline,
 }: Props) {
+  const safeRating =
+    useMemo(
+      () =>
+        getSafeRating(
+          rating,
+        ),
+      [rating],
+    );
+
+  const safeReviewCount =
+    useMemo(
+      () =>
+        getSafeReviewCount(
+          reviewCount,
+        ),
+      [reviewCount],
+    );
+
   return (
-    <View style={styles.container}>
-      <View style={styles.left}>
-        <View style={styles.ratingIcon}>
-          <Ionicons
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          RATING
+      ====================================================== */}
+
+      <View
+        style={
+          styles.left
+        }
+      >
+        <View
+          style={
+            styles.ratingIcon
+          }
+        >
+          <AppIcon
             name="star"
-            size={16}
-            color="#F59E0B"
+            size="sm"
+            color={
+              Colors.warning
+            }
           />
         </View>
 
         <View>
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.rating}
+            style={
+              styles.rating
+            }
           >
-            {rating.toFixed(1)}
+            {safeRating.toFixed(
+              1,
+            )}
           </AppText>
 
-          <AppText style={styles.reviewText}>
-            {reviewCount}{" "}
-            {reviewCount === 1
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.reviewText
+            }
+          >
+            {safeReviewCount}{" "}
+            {safeReviewCount ===
+            1
               ? "Review"
               : "Reviews"}
           </AppText>
         </View>
       </View>
 
-      <View style={styles.right}>
-        <View style={styles.statusRow}>
+      {/* ======================================================
+          STATUS
+      ====================================================== */}
+
+      <View
+        style={
+          styles.right
+        }
+      >
+        <View
+          style={
+            styles.statusRow
+          }
+        >
           <View
             style={[
               styles.statusDot,
-              {
-                backgroundColor: online
-                  ? "#22C55E"
-                  : "#94A3B8",
-              },
+
+              online
+                ? styles.onlineDot
+                : styles.offlineDot,
             ]}
           />
 
           <AppText
-            weight="medium"
-            style={styles.statusText}
+            variant="caption"
+            weight="bold"
+            style={
+              styles.statusText
+            }
           >
-            {online ? "Online" : "Offline"}
+            {online
+              ? "Online"
+              : "Offline"}
           </AppText>
         </View>
 
         <Switch
-          value={online}
-          onValueChange={onToggleOnline}
+          value={
+            online
+          }
+          onValueChange={
+            onToggleOnline
+          }
           trackColor={{
-            false: "#CBD5E1",
-            true: "#93C5FD",
+            false:
+              Colors.disabled,
+
+            true:
+              WorkerColors.primarySoft,
           }}
           thumbColor={
-            online ? "#2563EB" : "#FFFFFF"
+            online
+              ? WorkerColors.primary
+              : Colors.surface
           }
-          style={{
-            transform: [
-              { scaleX: 0.75 },
-              { scaleY: 0.75 },
-            ],
+          ios_backgroundColor={
+            Colors.disabled
+          }
+          accessibilityRole="switch"
+          accessibilityLabel="Worker availability"
+          accessibilityState={{
+            checked:
+              online,
           }}
+          style={
+            styles.switch
+          }
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+/* ============================================================
+   MEMO
+============================================================ */
 
-    height: 74,
+WorkerStatusCard.displayName =
+  "WorkerStatusCard";
 
-    marginBottom: 14,
+export default memo(
+  WorkerStatusCard,
+);
 
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    borderRadius: 18,
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    backgroundColor: "#EEF6FF",
+      minHeight: 74,
 
-    borderWidth: 1,
-    borderColor: "#D7E8FF",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       RATING
+    ======================================================== */
 
-  left: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    left: {
+      flex: 1,
 
-  ratingIcon: {
-    width: 36,
-    height: 36,
+      flexDirection:
+        "row",
 
-    borderRadius: 18,
+      alignItems:
+        "center",
+    },
 
-    backgroundColor: "#DBEAFE",
+    ratingIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-    justifyContent: "center",
-    alignItems: "center",
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-    marginRight: 10,
-  },
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-  rating: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      alignItems:
+        "center",
 
-  reviewText: {
-    marginTop: 1,
-    fontSize: 11,
-    color: "#64748B",
-  },
+      justifyContent:
+        "center",
 
-  right: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
-  },
+      backgroundColor:
+        Colors.warningSoft,
+    },
 
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
+    rating: {
+      color:
+        Colors.textPrimary,
+    },
 
-  statusText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
-});
+    reviewText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
+    right: {
+      alignItems:
+        "flex-end",
+
+      justifyContent:
+        "center",
+    },
+
+    statusRow: {
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    statusDot: {
+      width: 8,
+
+      height: 8,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    onlineDot: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    offlineDot: {
+      backgroundColor:
+        Colors.textMuted,
+    },
+
+    statusText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    switch: {
+      transform: [
+        {
+          scaleX: 0.78,
+        },
+        {
+          scaleY: 0.78,
+        },
+      ],
+    },
+  });

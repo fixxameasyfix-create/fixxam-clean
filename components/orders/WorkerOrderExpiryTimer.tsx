@@ -2,6 +2,7 @@ import React, {
   memo,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -10,9 +11,15 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -20,6 +27,7 @@ import { AppText } from "@/components/ui";
 
 type Props = {
   expiresAt: unknown;
+
   onExpired?: () => void;
 };
 
@@ -30,9 +38,13 @@ type Props = {
 function resolveTimestampMillis(
   value: unknown,
 ): number | null {
-  if (!value) {
+  if (value == null) {
     return null;
   }
+
+  /* ========================================================
+     FIRESTORE TIMESTAMP
+  ======================================================== */
 
   if (
     typeof value === "object" &&
@@ -44,16 +56,24 @@ function resolveTimestampMillis(
       }
     ).toMillis === "function"
   ) {
-    const millis = (
-      value as {
-        toMillis: () => number;
-      }
-    ).toMillis();
+    try {
+      const millis = (
+        value as {
+          toMillis: () => number;
+        }
+      ).toMillis();
 
-    return Number.isFinite(millis)
-      ? millis
-      : null;
+      return Number.isFinite(millis)
+        ? millis
+        : null;
+    } catch {
+      return null;
+    }
   }
+
+  /* ========================================================
+     NUMBER
+  ======================================================== */
 
   if (
     typeof value === "number" &&
@@ -62,12 +82,31 @@ function resolveTimestampMillis(
     return value;
   }
 
+  /* ========================================================
+     DATE
+  ======================================================== */
+
   if (value instanceof Date) {
-    return value.getTime();
+    const millis =
+      value.getTime();
+
+    return Number.isFinite(millis)
+      ? millis
+      : null;
   }
 
-  if (typeof value === "string") {
-    const millis = Date.parse(value);
+  /* ========================================================
+     STRING DATE
+  ======================================================== */
+
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    const millis =
+      Date.parse(
+        value.trim(),
+      );
 
     return Number.isFinite(millis)
       ? millis
@@ -77,42 +116,67 @@ function resolveTimestampMillis(
   return null;
 }
 
+function getRemainingMilliseconds(
+  expiryMillis: number,
+): number {
+  return Math.max(
+    0,
+    expiryMillis - Date.now(),
+  );
+}
+
 function formatRemaining(
   milliseconds: number,
 ): string {
-  const totalSeconds = Math.max(
-    0,
-    Math.ceil(milliseconds / 1000),
-  );
+  const totalSeconds =
+    Math.max(
+      0,
+      Math.ceil(
+        milliseconds / 1000,
+      ),
+    );
 
-  const hours = Math.floor(
-    totalSeconds / 3600,
-  );
+  const hours =
+    Math.floor(
+      totalSeconds / 3600,
+    );
 
-  const minutes = Math.floor(
-    (totalSeconds % 3600) / 60,
-  );
+  const minutes =
+    Math.floor(
+      (totalSeconds % 3600) /
+        60,
+    );
 
   const seconds =
     totalSeconds % 60;
 
   if (hours > 0) {
-    return `${String(hours).padStart(
+    return `${String(
+      hours,
+    ).padStart(
       2,
       "0",
-    )}:${String(minutes).padStart(
+    )}:${String(
+      minutes,
+    ).padStart(
       2,
       "0",
-    )}:${String(seconds).padStart(
+    )}:${String(
+      seconds,
+    ).padStart(
       2,
       "0",
     )}`;
   }
 
-  return `${String(minutes).padStart(
+  return `${String(
+    minutes,
+  ).padStart(
     2,
     "0",
-  )}:${String(seconds).padStart(
+  )}:${String(
+    seconds,
+  ).padStart(
     2,
     "0",
   )}`;
@@ -126,108 +190,242 @@ function WorkerOrderExpiryTimer({
   expiresAt,
   onExpired,
 }: Props) {
-  const expiryMillis = useMemo(
-    () =>
-      resolveTimestampMillis(
-        expiresAt,
-      ),
-    [expiresAt],
-  );
+  const expiryMillis =
+    useMemo(
+      () =>
+        resolveTimestampMillis(
+          expiresAt,
+        ),
+      [expiresAt],
+    );
 
   const [
     remaining,
     setRemaining,
   ] = useState(() => {
-    if (!expiryMillis) {
+    if (
+      expiryMillis === null
+    ) {
       return 0;
     }
 
-    return Math.max(
-      0,
-      expiryMillis - Date.now(),
+    return getRemainingMilliseconds(
+      expiryMillis,
     );
   });
 
+  /*
+   * Keep latest callback without
+   * restarting the countdown whenever
+   * callback identity changes.
+   */
+  const onExpiredRef =
+    useRef(onExpired);
+
+  /*
+   * Prevent duplicate expiry callback.
+   */
+  const handledExpiryRef =
+    useRef<number | null>(
+      null,
+    );
+
+  /* ==========================================================
+     KEEP CALLBACK CURRENT
+  ========================================================== */
+
   useEffect(() => {
-    if (!expiryMillis) {
+    onExpiredRef.current =
+      onExpired;
+  }, [onExpired]);
+
+  /* ==========================================================
+     COUNTDOWN
+  ========================================================== */
+
+  useEffect(() => {
+    handledExpiryRef.current =
+      null;
+
+    if (
+      expiryMillis === null
+    ) {
       setRemaining(0);
+
       return;
     }
 
-    const updateTimer = () => {
-      const nextRemaining =
-        Math.max(
-          0,
-          expiryMillis - Date.now(),
+    let mounted = true;
+
+    let interval:
+      | ReturnType<
+          typeof setInterval
+        >
+      | null = null;
+
+    const handleExpired =
+      () => {
+        if (
+          handledExpiryRef.current ===
+          expiryMillis
+        ) {
+          return;
+        }
+
+        handledExpiryRef.current =
+          expiryMillis;
+
+        try {
+          onExpiredRef.current?.();
+        } catch (error) {
+          console.error(
+            "WORKER_ORDER_EXPIRY_CALLBACK_ERROR",
+            error,
+          );
+        }
+      };
+
+    const updateTimer =
+      (): boolean => {
+        if (!mounted) {
+          return false;
+        }
+
+        const nextRemaining =
+          getRemainingMilliseconds(
+            expiryMillis,
+          );
+
+        setRemaining(
+          nextRemaining,
         );
 
-      setRemaining(nextRemaining);
+        if (
+          nextRemaining <= 0
+        ) {
+          handleExpired();
 
-      if (nextRemaining <= 0) {
-        onExpired?.();
-      }
-    };
+          return false;
+        }
 
-    updateTimer();
+        return true;
+      };
 
-    const interval =
-      setInterval(
-        updateTimer,
-        1000,
-      );
+    const shouldContinue =
+      updateTimer();
+
+    if (shouldContinue) {
+      interval =
+        setInterval(
+          () => {
+            const stillActive =
+              updateTimer();
+
+            if (
+              !stillActive &&
+              interval
+            ) {
+              clearInterval(
+                interval,
+              );
+
+              interval = null;
+            }
+          },
+          1000,
+        );
+    }
 
     return () => {
-      clearInterval(interval);
-    };
-  }, [
-    expiryMillis,
-    onExpired,
-  ]);
+      mounted = false;
 
-  if (!expiryMillis) {
+      if (interval) {
+        clearInterval(
+          interval,
+        );
+      }
+    };
+  }, [expiryMillis]);
+
+  /* ==========================================================
+     INVALID EXPIRY
+  ========================================================== */
+
+  if (
+    expiryMillis === null
+  ) {
     return null;
   }
 
   const expired =
     remaining <= 0;
 
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <View
+      accessible
+      accessibilityLabel={
+        expired
+          ? "Offer expired. This offer is no longer available."
+          : `Offer expires in ${formatRemaining(
+              remaining,
+            )}.`
+      }
       style={[
         styles.container,
-        expired &&
-          styles.expiredContainer,
+
+        expired
+          ? styles.expiredContainer
+          : null,
       ]}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconContainer,
-          expired &&
-            styles.expiredIconContainer,
+
+          expired
+            ? styles.expiredIconContainer
+            : null,
         ]}
       >
-        <Ionicons
+        <AppIcon
           name={
             expired
-              ? "alert-circle-outline"
-              : "time-outline"
+              ? "error"
+              : "clock"
           }
-          size={19}
+          size="sm"
           color={
             expired
-              ? "#DC2626"
-              : "#D97706"
+              ? Colors.error
+              : Colors.warning
           }
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="caption"
           weight="bold"
           style={[
             styles.title,
-            expired &&
-              styles.expiredTitle,
+
+            expired
+              ? styles.expiredTitle
+              : null,
           ]}
         >
           {expired
@@ -237,6 +435,8 @@ function WorkerOrderExpiryTimer({
 
         {!expired ? (
           <AppText
+            variant="bodyLarge"
+            weight="bold"
             style={styles.timer}
           >
             {formatRemaining(
@@ -245,7 +445,11 @@ function WorkerOrderExpiryTimer({
           </AppText>
         ) : (
           <AppText
-            style={styles.expiredText}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.expiredText
+            }
           >
             This offer is no longer available.
           </AppText>
@@ -263,64 +467,116 @@ export default memo(
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 10,
-    minHeight: 62,
-    padding: 10,
-    borderRadius: 16,
-    backgroundColor: "#FFF7E8",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  iconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    backgroundColor: "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    container: {
+      minHeight: 62,
 
-  content: {
-    flex: 1,
-    marginLeft: 10,
-  },
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-  title: {
-    fontSize: 9,
-    letterSpacing: 0.6,
-    color: "#92400E",
-  },
+      padding:
+        FixxamTokens.spacing.sm,
 
-  timer: {
-    marginTop: 3,
-    fontSize: 17,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    color: "#D97706",
-  },
+      flexDirection: "row",
 
-  expiredContainer: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FECACA",
-  },
+      alignItems: "center",
 
-  expiredIconContainer: {
-    backgroundColor: "#FEE2E2",
-  },
+      borderWidth: 1,
 
-  expiredTitle: {
-    color: "#B91C1C",
-  },
+      borderColor:
+        Colors.warning,
 
-  expiredText: {
-    marginTop: 3,
-    fontSize: 9.5,
-    lineHeight: 15,
-    color: "#991B1B",
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    expiredContainer: {
+      borderColor:
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconContainer: {
+      width: 42,
+
+      height: 42,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    expiredIconContainer: {
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      letterSpacing: 0.6,
+
+      color:
+        Colors.warning,
+    },
+
+    timer: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      letterSpacing: 0.8,
+
+      color:
+        Colors.warning,
+    },
+
+    /* ========================================================
+       EXPIRED
+    ======================================================== */
+
+    expiredTitle: {
+      color:
+        Colors.error,
+    },
+
+    expiredText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 15,
+    },
+  });

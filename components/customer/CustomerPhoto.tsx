@@ -1,244 +1,373 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  Image,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppButton,
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-import { CustomerColors } from "@/theme";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   photo: string | null;
+
   onTakePhoto: () => void;
+
   onChoosePhoto: () => void;
+
   onSkip: () => void;
 };
 
-export default function CustomerPhoto({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CustomerPhoto({
   photo,
   onTakePhoto,
   onChoosePhoto,
   onSkip,
 }: Props) {
+  const hasPhoto =
+    typeof photo === "string" &&
+    photo.trim().length > 0;
+
   return (
-    <AppCard style={styles.card}>
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Add your profile photo
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Add a clear photo of yourself so
-        customers and Fixxam can easily
-        recognize your profile.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Add a clear photo of yourself so workers and Fixxam can easily recognize your profile.
       </AppText>
 
-      <View style={styles.qualityNotice}>
-        <Ionicons
-          name="checkmark-circle-outline"
-          size={18}
-          color="#2563EB"
-        />
+      {/* ========================================================
+          QUALITY NOTICE
+      ======================================================== */}
 
-        <AppText style={styles.qualityText}>
-          Please use a clear, well-lit photo
-          where your face is easy to see.
+      <View
+        style={
+          styles.qualityNotice
+        }
+      >
+        <View
+          style={
+            styles.noticeIcon
+          }
+        >
+          <AppIcon
+            name="success"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        </View>
+
+        <AppText
+          variant="caption"
+          style={
+            styles.qualityText
+          }
+        >
+          Please use a clear, well-lit photo where your face is easy to see.
         </AppText>
       </View>
 
-      <View style={styles.previewContainer}>
-        {photo ? (
+      {/* ========================================================
+          PHOTO PREVIEW
+      ======================================================== */}
+
+      <View
+        style={
+          styles.previewContainer
+        }
+      >
+        {hasPhoto ? (
           <Image
-            source={{ uri: photo }}
-            style={styles.photo}
+            source={{
+              uri: photo,
+            }}
+            contentFit="cover"
+            transition={150}
+            accessibilityLabel="Selected profile photo"
+            style={
+              styles.photo
+            }
           />
         ) : (
-          <View style={styles.placeholder}>
-            <Ionicons
-              name="person-outline"
-              size={42}
-              color={
-                CustomerColors.textSecondary
-              }
+          <View
+            accessibilityLabel="No profile photo selected"
+            style={
+              styles.placeholder
+            }
+          >
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="xl"
+              state="muted"
             />
           </View>
         )}
       </View>
 
-      <Pressable
-        onPress={onTakePhoto}
-        style={styles.primaryButton}
-      >
-        <Ionicons
-          name="camera-outline"
-          size={20}
-          color="#FFFFFF"
-        />
+      {/* ========================================================
+          ACTIONS
+      ======================================================== */}
 
-        <AppText style={styles.primaryText}>
-          Take Photo
-        </AppText>
-      </Pressable>
+      <AppButton
+        title="Take Photo"
+        role="customer"
+        variant="primary"
+        size="md"
+        leftIconName="camera"
+        onPress={
+          onTakePhoto
+        }
+      />
 
-      <Pressable
-        onPress={onChoosePhoto}
-        style={styles.secondaryButton}
+      <View
+        style={
+          styles.secondaryAction
+        }
       >
-        <Ionicons
-          name="images-outline"
-          size={20}
-          color={
-            CustomerColors.textPrimary
+        <AppButton
+          title="Choose from Gallery"
+          role="customer"
+          variant="outline"
+          size="md"
+          leftIconName="image"
+          onPress={
+            onChoosePhoto
           }
         />
+      </View>
 
-        <AppText style={styles.secondaryText}>
-          Choose from Gallery
-        </AppText>
-      </Pressable>
-
-      <Pressable
-        onPress={onSkip}
-        style={styles.skipButton}
+      <View
+        style={
+          styles.skipAction
+        }
       >
-        <AppText style={styles.skipText}>
-          Skip for now
-        </AppText>
-      </Pressable>
+        <AppButton
+          title="Skip for now"
+          role="customer"
+          variant="ghost"
+          size="sm"
+          onPress={
+            onSkip
+          }
+        />
+      </View>
 
-      <AppText style={styles.hint}>
-        You can add or change your photo
-        later from your profile.
+      {/* ========================================================
+          HINT
+      ======================================================== */}
+
+      <AppText
+        accessibilityRole="text"
+        variant="caption"
+        tone="secondary"
+        center
+        style={
+          styles.hint
+        }
+      >
+        You can add or change your photo later from your profile.
       </AppText>
     </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 20,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    borderRadius: 18,
-  },
+export default memo(
+  CustomerPhoto,
+);
 
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    color: CustomerColors.textPrimary,
-    marginBottom: 4,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: CustomerColors.textSecondary,
-    marginBottom: 12,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-  qualityNotice: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: "#EFF6FF",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 18,
-  },
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-  qualityText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
-    color: "#1E40AF",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  previewContainer: {
-    alignItems: "center",
-    marginBottom: 18,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  photo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.lg,
+    },
 
-  placeholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-  primaryButton: {
-    minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  primaryText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
-  },
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  secondaryButton: {
-    minHeight: 48,
-    marginTop: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  secondaryText: {
-    color: CustomerColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-  },
+    qualityNotice: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  skipButton: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 6,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  skipText: {
-    color: CustomerColors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-  hint: {
-    marginTop: 4,
-    textAlign: "center",
-    fontSize: 11,
-    lineHeight: 17,
-    color: CustomerColors.textSecondary,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    noticeIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "flex-start",
+
+      paddingTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    qualityText: {
+      flex: 1,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    previewContainer: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+    },
+
+    photo: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    placeholder: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    secondaryAction: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    skipAction: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    hint: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

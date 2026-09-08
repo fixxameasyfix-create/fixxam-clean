@@ -11,14 +11,15 @@ import {
   setDoc,
 } from "firebase/firestore";
 
-import {
-  onAuthStateChanged,
-} from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 
-import {
-  auth,
-  db,
-} from "@/firebase/config";
+import { auth, db } from "@/firebase/config";
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const ANDROID_CHANNEL_ID = "fixxam-default";
 
 /* ============================================================
    TYPES
@@ -34,6 +35,7 @@ type ConstantsWithExpoConfig = {
       eas?: ExpoConfigWithProject;
     };
   };
+  easConfig?: ExpoConfigWithProject;
 };
 
 /* ============================================================
@@ -45,7 +47,8 @@ function getExpoProjectId(): string | null {
     Constants as unknown as ConstantsWithExpoConfig;
 
   const projectId =
-    constants.expoConfig?.extra?.eas?.projectId;
+    constants.expoConfig?.extra?.eas?.projectId ??
+    constants.easConfig?.projectId;
 
   if (
     typeof projectId !== "string" ||
@@ -66,24 +69,51 @@ async function configureAndroidChannel(): Promise<void> {
     return;
   }
 
-  await Notifications.setNotificationChannelAsync(
-    "fixxam-default",
-    {
-      name: "Fixxam Notifications",
-      description:
-        "Booking, market order and service updates from Fixxam.",
-      importance:
-        Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#FFFFFF",
-      sound: "default",
-      lockscreenVisibility:
-        Notifications.AndroidNotificationVisibility.PUBLIC,
-      enableVibrate: true,
-      enableLights: true,
-      showBadge: true,
-    },
-  );
+  try {
+    await Notifications.setNotificationChannelAsync(
+      ANDROID_CHANNEL_ID,
+      {
+        name: "Fixxam Notifications",
+        description:
+          "Booking, market order and service updates from Fixxam.",
+
+        importance:
+          Notifications.AndroidImportance.MAX,
+
+        sound: "default",
+
+        vibrationPattern: [
+          0,
+          250,
+          250,
+          250,
+        ],
+
+        lightColor: "#FFFFFF",
+
+        lockscreenVisibility:
+          Notifications.AndroidNotificationVisibility.PUBLIC,
+
+        enableVibrate: true,
+        enableLights: true,
+        showBadge: true,
+      },
+    );
+
+    console.log(
+      "FIXXAM_NOTIFICATION_CHANNEL_READY",
+      {
+        channelId: ANDROID_CHANNEL_ID,
+      },
+    );
+  } catch (error) {
+    console.error(
+      "FIXXAM_NOTIFICATION_CHANNEL_ERROR:",
+      error,
+    );
+
+    throw error;
+  }
 }
 
 /* ============================================================
@@ -91,24 +121,130 @@ async function configureAndroidChannel(): Promise<void> {
 ============================================================ */
 
 async function requestNotificationPermission(): Promise<boolean> {
-  const currentPermissions =
-    await Notifications.getPermissionsAsync();
+  try {
+    const currentPermissions =
+      await Notifications.getPermissionsAsync();
 
-  let finalStatus =
-    currentPermissions.status;
+    let finalStatus =
+      currentPermissions.status;
 
-  if (finalStatus !== "granted") {
-    const requested =
-      await Notifications.requestPermissionsAsync();
+    if (finalStatus !== "granted") {
+      const requestedPermissions =
+        await Notifications.requestPermissionsAsync();
 
-    finalStatus = requested.status;
+      finalStatus =
+        requestedPermissions.status;
+    }
+
+    if (finalStatus !== "granted") {
+      console.warn(
+        "FIXXAM_PUSH_PERMISSION_DENIED",
+        {
+          status: finalStatus,
+        },
+      );
+
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(
+      "FIXXAM_PUSH_PERMISSION_ERROR:",
+      error,
+    );
+
+    return false;
   }
-
-  return finalStatus === "granted";
 }
 
 /* ============================================================
-   REGISTER TOKEN
+   GET EXPO PUSH TOKEN
+============================================================ */
+
+async function getExpoPushToken(): Promise<string | null> {
+  try {
+    const projectId =
+      getExpoProjectId();
+
+    if (!projectId) {
+      console.error(
+        "FIXXAM_PUSH_PROJECT_ID_MISSING",
+      );
+
+      return null;
+    }
+
+    const tokenResponse =
+      await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+
+    const token =
+      tokenResponse.data?.trim();
+
+    if (!token) {
+      console.error(
+        "FIXXAM_PUSH_TOKEN_INVALID",
+      );
+
+      return null;
+    }
+
+    return token;
+  } catch (error) {
+    console.error(
+      "FIXXAM_PUSH_TOKEN_FETCH_ERROR:",
+      error,
+    );
+
+    return null;
+  }
+}
+
+/* ============================================================
+   SAVE TOKEN
+============================================================ */
+
+async function savePushToken(
+  uid: string,
+  expoPushToken: string,
+): Promise<void> {
+  const userRef =
+    doc(db, "users", uid);
+
+  await setDoc(
+    userRef,
+    {
+      expoPushTokens:
+        arrayUnion(expoPushToken),
+
+      pushNotificationsEnabled:
+        true,
+
+      pushTokenUpdatedAt:
+        serverTimestamp(),
+
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    },
+  );
+
+  console.log(
+    "FIXXAM_PUSH_TOKEN_SAVED",
+    {
+      uid,
+      tokenPrefix:
+        expoPushToken.slice(0, 24),
+    },
+  );
+}
+
+/* ============================================================
+   REGISTER PUSH TOKEN
 ============================================================ */
 
 async function registerPushToken(
@@ -116,19 +252,20 @@ async function registerPushToken(
 ): Promise<void> {
   try {
     /* --------------------------------------------------------
-       Physical device check
+       Physical device
     -------------------------------------------------------- */
 
     if (!Device.isDevice) {
       console.warn(
-        "FIXXAM_PUSH_TOKEN_SKIPPED: Push notifications require a physical device.",
+        "FIXXAM_PUSH_TOKEN_SKIPPED",
+        "Push notifications require a physical device.",
       );
 
       return;
     }
 
     /* --------------------------------------------------------
-       Android notification channel
+       Android channel
     -------------------------------------------------------- */
 
     await configureAndroidChannel();
@@ -141,82 +278,36 @@ async function registerPushToken(
       await requestNotificationPermission();
 
     if (!permissionGranted) {
-      console.warn(
-        "FIXXAM_PUSH_PERMISSION_DENIED",
-      );
-
       return;
     }
 
     /* --------------------------------------------------------
-       Expo project ID
+       Expo push token
     -------------------------------------------------------- */
-
-    const projectId =
-      getExpoProjectId();
-
-    if (!projectId) {
-      console.error(
-        "FIXXAM_PUSH_PROJECT_ID_MISSING: Add EAS projectId to app.json.",
-      );
-
-      return;
-    }
-
-    /* --------------------------------------------------------
-       Expo Push Token
-    -------------------------------------------------------- */
-
-    const tokenResponse =
-      await Notifications.getExpoPushTokenAsync({
-        projectId,
-      });
 
     const expoPushToken =
-      tokenResponse.data;
+      await getExpoPushToken();
 
-    if (
-      typeof expoPushToken !== "string" ||
-      expoPushToken.trim().length === 0
-    ) {
-      console.error(
-        "FIXXAM_PUSH_TOKEN_INVALID",
-      );
-
+    if (!expoPushToken) {
       return;
     }
 
     /* --------------------------------------------------------
-       Save token
+       Save to Firestore
     -------------------------------------------------------- */
 
-    const userRef = doc(
-      db,
-      "users",
+    await savePushToken(
       uid,
-    );
-
-    await setDoc(
-      userRef,
-      {
-        expoPushTokens:
-          arrayUnion(expoPushToken),
-
-        pushNotificationsEnabled: true,
-
-        pushTokenUpdatedAt:
-          serverTimestamp(),
-
-        updatedAt:
-          serverTimestamp(),
-      },
-      {
-        merge: true,
-      },
+      expoPushToken,
     );
 
     console.log(
       "FIXXAM_PUSH_TOKEN_REGISTERED",
+      {
+        uid,
+        tokenPrefix:
+          expoPushToken.slice(0, 24),
+      },
     );
   } catch (error) {
     console.error(
@@ -238,21 +329,9 @@ export default function useRegisterPushToken(): void {
       onAuthStateChanged(
         auth,
         async (user) => {
-          if (!mounted) {
+          if (!mounted || !user) {
             return;
           }
-
-          /* --------------------------------------------------
-             User logged out
-          -------------------------------------------------- */
-
-          if (!user) {
-            return;
-          }
-
-          /* --------------------------------------------------
-             Register current device
-          -------------------------------------------------- */
 
           await registerPushToken(
             user.uid,

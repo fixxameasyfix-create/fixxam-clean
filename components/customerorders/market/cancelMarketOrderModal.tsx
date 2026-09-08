@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useRef,
   useState,
 } from "react";
 
@@ -12,15 +13,16 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   doc,
+  runTransaction,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
+import Toast from "react-native-toast-message";
+
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -29,14 +31,95 @@ import {
   db,
 } from "@/firebase/config";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   visible: boolean;
+
   orderId: string;
+
   onClose: () => void;
+
   onCancelled?: () => void;
 };
 
-function CancelMarketOrderModal({
+type CancelResult =
+  | "cancelled"
+  | "already-cancelled";
+
+/* ============================================================
+   TOAST
+============================================================ */
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message?: string,
+) {
+  Toast.show({
+    type: "success",
+
+    text1: title,
+
+    ...(message
+      ? {
+          text2: message,
+        }
+      : {}),
+  });
+}
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+function normalizeOrderStatus(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value
+        .trim()
+        .toLowerCase()
+        .replace(
+          /_/g,
+          "-",
+        )
+    : "";
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function CancelMarketOrderModalComponent({
   visible,
   orderId,
   onClose,
@@ -45,116 +128,314 @@ function CancelMarketOrderModal({
   const [
     cancelling,
     setCancelling,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  );
+  const cancellationInFlight =
+    useRef(false);
+
+  /* ==========================================================
+     CLOSE
+  ========================================================== */
+
+  const handleClose =
+    useCallback(() => {
+      if (
+        cancellationInFlight.current ||
+        cancelling
+      ) {
+        return;
+      }
+
+      onClose();
+    }, [
+      cancelling,
+      onClose,
+    ]);
+
+  /* ==========================================================
+     CANCEL ORDER
+  ========================================================== */
 
   const handleCancel =
     useCallback(async () => {
+      if (
+        cancellationInFlight.current ||
+        cancelling
+      ) {
+        return;
+      }
+
       const user =
         auth.currentUser;
 
       if (!user) {
-        setError(
-          "Please sign in again.",
+        showErrorToast(
+          "Sign in required",
+          "Please sign in again to cancel this order.",
         );
+
         return;
       }
 
-      if (!orderId.trim()) {
-        setError(
+      const cleanOrderId =
+        orderId.trim();
+
+      if (!cleanOrderId) {
+        showErrorToast(
+          "Order unavailable",
           "Order ID is missing.",
         );
+
         return;
       }
 
+      cancellationInFlight.current =
+        true;
+
       setCancelling(true);
-      setError(null);
 
       try {
         const orderRef =
           doc(
             db,
             "orders",
-            orderId,
+            cleanOrderId,
           );
 
-        await updateDoc(
-          orderRef,
-          {
-            status: "cancelled",
+        const result =
+          await runTransaction<
+            CancelResult
+          >(
+            db,
 
-            cancelledBy:
-              "customer",
+            async (
+              transaction,
+            ) => {
+              const snapshot =
+                await transaction.get(
+                  orderRef,
+                );
 
-            cancelledAt:
-              serverTimestamp(),
+              if (
+                !snapshot.exists()
+              ) {
+                throw new Error(
+                  "ORDER_NOT_FOUND",
+                );
+              }
 
-            updatedAt:
-              serverTimestamp(),
-          },
+              const data =
+                snapshot.data();
+
+              /* ==============================================
+                 CUSTOMER OWNERSHIP
+
+                 Firestore Security Rules must independently
+                 enforce this ownership server-side.
+              ============================================== */
+
+              if (
+                data.customerId !==
+                user.uid
+              ) {
+                throw new Error(
+                  "ORDER_ACCESS_DENIED",
+                );
+              }
+
+              const status =
+                normalizeOrderStatus(
+                  data.status,
+                );
+
+              /* ==============================================
+                 IDEMPOTENT CANCELLATION
+              ============================================== */
+
+              if (
+                status ===
+                "cancelled"
+              ) {
+                return "already-cancelled";
+              }
+
+              /* ==============================================
+                 TERMINAL STATES
+              ============================================== */
+
+              if (
+                status ===
+                  "completed" ||
+                status ===
+                  "delivered" ||
+                status ===
+                  "expired"
+              ) {
+                throw new Error(
+                  "ORDER_NOT_CANCELLABLE",
+                );
+              }
+
+              transaction.update(
+                orderRef,
+                {
+                  status:
+                    "cancelled",
+
+                  cancelledBy:
+                    "customer",
+
+                  cancelledAt:
+                    serverTimestamp(),
+
+                  updatedAt:
+                    serverTimestamp(),
+                },
+              );
+
+              return "cancelled";
+            },
+          );
+
+        if (
+          result ===
+          "already-cancelled"
+        ) {
+          showInfoToast(
+            "Order already cancelled",
+            "This order has already been cancelled.",
+          );
+
+          onCancelled?.();
+
+          onClose();
+
+          return;
+        }
+
+        showSuccessToast(
+          "Order cancelled",
+          "Your market order has been cancelled.",
         );
 
         onCancelled?.();
+
         onClose();
-      } catch (cancelError) {
+      } catch (
+        cancelError
+      ) {
         console.error(
           "CANCEL_MARKET_ORDER_ERROR:",
           cancelError,
         );
 
-        setError(
-          "Unable to cancel this order. Please try again.",
-        );
+        const code =
+          cancelError instanceof
+          Error
+            ? cancelError.message
+            : "";
+
+        switch (code) {
+          case "ORDER_NOT_FOUND":
+            showErrorToast(
+              "Order unavailable",
+              "This order could not be found.",
+            );
+            break;
+
+          case "ORDER_ACCESS_DENIED":
+            showErrorToast(
+              "Access denied",
+              "You do not have permission to cancel this order.",
+            );
+            break;
+
+          case "ORDER_NOT_CANCELLABLE":
+            showErrorToast(
+              "Cannot cancel order",
+              "This order can no longer be cancelled.",
+            );
+            break;
+
+          default:
+            showErrorToast(
+              "Unable to cancel",
+              "We could not cancel this order. Please try again.",
+            );
+        }
       } finally {
+        cancellationInFlight.current =
+          false;
+
         setCancelling(false);
       }
     }, [
-      orderId,
+      cancelling,
       onCancelled,
       onClose,
+      orderId,
     ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={
-        cancelling
-          ? undefined
-          : onClose
+        handleClose
       }
     >
-      <View
+      <Pressable
         style={
           styles.overlay
         }
+        onPress={
+          handleClose
+        }
       >
-        <View
+        <Pressable
           style={
             styles.modal
           }
+          onPress={(
+            event,
+          ) => {
+            event.stopPropagation();
+          }}
+          accessible={false}
         >
+          {/* ==================================================
+              ICON
+          ================================================== */}
+
           <View
             style={
               styles.iconBox
             }
           >
-            <Ionicons
-              name="close-circle-outline"
-              size={28}
-              color="#DC2626"
+            <AppIcon
+              name="error"
+              size="lg"
+              color={
+                Colors.error
+              }
             />
           </View>
 
+          {/* ==================================================
+              TITLE
+          ================================================== */}
+
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.title
             }
@@ -162,38 +443,24 @@ function CancelMarketOrderModal({
             Cancel Order?
           </AppText>
 
+          {/* ==================================================
+              MESSAGE
+          ================================================== */}
+
           <AppText
+            variant="body"
+            tone="secondary"
             center
             style={
               styles.message
             }
           >
-            Are you sure you want to
-            cancel this order? This
-            action cannot be undone.
+            Are you sure you want to cancel this order? This action cannot be undone.
           </AppText>
 
-          {error ? (
-            <View
-              style={
-                styles.errorBox
-              }
-            >
-              <Ionicons
-                name="alert-circle-outline"
-                size={16}
-                color="#DC2626"
-              />
-
-              <AppText
-                style={
-                  styles.errorText
-                }
-              >
-                {error}
-              </AppText>
-            </View>
-          ) : null}
+          {/* ==================================================
+              ACTIONS
+          ================================================== */}
 
           <View
             style={
@@ -205,17 +472,32 @@ function CancelMarketOrderModal({
                 cancelling
               }
               onPress={
-                onClose
+                handleClose
               }
-              style={({ pressed }) => [
+              accessibilityRole="button"
+              accessibilityLabel="Keep order"
+              accessibilityState={{
+                disabled:
+                  cancelling,
+              }}
+              style={({
+                pressed,
+              }) => [
                 styles.button,
                 styles.keepButton,
+
                 pressed &&
-                  !cancelling &&
-                  styles.pressed,
+                !cancelling
+                  ? styles.pressed
+                  : null,
+
+                cancelling
+                  ? styles.disabled
+                  : null,
               ]}
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.keepText
@@ -229,151 +511,266 @@ function CancelMarketOrderModal({
               disabled={
                 cancelling
               }
-              onPress={
-                handleCancel
-              }
-              style={({ pressed }) => [
+              onPress={() => {
+                void handleCancel();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel order"
+              accessibilityState={{
+                disabled:
+                  cancelling,
+                busy:
+                  cancelling,
+              }}
+              style={({
+                pressed,
+              }) => [
                 styles.button,
                 styles.cancelButton,
+
                 pressed &&
-                  !cancelling &&
-                  styles.pressed,
+                !cancelling
+                  ? styles.pressed
+                  : null,
+
+                cancelling
+                  ? styles.disabled
+                  : null,
               ]}
             >
               {cancelling ? (
                 <ActivityIndicator
                   size="small"
-                  color="#FFFFFF"
+                  color={
+                    Colors.textInverse
+                  }
                 />
               ) : (
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.cancelText
-                  }
-                >
-                  CANCEL ORDER
-                </AppText>
+                <>
+                  <AppIcon
+                    name="close"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    style={
+                      styles.cancelText
+                    }
+                  >
+                    CANCEL ORDER
+                  </AppText>
+                </>
               )}
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
-export default memo(
-  CancelMarketOrderModal,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
+const CancelMarketOrderModal =
+  memo(
+    CancelMarketOrderModalComponent,
+  );
+
+CancelMarketOrderModal.displayName =
+  "CancelMarketOrderModal";
+
+export default CancelMarketOrderModal;
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
+
     overlay: {
       flex: 1,
-      paddingHorizontal: 22,
-      backgroundColor:
-        "rgba(15,23,42,0.45)",
-      alignItems: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
+
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
     modal: {
       width: "100%",
-      padding: 20,
-      borderRadius: 22,
+
+      maxWidth: 420,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
 
     iconBox: {
-      width: 58,
-      height: 58,
-      borderRadius: 19,
-      backgroundColor:
-        "#FEF2F2",
-      alignItems: "center",
+      width: 60,
+
+      height: 60,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
     title: {
-      marginTop: 13,
-      fontSize: 17,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     message: {
-      marginTop: 7,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#64748B",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
-    errorBox: {
-      width: "100%",
-      marginTop: 12,
-      padding: 10,
-      borderRadius: 11,
-      backgroundColor:
-        "#FEF2F2",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-    },
-
-    errorText: {
-      flex: 1,
-      fontSize: 8.5,
-      lineHeight: 13,
-      color: "#B91C1C",
-    },
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
 
     actions: {
       width: "100%",
-      marginTop: 18,
-      gap: 8,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     button: {
-      minHeight: 46,
-      borderRadius: 13,
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
     },
 
     keepButton: {
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     cancelButton: {
       backgroundColor:
-        "#DC2626",
+        Colors.error,
     },
 
     keepText: {
-      fontSize: 9.5,
-      color: "#334155",
+      color:
+        Colors.textPrimary,
     },
 
     cancelText: {
-      fontSize: 9.5,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     pressed: {
-      opacity: 0.8,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

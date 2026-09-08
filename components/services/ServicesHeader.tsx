@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Pressable,
@@ -6,7 +9,9 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -14,52 +19,87 @@ import {
   AppText,
 } from "@/components/ui";
 
-export default function ServicesHeader() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ServicesHeader() {
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
-      {/* ======================================================
-          BACK BUTTON
-      ====================================================== */}
+      {/* ========================================================
+          BACK
+      ======================================================== */}
 
       <Pressable
-        onPress={() =>
-          router.back()
-        }
         accessibilityRole="button"
         accessibilityLabel="Go back"
+        accessibilityHint="Returns to the previous screen"
         hitSlop={8}
-        style={({ pressed }) => [
+        onPress={
+          handleBack
+        }
+        style={({
+          pressed,
+        }) => [
           styles.backButton,
-          pressed &&
-            styles.pressed,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
         <MaterialCommunityIcons
           name="arrow-left"
-          size={21}
-          color="#111827"
+          size={
+            FixxamTokens.size.iconMd
+          }
+          color={
+            Colors.textPrimary
+          }
         />
       </Pressable>
 
-      {/* ======================================================
+      {/* ========================================================
           TITLE
-      ====================================================== */}
+      ======================================================== */}
 
       <View
-        style={styles.content}
+        style={
+          styles.content
+        }
       >
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.title}
+          numberOfLines={1}
+          style={
+            styles.title
+          }
         >
           Services
         </AppText>
 
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
-          style={styles.subtitle}
+          style={
+            styles.subtitle
+          }
         >
           Find trusted professionals near you.
         </AppText>
@@ -67,6 +107,10 @@ export default function ServicesHeader() {
     </View>
   );
 }
+
+export default memo(
+  ServicesHeader,
+);
 
 /* ==============================================================
    STYLES
@@ -77,72 +121,78 @@ const styles =
     container: {
       width: "100%",
 
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.headerHeight,
 
-      marginBottom: 15,
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 44,
-      height: 44,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 14,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      backgroundColor:
-        "#FFFFFF",
+      flexShrink: 0,
 
-      alignItems: "center",
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
 
-      marginRight: 12,
-
       borderWidth: 1,
+
       borderColor:
-        "#E5E7EB",
+        Colors.border,
 
-      shadowColor:
-        "#0F172A",
+      borderRadius:
+        FixxamTokens.radius.md,
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      backgroundColor:
+        Colors.surface,
 
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-
-      elevation: 2,
+      ...FixxamTokens.shadow.card,
     },
 
     content: {
       flex: 1,
+
       minWidth: 0,
     },
 
     title: {
-      fontSize: 25,
-      lineHeight: 30,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 12.5,
-      lineHeight: 18,
-
-      color: "#6B7280",
+      color:
+        Colors.textSecondary,
     },
 
     pressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
-          scale: 0.97,
+          scale:
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

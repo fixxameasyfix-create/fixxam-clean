@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useState,
@@ -6,7 +7,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -15,9 +15,11 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import Toast from "react-native-toast-message";
 
 import {
   doc,
@@ -27,14 +29,25 @@ import {
 } from "firebase/firestore";
 
 import {
-  auth,
-  db,
-} from "@/firebase/config";
-
-import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  auth,
+  db,
+} from "@/firebase/config";
 
 import useUserProfile from "@/hooks/auth/useUserProfile";
 
@@ -44,35 +57,71 @@ import useUserProfile from "@/hooks/auth/useUserProfile";
 
 type SettingsData = {
   notificationsEnabled?: boolean;
+
   marketingNotificationsEnabled?: boolean;
 };
+
+type SettingsKey =
+  keyof SettingsData;
 
 /* ============================================================
    DEFAULT SETTINGS
 ============================================================ */
 
 const DEFAULT_SETTINGS: Required<SettingsData> = {
-  notificationsEnabled: true,
-  marketingNotificationsEnabled: false,
+  notificationsEnabled:
+    true,
+
+  marketingNotificationsEnabled:
+    false,
 };
+
+/* ============================================================
+   TOAST
+============================================================ */
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
 
 /* ============================================================
    CUSTOMER SETTINGS
 ============================================================ */
 
 export default function CustomerSettingsScreen() {
-  const { profile } = useUserProfile();
+  const {
+    profile,
+  } =
+    useUserProfile();
 
-  const [settings, setSettings] =
+  const [
+    settings,
+    setSettings,
+  ] =
     useState<Required<SettingsData>>(
       DEFAULT_SETTINGS,
     );
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [saving, setSaving] =
-    useState(false);
+  const [
+    savingKey,
+    setSavingKey,
+  ] =
+    useState<SettingsKey | null>(
+      null,
+    );
 
   /* ==========================================================
      LOAD SETTINGS
@@ -83,26 +132,35 @@ export default function CustomerSettingsScreen() {
       auth.currentUser?.uid;
 
     if (!uid) {
-      setLoading(false);
+      setLoading(
+        false,
+      );
+
       return;
     }
 
-    const userRef = doc(
-      db,
-      "users",
-      uid,
-    );
+    const userRef =
+      doc(
+        db,
+        "users",
+        uid,
+      );
 
     const unsubscribe =
       onSnapshot(
         userRef,
-        (snapshot) => {
-          if (!snapshot.exists()) {
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
             setSettings(
               DEFAULT_SETTINGS,
             );
 
-            setLoading(false);
+            setLoading(
+              false,
+            );
+
             return;
           }
 
@@ -118,25 +176,31 @@ export default function CustomerSettingsScreen() {
             notificationsEnabled:
               remoteSettings
                 ?.notificationsEnabled ??
-              DEFAULT_SETTINGS.notificationsEnabled,
+              DEFAULT_SETTINGS
+                .notificationsEnabled,
 
             marketingNotificationsEnabled:
               remoteSettings
                 ?.marketingNotificationsEnabled ??
-              DEFAULT_SETTINGS.marketingNotificationsEnabled,
+              DEFAULT_SETTINGS
+                .marketingNotificationsEnabled,
           });
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
         },
-        (error) => {
+        error => {
           console.error(
             "CUSTOMER_SETTINGS_LISTENER_ERROR:",
             error,
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
-          Alert.alert(
+          showErrorToast(
             "Unable to load settings",
             "Please try again.",
           );
@@ -153,31 +217,55 @@ export default function CustomerSettingsScreen() {
   const updateSetting =
     useCallback(
       async (
-        key: keyof SettingsData,
+        key: SettingsKey,
         value: boolean,
       ) => {
         const uid =
           auth.currentUser?.uid;
 
-        if (!uid || saving) {
+        if (!uid) {
+          showErrorToast(
+            "Sign in required",
+            "Please sign in again before changing your settings.",
+          );
+
+          return;
+        }
+
+        if (
+          savingKey !== null
+        ) {
           return;
         }
 
         const previous =
           settings[key];
 
-        /* Optimistic UI */
-
+        /*
+         * Optimistic UI.
+         */
         setSettings(
-          (current) => ({
+          current => ({
             ...current,
-            [key]: value,
+
+            [key]:
+              value,
           }),
         );
 
-        try {
-          setSaving(true);
+        setSavingKey(
+          key,
+        );
 
+        try {
+          /*
+           * Dot notation updates only the selected
+           * nested setting and preserves sibling
+           * settings.
+           *
+           * setDoc + merge also remains safe if an
+           * older user document is missing settings.
+           */
           await setDoc(
             doc(
               db,
@@ -185,9 +273,8 @@ export default function CustomerSettingsScreen() {
               uid,
             ),
             {
-              settings: {
-                [key]: value,
-              },
+              [`settings.${key}`]:
+                value,
 
               updatedAt:
                 serverTimestamp(),
@@ -196,68 +283,80 @@ export default function CustomerSettingsScreen() {
               merge: true,
             },
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
             "CUSTOMER_SETTINGS_UPDATE_ERROR:",
-            error,
+            {
+              key,
+              value,
+              error,
+            },
           );
 
-          /* Rollback */
-
+          /*
+           * Roll back only the failed
+           * setting.
+           */
           setSettings(
-            (current) => ({
+            current => ({
               ...current,
-              [key]: previous,
+
+              [key]:
+                previous,
             }),
           );
 
-          Alert.alert(
+          showErrorToast(
             "Update failed",
             "We could not save this setting. Please try again.",
           );
         } finally {
-          setSaving(false);
+          setSavingKey(
+            null,
+          );
         }
       },
       [
-        saving,
+        savingKey,
         settings,
       ],
     );
 
   /* ==========================================================
-     LOCATION SETTINGS
+     DEVICE LOCATION SETTINGS
   ========================================================== */
 
   const handleLocationSettings =
-    useCallback(
-      async () => {
-        try {
-          await Linking.openSettings();
-        } catch (error) {
-          console.error(
-            "OPEN_DEVICE_SETTINGS_ERROR:",
-            error,
-          );
+    useCallback(async () => {
+      try {
+        await Linking.openSettings();
+      } catch (
+        error
+      ) {
+        console.error(
+          "OPEN_DEVICE_SETTINGS_ERROR:",
+          error,
+        );
 
-          Alert.alert(
-            "Unavailable",
-            "Device settings could not be opened.",
-          );
-        }
-      },
-      [],
-    );
+        showErrorToast(
+          "Unable to open settings",
+          "Device settings could not be opened.",
+        );
+      }
+    }, []);
 
   /* ==========================================================
      PRIVACY & SECURITY
   ========================================================== */
 
- const handlePrivacy = useCallback(() => {
-  router.push(
-    "/(customer)/settings/privacy-security" as never,
-  );
-}, []);
+  const handlePrivacy =
+    useCallback(() => {
+      router.push(
+        "/(customer)/settings/privacy-security" as never,
+      );
+    }, []);
 
   /* ==========================================================
      LOADING
@@ -266,14 +365,27 @@ export default function CustomerSettingsScreen() {
   if (loading) {
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
           styles.loadingContainer
         }
       >
         <ActivityIndicator
           size="large"
-          color="#2563EB"
+          color={
+            CustomerColors.primary
+          }
         />
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          style={
+            styles.loadingText
+          }
+        >
+          Loading settings...
+        </AppText>
       </AppScreen>
     );
   }
@@ -284,6 +396,7 @@ export default function CustomerSettingsScreen() {
 
   return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
         styles.screen
       }
@@ -306,20 +419,28 @@ export default function CustomerSettingsScreen() {
           }
         >
           <Pressable
-            onPress={() =>
-              router.back()
-            }
-            style={
-              styles.backButton
-            }
+            onPress={() => {
+              router.back();
+            }}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            hitSlop={8}
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
@@ -329,6 +450,7 @@ export default function CustomerSettingsScreen() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
               style={
                 styles.title
@@ -338,6 +460,8 @@ export default function CustomerSettingsScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.subtitle
               }
@@ -360,63 +484,66 @@ export default function CustomerSettingsScreen() {
             styles.card
           }
         >
-          {/* NOTIFICATIONS */}
-
           <SettingSwitchRow
-            icon="notifications-outline"
+            icon="notifications"
             title="Notifications"
             subtitle="Receive service and booking notifications"
             value={
               settings.notificationsEnabled
             }
             disabled={
-              saving
+              savingKey !== null
             }
-            onValueChange={(
-              value,
-            ) =>
-              updateSetting(
-                "notificationsEnabled",
-                value,
-              )
+            loading={
+              savingKey ===
+              "notificationsEnabled"
+            }
+            onValueChange={
+              value => {
+                void updateSetting(
+                  "notificationsEnabled",
+                  value,
+                );
+              }
             }
           />
 
           <Divider />
 
-          {/* PROMOTIONAL NOTIFICATIONS */}
-
           <SettingSwitchRow
-            icon="megaphone-outline"
+            icon="star"
             title="Promotional Notifications"
             subtitle="Receive offers and Fixxam promotions"
             value={
-              settings.marketingNotificationsEnabled
+              settings
+                .marketingNotificationsEnabled
             }
             disabled={
-              saving
+              savingKey !== null
             }
-            onValueChange={(
-              value,
-            ) =>
-              updateSetting(
-                "marketingNotificationsEnabled",
-                value,
-              )
+            loading={
+              savingKey ===
+              "marketingNotificationsEnabled"
+            }
+            onValueChange={
+              value => {
+                void updateSetting(
+                  "marketingNotificationsEnabled",
+                  value,
+                );
+              }
             }
           />
 
           <Divider />
 
-          {/* LOCATION */}
-
           <SettingRow
-            icon="location-outline"
+            icon="location"
             title="Location Services"
             subtitle="Manage your device location permission"
-            onPress={
-              handleLocationSettings
-            }
+            onPress={() => {
+              void handleLocationSettings();
+            }}
           />
         </View>
 
@@ -434,7 +561,7 @@ export default function CustomerSettingsScreen() {
           }
         >
           <SettingRow
-            icon="shield-checkmark-outline"
+            icon="shield"
             title="Privacy & Security"
             subtitle="Manage your privacy and account security"
             onPress={
@@ -444,10 +571,10 @@ export default function CustomerSettingsScreen() {
         </View>
 
         {/* ====================================================
-            CUSTOMER INFO
+            ACCOUNT INFO
         ==================================================== */}
 
-        {profile && (
+        {profile ? (
           <View
             style={
               styles.infoCard
@@ -458,10 +585,12 @@ export default function CustomerSettingsScreen() {
                 styles.infoIcon
               }
             >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#16A34A"
+              <AppIcon
+                name="success"
+                size="sm"
+                color={
+                  Colors.success
+                }
               />
             </View>
 
@@ -471,25 +600,26 @@ export default function CustomerSettingsScreen() {
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.infoTitle
                 }
               >
-                Account protected
+                Settings synced
               </AppText>
 
               <AppText
+                variant="caption"
                 style={
                   styles.infoText
                 }
               >
-                Your settings are securely
-                connected to your Fixxam account.
+                Your preferences are securely connected to your Fixxam account.
               </AppText>
             </View>
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </AppScreen>
   );
@@ -499,193 +629,285 @@ export default function CustomerSettingsScreen() {
    SECTION TITLE
 ============================================================ */
 
-function SectionTitle({
-  title,
-}: {
-  title: string;
-}) {
-  return (
-    <AppText
-      weight="bold"
-      style={
-        styles.sectionTitle
-      }
-    >
-      {title}
-    </AppText>
+const SectionTitle =
+  memo(
+    function SectionTitle({
+      title,
+    }: {
+      title: string;
+    }) {
+      return (
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.sectionTitle
+          }
+        >
+          {title}
+        </AppText>
+      );
+    },
   );
-}
+
+SectionTitle.displayName =
+  "SectionTitle";
 
 /* ============================================================
    SETTING ROW
 ============================================================ */
 
-function SettingRow({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({
-        pressed,
-      }) => [
-        styles.row,
-        pressed &&
-          styles.pressedRow,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      <View
-        style={
-          styles.iconBox
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={20}
-          color="#2563EB"
-        />
-      </View>
+const SettingRow =
+  memo(
+    function SettingRow({
+      icon,
+      title,
+      subtitle,
+      onPress,
+    }: {
+      icon: AppIconName;
 
-      <View
-        style={
-          styles.rowContent
-        }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.rowTitle
+      title: string;
+
+      subtitle: string;
+
+      onPress: () => void;
+    }) {
+      return (
+        <Pressable
+          onPress={
+            onPress
           }
-        >
-          {title}
-        </AppText>
-
-        <AppText
-          style={
-            styles.rowSubtitle
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
           }
-        >
-          {subtitle}
-        </AppText>
-      </View>
+          style={({
+            pressed,
+          }) => [
+            styles.row,
 
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color="#94A3B8"
-      />
-    </Pressable>
+            pressed
+              ? styles.pressedRow
+              : null,
+          ]}
+        >
+          <View
+            style={
+              styles.iconBox
+            }
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.rowContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.rowTitle
+              }
+            >
+              {title}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.rowSubtitle
+              }
+            >
+              {subtitle}
+            </AppText>
+          </View>
+
+          <AppIcon
+            name="next"
+            size="sm"
+            color={
+              Colors.textMuted
+            }
+          />
+        </Pressable>
+      );
+    },
   );
-}
+
+SettingRow.displayName =
+  "SettingRow";
 
 /* ============================================================
    SWITCH ROW
 ============================================================ */
 
-function SettingSwitchRow({
-  icon,
-  title,
-  subtitle,
-  value,
-  disabled,
-  onValueChange,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  value: boolean;
-  disabled?: boolean;
-  onValueChange: (
-    value: boolean,
-  ) => void;
-}) {
-  return (
-    <View
-      style={
-        styles.row
-      }
-    >
-      <View
-        style={
-          styles.iconBox
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={20}
-          color="#2563EB"
-        />
-      </View>
+const SettingSwitchRow =
+  memo(
+    function SettingSwitchRow({
+      icon,
+      title,
+      subtitle,
+      value,
+      disabled = false,
+      loading = false,
+      onValueChange,
+    }: {
+      icon: AppIconName;
 
-      <View
-        style={
-          styles.rowContent
-        }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.rowTitle
-          }
+      title: string;
+
+      subtitle: string;
+
+      value: boolean;
+
+      disabled?: boolean;
+
+      loading?: boolean;
+
+      onValueChange: (
+        value: boolean,
+      ) => void;
+    }) {
+      return (
+        <View
+          style={[
+            styles.row,
+
+            disabled
+              ? styles.disabledRow
+              : null,
+          ]}
         >
-          {title}
-        </AppText>
+          <View
+            style={
+              styles.iconBox
+            }
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
 
-        <AppText
-          style={
-            styles.rowSubtitle
-          }
-        >
-          {subtitle}
-        </AppText>
-      </View>
+          <View
+            style={
+              styles.rowContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.rowTitle
+              }
+            >
+              {title}
+            </AppText>
 
-      <Switch
-        value={value}
-        disabled={disabled}
-        onValueChange={
-          onValueChange
-        }
-        trackColor={{
-          false: "#CBD5E1",
-          true: "#93C5FD",
-        }}
-        thumbColor={
-          value
-            ? "#2563EB"
-            : "#F8FAFC"
-        }
-        accessibilityLabel={
-          title
-        }
-      />
-    </View>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.rowSubtitle
+              }
+            >
+              {subtitle}
+            </AppText>
+          </View>
+
+          {loading ? (
+            <View
+              style={
+                styles.switchLoader
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+          ) : (
+            <Switch
+              value={
+                value
+              }
+              disabled={
+                disabled
+              }
+              onValueChange={
+                onValueChange
+              }
+              trackColor={{
+                false:
+                  Colors.disabled,
+
+                true:
+                  CustomerColors.primarySoft,
+              }}
+              thumbColor={
+                value
+                  ? CustomerColors.primary
+                  : Colors.surface
+              }
+              accessibilityLabel={
+                title
+              }
+              accessibilityState={{
+                checked:
+                  value,
+
+                disabled,
+              }}
+            />
+          )}
+        </View>
+      );
+    },
   );
-}
+
+SettingSwitchRow.displayName =
+  "SettingSwitchRow";
 
 /* ============================================================
    DIVIDER
 ============================================================ */
 
-function Divider() {
-  return (
-    <View
-      style={
-        styles.divider
-      }
-    />
+const Divider =
+  memo(
+    function Divider() {
+      return (
+        <View
+          style={
+            styles.divider
+          }
+        />
+      );
+    },
   );
-}
+
+Divider.displayName =
+  "Divider";
 
 /* ============================================================
    STYLES
@@ -693,22 +915,53 @@ function Divider() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
+      flex: 1,
+
       paddingHorizontal: 0,
+
       paddingTop: 0,
+
       paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
     },
 
     loadingContainer: {
       flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 110,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ========================================================
@@ -716,36 +969,65 @@ const styles =
     ======================================================== */
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 22,
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      alignItems: "center",
-      justifyContent: "center",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 21,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 12,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -753,11 +1035,16 @@ const styles =
     ======================================================== */
 
     sectionTitle: {
-      marginBottom: 8,
-      marginLeft: 4,
-      fontSize: 11,
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       letterSpacing: 0.7,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -765,12 +1052,24 @@ const styles =
     ======================================================== */
 
     card: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: 17,
+      overflow:
+        "hidden",
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      overflow: "hidden",
-      marginBottom: 20,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -778,47 +1077,104 @@ const styles =
     ======================================================== */
 
     row: {
-      minHeight: 72,
-      paddingHorizontal: 14,
-      paddingVertical: 11,
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight: 76,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     pressedRow: {
-      opacity: 0.7,
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    disabledRow: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     iconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     rowContent: {
       flex: 1,
-      marginHorizontal: 12,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     rowTitle: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     rowSubtitle: {
-      marginTop: 3,
-      fontSize: 11,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 16,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     divider: {
       height: 1,
-      backgroundColor: "#F1F5F9",
-      marginLeft: 66,
+
+      marginLeft:
+        68,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    switchLoader: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     /* ========================================================
@@ -826,39 +1182,88 @@ const styles =
     ======================================================== */
 
     infoCard: {
-      marginTop: 0,
-      padding: 13,
-      borderRadius: 16,
-      backgroundColor: "#F0FDF4",
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#BBF7D0",
-      flexDirection: "row",
-      alignItems: "center",
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     infoIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     infoContent: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     infoTitle: {
-      fontSize: 13,
-      color: "#166534",
+      color:
+        Colors.success,
     },
 
     infoText: {
-      marginTop: 3,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#4D7C5A",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

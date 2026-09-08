@@ -2,36 +2,41 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
+
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
 import {
   router,
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import {
+import type {
   DocumentData,
   QuerySnapshot,
 } from "firebase/firestore";
 
-import { AppText } from "@/components/ui";
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import type {
   WorkerCardData,
-} from "@/components/customer/worker/workercard";
+} from "@/components/customer/worker/types";
 
 import WorkersHeader from "@/components/customer/worker/WorkerHeader";
 
@@ -59,6 +64,12 @@ import {
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 /* ==============================================================
    TYPES
 ============================================================== */
@@ -73,15 +84,6 @@ type SortOption =
 type WorkerFilters = {
   onlineOnly: boolean;
   verifiedOnly: boolean;
-};
-
-type WorkerReviewData =
-  WorkerCardData & {
-    reviewCount?: number;
-    reviewsCount?: number;
-    reviews?: number;
-    jobs?: number;
-    totalJobs?: number;
 };
 
 type WorkersRouteParams = {
@@ -114,10 +116,10 @@ const DEFAULT_SERVICE_ICON =
   "tools";
 
 const DEFAULT_SERVICE_COLOR =
-  "#EA580C";
+  CustomerColors.primary;
 
 const DEFAULT_SERVICE_BACKGROUND =
-  "#FFF7E8";
+  CustomerColors.primarySoft;
 
 const DEFAULT_WORKER_NAME =
   "Selected Worker";
@@ -125,9 +127,44 @@ const DEFAULT_WORKER_NAME =
 const DEFAULT_WORKER_CATEGORY =
   "Service Provider";
 
+const LOADING_ITEMS = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+];
+
+const SORT_LABELS: Record<
+  SortOption,
+  string
+> = {
+  latest: "Latest",
+
+  rating: "Highest Rated",
+
+  priceLow: "Lowest Price",
+
+  priceHigh: "Highest Price",
+
+  nearest: "Nearest",
+};
+
 /* ==============================================================
-   PARAM HELPER
+   HELPERS
 ============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
 
 function getParamValue(
   value:
@@ -135,13 +172,179 @@ function getParamValue(
     | string[]
     | undefined,
 ): string {
-  if (Array.isArray(value)) {
-    return (
-      value[0]?.trim() ?? ""
+  if (
+    Array.isArray(value)
+  ) {
+    return cleanString(
+      value[0],
     );
   }
 
-  return value?.trim() ?? "";
+  return cleanString(
+    value,
+  );
+}
+
+function getWorkerProfileObject(
+  value: unknown,
+): Record<string, unknown> {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return value as Record<
+      string,
+      unknown
+    >;
+  }
+
+  return {};
+}
+
+/* ==============================================================
+   COORDINATE VALIDATION
+============================================================== */
+
+function isValidLatitude(
+  value: unknown,
+): value is number {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
+    value >= -90 &&
+    value <= 90
+  );
+}
+
+function isValidLongitude(
+  value: unknown,
+): value is number {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
+    value >= -180 &&
+    value <= 180
+  );
+}
+
+function getWorkerName(
+  worker: WorkerCardData,
+): string {
+  const fullName =
+    cleanString(
+      worker.fullName,
+    );
+
+  if (fullName) {
+    return fullName;
+  }
+
+  const combined = [
+    cleanString(
+      worker.firstName,
+    ),
+    cleanString(
+      worker.surname,
+    ),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    combined ||
+    DEFAULT_WORKER_NAME
+  );
+}
+
+function getWorkerCategory(
+  worker: WorkerCardData,
+): string {
+  const value = [
+    cleanString(
+      worker.category,
+    ),
+    cleanString(
+      worker.subcategory,
+    ),
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  return (
+    value ||
+    DEFAULT_WORKER_CATEGORY
+  );
+}
+
+function getWorkerLocationName(
+  worker: WorkerCardData,
+): string {
+  const address =
+    cleanString(
+      worker.workerProfile
+        .address,
+    );
+
+  if (address) {
+    return address;
+  }
+
+  return [
+    cleanString(
+      worker.workerProfile.lga,
+    ),
+    cleanString(
+      worker.workerProfile.state,
+    ),
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getRemotePhotoUrl(
+  value: unknown,
+): string {
+  const url =
+    cleanString(value);
+
+  if (
+    url.startsWith(
+      "https://",
+    ) ||
+    url.startsWith(
+      "http://",
+    )
+  ) {
+    return url;
+  }
+
+  return "";
+}
+
+function getSafeRate(
+  worker: WorkerCardData,
+): number | null {
+  const rate =
+    Number(
+      worker.workerProfile
+        .hourlyRate,
+    );
+
+  if (
+    !Number.isFinite(rate) ||
+    rate <= 0
+  ) {
+    return null;
+  }
+
+  return rate;
 }
 
 /* ==============================================================
@@ -164,116 +367,98 @@ export default function WorkersScreen() {
     categoryId,
   } = params;
 
+  const requestIdRef =
+    useRef(0);
+
   /* ============================================================
-     SERVICE ID
+     ROUTE CONTEXT
   ============================================================ */
 
   const selectedServiceId =
-    useMemo(() => {
-      return (
+    useMemo(
+      () =>
         getParamValue(
           serviceId,
         ) ||
-        getParamValue(id)
-      );
-    }, [
-      serviceId,
-      id,
-    ]);
-
-  /* ============================================================
-     SERVICE NAME
-  ============================================================ */
+        getParamValue(id),
+      [
+        id,
+        serviceId,
+      ],
+    );
 
   const selectedServiceName =
-    useMemo(() => {
-      return (
+    useMemo(
+      () =>
         getParamValue(
           serviceName,
         ) ||
         getParamValue(
           service,
-        ) ||
-        ""
-      );
-    }, [
-      serviceName,
-      service,
-    ]);
-
-  /* ============================================================
-     SERVICE ICON
-  ============================================================ */
+        ),
+      [
+        service,
+        serviceName,
+      ],
+    );
 
   const selectedServiceIcon =
-    useMemo(() => {
-      return (
+    useMemo(
+      () =>
         getParamValue(
           serviceIcon,
         ) ||
-        DEFAULT_SERVICE_ICON
-      );
-    }, [
-      serviceIcon,
-    ]);
-
-  /* ============================================================
-     SERVICE COLOR
-  ============================================================ */
+        DEFAULT_SERVICE_ICON,
+      [
+        serviceIcon,
+      ],
+    );
 
   const selectedServiceColor =
-    useMemo(() => {
-      return (
+    useMemo(
+      () =>
         getParamValue(
           serviceColor,
         ) ||
-        DEFAULT_SERVICE_COLOR
-      );
-    }, [
-      serviceColor,
-    ]);
-
-  /* ============================================================
-     SERVICE BACKGROUND
-  ============================================================ */
+        DEFAULT_SERVICE_COLOR,
+      [
+        serviceColor,
+      ],
+    );
 
   const selectedServiceBackgroundColor =
-    useMemo(() => {
-      return (
+    useMemo(
+      () =>
         getParamValue(
           serviceBackgroundColor,
         ) ||
-        DEFAULT_SERVICE_BACKGROUND
-      );
-    }, [
-      serviceBackgroundColor,
-    ]);
-
-  /* ============================================================
-     REWARD
-  ============================================================ */
+        DEFAULT_SERVICE_BACKGROUND,
+      [
+        serviceBackgroundColor,
+      ],
+    );
 
   const resolvedReward =
-    useMemo(() => {
-      return getParamValue(
+    useMemo(
+      () =>
+        getParamValue(
+          reward,
+        ),
+      [
         reward,
-      );
-    }, [
-      reward,
-    ]);
-
-  /* ============================================================
-     CATEGORY
-  ============================================================ */
+      ],
+    );
 
   const resolvedCategoryId =
-    useMemo(() => {
-      return getParamValue(
+    useMemo(
+      () =>
+        getParamValue(
+          categoryId,
+        ),
+      [
         categoryId,
-      );
-    }, [
-      categoryId,
-    ]);
+      ],
+    );
 
   /* ============================================================
      STATE
@@ -283,9 +468,9 @@ export default function WorkersScreen() {
     workers,
     setWorkers,
   ] =
-    useState<WorkerCardData[]>(
-      [],
-    );
+    useState<
+      WorkerCardData[]
+    >([]);
 
   const [
     loading,
@@ -298,6 +483,14 @@ export default function WorkersScreen() {
     setRefreshing,
   ] =
     useState(false);
+
+  const [
+    loadError,
+    setLoadError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [
     search,
@@ -319,6 +512,7 @@ export default function WorkersScreen() {
   ] =
     useState<WorkerFilters>({
       onlineOnly: false,
+
       verifiedOnly: false,
     });
 
@@ -336,10 +530,6 @@ export default function WorkersScreen() {
 
   /* ============================================================
      CURRENT CUSTOMER LOCATION
-     
-     IMPORTANT:
-     Wannan location ɗin ba mu canza shi.
-     Ana amfani da shi kawai wajen distance calculation.
   ============================================================ */
 
   const {
@@ -357,36 +547,14 @@ export default function WorkersScreen() {
     resolvedReward ===
       "service-promotion-free-service";
 
-  /* ============================================================
-     SORT LABEL
-  ============================================================ */
-
   const sortLabel =
-    {
-      latest: "Latest",
-      rating: "Highest Rated",
-      priceLow: "Lowest Price",
-      priceHigh: "Highest Price",
-      nearest: "Nearest",
-    }[sort];
+    SORT_LABELS[sort];
 
   /* ============================================================
-     MAP WORKERS
-     
-     IMPORTANT:
-     
-     We DO NOT replace workerProfile with a new narrow object.
-     
-     Instead:
-     
-     1. workerMapper() creates the complete WorkerCardData.
-     2. We preserve the original workerProfile.
-     3. We only override:
-        - photoUrl
-        - hourlyRate
-     4. We use fullName for firstName.
-     
-     Location fields remain untouched.
+     MAP FIRESTORE WORKERS
+
+     Location is intentionally NOT used here.
+     This prevents a GPS update from fetching Firestore again.
   ============================================================ */
 
   const mapWorkers =
@@ -395,242 +563,135 @@ export default function WorkersScreen() {
         snapshot:
           QuerySnapshot<DocumentData>,
       ): WorkerCardData[] => {
-        return snapshot.docs
-          .map(
-            (
-              docSnapshot,
-            ) => {
-              /*
-               * ==================================================
-               * ORIGINAL WORKER
-               * ==================================================
-               */
+        return snapshot.docs.map(
+          (
+            docSnapshot,
+          ) => {
+            const worker =
+              workerMapper(
+                docSnapshot,
+              );
 
-              const worker =
-                workerMapper(
-                  docSnapshot,
-                );
+            const data =
+              docSnapshot.data();
 
-              /*
-               * ==================================================
-               * RAW FIRESTORE PROFILE DATA
-               * ==================================================
-               *
-               * These fields are coming from:
-               *
-               * workerPublicProfiles/{workerId}
-               *
-               * Build Your Profile saves:
-               *
-               * fullName
-               * photoURL
-               * rate
-               *
-               * ==================================================
-               */
+            const rawWorkerProfile =
+              getWorkerProfileObject(
+                data.workerProfile,
+              );
 
-              const data =
-                docSnapshot.data();
+            /* ==================================================
+               FULL NAME
+            ================================================== */
 
-              /*
-               * ==================================================
-               * FULL NAME
-               * ==================================================
-               */
+            const resolvedFullName =
+              cleanString(
+                data.fullName,
+              ) ||
+              cleanString(
+                data.name,
+              ) ||
+              cleanString(
+                rawWorkerProfile.fullName,
+              ) ||
+              cleanString(
+                worker.fullName,
+              );
 
-              const fullName =
-                typeof data.fullName ===
-                "string"
-                  ? data.fullName.trim()
-                  : "";
+            /* ==================================================
+               PROFILE PHOTO
+            ================================================== */
 
-              /*
-               * ==================================================
-               * PROFILE PHOTO
-               * ==================================================
-               */
+            const photoUrl =
+              cleanString(
+                rawWorkerProfile.photoUrl,
+              ) ||
+              cleanString(
+                rawWorkerProfile.photoURL,
+              ) ||
+              cleanString(
+                data.photoURL,
+              ) ||
+              cleanString(
+                data.photoUrl,
+              ) ||
+              cleanString(
+                worker.workerProfile
+                  .photoUrl,
+              );
 
-              const photoURL =
-                typeof data.photoURL ===
-                "string"
-                  ? data.photoURL.trim()
-                  : "";
+            /* ==================================================
+               HOURLY RATE
+            ================================================== */
 
-              /*
-               * ==================================================
-               * HOURLY RATE
-               * ==================================================
-               */
+            const rawRate =
+              Number(
+                rawWorkerProfile.hourlyRate ??
+                  rawWorkerProfile.rate ??
+                  data.rate ??
+                  data.hourlyRate ??
+                  worker
+                    .workerProfile
+                    .hourlyRate,
+              );
 
-              const rawRate =
-                Number(
-                  data.rate,
-                );
+            const hourlyRate =
+              Number.isFinite(
+                rawRate,
+              ) &&
+              rawRate > 0
+                ? rawRate
+                : worker
+                    .workerProfile
+                    .hourlyRate;
 
-              const hourlyRate =
-                Number.isFinite(
-                  rawRate,
-                ) &&
-                rawRate > 0
-                  ? rawRate
-                  : undefined;
+            const mergedWorker: WorkerCardData =
+              {
+                ...worker,
 
-              /*
-               * ==================================================
-               * KEEP ORIGINAL WORKER PROFILE
-               * ==================================================
-               *
-               * VERY IMPORTANT:
-               *
-               * Do not create:
-               *
-               * {
-               *   latitude,
-               *   longitude
-               * }
-               *
-               * alone.
-               *
-               * That was causing the TypeScript error because
-               * WorkerCardData expects the complete profile.
-               *
-               * We spread the ORIGINAL profile first.
-               * ==================================================
-               */
+                fullName:
+                  resolvedFullName ||
+                  worker.fullName,
 
-              const mergedWorker =
+                workerProfile: {
+                  ...worker.workerProfile,
+
+                  photoUrl,
+
+                  hourlyRate,
+                },
+              };
+
+            if (__DEV__) {
+              console.log(
+                "WORKER_PROFILE_RESOLVED",
                 {
-                  ...worker,
+                  workerId:
+                    mergedWorker.id,
 
-                  /*
-                   * =================================================
-                   * FULL NAME FROM BUILD YOUR PROFILE
-                   *
-                   * WorkerCard currently reads:
-                   *
-                   * firstName + surname
-                   *
-                   * Therefore we place the complete profile name
-                   * into firstName and leave surname empty.
-                   * =================================================
-                   */
+                  workerName:
+                    mergedWorker.fullName,
 
-                  ...(fullName
-                    ? {
-                        firstName:
-                          fullName,
-                        surname:
-                          "",
-                      }
-                    : {}),
+                  photoURL:
+                    mergedWorker
+                      .workerProfile
+                      .photoUrl,
 
-                  /*
-                   * =================================================
-                   * PROFILE
-                   *
-                   * Preserve every existing property.
-                   * Only update photoUrl and hourlyRate.
-                   * =================================================
-                   */
+                  hasPhoto:
+                    Boolean(
+                      mergedWorker
+                        .workerProfile
+                        .photoUrl,
+                    ),
+                },
+              );
+            }
 
-                  workerProfile: {
-                    ...worker.workerProfile,
-
-                    ...(photoURL
-                      ? {
-                          photoUrl:
-                            photoURL,
-                        }
-                      : {}),
-
-                    ...(hourlyRate !==
-                    undefined
-                      ? {
-                          hourlyRate:
-                            hourlyRate,
-                        }
-                      : {}),
-                  },
-                };
-
-              return mergedWorker;
-            },
-          )
-          .map(
-            (
-              worker,
-            ) => {
-              /*
-               * ==================================================
-               * LOCATION
-               *
-               * KEEP EXACTLY AS BEFORE.
-               *
-               * This is the worker's stored location.
-               * We do NOT replace it with customer's location.
-               * ==================================================
-               */
-
-              const latitude =
-                worker
-                  .workerProfile
-                  ?.latitude;
-
-              const longitude =
-                worker
-                  .workerProfile
-                  ?.longitude;
-
-              /*
-               * ==================================================
-               * DISTANCE CALCULATION
-               *
-               * Customer current location:
-               *
-               * location.latitude
-               * location.longitude
-               *
-               * Worker location:
-               *
-               * workerProfile.latitude
-               * workerProfile.longitude
-               * ==================================================
-               */
-
-              if (
-                location &&
-                Number.isFinite(
-                  latitude,
-                ) &&
-                Number.isFinite(
-                  longitude,
-                )
-              ) {
-                const distance =
-                  calculateDistance(
-                    location.latitude,
-                    location.longitude,
-                    latitude as number,
-                    longitude as number,
-                  );
-
-                return {
-                  ...worker,
-                  distance,
-                };
-              }
-
-              /*
-               * No location changes.
-               */
-
-              return worker;
-            },
-          );
+            return mergedWorker;
+          },
+        );
       },
-      [
-        location,
-      ],
+      [],
     );
 
   /* ============================================================
@@ -642,37 +703,59 @@ export default function WorkersScreen() {
       async (
         isRefresh = false,
       ) => {
+        const requestId =
+          ++requestIdRef.current;
+
         if (
           !selectedServiceId
         ) {
           setWorkers([]);
+
+          setLoadError(
+            "The selected service could not be identified.",
+          );
+
           setLoading(false);
+
+          setRefreshing(false);
+
           return;
         }
 
-        if (isRefresh) {
-          setRefreshing(true);
+        if (
+          isRefresh
+        ) {
+          setRefreshing(
+            true,
+          );
         } else {
-          setLoading(true);
+          setLoading(
+            true,
+          );
+
+          /*
+           * Prevent workers from a previous
+           * service flashing on this service.
+           */
+          setWorkers([]);
         }
 
-        try {
-          /*
-           * ======================================================
-           * GET WORKERS BY SERVICE
-           * ======================================================
-           */
+        setLoadError(
+          null,
+        );
 
+        try {
           const snapshot =
             await getPublicWorkersByService(
               selectedServiceId,
             );
 
-          /*
-           * ======================================================
-           * MAP + PROFILE DATA
-           * ======================================================
-           */
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
 
           const mapped =
             mapWorkers(
@@ -682,35 +765,68 @@ export default function WorkersScreen() {
           setWorkers(
             mapped,
           );
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.error(
             "LOAD_PUBLIC_WORKERS_ERROR",
             error,
           );
 
-          setWorkers([]);
-
-          if (isRefresh) {
-            Alert.alert(
-              "Refresh failed",
-              "We could not refresh the workers. Please try again.",
-            );
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
           }
+
+          setLoadError(
+            "We could not load workers right now. Please try again.",
+          );
+
+          /*
+           * Do not destroy the current list
+           * when only pull-to-refresh fails.
+           */
+          if (
+            !isRefresh
+          ) {
+            setWorkers([]);
+          }
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              isRefresh
+                ? "Refresh failed"
+                : "Unable to load workers",
+
+            text2:
+              "Please check your connection and try again.",
+          });
         } finally {
-          if (isRefresh) {
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          if (
+            isRefresh
+          ) {
             setRefreshing(
               false,
             );
           } else {
-            setLoading(false);
+            setLoading(
+              false,
+            );
           }
         }
       },
       [
-        selectedServiceId,
         mapWorkers,
+        selectedServiceId,
       ],
     );
 
@@ -720,9 +836,89 @@ export default function WorkersScreen() {
 
   useEffect(() => {
     void loadWorkers();
+
+    return () => {
+      requestIdRef.current +=
+        1;
+    };
   }, [
     loadWorkers,
   ]);
+
+  /* ============================================================
+     DISTANCE
+
+     GPS updates only recalculate distance locally.
+     Firestore is not queried again.
+  ============================================================ */
+
+  const workersWithDistance =
+    useMemo(() => {
+      if (
+        !location ||
+        !isValidLatitude(
+          location.latitude,
+        ) ||
+        !isValidLongitude(
+          location.longitude,
+        )
+      ) {
+        return workers;
+      }
+
+      /*
+       * These constants are now guaranteed
+       * to be numbers by the type guards above.
+       */
+      const customerLatitude =
+        location.latitude;
+
+      const customerLongitude =
+        location.longitude;
+
+      return workers.map(
+        (worker) => {
+          const latitude =
+            worker.workerProfile
+              .latitude;
+
+          const longitude =
+            worker.workerProfile
+              .longitude;
+
+          if (
+            !isValidLatitude(
+              latitude,
+            ) ||
+            !isValidLongitude(
+              longitude,
+            )
+          ) {
+            return {
+              ...worker,
+
+              distance:
+                undefined,
+            };
+          }
+
+          return {
+            ...worker,
+
+            distance:
+              calculateDistance(
+                customerLatitude,
+                customerLongitude,
+                latitude,
+                longitude,
+              ),
+          };
+        },
+      );
+    }, [
+      location,
+      workers,
+    ]);
 
   /* ============================================================
      REFRESH
@@ -746,10 +942,6 @@ export default function WorkersScreen() {
       (
         worker: WorkerCardData,
       ) => {
-        /* ======================================================
-           SERVICE ID
-        ====================================================== */
-
         if (
           !selectedServiceId
         ) {
@@ -760,17 +952,18 @@ export default function WorkersScreen() {
             },
           );
 
-          Alert.alert(
-            "Service unavailable",
-            "The selected service could not be identified.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Service unavailable",
+
+            text2:
+              "The selected service could not be identified.",
+          });
 
           return;
         }
-
-        /* ======================================================
-           SERVICE NAME
-        ====================================================== */
 
         if (
           !selectedServiceName
@@ -779,195 +972,115 @@ export default function WorkersScreen() {
             "BOOKING_MISSING_SERVICE_NAME",
             {
               params,
+
               selectedServiceId,
             },
           );
 
-          Alert.alert(
-            "Service unavailable",
-            "The selected service name could not be identified.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Service unavailable",
+
+            text2:
+              "The selected service name could not be identified.",
+          });
 
           return;
         }
 
-        /* ======================================================
-           WORKER ID
-        ====================================================== */
-
-        if (!worker.id) {
-          Alert.alert(
-            "Worker unavailable",
-            "This worker could not be identified.",
+        const workerId =
+          cleanString(
+            worker.id,
           );
+
+        if (
+          !workerId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Worker unavailable",
+
+            text2:
+              "This worker could not be identified.",
+          });
 
           return;
         }
-
-        /* ======================================================
-           WORKER DATA
-        ====================================================== */
-
-        const workerData =
-          worker as WorkerReviewData;
-
-        /*
-         * IMPORTANT:
-         *
-         * Use the ORIGINAL workerProfile type.
-         *
-         * Do NOT cast it to another smaller type.
-         */
-
-        const profile =
-          worker.workerProfile;
-
-        /* ======================================================
-           WORKER NAME
-        ====================================================== */
 
         const workerName =
-          [
-            worker.firstName,
-            worker.surname,
-          ]
-            .filter(
-              (
-                value,
-              ): value is string =>
-                typeof value ===
-                  "string" &&
-                value.trim()
-                  .length > 0,
-            )
-            .join(" ")
-            .trim();
-
-        /* ======================================================
-           WORKER CATEGORY
-        ====================================================== */
+          getWorkerName(
+            worker,
+          );
 
         const workerCategory =
-          [
-            worker.category,
-            worker.subcategory,
-          ]
-            .filter(
-              (
-                value,
-              ) =>
-                typeof value ===
-                  "string" &&
-                value.trim()
-                  .length > 0,
-            )
-            .join(" • ");
-
-        /* ======================================================
-           REVIEW COUNT
-        ====================================================== */
+          getWorkerCategory(
+            worker,
+          );
 
         const reviewCount =
           Number(
-            workerData.reviewCount ??
-              workerData.reviewsCount ??
-              workerData.reviews ??
-              0,
+            worker.totalReviews,
           );
-
-        /* ======================================================
-           JOB COUNT
-        ====================================================== */
 
         const jobs =
           Number(
-            workerData.jobs ??
-              workerData.totalJobs ??
+            worker.completedJobs ??
               0,
           );
 
-      /* ======================================================
-   LOCATION
-
-   IMPORTANT:
-   Keep existing worker location unchanged.
-====================================================== */
-
-const locationName =
-  typeof profile?.address === "string"
-    ? profile.address.trim()
-    : "";
-
-        /* ======================================================
-           HOURLY RATE
-           
-           This now comes from:
-           
-           Build Your Profile
-                 ↓
-           workerPublicProfiles
-                 ↓
-           rate
-                 ↓
-           workerProfile.hourlyRate
-        ====================================================== */
+        const workerLocation =
+          getWorkerLocationName(
+            worker,
+          );
 
         const rawHourlyRate =
           Number(
-            profile?.hourlyRate ??
-              0,
+            worker.workerProfile
+              .hourlyRate,
           );
 
         const hourlyRate =
           Number.isFinite(
             rawHourlyRate,
-          )
+          ) &&
+          rawHourlyRate >= 0
             ? rawHourlyRate
             : 0;
 
-        /* ======================================================
-           DISTANCE
-        ====================================================== */
-
-        const distance =
-          typeof worker.distance ===
-            "number" &&
-          Number.isFinite(
-            worker.distance,
-          )
-            ? worker.distance
-            : undefined;
+        const workerPhoto =
+          getRemotePhotoUrl(
+            worker.workerProfile
+              .photoUrl,
+          );
 
         /* ======================================================
-           BOOKING PARAMS
+           BOOKING PARAMS — PRESERVED
         ====================================================== */
 
         const bookingParams = {
-          /* ====================================================
-             WORKER
-          ==================================================== */
+          workerId,
 
-          workerId:
-            worker.id,
+          workerName,
 
-          workerName:
-            workerName ||
-            DEFAULT_WORKER_NAME,
+          workerPhoto,
 
-          workerPhoto:
-            profile?.photoUrl?.trim() ||
-            "",
-
-          workerCategory:
-            workerCategory ||
-            DEFAULT_WORKER_CATEGORY,
+          workerCategory,
 
           workerRating:
             String(
-              Number(
-                worker.rating ??
-                  0,
-              ),
+              Number.isFinite(
+                Number(
+                  worker.rating,
+                ),
+              )
+                ? Number(
+                    worker.rating,
+                  )
+                : 0,
             ),
 
           workerReviews:
@@ -986,18 +1099,16 @@ const locationName =
               ),
             ),
 
-          /*
-           * Keep worker location.
-           */
-
-          workerLocation:
-            locationName,
+          workerLocation,
 
           workerDistance:
-            distance !==
-            undefined
+            typeof worker.distance ===
+                "number" &&
+              Number.isFinite(
+                worker.distance,
+              )
               ? String(
-                  distance,
+                  worker.distance,
                 )
               : "",
 
@@ -1022,10 +1133,6 @@ const locationName =
               ),
             ),
 
-          /* ====================================================
-             SERVICE
-          ==================================================== */
-
           serviceId:
             selectedServiceId,
 
@@ -1041,20 +1148,12 @@ const locationName =
           serviceBackgroundColor:
             selectedServiceBackgroundColor,
 
-          /* ====================================================
-             CATEGORY
-          ==================================================== */
-
           ...(resolvedCategoryId
             ? {
                 categoryId:
                   resolvedCategoryId,
               }
             : {}),
-
-          /* ====================================================
-             REWARD
-          ==================================================== */
 
           ...(resolvedReward
             ? {
@@ -1064,31 +1163,51 @@ const locationName =
             : {}),
         };
 
-        console.log(
-          "OPEN_BOOKING_PARAMS",
-          bookingParams,
-        );
+        if (__DEV__) {
+          console.log(
+            "OPEN_BOOKING_PARAMS",
+            {
+              workerId:
+                bookingParams.workerId,
+
+              workerName:
+                bookingParams.workerName,
+
+              workerPhoto:
+                bookingParams.workerPhoto,
+
+              photoIsHttps:
+                bookingParams.workerPhoto.startsWith(
+                  "https://",
+                ),
+
+              serviceId:
+                bookingParams.serviceId,
+            },
+          );
+        }
 
         /* ======================================================
-           NAVIGATE
+           ROUTE — PRESERVED EXACTLY
         ====================================================== */
 
         router.push({
           pathname:
             "/(customer)/booking",
+
           params:
             bookingParams,
         });
       },
       [
         params,
-        selectedServiceId,
-        selectedServiceName,
-        selectedServiceIcon,
-        selectedServiceColor,
-        selectedServiceBackgroundColor,
         resolvedCategoryId,
         resolvedReward,
+        selectedServiceBackgroundColor,
+        selectedServiceColor,
+        selectedServiceIcon,
+        selectedServiceId,
+        selectedServiceName,
       ],
     );
 
@@ -1101,20 +1220,37 @@ const locationName =
       (
         worker: WorkerCardData,
       ) => {
-        if (!worker.id) {
-          Alert.alert(
-            "Worker unavailable",
-            "This worker could not be identified.",
+        const workerId =
+          cleanString(
+            worker.id,
           );
+
+        if (
+          !workerId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Worker unavailable",
+
+            text2:
+              "This worker could not be identified.",
+          });
 
           return;
         }
 
+        /* ======================================================
+           ROUTE — PRESERVED EXACTLY
+        ====================================================== */
+
         router.push({
           pathname:
             "/(customer)/details/worker-profile/[id]",
+
           params: {
-            id: worker.id,
+            id: workerId,
           },
         });
       },
@@ -1132,34 +1268,49 @@ const locationName =
           .trim()
           .toLowerCase();
 
-      return [...workers]
+      return [
+        ...workersWithDistance,
+      ]
         .filter(
-          (
-            worker,
-          ) => {
-            const fullName =
-              `${worker.firstName ?? ""} ${
-                worker.surname ?? ""
-              }`
-                .trim()
-                .toLowerCase();
-
-            /*
-             * Search worker name only.
-             */
-
+          (worker) => {
             if (
-              searchValue &&
-              !fullName.includes(
-                searchValue,
-              )
+              searchValue
             ) {
-              return false;
-            }
+              const searchable =
+                [
+                  getWorkerName(
+                    worker,
+                  ),
 
-            /*
-             * Online filter unchanged.
-             */
+                  cleanString(
+                    worker.category,
+                  ),
+
+                  cleanString(
+                    worker.subcategory,
+                  ),
+
+                  ...worker.services.map(
+                    (serviceItem) =>
+                      cleanString(
+                        serviceItem.name,
+                      ),
+                  ),
+                ]
+                  .filter(
+                    Boolean,
+                  )
+                  .join(" ")
+                  .toLowerCase();
+
+              if (
+                !searchable.includes(
+                  searchValue,
+                )
+              ) {
+                return false;
+              }
+            }
 
             if (
               filters.onlineOnly &&
@@ -1167,10 +1318,6 @@ const locationName =
             ) {
               return false;
             }
-
-            /*
-             * Verified filter unchanged.
-             */
 
             if (
               filters.verifiedOnly &&
@@ -1183,13 +1330,8 @@ const locationName =
           },
         )
         .sort(
-          (
-            a,
-            b,
-          ) => {
-            switch (
-              sort
-            ) {
+          (a, b) => {
+            switch (sort) {
               case "rating":
                 return (
                   Number(
@@ -1202,50 +1344,87 @@ const locationName =
                   )
                 );
 
-              case "priceLow":
-                return (
-                  Number(
-                    a
-                      .workerProfile
-                      ?.hourlyRate ??
-                      0,
-                  ) -
-                  Number(
-                    b
-                      .workerProfile
-                      ?.hourlyRate ??
-                      0,
-                  )
-                );
+              case "priceLow": {
+                const aRate =
+                  getSafeRate(a);
 
-              case "priceHigh":
-                return (
-                  Number(
-                    b
-                      .workerProfile
-                      ?.hourlyRate ??
-                      0,
-                  ) -
-                  Number(
-                    a
-                      .workerProfile
-                      ?.hourlyRate ??
-                      0,
-                  )
-                );
+                const bRate =
+                  getSafeRate(b);
 
-              case "nearest":
-                return (
-                  Number(
-                    a.distance ??
-                      Number.MAX_SAFE_INTEGER,
-                  ) -
-                  Number(
-                    b.distance ??
-                      Number.MAX_SAFE_INTEGER,
-                  )
-                );
+                if (
+                  aRate === null
+                ) {
+                  return 1;
+                }
 
+                if (
+                  bRate === null
+                ) {
+                  return -1;
+                }
+
+                return (
+                  aRate -
+                  bRate
+                );
+              }
+
+              case "priceHigh": {
+                const aRate =
+                  getSafeRate(a);
+
+                const bRate =
+                  getSafeRate(b);
+
+                if (
+                  aRate === null
+                ) {
+                  return 1;
+                }
+
+                if (
+                  bRate === null
+                ) {
+                  return -1;
+                }
+
+                return (
+                  bRate -
+                  aRate
+                );
+              }
+
+              case "nearest": {
+                const aDistance =
+                  typeof a.distance ===
+                      "number" &&
+                    Number.isFinite(
+                      a.distance,
+                    )
+                    ? a.distance
+                    : Number.POSITIVE_INFINITY;
+
+                const bDistance =
+                  typeof b.distance ===
+                      "number" &&
+                    Number.isFinite(
+                      b.distance,
+                    )
+                    ? b.distance
+                    : Number.POSITIVE_INFINITY;
+
+                return (
+                  aDistance -
+                  bDistance
+                );
+              }
+
+              /*
+               * Preserve Firestore order.
+               * WorkerCardData currently has
+               * no createdAt field to sort
+               * client-side by recency.
+               */
               case "latest":
               default:
                 return 0;
@@ -1253,31 +1432,95 @@ const locationName =
           },
         );
     }, [
-      workers,
-      search,
       filters,
+      search,
       sort,
+      workersWithDistance,
     ]);
+
+  /* ============================================================
+     EMPTY COPY
+  ============================================================ */
+
+  const emptyMessage =
+    useMemo(() => {
+      if (
+        loadError
+      ) {
+        return loadError;
+      }
+
+      if (
+        workersWithDistance.length >
+          0 &&
+        filteredWorkers.length ===
+          0
+      ) {
+        return "No workers match your current search or filters.";
+      }
+
+      return `No workers are available for ${
+        selectedServiceName ||
+        "this service"
+      }.`;
+    }, [
+      filteredWorkers.length,
+      loadError,
+      selectedServiceName,
+      workersWithDistance.length,
+    ]);
+
+  /* ============================================================
+     RENDER WORKER
+  ============================================================ */
+
+  const renderWorker =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: WorkerCardData;
+      }) => (
+        <WorkerCard
+          worker={item}
+          onProfilePress={() =>
+            handleWorkerProfile(
+              item,
+            )
+          }
+          onBookPress={() =>
+            handleWorkerRequest(
+              item,
+            )
+          }
+        />
+      ),
+      [
+        handleWorkerProfile,
+        handleWorkerRequest,
+      ],
+    );
 
   /* ============================================================
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <SafeAreaView
         style={
           styles.container
         }
+        edges={[
+          "top",
+        ]}
       >
         <FlatList
-          data={[
-            "1",
-            "2",
-            "3",
-            "4",
-            "5",
-          ]}
+          data={
+            LOADING_ITEMS
+          }
           keyExtractor={(
             item,
           ) => item}
@@ -1304,6 +1547,9 @@ const locationName =
       style={
         styles.container
       }
+      edges={[
+        "top",
+      ]}
     >
       <FlatList
         data={
@@ -1311,14 +1557,14 @@ const locationName =
         }
         keyExtractor={(
           item,
-          index,
-        ) =>
-          item.id ||
-          `worker-${index}`
+        ) => item.id}
+        renderItem={
+          renderWorker
         }
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.listContent
         }
@@ -1331,17 +1577,15 @@ const locationName =
               onRefresh
             }
             colors={[
-              "#2563EB",
+              CustomerColors.primary,
             ]}
-            tintColor="#2563EB"
+            tintColor={
+              CustomerColors.primary
+            }
           />
         }
         ListHeaderComponent={
           <>
-            {/* ==================================================
-                HEADER
-            ================================================== */}
-
             <WorkersHeader
               value={
                 search
@@ -1358,10 +1602,6 @@ const locationName =
                 )
               }
             />
-
-            {/* ==================================================
-                SORT
-            ================================================== */}
 
             <View
               style={
@@ -1380,11 +1620,7 @@ const locationName =
               />
             </View>
 
-            {/* ==================================================
-                FREE SERVICE
-            ================================================== */}
-
-            {isFreeService && (
+            {isFreeService ? (
               <View
                 style={
                   styles.rewardBanner
@@ -1395,10 +1631,11 @@ const locationName =
                     styles.rewardIcon
                   }
                 >
-                  <Ionicons
-                    name="gift-outline"
-                    size={22}
-                    color="#2563EB"
+                  <AppIcon
+                    name="star"
+                    role="customer"
+                    size="md"
+                    state="active"
                   />
                 </View>
 
@@ -1408,6 +1645,7 @@ const locationName =
                   }
                 >
                   <AppText
+                    variant="bodyMedium"
                     weight="bold"
                     style={
                       styles.rewardBannerTitle
@@ -1417,17 +1655,18 @@ const locationName =
                   </AppText>
 
                   <AppText
+                    variant="caption"
+                    tone="secondary"
                     style={
                       styles.rewardBannerText
                     }
                   >
-                    Choose a worker
-                    for your free
-                    service.
+                    Choose a worker for your
+                    free service.
                   </AppText>
                 </View>
               </View>
-            )}
+            ) : null}
           </>
         }
         ListEmptyComponent={
@@ -1441,59 +1680,44 @@ const locationName =
                 styles.emptyIcon
               }
             >
-              <Ionicons
-                name="people-outline"
-                size={38}
-                color="#CBD5E1"
+              <AppIcon
+                name="users"
+                role="customer"
+                size="xl"
+                state="muted"
               />
             </View>
 
             <AppText
+              variant="bodyLarge"
               weight="bold"
+              center
               style={
                 styles.emptyTitle
               }
             >
-              No Workers Found
+              {loadError
+                ? "Unable to Load Workers"
+                : "No Workers Found"}
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               center
               style={
                 styles.emptyText
               }
             >
-              No workers are
-              available for{" "}
-              {selectedServiceName ||
-                "this service"}.
+              {emptyMessage}
             </AppText>
           </View>
         }
-        renderItem={({
-          item,
-        }) => (
-          <WorkerCard
-            worker={
-              item
-            }
-            onProfilePress={() =>
-              handleWorkerProfile(
-                item,
-              )
-            }
-            onBookPress={() =>
-              handleWorkerRequest(
-                item,
-              )
-            }
-          />
-        )}
       />
 
-      {/* ========================================================
+      {/* ======================================================
           FILTER POPUP
-      ======================================================== */}
+      ====================================================== */}
 
       <WorkerFilterPopup
         visible={
@@ -1520,9 +1744,9 @@ const locationName =
         }}
       />
 
-      {/* ========================================================
+      {/* ======================================================
           SORT POPUP
-      ======================================================== */}
+      ====================================================== */}
 
       <WorkerSortPopup
         visible={
@@ -1560,89 +1784,176 @@ const styles =
   StyleSheet.create({
     container: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     loadingList: {
-      padding: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
     },
 
+    /* ========================================================
+       LIST
+    ======================================================== */
+
     listContent: {
-      paddingBottom: 40,
+      flexGrow: 1,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     sortContainer: {
-      paddingHorizontal: 16,
-      paddingBottom: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
     },
 
+    /* ========================================================
+       REWARD
+    ======================================================== */
+
     rewardBanner: {
-      marginHorizontal: 16,
-      marginBottom: 12,
-      padding: 14,
-      borderRadius: 16,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#EFF6FF",
-      flexDirection: "row",
-      alignItems: "center",
+        CustomerColors.primarySoft,
     },
 
     rewardIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     rewardBannerContent: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     rewardBannerTitle: {
-      fontSize: 14,
-      color: "#1D4ED8",
+      color:
+        CustomerColors.primary,
     },
 
     rewardBannerText: {
-      marginTop: 2,
-      fontSize: 12,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 18,
     },
 
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
     empty: {
-      marginTop: 80,
-      alignItems: "center",
-      paddingHorizontal: 30,
+      flex: 1,
+
+      minHeight: 320,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
     },
 
     emptyIcon: {
-      width: 76,
-      height: 76,
-      borderRadius: 24,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems: "center",
+      width: 80,
+
+      height: 80,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 18,
-      fontSize: 20,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 8,
-      color: "#64748B",
-      fontSize: 13,
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 21,
     },
   });

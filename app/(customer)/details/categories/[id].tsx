@@ -1,10 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  View,
 } from "react-native";
 
 import {
@@ -12,216 +16,723 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
 import CategoryCard from "@/components/categories/CategoryCard";
 
-import { getSubcategories } from "@/firebase/queries/subcategories";
+import {
+  getSubcategories,
+} from "@/firebase/queries/subcategories";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Subcategory = {
   id: string;
+
   name: string;
+
   icon: string;
+
   color: string;
+
   backgroundColor: string;
 };
 
-export default function CategoryScreen() {
-  const {
-    id: categoryId,
-    reward,
-  } = useLocalSearchParams<{
-    id: string;
-    reward?: string;
-  }>();
+/* ==============================================================
+   HELPERS
+============================================================== */
 
-  const [loading, setLoading] =
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
+
+export default function CategoryScreen() {
+  const params =
+    useLocalSearchParams<{
+      id: string;
+
+      reward?: string;
+    }>();
+
+  const categoryId =
+    cleanString(
+      params.id,
+    );
+
+  const reward =
+    cleanString(
+      params.reward,
+    );
+
+  /* ============================================================
+     STATE
+  ============================================================ */
+
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [subcategories, setSubcategories] =
-    useState<Subcategory[]>([]);
+  const [
+    subcategories,
+    setSubcategories,
+  ] =
+    useState<
+      Subcategory[]
+    >([]);
 
-  useEffect(() => {
-    void loadSubcategories();
-  }, [categoryId]);
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  async function loadSubcategories() {
-    try {
-      if (!categoryId) {
+  /* ============================================================
+     LOAD SUBCATEGORIES
+  ============================================================ */
+
+  const loadSubcategories =
+    useCallback(async () => {
+      if (
+        !categoryId
+      ) {
+        setSubcategories(
+          [],
+        );
+
+        setError(
+          "Category information is unavailable.",
+        );
+
+        setLoading(
+          false,
+        );
+
         return;
       }
 
-      setLoading(true);
-
-      const snapshot =
-        await getSubcategories(
-          categoryId,
+      try {
+        setLoading(
+          true,
         );
 
-      const data: Subcategory[] =
-        snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...(doc.data() as Omit<
-            Subcategory,
-            "id"
-          >),
-        }));
+        setError(
+          null,
+        );
 
-      setSubcategories(data);
-    } catch (error) {
-      console.error(
-        "Failed to load subcategories:",
-        error,
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
+        const snapshot =
+          await getSubcategories(
+            categoryId,
+          );
 
-  function handleSubcategoryPress(
-    subcategoryId: string,
-  ) {
-    router.push({
-      pathname:
-        "/(customer)/details/services/[id]",
-      params: {
-        id: subcategoryId,
-        categoryId,
-        ...(reward
-          ? { reward }
-          : {}),
+        const data =
+          snapshot.docs.reduce<
+            Subcategory[]
+          >(
+            (
+              items,
+              document,
+            ) => {
+              const raw =
+                document.data();
+
+              const name =
+                cleanString(
+                  raw.name,
+                );
+
+              if (
+                !name
+              ) {
+                return items;
+              }
+
+              items.push({
+                id:
+                  document.id,
+
+                name,
+
+                icon:
+                  cleanString(
+                    raw.icon,
+                  ) ||
+                  "service",
+
+                color:
+                  cleanString(
+                    raw.color,
+                  ) ||
+                  CustomerColors.primary,
+
+                backgroundColor:
+                  cleanString(
+                    raw.backgroundColor,
+                  ) ||
+                  CustomerColors.primarySoft,
+              });
+
+              return items;
+            },
+            [],
+          );
+
+        setSubcategories(
+          data,
+        );
+      } catch (
+        loadError
+      ) {
+        console.error(
+          "LOAD_SUBCATEGORIES_ERROR:",
+          loadError,
+        );
+
+        setSubcategories(
+          [],
+        );
+
+        setError(
+          "Unable to load subcategories. Please try again.",
+        );
+      } finally {
+        setLoading(
+          false,
+        );
+      }
+    }, [
+      categoryId,
+    ]);
+
+  /* ============================================================
+     INITIAL LOAD
+  ============================================================ */
+
+  useEffect(() => {
+    void loadSubcategories();
+  }, [
+    loadSubcategories,
+  ]);
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
+  /* ============================================================
+     SUBCATEGORY
+  ============================================================ */
+
+  const handleSubcategoryPress =
+    useCallback(
+      (
+        subcategoryId:
+          string,
+      ) => {
+        router.push({
+          pathname:
+            "/(customer)/details/services/[id]",
+
+          params: {
+            id:
+              subcategoryId,
+
+            categoryId,
+
+            ...(reward
+              ? {
+                  reward,
+                }
+              : {}),
+          },
+        } as const);
       },
-    } as const);
-  }
+      [
+        categoryId,
+        reward,
+      ],
+    );
 
-  if (loading) {
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  if (
+    loading
+  ) {
     return (
       <AppScreen
+        role="customer"
+        padded={false}
         contentContainerStyle={
           styles.loadingContainer
         }
       >
         <ActivityIndicator
           size="large"
-          color="#2563EB"
+          color={
+            CustomerColors.primary
+          }
         />
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          style={
+            styles.loadingText
+          }
+        >
+          Loading subcategories...
+        </AppText>
       </AppScreen>
     );
   }
 
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
     <AppScreen
+      role="customer"
+      padded={false}
       contentContainerStyle={
         styles.container
       }
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() =>
-            router.back()
-          }
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
+        <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={8}
+          onPress={
+            handleBack
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.backButtonPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={22}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
+            state="default"
           />
-        </TouchableOpacity>
+        </Pressable>
 
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.title}
+          center
+          numberOfLines={1}
+          style={
+            styles.title
+          }
         >
           Subcategories
         </AppText>
 
         <View
-          style={styles.placeholder}
+          style={
+            styles.placeholder
+          }
         />
       </View>
 
-      <View style={styles.list}>
-        {subcategories.map((item) => (
-          <CategoryCard
-            key={item.id}
-            title={item.name}
-            icon={item.icon}
-            iconColor={item.color}
-            backgroundColor={
-              item.backgroundColor
+      {/* ======================================================
+          ERROR
+      ====================================================== */}
+
+      {error ? (
+        <View
+          style={
+            styles.stateContainer
+          }
+        >
+          <View
+            style={[
+              styles.stateIcon,
+              styles.errorIcon,
+            ]}
+          >
+            <AppIcon
+              name="error"
+              role="customer"
+              size="lg"
+              state="error"
+            />
+          </View>
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            center
+            style={
+              styles.stateTitle
             }
-            onPress={() =>
-              handleSubcategoryPress(
-                item.id,
-              )
+          >
+            Unable to load services
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.stateText
+            }
+          >
+            {error}
+          </AppText>
+
+          <AppButton
+            title="Try Again"
+            role="customer"
+            leftIconName="refresh"
+            onPress={
+              loadSubcategories
+            }
+            style={
+              styles.stateButton
             }
           />
-        ))}
-      </View>
+        </View>
+      ) : subcategories.length ===
+        0 ? (
+        /* ====================================================
+           EMPTY
+        ==================================================== */
+
+        <View
+          style={
+            styles.stateContainer
+          }
+        >
+          <View
+            style={
+              styles.stateIcon
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="lg"
+              state="muted"
+            />
+          </View>
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            center
+            style={
+              styles.stateTitle
+            }
+          >
+            No subcategories yet
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.stateText
+            }
+          >
+            There are currently no
+            services available in this
+            category.
+          </AppText>
+        </View>
+      ) : (
+        /* ====================================================
+           SUBCATEGORY LIST
+        ==================================================== */
+
+        <View
+          style={
+            styles.list
+          }
+        >
+          {subcategories.map(
+            (
+              item,
+            ) => (
+              <CategoryCard
+                key={
+                  item.id
+                }
+                title={
+                  item.name
+                }
+                icon={
+                  item.icon
+                }
+                iconColor={
+                  item.color
+                }
+                backgroundColor={
+                  item.backgroundColor
+                }
+                onPress={() =>
+                  handleSubcategoryPress(
+                    item.id,
+                  )
+                }
+              />
+            ),
+          )}
+        </View>
+      )}
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  header: {
-    flexDirection: "row",
-    justifyContent:
-      "space-between",
-    alignItems: "center",
-    marginBottom: 14,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  backButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
-    elevation: 2,
-  },
 
-  placeholder: {
-    width: 38,
-  },
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
-  title: {
-    fontSize: 18,
-    color: "#0F172A",
-    letterSpacing: -0.2,
-  },
+    loadingContainer: {
+      flex: 1,
 
-  list: {
-    marginTop: 4,
-    rowGap: 8,
-  },
-});
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    placeholder: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+    },
+
+    title: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
+
+    list: {
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       STATE
+    ======================================================== */
+
+    stateContainer: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+    },
+
+    stateIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    errorIcon: {
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    stateTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    stateText: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    stateButton: {
+      minWidth: 170,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+  });

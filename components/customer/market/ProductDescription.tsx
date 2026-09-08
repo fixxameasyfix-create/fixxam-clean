@@ -1,63 +1,153 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { AppText } from "@/components/ui";
+import React, {
+  memo,
+} from "react";
+
+import {
+  StyleSheet,
+  View,
+} from "react-native";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   description: string;
 };
 
-export default function ProductDescription({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ProductDescription({
   description,
 }: Props) {
+  const normalizedDescription =
+    typeof description === "string"
+      ? description.trim()
+      : "";
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons
-          name="document-text-outline"
-          size={15}
-          color="#2563EB"
-        />
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
-        <AppText weight="bold" style={styles.title}>
+      <View style={styles.header}>
+        <View style={styles.iconBox}>
+          <AppIcon
+            name="file"
+            role="customer"
+            size="xs"
+            state="active"
+          />
+        </View>
+
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          style={styles.title}
+        >
           Product Description
         </AppText>
       </View>
 
-      <AppText style={styles.description}>
-        {description || "No description available for this product."}
+      {/* ======================================================
+          DESCRIPTION
+      ====================================================== */}
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={styles.description}
+      >
+        {normalizedDescription ||
+          "No description available for this product."}
       </AppText>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles = StyleSheet.create({
   container: {
-    marginTop: 8,
-    marginHorizontal: 12,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
+    marginHorizontal:
+      FixxamTokens.spacing.lg,
+
+    marginTop:
+      FixxamTokens.spacing.md,
+
+    padding:
+      FixxamTokens.spacing.md,
+
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.surface,
   },
 
   header: {
     flexDirection: "row",
+
     alignItems: "center",
-    marginBottom: 5,
+
+    marginBottom:
+      FixxamTokens.spacing.sm,
+  },
+
+  iconBox: {
+    width: 30,
+
+    height: 30,
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.sm,
+
+    backgroundColor:
+      CustomerColors.primarySoft,
   },
 
   title: {
-    marginLeft: 5,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#111827",
+    flex: 1,
+
+    minWidth: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.sm,
+
+    color:
+      Colors.textPrimary,
   },
 
   description: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#4B5563",
+    lineHeight: 20,
   },
 });
+
+export default memo(
+  ProductDescription,
+);

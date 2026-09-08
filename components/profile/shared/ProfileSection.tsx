@@ -1,110 +1,138 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
-  ViewStyle,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 
 import {
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   title?: string;
 
   children: React.ReactNode;
 
-  style?: ViewStyle;
-
+  style?: StyleProp<ViewStyle>;
 };
 
-export default function ProfileSection({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProfileSection({
   title,
-
   children,
-
   style,
-
 }: Props) {
+  const safeTitle =
+    typeof title === "string"
+      ? title.trim()
+      : "";
 
   return (
-
     <View
       style={[
         styles.container,
         style,
       ]}
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
 
-      {!!title && (
-
+      {safeTitle ? (
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
+          numberOfLines={1}
+          style={
+            styles.title
+          }
         >
-
-          {title}
-
+          {safeTitle}
         </AppText>
+      ) : null}
 
-      )}
+      {/* ======================================================
+          SECTION CARD
+      ====================================================== */}
 
-      <View style={styles.card}>
-
+      <View
+        style={styles.card}
+      >
         {children}
-
       </View>
-
     </View>
-
   );
-
 }
 
-const styles = StyleSheet.create({
+export default memo(
+  ProfileSection,
+);
 
-  container: {
+/* ============================================================
+   STYLES
+============================================================ */
 
-    marginHorizontal: 16,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-    marginBottom: 20,
+    container: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-  },
-
-  title: {
-
-    fontSize: 16,
-
-    color: "#0F172A",
-
-    marginBottom: 10,
-
-  },
-
-  card: {
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 20,
-
-    overflow: "hidden",
-
-    shadowColor: "#000",
-
-    shadowOpacity: 0.05,
-
-    shadowRadius: 10,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
-    elevation: 3,
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-});
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       CARD
+    ======================================================== */
+
+    card: {
+      overflow: "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+  });

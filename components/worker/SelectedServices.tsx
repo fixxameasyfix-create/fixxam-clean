@@ -1,233 +1,461 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   ServiceItem,
 } from "@/constants/serviceLoader";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   selectedServices: string[];
+
   availableServices: ServiceItem[];
+
   onRemove: (
     serviceId: string,
   ) => void;
 };
 
-export default function SelectedServices({
+type SelectedServiceChipProps = {
+  service: ServiceItem;
+
+  onRemove: (
+    serviceId: string,
+  ) => void;
+};
+
+/* ============================================================
+   SELECTED SERVICE CHIP
+============================================================ */
+
+const SelectedServiceChip =
+  memo(function SelectedServiceChip({
+    service,
+    onRemove,
+  }: SelectedServiceChipProps) {
+    const handleRemove =
+      useCallback(() => {
+        onRemove(
+          service.id,
+        );
+      }, [
+        onRemove,
+        service.id,
+      ]);
+
+    return (
+      <View
+        style={
+          styles.chip
+        }
+      >
+        <View
+          style={
+            styles.serviceIcon
+          }
+        >
+          <AppIcon
+            name="check"
+            role="worker"
+            size="xs"
+            state="active"
+          />
+        </View>
+
+        <AppText
+          variant="caption"
+          weight="medium"
+          numberOfLines={1}
+          style={
+            styles.chipText
+          }
+        >
+          {service.name}
+        </AppText>
+
+        <Pressable
+          onPress={
+            handleRemove
+          }
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${service.name}`}
+          hitSlop={
+            FixxamTokens.spacing.sm
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.removeButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="close"
+            role="worker"
+            size="xs"
+            state="muted"
+          />
+        </Pressable>
+      </View>
+    );
+  });
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function SelectedServices({
   selectedServices,
   availableServices,
   onRemove,
 }: Props) {
+  const selectedItems =
+    useMemo(
+      () =>
+        selectedServices
+          .map(
+            (serviceId) =>
+              availableServices.find(
+                (item) =>
+                  item.id ===
+                  serviceId,
+              ),
+          )
+          .filter(
+            (
+              service,
+            ): service is ServiceItem =>
+              Boolean(
+                service,
+              ),
+          ),
+      [
+        availableServices,
+        selectedServices,
+      ],
+    );
+
   if (
-    selectedServices.length === 0
+    selectedItems.length === 0
   ) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ==================================================
+          HEADER
+      ================================================== */}
 
-      <View style={styles.header}>
-        <View>
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerContent
+          }
+        >
           <AppText
-            weight="semibold"
-            style={styles.title}
+            variant="body"
+            weight="medium"
+            style={
+              styles.title
+            }
           >
             Selected services
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Services you offer to customers
           </AppText>
         </View>
 
-        <View style={styles.counterBadge}>
+        <View
+          style={
+            styles.counterBadge
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.counterText}
+            style={
+              styles.counterText
+            }
           >
-            {selectedServices.length}/4
+            {selectedItems.length}/4
           </AppText>
         </View>
       </View>
 
-      {/* SERVICES */}
+      {/* ==================================================
+          SERVICES
+      ================================================== */}
 
-      <View style={styles.chipsContainer}>
-        {selectedServices.map(
-          (serviceId) => {
-            const service =
-              availableServices.find(
-                (item) =>
-                  item.id === serviceId,
-              );
-
-            if (!service) {
-              return null;
-            }
-
-            return (
-              <View
-                key={serviceId}
-                style={styles.chip}
-              >
-                <View
-                  style={
-                    styles.serviceIcon
-                  }
-                >
-                  <Ionicons
-                    name="checkmark"
-                    size={13}
-                    color="#FF6B00"
-                  />
-                </View>
-
-                <AppText
-                  weight="semibold"
-                  numberOfLines={1}
-                  style={styles.chipText}
-                >
-                  {service.name}
-                </AppText>
-
-                <Pressable
-                  onPress={() =>
-                    onRemove(
-                      serviceId,
-                    )
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${service.name}`}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.removeButton,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="close"
-                    size={14}
-                    color="#64748B"
-                  />
-                </Pressable>
-              </View>
-            );
-          },
+      <View
+        style={
+          styles.chipsContainer
+        }
+      >
+        {selectedItems.map(
+          (service) => (
+            <SelectedServiceChip
+              key={
+                service.id
+              }
+              service={
+                service
+              }
+              onRemove={
+                onRemove
+              }
+            />
+          ),
         )}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 10,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-  },
+export default memo(
+  SelectedServices,
+);
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
-    marginBottom: 10,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  title: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#0F172A",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-  subtitle: {
-    marginTop: 2,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#64748B",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  counterBadge: {
-    minWidth: 38,
-    height: 28,
-    paddingHorizontal: 8,
-    borderRadius: 9,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  counterText: {
-    fontSize: 10.5,
-    color: "#EA580C",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  chipsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 7,
-  },
+      backgroundColor:
+        Colors.background,
 
-  chip: {
-    maxWidth: "100%",
-    minHeight: 34,
-    paddingLeft: 7,
-    paddingRight: 5,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderWidth: 1,
 
-  serviceIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 6,
-  },
+      borderColor:
+        Colors.border,
+    },
 
-  chipText: {
-    maxWidth: 150,
-    fontSize: 10.5,
-    color: "#334155",
-  },
+    header: {
+      flexDirection:
+        "row",
 
-  removeButton: {
-    width: 26,
-    height: 26,
-    marginLeft: 4,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F1F5F9",
-  },
+      alignItems:
+        "center",
 
-  pressed: {
-    opacity: 0.6,
-    transform: [
-      {
-        scale: 0.94,
-      },
-    ],
-  },
-});
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    headerContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    counterBadge: {
+      minWidth:
+        FixxamTokens.size.minimumTouchTarget,
+
+      minHeight:
+        FixxamTokens.spacing.xxl,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    counterText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    chipsContainer: {
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    chip: {
+      maxWidth:
+        "100%",
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingLeft:
+        FixxamTokens.spacing.xs,
+
+      paddingRight:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    serviceIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+    },
+
+    chipText: {
+      maxWidth: 150,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    removeButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

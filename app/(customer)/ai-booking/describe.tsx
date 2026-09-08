@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useMemo,
   useState,
 } from "react";
@@ -6,13 +7,16 @@ import React, {
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StyleSheet,
-  Text,
   TextInput,
-  TouchableOpacity,
   View,
-  Image,
 } from "react-native";
+
+import {
+  Image,
+} from "expo-image";
 
 import {
   router,
@@ -20,39 +24,79 @@ import {
 } from "expo-router";
 
 import {
-  Ionicons,
-} from "@expo/vector-icons";
-
-import {
+  AppButton,
+  AppCard,
+  AppIcon,
   AppScreen,
+  AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
 const MAX_LENGTH = 4000;
+const MIN_DESCRIPTION_LENGTH = 5;
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function AiBookingDescribeScreen() {
   const {
-    imageUri: returnedImageUri,
+    imageUri:
+      returnedImageUri,
   } =
     useLocalSearchParams<{
-      imageUri?: string;
+      imageUri?:
+        | string
+        | string[];
     }>();
 
   const [
     description,
     setDescription,
-  ] = useState("");
+  ] =
+    useState("");
+
+  const [
+    inputFocused,
+    setInputFocused,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     IMAGE
+  ============================================================ */
 
   const imageUri =
-    typeof returnedImageUri ===
-    "string"
-      ? returnedImageUri
-      : "";
+    Array.isArray(
+      returnedImageUri,
+    )
+      ? returnedImageUri[0] ??
+        ""
+      : typeof returnedImageUri ===
+          "string"
+        ? returnedImageUri
+        : "";
+
+  /* ============================================================
+     VALIDATION
+  ============================================================ */
 
   const trimmedDescription =
     description.trim();
 
   const hasDescription =
-    trimmedDescription.length >= 5;
+    trimmedDescription.length >=
+    MIN_DESCRIPTION_LENGTH;
 
   const hasPhoto =
     imageUri.length > 0;
@@ -64,6 +108,10 @@ export default function AiBookingDescribeScreen() {
   const characterCount =
     description.length;
 
+  /* ============================================================
+     HELPER TEXT
+  ============================================================ */
+
   const helperText =
     useMemo(() => {
       if (
@@ -73,646 +121,967 @@ export default function AiBookingDescribeScreen() {
         return "Photo added. Fixxam will use it to understand the problem.";
       }
 
-      if (!description) {
+      if (
+        description.length ===
+        0
+      ) {
         return "Example: My AC is on but it is not cooling the room.";
       }
 
       if (
-        trimmedDescription.length < 5
+        trimmedDescription.length <
+        MIN_DESCRIPTION_LENGTH
       ) {
         return "Please describe the problem in a little more detail.";
       }
 
       return "Fixxam will understand your problem and find the right service.";
     }, [
-      description,
-      trimmedDescription,
+      description.length,
       hasDescription,
       hasPhoto,
+      trimmedDescription.length,
     ]);
 
-  /*
-   * ---------------------------------------------
-   * OPEN EXISTING CAMERA SCREEN
-   * ---------------------------------------------
-   */
+  /* ============================================================
+     BACK
+  ============================================================ */
 
-  function handleTakePhoto() {
-    router.push({
-      pathname:
-        "/(customer)/ai-booking/camera",
-    });
-  }
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
 
-  /*
-   * ---------------------------------------------
-   * CONTINUE TO AI SEARCH
-   * ---------------------------------------------
-   */
+        return;
+      }
 
-  function handleContinue() {
-    if (!canContinue) {
-      return;
-    }
+      router.replace(
+        "/(customer)/(tabs)/home",
+      );
+    }, []);
 
-    router.replace({
-      pathname:
-        "/(customer)/ai-booking/search",
+  /* ============================================================
+     CAMERA
+  ============================================================ */
 
-      params: {
-        description:
-          hasDescription
-            ? trimmedDescription
-            : "",
+  const handleTakePhoto =
+    useCallback(() => {
+      router.push({
+        pathname:
+          "/(customer)/ai-booking/camera",
+      });
+    }, []);
 
-        imageUri:
-          imageUri || "",
+  /* ============================================================
+     DESCRIPTION
+  ============================================================ */
+
+  const handleDescriptionChange =
+    useCallback(
+      (value: string) => {
+        setDescription(
+          value.slice(
+            0,
+            MAX_LENGTH,
+          ),
+        );
       },
-    });
-  }
+      [],
+    );
+
+  /* ============================================================
+     CONTINUE
+  ============================================================ */
+
+  const handleContinue =
+    useCallback(() => {
+      if (!canContinue) {
+        return;
+      }
+
+      router.replace({
+        pathname:
+          "/(customer)/ai-booking/search",
+
+        params: {
+          description:
+            hasDescription
+              ? trimmedDescription
+              : "",
+
+          imageUri:
+            imageUri || "",
+        },
+      });
+    }, [
+      canContinue,
+      hasDescription,
+      imageUri,
+      trimmedDescription,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <KeyboardAvoidingView
-        style={styles.container}
+        style={
+          styles.keyboard
+        }
         behavior={
           Platform.OS === "ios"
             ? "padding"
-            : undefined
+            : "height"
+        }
+        keyboardVerticalOffset={
+          0
         }
       >
-        {/* HEADER */}
-
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() =>
-              router.back()
-            }
-            style={styles.backButton}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={23}
-              color="#0B1F3A"
-            />
-          </TouchableOpacity>
-
-          <View
-            style={
-              styles.headerContent
-            }
-          >
-            <Text
-              style={styles.title}
-            >
-              Describe Your Problem
-            </Text>
-
-            <Text
-              style={styles.subtitle}
-            >
-              Tell Fixxam what is wrong.
-              We'll find the right service
-              and nearby worker.
-            </Text>
-          </View>
-        </View>
-
-        {/* AI CARD */}
-
-        <View style={styles.aiCard}>
-          <View style={styles.aiIcon}>
-            <Ionicons
-              name="sparkles"
-              size={25}
-              color="#F97316"
-            />
-          </View>
-
-          <View
-            style={
-              styles.aiCardContent
-            }
-          >
-            <Text
-              style={styles.aiTitle}
-            >
-              Let Fixxam understand it
-            </Text>
-
-            <Text
-              style={styles.aiText}
-            >
-              You don't need to know the
-              service name. Just explain
-              the problem naturally.
-            </Text>
-          </View>
-        </View>
-
-        {/* DESCRIPTION */}
-
-        <View
-          style={styles.inputCard}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.scrollContent
+          }
         >
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
           <View
-            style={styles.inputHeader}
-          >
-            <Text
-              style={styles.inputLabel}
-            >
-              What's the problem?
-            </Text>
-
-            <Text
-              style={styles.counter}
-            >
-              {characterCount}/
-              {MAX_LENGTH}
-            </Text>
-          </View>
-
-          <TextInput
-            value={description}
-            onChangeText={(value) =>
-              setDescription(
-                value.slice(
-                  0,
-                  MAX_LENGTH,
-                ),
-              )
+            style={
+              styles.header
             }
-            placeholder="Describe what happened..."
-            placeholderTextColor="#94A3B8"
-            multiline
-            textAlignVertical="top"
-            autoFocus={!hasPhoto}
-            maxLength={MAX_LENGTH}
-            style={styles.textInput}
-          />
-
-          <View
-            style={styles.helperRow}
           >
-            <Ionicons
-              name={
-                canContinue
-                  ? "checkmark-circle-outline"
-                  : "information-circle-outline"
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={8}
+              onPress={
+                handleBack
               }
-              size={18}
-              color={
-                canContinue
-                  ? "#16A34A"
-                  : "#64748B"
-              }
-            />
+              style={({
+                pressed,
+              }) => [
+                styles.backButton,
 
-            <Text
-              style={[
-                styles.helperText,
-                canContinue &&
-                  styles.helperTextSuccess,
+                pressed
+                  ? styles.backButtonPressed
+                  : null,
               ]}
             >
-              {helperText}
-            </Text>
-          </View>
-        </View>
+              <AppIcon
+                name="back"
+                role="customer"
+                size="sm"
+                state="default"
+              />
+            </Pressable>
 
-        {/* PHOTO */}
-
-        {hasPhoto ? (
-          <View
-            style={
-              styles.photoPreviewCard
-            }
-          >
             <View
               style={
-                styles.photoHeader
+                styles.headerContent
               }
             >
-              <View
+              <AppText
+                variant="heading1"
+                weight="bold"
+              >
+                Describe Your Problem
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
                 style={
-                  styles.photoHeaderLeft
+                  styles.subtitle
                 }
               >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={22}
-                  color="#16A34A"
-                />
-
-                <View
-                  style={
-                    styles.photoHeaderText
-                  }
-                >
-                  <Text
-                    style={
-                      styles.photoTitle
-                    }
-                  >
-                    Photo added
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.photoSubtitle
-                    }
-                  >
-                    Fixxam will inspect this photo.
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                onPress={
-                  handleTakePhoto
-                }
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={
-                    styles.retakeText
-                  }
-                >
-                  Retake
-                </Text>
-              </TouchableOpacity>
+                Tell Fixxam what is wrong.
+                We'll find the right service
+                and nearby worker.
+              </AppText>
             </View>
-
-            <Image
-              source={{
-                uri: imageUri,
-              }}
-              style={
-                styles.photoPreview
-              }
-              resizeMode="cover"
-            />
           </View>
-        ) : (
-          <TouchableOpacity
+
+          {/* ==================================================
+              AI INFORMATION
+          ================================================== */}
+
+          <AppCard
+            role="customer"
+            variant="accent"
             style={
-              styles.photoButton
-            }
-            activeOpacity={0.85}
-            onPress={
-              handleTakePhoto
+              styles.aiCard
             }
           >
             <View
               style={
-                styles.photoIcon
+                styles.aiIcon
               }
             >
-              <Ionicons
-                name="camera-outline"
-                size={22}
-                color="#2563EB"
+              <AppIcon
+                name="professional"
+                role="customer"
+                size="md"
+                state="active"
               />
             </View>
 
             <View
               style={
-                styles.photoContent
+                styles.aiCardContent
               }
             >
-              <Text
-                style={
-                  styles.photoTitle
-                }
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
               >
-                Prefer a photo?
-              </Text>
+                Let Fixxam understand it
+              </AppText>
 
-              <Text
+              <AppText
+                variant="caption"
+                tone="secondary"
                 style={
-                  styles.photoText
+                  styles.aiText
                 }
               >
-                Tap to open your camera directly.
-              </Text>
+                You don't need to know
+                the service name. Just
+                explain the problem
+                naturally.
+              </AppText>
+            </View>
+          </AppCard>
+
+          {/* ==================================================
+              DESCRIPTION
+          ================================================== */}
+
+          <AppCard
+            role="customer"
+            variant="outlined"
+            style={
+              styles.inputCard
+            }
+          >
+            <View
+              style={
+                styles.inputHeader
+              }
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+              >
+                What's the problem?
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="muted"
+              >
+                {characterCount}/
+                {MAX_LENGTH}
+              </AppText>
             </View>
 
-            <Ionicons
-              name="chevron-forward"
-              size={21}
-              color="#94A3B8"
-            />
-          </TouchableOpacity>
-        )}
-
-        {/* FIND WORKER */}
-
-        <View
-          style={styles.footer}
-        >
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              !canContinue &&
-                styles.continueButtonDisabled,
-            ]}
-            disabled={!canContinue}
-            onPress={
-              handleContinue
-            }
-            activeOpacity={0.88}
-          >
-            <Text
+            <TextInput
+              value={
+                description
+              }
+              onChangeText={
+                handleDescriptionChange
+              }
+              onFocus={() =>
+                setInputFocused(
+                  true,
+                )
+              }
+              onBlur={() =>
+                setInputFocused(
+                  false,
+                )
+              }
+              placeholder="Describe what happened..."
+              placeholderTextColor={
+                Colors.textMuted
+              }
+              selectionColor={
+                CustomerColors.primary
+              }
+              multiline
+              textAlignVertical="top"
+              autoFocus={
+                !hasPhoto
+              }
+              maxLength={
+                MAX_LENGTH
+              }
+              accessibilityLabel="Describe your repair problem"
+              accessibilityHint="Explain what is wrong so Fixxam can identify the correct service"
               style={[
-                styles.continueText,
-                !canContinue &&
-                  styles.continueTextDisabled,
+                styles.textInput,
+
+                inputFocused
+                  ? styles.textInputFocused
+                  : null,
+              ]}
+            />
+
+            <View
+              style={
+                styles.helperRow
+              }
+            >
+              <AppIcon
+                name={
+                  canContinue
+                    ? "success"
+                    : "info"
+                }
+                role="customer"
+                size="xs"
+                state={
+                  canContinue
+                    ? "success"
+                    : "muted"
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone={
+                  canContinue
+                    ? "success"
+                    : "secondary"
+                }
+                style={
+                  styles.helperText
+                }
+              >
+                {helperText}
+              </AppText>
+            </View>
+          </AppCard>
+
+          {/* ==================================================
+              PHOTO
+          ================================================== */}
+
+          {hasPhoto ? (
+            <AppCard
+              role="customer"
+              variant="outlined"
+              style={
+                styles.photoPreviewCard
+              }
+            >
+              <View
+                style={
+                  styles.photoHeader
+                }
+              >
+                <View
+                  style={
+                    styles.photoHeaderLeft
+                  }
+                >
+                  <AppIcon
+                    name="success"
+                    role="customer"
+                    size="sm"
+                    state="success"
+                  />
+
+                  <View
+                    style={
+                      styles.photoHeaderText
+                    }
+                  >
+                    <AppText
+                      variant="bodyMedium"
+                      weight="bold"
+                    >
+                      Photo added
+                    </AppText>
+
+                    <AppText
+                      variant="caption"
+                      tone="secondary"
+                      style={
+                        styles.photoSubtitle
+                      }
+                    >
+                      Fixxam will inspect
+                      this photo.
+                    </AppText>
+                  </View>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Retake photo"
+                  hitSlop={8}
+                  onPress={
+                    handleTakePhoto
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.retakeButton,
+
+                    pressed
+                      ? styles.retakePressed
+                      : null,
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    style={
+                      styles.retakeText
+                    }
+                  >
+                    Retake
+                  </AppText>
+                </Pressable>
+              </View>
+
+              <Image
+                source={{
+                  uri:
+                    imageUri,
+                }}
+                style={
+                  styles.photoPreview
+                }
+                contentFit="cover"
+                transition={
+                  FixxamTokens.motion
+                    .fast
+                }
+                cachePolicy="memory-disk"
+                accessibilityLabel="Selected repair problem photo"
+              />
+            </AppCard>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Take a repair photo"
+              accessibilityHint="Opens the camera"
+              onPress={
+                handleTakePhoto
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.photoButton,
+
+                pressed
+                  ? styles.photoButtonPressed
+                  : null,
               ]}
             >
-              Find My Worker
-            </Text>
+              <View
+                style={
+                  styles.photoIcon
+                }
+              >
+                <AppIcon
+                  name="camera"
+                  role="customer"
+                  size="sm"
+                  state="active"
+                />
+              </View>
 
-            <Ionicons
-              name="arrow-forward"
-              size={21}
-              color={
-                canContinue
-                  ? "#FFFFFF"
-                  : "#94A3B8"
+              <View
+                style={
+                  styles.photoContent
+                }
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                >
+                  Prefer a photo?
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.photoText
+                  }
+                >
+                  Tap to open your
+                  camera directly.
+                </AppText>
+              </View>
+
+              <AppIcon
+                name="next"
+                role="customer"
+                size="sm"
+                state="muted"
+              />
+            </Pressable>
+          )}
+
+          {/* ==================================================
+              FOOTER
+          ================================================== */}
+
+          <View
+            style={
+              styles.footer
+            }
+          >
+            <AppButton
+              title="Find My Worker"
+              role="customer"
+              disabled={
+                !canContinue
+              }
+              rightIconName="next"
+              onPress={
+                handleContinue
+              }
+              style={
+                styles.continueButton
               }
             />
-          </TouchableOpacity>
-        </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    backgroundColor: "#F4F7FC",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+const styles =
+  StyleSheet.create({
+    keyboard: {
+      flex: 1,
 
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: "#E7ECF3",
-  },
+      minHeight: 0,
 
-  headerContent: {
-    flex: 1,
-  },
-
-  title: {
-    color: "#0B1F3A",
-    fontSize: 25,
-    lineHeight: 31,
-    fontWeight: "800",
-    letterSpacing: -0.4,
-  },
-
-  subtitle: {
-    marginTop: 6,
-    color: "#64748B",
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "500",
-  },
-
-  aiCard: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FFEDD5",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  aiIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  aiCardContent: {
-    flex: 1,
-    marginLeft: 13,
-  },
-
-  aiTitle: {
-    color: "#0B1F3A",
-    fontSize: 15,
-    fontWeight: "800",
-  },
-
-  aiText: {
-    marginTop: 4,
-    color: "#64748B",
-    fontSize: 12.5,
-    lineHeight: 18,
-    fontWeight: "500",
-  },
-
-  inputCard: {
-    marginTop: 16,
-    minHeight: 255,
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E7ECF3",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      backgroundColor:
+        Colors.background,
     },
-    elevation: 2,
-  },
 
-  inputHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    scrollContent: {
+      flexGrow: 1,
 
-  inputLabel: {
-    color: "#0F172A",
-    fontSize: 15,
-    fontWeight: "800",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  counter: {
-    color: "#94A3B8",
-    fontSize: 11,
-    fontWeight: "600",
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  textInput: {
-    flex: 1,
-    minHeight: 160,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    color: "#0F172A",
-    fontSize: 15,
-    lineHeight: 22,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-  helperRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  helperText: {
-    flex: 1,
-    marginLeft: 7,
-    color: "#64748B",
-    fontSize: 11.5,
-    lineHeight: 17,
-    fontWeight: "500",
-  },
+    header: {
+      flexDirection: "row",
 
-  helperTextSuccess: {
-    color: "#166534",
-  },
+      alignItems:
+        "flex-start",
 
-  photoButton: {
-    marginTop: 14,
-    minHeight: 72,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E7ECF3",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      gap:
+        FixxamTokens.spacing.md,
+    },
 
-  photoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  photoContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  photoTitle: {
-    color: "#0F172A",
-    fontSize: 14,
-    fontWeight: "800",
-  },
+      flexShrink: 0,
 
-  photoText: {
-    marginTop: 3,
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "500",
-  },
+      alignItems: "center",
 
-  photoPreviewCard: {
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E7ECF3",
-  },
+      justifyContent:
+        "center",
 
-  photoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
+      borderWidth: 1,
 
-  photoHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
+      borderColor:
+        Colors.border,
 
-  photoHeaderText: {
-    marginLeft: 8,
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  photoSubtitle: {
-    marginTop: 2,
-    color: "#64748B",
-    fontSize: 11,
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  retakeText: {
-    color: "#2563EB",
-    fontSize: 13,
-    fontWeight: "800",
-  },
+    backButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  photoPreview: {
-    width: "100%",
-    height: 180,
-    borderRadius: 15,
-    backgroundColor: "#F1F5F9",
-  },
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  footer: {
-    marginTop: "auto",
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  continueButton: {
-    minHeight: 54,
-    borderRadius: 17,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-  },
+    headerContent: {
+      flex: 1,
 
-  continueButtonDisabled: {
-    backgroundColor: "#E2E8F0",
-  },
+      minWidth: 0,
+    },
 
-  continueText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
 
-  continueTextDisabled: {
-    color: "#94A3B8",
-  },
-});
+    /* ========================================================
+       AI CARD
+    ======================================================== */
+
+    aiCard: {
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxl,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    aiIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    aiCardContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    aiText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       INPUT
+    ======================================================== */
+
+    inputCard: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+    },
+
+    inputHeader: {
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    textInput: {
+      minHeight: 160,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    textInputFocused: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    helperRow: {
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    helperText: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    /* ========================================================
+       PHOTO BUTTON
+    ======================================================== */
+
+    photoButton: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    photoButtonPressed: {
+      borderColor:
+        CustomerColors.primaryLight,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    photoIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    photoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    photoText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       PHOTO PREVIEW
+    ======================================================== */
+
+    photoPreviewCard: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    photoHeader: {
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    photoHeaderLeft: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+    },
+
+    photoHeaderText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    photoSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    retakeButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    retakePressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    retakeText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    photoPreview: {
+      width: "100%",
+
+      height: 180,
+
+      borderRadius:
+        FixxamTokens.radius.image,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
+    footer: {
+      marginTop: "auto",
+
+      paddingTop:
+        FixxamTokens.spacing.xxl,
+    },
+
+    continueButton: {
+      width: "100%",
+    },
+  });

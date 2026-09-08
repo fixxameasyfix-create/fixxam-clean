@@ -1,4 +1,8 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
   StyleSheet,
   View,
@@ -10,20 +14,45 @@ import {
 } from "@/components/ui";
 
 import {
-  CustomerColors,
+  Colors,
+  FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   firstName: string;
+
   surname: string;
+
   otherName: string;
 
-  setFirstName: (value: string) => void;
-  setSurname: (value: string) => void;
-  setOtherName: (value: string) => void;
+  setFirstName: (
+    value: string,
+  ) => void;
+
+  setSurname: (
+    value: string,
+  ) => void;
+
+  setOtherName: (
+    value: string,
+  ) => void;
 };
 
-export default function CustomerPersonalInfo({
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_NAME_LENGTH = 20;
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CustomerPersonalInfo({
   firstName,
   surname,
   otherName,
@@ -31,78 +60,158 @@ export default function CustomerPersonalInfo({
   setSurname,
   setOtherName,
 }: Props) {
+  const handleFirstNameChange =
+    useCallback(
+      (value: string) => {
+        setFirstName(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [
+        setFirstName,
+      ],
+    );
+
+  const handleSurnameChange =
+    useCallback(
+      (value: string) => {
+        setSurname(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [
+        setSurname,
+      ],
+    );
+
+  const handleOtherNameChange =
+    useCallback(
+      (value: string) => {
+        setOtherName(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [
+        setOtherName,
+      ],
+    );
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
 
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         What's your full name?
       </AppText>
 
       <AppText
-        style={styles.subtitle}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
       >
-        Please enter your name as you'd like it
-        to appear on your Fixxam account.
+        Please enter your name as you'd like it to appear on your Fixxam account.
       </AppText>
 
-      {/* First Name */}
+      {/* ========================================================
+          FIRST NAME
+      ======================================================== */}
 
-      <View style={styles.field}>
+      <View
+        style={
+          styles.field
+        }
+      >
         <AppInput
           label="First name"
           placeholder="Enter your first name"
           leftIcon="person-outline"
-          value={firstName}
-          onChangeText={(value) =>
-            setFirstName(
-              value.slice(0, 20)
-            )
+          value={
+            firstName
+          }
+          onChangeText={
+            handleFirstNameChange
           }
           variant="customer"
           required
         />
       </View>
 
-      {/* Surname */}
+      {/* ========================================================
+          SURNAME
+      ======================================================== */}
 
-      <View style={styles.field}>
+      <View
+        style={
+          styles.field
+        }
+      >
         <AppInput
           label="Surname"
           placeholder="Enter your surname"
           leftIcon="person-outline"
-          value={surname}
-          onChangeText={(value) =>
-            setSurname(
-              value.slice(0, 20)
-            )
+          value={
+            surname
+          }
+          onChangeText={
+            handleSurnameChange
           }
           variant="customer"
           required
         />
       </View>
 
-      {/* Other Name */}
+      {/* ========================================================
+          OTHER NAME
+      ======================================================== */}
 
-      <View style={styles.fieldLast}>
+      <View
+        style={
+          styles.fieldLast
+        }
+      >
         <AppInput
           label="Other name"
           placeholder="Optional"
           leftIcon="person-outline"
-          value={otherName}
-          onChangeText={(value) =>
-            setOtherName(
-              value.slice(0, 20)
-            )
+          value={
+            otherName
+          }
+          onChangeText={
+            handleOtherNameChange
           }
           variant="customer"
         />
 
         <AppText
-          style={styles.helper}
+          accessibilityRole="text"
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.helper
+          }
         >
           Other name is optional.
         </AppText>
@@ -111,41 +220,62 @@ export default function CustomerPersonalInfo({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    paddingHorizontal: 4,
-    paddingTop: 12,
-  },
+export default memo(
+  CustomerPersonalInfo,
+);
 
-  title: {
-    fontSize: 22,
-    lineHeight: 28,
-    color: CustomerColors.textPrimary,
-    marginBottom: 6,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: CustomerColors.textSecondary,
-    marginBottom: 24,
-    maxWidth: 340,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  field: {
-    marginBottom: 16,
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  fieldLast: {
-    marginBottom: 4,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
+    },
 
-  helper: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: CustomerColors.textSecondary,
-    marginTop: 6,
-    marginLeft: 4,
-  },
-});
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      maxWidth: 340,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    field: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    fieldLast: {
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+    },
+
+    helper: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

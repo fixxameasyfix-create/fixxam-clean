@@ -1,18 +1,22 @@
 import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
   router,
@@ -23,25 +27,79 @@ import {
   httpsCallable,
 } from "firebase/functions";
 
+import Toast from "react-native-toast-message";
+
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
-import { functions } from "@/firebase/config";
+import {
+  auth,
+  functions,
+} from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type RewardType =
+  | "service-promotion-free-service"
+  | "90-day-free-service";
 
 type ClaimRewardResponse = {
   success: boolean;
+
   rewardId: string;
+
   message: string;
 };
+
+type RouteParams = {
+  reward?:
+    | string
+    | string[];
+
+  workerId?:
+    | string
+    | string[];
+
+  workerName?:
+    | string
+    | string[];
+
+  workerPhoto?:
+    | string
+    | string[];
+
+  serviceId?:
+    | string
+    | string[];
+
+  serviceName?:
+    | string
+    | string[];
+};
+
+/* ============================================================
+   CLOUD FUNCTION
+============================================================ */
 
 const claimServicePromotionReward =
   httpsCallable<
     {
       workerId: string;
+
       serviceId: string;
-      reward: string;
+
+      reward: RewardType;
     },
     ClaimRewardResponse
   >(
@@ -49,513 +107,1317 @@ const claimServicePromotionReward =
     "claimServicePromotionReward",
   );
 
-export default function ConfirmFreeServiceScreen() {
-  const {
-    reward,
-    workerId,
-    workerName,
-    workerPhoto,
-    serviceId,
-    serviceName,
-  } = useLocalSearchParams<{
-    reward?: string;
-    workerId?: string;
-    workerName?: string;
-    workerPhoto?: string;
-    serviceId?: string;
-    serviceName?: string;
-  }>();
+/* ============================================================
+   HELPERS
+============================================================ */
 
-  const [claiming, setClaiming] =
-    useState(false);
-
-  const isValidReward =
-    reward ===
-      "service-promotion-free-service" ||
-    reward ===
-      "90-day-free-service";
-
-  async function handleConfirm() {
-    if (
-      !workerId ||
-      !serviceId ||
-      !reward ||
-      !isValidReward
-    ) {
-      Alert.alert(
-        "Unable to continue",
-        "The reward information is incomplete. Please go back and select the service again.",
-      );
-
-      return;
-    }
-
-    try {
-      setClaiming(true);
-
-      /*
-       * IMPORTANT:
-       *
-       * The server must verify the reward again.
-       * Never trust the reward value coming from
-       * navigation params.
-       */
-
-      const result =
-        await claimServicePromotionReward({
-          workerId,
-          serviceId,
-          reward,
-        });
-
-      if (!result.data.success) {
-        throw new Error(
-          result.data.message ||
-            "Unable to claim the reward.",
-        );
-      }
-
-      Alert.alert(
-        "Free Service Claimed",
-        "Your free service has been successfully claimed.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace(
-                "/(customer)/(tabs)/orders",
-              );
-            },
-          },
-        ],
-      );
-    } catch (error) {
-      console.error(
-        "Free service claim failed:",
-        error,
-      );
-
-      Alert.alert(
-        "Claim Failed",
-        "We could not complete your free service claim. Please try again.",
-      );
-    } finally {
-      setClaiming(false);
-    }
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
   }
 
   return (
+    value ??
+    ""
+  ).trim();
+}
+
+function isRewardType(
+  value: string,
+): value is RewardType {
+  return (
+    value ===
+      "service-promotion-free-service" ||
+    value ===
+      "90-day-free-service"
+  );
+}
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ============================================================
+   SCREEN
+============================================================ */
+
+export default function ConfirmFreeServiceScreen() {
+  const params =
+    useLocalSearchParams<RouteParams>();
+
+  const reward =
+    useMemo(
+      () =>
+        getParamString(
+          params.reward,
+        ),
+      [
+        params.reward,
+      ],
+    );
+
+  const workerId =
+    useMemo(
+      () =>
+        getParamString(
+          params.workerId,
+        ),
+      [
+        params.workerId,
+      ],
+    );
+
+  const workerName =
+    useMemo(
+      () =>
+        getParamString(
+          params.workerName,
+        ) ||
+        "Selected Worker",
+      [
+        params.workerName,
+      ],
+    );
+
+  const workerPhoto =
+    useMemo(
+      () =>
+        getParamString(
+          params.workerPhoto,
+        ),
+      [
+        params.workerPhoto,
+      ],
+    );
+
+  const serviceId =
+    useMemo(
+      () =>
+        getParamString(
+          params.serviceId,
+        ),
+      [
+        params.serviceId,
+      ],
+    );
+
+  const serviceName =
+    useMemo(
+      () =>
+        getParamString(
+          params.serviceName,
+        ) ||
+        "Selected Service",
+      [
+        params.serviceName,
+      ],
+    );
+
+  /* ==========================================================
+     STATE
+  ========================================================== */
+
+  const [
+    claiming,
+    setClaiming,
+  ] =
+    useState(false);
+
+  const claimInFlight =
+    useRef(false);
+
+  /* ==========================================================
+     VALIDATION
+  ========================================================== */
+
+  const validReward =
+    isRewardType(
+      reward,
+    );
+
+  const canClaim =
+    Boolean(
+      workerId &&
+      serviceId &&
+      validReward,
+    );
+
+  /* ==========================================================
+     BACK
+  ========================================================== */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        claimInFlight.current
+      ) {
+        return;
+      }
+
+      router.back();
+    }, []);
+
+  /* ==========================================================
+     CLAIM REWARD
+  ========================================================== */
+
+  const handleConfirm =
+    useCallback(async () => {
+      if (
+        claimInFlight.current ||
+        claiming
+      ) {
+        return;
+      }
+
+      if (
+        !auth.currentUser
+      ) {
+        showErrorToast(
+          "Sign in required",
+          "Please sign in again before claiming this reward.",
+        );
+
+        return;
+      }
+
+      if (
+        !workerId ||
+        !serviceId ||
+        !validReward
+      ) {
+        showErrorToast(
+          "Unable to continue",
+          "The reward information is incomplete. Please go back and select the service again.",
+        );
+
+        return;
+      }
+
+      claimInFlight.current =
+        true;
+
+      setClaiming(
+        true,
+      );
+
+      try {
+        /*
+         * SECURITY:
+         *
+         * Navigation params are display/input only.
+         *
+         * The callable Cloud Function must independently:
+         * - authenticate the customer
+         * - verify reward eligibility
+         * - verify worker/service validity
+         * - prevent duplicate claims
+         * - perform the claim atomically
+         */
+
+        const result =
+          await claimServicePromotionReward({
+            workerId,
+
+            serviceId,
+
+            reward,
+          });
+
+        if (
+          !result.data.success
+        ) {
+          throw new Error(
+            result.data.message ||
+              "CLAIM_FAILED",
+          );
+        }
+
+        showSuccessToast(
+          "Free Service Claimed",
+          "Your free service has been successfully claimed.",
+        );
+
+        router.replace(
+          "/(customer)/(tabs)/orders",
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          "FREE_SERVICE_CLAIM_ERROR:",
+          error,
+        );
+
+        showErrorToast(
+          "Claim Failed",
+          "We could not complete your free service claim. Please try again.",
+        );
+      } finally {
+        claimInFlight.current =
+          false;
+
+        setClaiming(
+          false,
+        );
+      }
+    }, [
+      claiming,
+      reward,
+      serviceId,
+      validReward,
+      workerId,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
+  return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
-        styles.container
+        styles.screen
       }
     >
-      <View style={styles.header}>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
         <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-          disabled={claiming}
+          onPress={
+            handleBack
+          }
+          disabled={
+            claiming
+          }
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          accessibilityState={{
+            disabled:
+              claiming,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed &&
+            !claiming
+              ? styles.pressed
+              : null,
+
+            claiming
+              ? styles.disabled
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={22}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            size="md"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
 
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.title}
+          center
+          numberOfLines={1}
+          style={
+            styles.title
+          }
         >
           Confirm Free Service
         </AppText>
 
-        <View style={styles.placeholder} />
+        <View
+          style={
+            styles.headerPlaceholder
+          }
+        />
       </View>
 
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.scrollContent
         }
       >
-        <View style={styles.rewardCard}>
-          <View style={styles.rewardIcon}>
-            <Ionicons
-              name="gift-outline"
-              size={34}
-              color="#2563EB"
+        {/* ====================================================
+            REWARD
+        ==================================================== */}
+
+        <View
+          style={
+            styles.rewardCard
+          }
+        >
+          <View
+            style={
+              styles.rewardIcon
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
           <AppText
+            variant="heading2"
             weight="bold"
-            style={styles.rewardTitle}
+            center
+            style={
+              styles.rewardTitle
+            }
           >
             Free Service Reward
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
-            style={styles.rewardDescription}
+            style={
+              styles.rewardDescription
+            }
           >
-            You are using your Fixxam free
-            service reward.
+            You are using your Fixxam free service reward.
           </AppText>
         </View>
 
-        <View style={styles.card}>
+        {/* ====================================================
+            SERVICE
+        ==================================================== */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
           <AppText
+            variant="body"
             weight="bold"
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Selected Service
           </AppText>
 
-          <View style={styles.serviceRow}>
-            <View style={styles.serviceIcon}>
-              <Ionicons
-                name="construct-outline"
-                size={25}
-                color="#7C3AED"
+          <View
+            style={
+              styles.serviceRow
+            }
+          >
+            <View
+              style={
+                styles.serviceIcon
+              }
+            >
+              <AppIcon
+                name="service"
+                role="customer"
+                size="md"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
             <View
-              style={styles.serviceContent}
+              style={
+                styles.serviceContent
+              }
             >
               <AppText
+                variant="body"
                 weight="bold"
-                style={styles.serviceName}
+                numberOfLines={2}
+                style={
+                  styles.serviceName
+                }
               >
-                {serviceName ||
-                  "Selected Service"}
+                {serviceName}
               </AppText>
 
-              <AppText
-                style={styles.freeText}
+              <View
+                style={
+                  styles.freeBadge
+                }
               >
-                FREE
-              </AppText>
+                <AppIcon
+                  name="success"
+                  size="xs"
+                  color={
+                    Colors.success
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.freeText
+                  }
+                >
+                  FREE
+                </AppText>
+              </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.card}>
+        {/* ====================================================
+            WORKER
+        ==================================================== */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
           <AppText
+            variant="body"
             weight="bold"
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Selected Worker
           </AppText>
 
-          <View style={styles.workerRow}>
-            {workerPhoto ? (
-              <Image
-                source={{
-                  uri: workerPhoto,
-                }}
-                style={styles.workerImage}
-              />
-            ) : (
-              <View
-                style={
-                  styles.workerPlaceholder
-                }
-              >
-                <Ionicons
-                  name="person-outline"
-                  size={28}
-                  color="#94A3B8"
-                />
-              </View>
-            )}
+          <View
+            style={
+              styles.workerRow
+            }
+          >
+            <WorkerPhoto
+              uri={
+                workerPhoto
+              }
+              name={
+                workerName
+              }
+            />
 
             <View
-              style={styles.workerContent}
+              style={
+                styles.workerContent
+              }
             >
               <AppText
+                variant="body"
                 weight="bold"
-                style={styles.workerName}
+                numberOfLines={1}
+                style={
+                  styles.workerName
+                }
               >
-                {workerName ||
-                  "Selected Worker"}
+                {workerName}
               </AppText>
 
               <AppText
-                style={styles.workerDescription}
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.workerDescription
+                }
               >
-                Your selected service
-                provider.
+                Your selected service provider.
               </AppText>
             </View>
           </View>
         </View>
 
-        <View style={styles.notice}>
-          <Ionicons
-            name="information-circle-outline"
-            size={21}
-            color="#64748B"
-          />
+        {/* ====================================================
+            NOTICE
+        ==================================================== */}
+
+        <View
+          style={
+            styles.notice
+          }
+        >
+          <View
+            style={
+              styles.noticeIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              size="sm"
+              color={
+                Colors.info
+              }
+            />
+          </View>
 
           <AppText
-            style={styles.noticeText}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.noticeText
+            }
           >
-            The service price will be covered
-            by your eligible Fixxam reward.
+            The service price will be covered by your eligible Fixxam reward.
           </AppText>
         </View>
 
+        {/* ====================================================
+            CONFIRM
+        ==================================================== */}
+
         <Pressable
-          disabled={claiming}
-          onPress={handleConfirm}
-          style={({ pressed }) => [
+          disabled={
+            claiming
+          }
+          onPress={() => {
+            void handleConfirm();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Confirm free service"
+          accessibilityState={{
+            disabled:
+              claiming,
+            busy:
+              claiming,
+          }}
+          style={({
+            pressed,
+          }) => [
             styles.confirmButton,
+
+            claiming
+              ? styles.disabled
+              : null,
+
             pressed &&
-              !claiming &&
-              styles.pressed,
-            claiming &&
-              styles.disabledButton,
+            !claiming
+              ? styles.pressed
+              : null,
           ]}
         >
           {claiming ? (
             <ActivityIndicator
-              color="#FFFFFF"
+              size="small"
+              color={
+                Colors.textInverse
+              }
             />
           ) : (
-            <>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={22}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={styles.confirmText}
-              >
-                CONFIRM FREE SERVICE
-              </AppText>
-            </>
+            <AppIcon
+              name="check"
+              size="sm"
+              color={
+                Colors.textInverse
+              }
+            />
           )}
+
+          <AppText
+            variant="body"
+            weight="bold"
+            style={
+              styles.confirmText
+            }
+          >
+            {claiming
+              ? "CLAIMING..."
+              : "CONFIRM FREE SERVICE"}
+          </AppText>
         </Pressable>
 
+        {/* ====================================================
+            CHANGE
+        ==================================================== */}
+
         <Pressable
-          disabled={claiming}
-          onPress={() => router.back()}
-          style={styles.changeButton}
+          disabled={
+            claiming
+          }
+          onPress={
+            handleBack
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Change service or worker"
+          accessibilityState={{
+            disabled:
+              claiming,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.changeButton,
+
+            pressed &&
+            !claiming
+              ? styles.pressed
+              : null,
+
+            claiming
+              ? styles.disabled
+              : null,
+          ]}
         >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.changeText}
+            style={
+              styles.changeText
+            }
           >
             CHANGE SERVICE OR WORKER
           </AppText>
         </Pressable>
+
+        {!canClaim ? (
+          <View
+            style={
+              styles.invalidNotice
+            }
+          >
+            <AppIcon
+              name="warning"
+              size="sm"
+              color={
+                Colors.warning
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.invalidNoticeText
+              }
+            >
+              Some reward information is missing. Go back and select the service again if confirmation fails.
+            </AppText>
+          </View>
+        ) : null}
       </ScrollView>
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
+/* ============================================================
+   WORKER PHOTO
+============================================================ */
 
-  scrollContent: {
-    paddingBottom: 30,
-  },
+const WorkerPhoto =
+  memo(
+    function WorkerPhoto({
+      uri,
+      name,
+    }: {
+      uri: string;
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
+      name: string;
+    }) {
+      const [
+        failed,
+        setFailed,
+      ] =
+        useState(false);
 
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 2,
-  },
+      const showImage =
+        uri.length > 0 &&
+        !failed;
 
-  placeholder: {
-    width: 40,
-  },
+      return (
+        <View
+          style={
+            styles.workerImageBox
+          }
+        >
+          {showImage ? (
+            <Image
+              source={{
+                uri,
+              }}
+              contentFit="cover"
+              transition={150}
+              accessibilityLabel={`${name} profile photo`}
+              onError={() => {
+                setFailed(
+                  true,
+                );
+              }}
+              style={
+                styles.workerImage
+              }
+            />
+          ) : (
+            <AppIcon
+              name="profile"
+              size="lg"
+              color={
+                Colors.textMuted
+              }
+            />
+          )}
+        </View>
+      );
+    },
+  );
 
-  title: {
-    fontSize: 20,
-    color: "#0F172A",
-  },
+WorkerPhoto.displayName =
+  "WorkerPhoto";
 
-  rewardCard: {
-    alignItems: "center",
-    padding: 24,
-    borderRadius: 22,
-    backgroundColor: "#EFF6FF",
-    marginBottom: 16,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  rewardIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  rewardTitle: {
-    fontSize: 22,
-    color: "#0F172A",
-  },
+    screen: {
+      flex: 1,
 
-  rewardDescription: {
-    marginTop: 7,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#64748B",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  card: {
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 14,
-    elevation: 2,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  sectionTitle: {
-    fontSize: 16,
-    color: "#0F172A",
-    marginBottom: 14,
-  },
+      paddingBottom: 0,
 
-  serviceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  serviceIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "#F5F3FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    scrollContent: {
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
 
-  serviceContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  serviceName: {
-    fontSize: 16,
-    color: "#0F172A",
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size.headerHeight,
 
-  freeText: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#16A34A",
-  },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  workerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      flexDirection:
+        "row",
 
-  workerImage: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-  },
+      alignItems:
+        "center",
 
-  workerPlaceholder: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      justifyContent:
+        "space-between",
+    },
 
-  workerContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  workerName: {
-    fontSize: 16,
-    color: "#0F172A",
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  workerDescription: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#64748B",
-  },
+      alignItems:
+        "center",
 
-  notice: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 14,
-    borderRadius: 15,
-    backgroundColor: "#F1F5F9",
-    marginBottom: 18,
-  },
+      justifyContent:
+        "center",
 
-  noticeText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#64748B",
-  },
+      borderWidth: 1,
 
-  confirmButton: {
-    minHeight: 54,
-    borderRadius: 16,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+      borderColor:
+        Colors.border,
 
-  disabledButton: {
-    opacity: 0.65,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  pressed: {
-    opacity: 0.8,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  confirmText: {
-    fontSize: 13,
-    color: "#FFFFFF",
-    letterSpacing: 0.2,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  changeButton: {
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-  },
+    headerPlaceholder: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+    },
 
-  changeText: {
-    fontSize: 12,
-    color: "#2563EB",
-  },
-});
+    title: {
+      flex: 1,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       REWARD
+    ======================================================== */
+
+    rewardCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    rewardIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    rewardTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    rewardDescription: {
+      maxWidth: 310,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CARD
+    ======================================================== */
+
+    card: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    sectionTitle: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       SERVICE
+    ======================================================== */
+
+    serviceRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    serviceIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    serviceContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    serviceName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    freeBadge: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    freeText: {
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       WORKER
+    ======================================================== */
+
+    workerRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    workerImageBox: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      overflow:
+        "hidden",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    workerImage: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    workerContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    workerName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    workerDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       NOTICE
+    ======================================================== */
+
+    notice: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.infoSoft,
+    },
+
+    noticeIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    noticeText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CONFIRM
+    ======================================================== */
+
+    confirmButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    confirmText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       CHANGE
+    ======================================================== */
+
+    changeButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    changeText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       INVALID
+    ======================================================== */
+
+    invalidNotice: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    invalidNoticeText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

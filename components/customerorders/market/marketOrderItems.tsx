@@ -1,43 +1,113 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
+  FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-/* ==============================================================
-   TYPES
-============================================================== */
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
-export type MarketOrderProduct = {
-  productId: string;
-  name: string;
-  image?: string;
-  price: number;
-  quantity: number;
-};
+import type {
+  MarketProduct,
+} from "./marketOrder.utils";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+export type MarketOrderProduct =
+  MarketProduct;
 
 type Props = {
-  products: MarketOrderProduct[];
+  products:
+    MarketOrderProduct[];
 };
 
-/* ==============================================================
+type ProductImageVariant =
+  | "row"
+  | "gallery";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizePrice(
+  value: number,
+): number {
+  return Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
+}
+
+function normalizeQuantity(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(value),
+  );
+}
+
+function normalizeProductName(
+  value: string,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "Product";
+  }
+
+  return (
+    value.trim() ||
+    "Product"
+  );
+}
+
+function formatMoney(
+  value: number,
+): string {
+  const amount =
+    Number.isFinite(value)
+      ? Math.max(0, value)
+      : 0;
+
+  return `₦${amount.toLocaleString(
+    "en-NG",
+  )}`;
+}
+
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
 function MarketOrderItems({
   products,
@@ -45,29 +115,34 @@ function MarketOrderItems({
   const [
     galleryVisible,
     setGalleryVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const firstProduct =
+    products[0] ?? null;
+
+  const itemCount =
+    products.length;
 
   const openGallery =
     useCallback(() => {
-      if (products.length > 0) {
-        setGalleryVisible(true);
+      if (
+        itemCount > 0
+      ) {
+        setGalleryVisible(
+          true,
+        );
       }
     }, [
-      products.length,
+      itemCount,
     ]);
 
   const closeGallery =
     useCallback(() => {
-      setGalleryVisible(false);
+      setGalleryVisible(
+        false,
+      );
     }, []);
-
-  /*
-   * IMPORTANT:
-   * Main Order Items card shows ONLY the first product.
-   * Gallery contains ALL products.
-   */
-  const firstProduct =
-    products[0] ?? null;
 
   return (
     <>
@@ -76,9 +151,9 @@ function MarketOrderItems({
           styles.card
         }
       >
-        {/* ======================================================
+        {/* ====================================================
             HEADER
-        ====================================================== */}
+        ==================================================== */}
 
         <View
           style={
@@ -91,6 +166,7 @@ function MarketOrderItems({
             }
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.title
@@ -100,39 +176,47 @@ function MarketOrderItems({
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.count
               }
             >
-              {products.length}{" "}
-              {products.length ===
-              1
+              {itemCount}{" "}
+              {itemCount === 1
                 ? "item"
                 : "items"}
             </AppText>
           </View>
 
-          {products.length >
-          0 ? (
+          {itemCount > 0 ? (
             <Pressable
               onPress={
                 openGallery
               }
               accessibilityRole="button"
-              accessibilityLabel={`View all ${products.length} order items`}
-              style={({ pressed }) => [
+              accessibilityLabel={`View all ${itemCount} order items`}
+              style={({
+                pressed,
+              }) => [
                 styles.galleryButton,
-                pressed &&
-                  styles.pressed,
+
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="images-outline"
-                size={17}
-                color="#2563EB"
+              <AppIcon
+                name="image"
+                role="customer"
+                size="xs"
+                color={
+                  CustomerColors.primary
+                }
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.galleryText
@@ -144,9 +228,9 @@ function MarketOrderItems({
           ) : null}
         </View>
 
-        {/* ======================================================
-            EMPTY
-        ====================================================== */}
+        {/* ====================================================
+            PRODUCT / EMPTY
+        ==================================================== */}
 
         {!firstProduct ? (
           <View
@@ -154,13 +238,17 @@ function MarketOrderItems({
               styles.empty
             }
           >
-            <Ionicons
-              name="cube-outline"
-              size={25}
-              color="#94A3B8"
+            <AppIcon
+              name="package"
+              size="md"
+              color={
+                Colors.textMuted
+              }
             />
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.emptyText
               }
@@ -169,10 +257,6 @@ function MarketOrderItems({
             </AppText>
           </View>
         ) : (
-          /*
-           * ONLY ONE PRODUCT IS SHOWN HERE.
-           * Other products are available inside Gallery.
-           */
           <ProductRow
             product={
               firstProduct
@@ -181,9 +265,9 @@ function MarketOrderItems({
         )}
       </View>
 
-      {/* ========================================================
-          FULL GALLERY
-      ======================================================== */}
+      {/* ======================================================
+          GALLERY
+      ====================================================== */}
 
       <MarketOrderGallery
         visible={
@@ -200,374 +284,533 @@ function MarketOrderItems({
   );
 }
 
-export default memo(
-  MarketOrderItems,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
-   PRODUCT ROW
-============================================================== */
+const MemoizedMarketOrderItems =
+  memo(
+    MarketOrderItems,
+  );
 
-const ProductRow = memo(
-  ({
-    product,
-  }: {
-    product: MarketOrderProduct;
-  }) => {
-    const image =
-      typeof product.image ===
-        "string" &&
-      product.image.trim()
-        ? product.image.trim()
-        : "";
+MemoizedMarketOrderItems.displayName =
+  "MarketOrderItems";
 
-    const price =
-      Number.isFinite(
-        product.price,
-      )
-        ? product.price
-        : 0;
+export default MemoizedMarketOrderItems;
 
-    const quantity =
-      Number.isFinite(
-        product.quantity,
-      ) &&
-      product.quantity > 0
-        ? product.quantity
-        : 1;
+/* ============================================================
+   PRODUCT IMAGE
+============================================================ */
 
-    const itemTotal =
-      price * quantity;
+const ProductImage =
+  memo(
+    function ProductImage({
+      image,
+      productName,
+      variant,
+    }: {
+      image?: string;
 
-    return (
-      <View
-        style={
-          styles.productRow
-        }
-      >
-        {/* IMAGE */}
+      productName: string;
 
+      variant:
+        ProductImageVariant;
+    }) {
+      const [
+        imageFailed,
+        setImageFailed,
+      ] =
+        useState(false);
+
+      const safeImage =
+        typeof image === "string"
+          ? image.trim()
+          : "";
+
+      useEffect(() => {
+        setImageFailed(
+          false,
+        );
+      }, [
+        safeImage,
+      ]);
+
+      const showImage =
+        safeImage.length > 0 &&
+        !imageFailed;
+
+      const containerStyle =
+        variant === "gallery"
+          ? styles.galleryImageBox
+          : styles.productImageBox;
+
+      const imageStyle =
+        variant === "gallery"
+          ? styles.galleryImage
+          : styles.productImage;
+
+      return (
         <View
           style={
-            styles.productImageBox
+            containerStyle
           }
         >
-          {image ? (
+          {showImage ? (
             <Image
               source={{
-                uri: image,
+                uri: safeImage,
+              }}
+              contentFit="cover"
+              transition={150}
+              accessibilityLabel={`${productName} product image`}
+              onError={() => {
+                setImageFailed(
+                  true,
+                );
               }}
               style={
-                styles.productImage
+                imageStyle
               }
             />
           ) : (
-            <Ionicons
-              name="cube-outline"
-              size={24}
-              color="#94A3B8"
+            <AppIcon
+              name="package"
+              role="customer"
+              size={
+                variant ===
+                "gallery"
+                  ? "lg"
+                  : "md"
+              }
+              color={
+                Colors.textMuted
+              }
             />
           )}
         </View>
+      );
+    },
+  );
 
-        {/* INFO */}
+ProductImage.displayName =
+  "ProductImage";
 
+/* ============================================================
+   PRODUCT ROW
+============================================================ */
+
+const ProductRow =
+  memo(
+    function ProductRow({
+      product,
+    }: {
+      product:
+        MarketOrderProduct;
+    }) {
+      const productName =
+        normalizeProductName(
+          product.name,
+        );
+
+      const price =
+        normalizePrice(
+          product.price,
+        );
+
+      const quantity =
+        normalizeQuantity(
+          product.quantity,
+        );
+
+      const itemTotal =
+        price *
+        quantity;
+
+      return (
         <View
           style={
-            styles.productInfo
+            styles.productRow
           }
+          accessibilityLabel={`${productName}. Quantity ${quantity}. Total ${formatMoney(
+            itemTotal,
+          )}.`}
         >
-          <AppText
-            weight="bold"
-            numberOfLines={2}
+          <ProductImage
+            image={
+              product.image
+            }
+            productName={
+              productName
+            }
+            variant="row"
+          />
+
+          <View
             style={
-              styles.productName
+              styles.productInfo
             }
           >
-            {product.name ||
-              "Product"}
-          </AppText>
+            <AppText
+              variant="caption"
+              weight="bold"
+              numberOfLines={2}
+              style={
+                styles.productName
+              }
+            >
+              {productName}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.quantity
+              }
+            >
+              {quantity}
+              {" × "}
+              {formatMoney(
+                price,
+              )}
+            </AppText>
+          </View>
 
           <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
             style={
-              styles.quantity
+              styles.productTotal
             }
           >
-            {quantity} × ₦
-            {price.toLocaleString(
-              "en-NG",
+            {formatMoney(
+              itemTotal,
             )}
           </AppText>
         </View>
-
-        {/* TOTAL */}
-
-        <AppText
-          weight="bold"
-          style={
-            styles.productTotal
-          }
-        >
-          ₦
-          {itemTotal.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
-    );
-  },
-);
+      );
+    },
+  );
 
 ProductRow.displayName =
   "ProductRow";
 
-/* ==============================================================
+/* ============================================================
    GALLERY MODAL
-============================================================== */
+============================================================ */
 
-function MarketOrderGallery({
-  visible,
-  products,
-  onClose,
-}: {
-  visible: boolean;
-  products: MarketOrderProduct[];
-  onClose: () => void;
-}) {
-  return (
-    <Modal
-      visible={
-        visible
-      }
-      transparent
-      animationType="slide"
-      onRequestClose={
-        onClose
-      }
-    >
-      <View
-        style={
-          styles.modalOverlay
-        }
-      >
-        <View
-          style={
-            styles.modal
+const MarketOrderGallery =
+  memo(
+    function MarketOrderGallery({
+      visible,
+      products,
+      onClose,
+    }: {
+      visible: boolean;
+
+      products:
+        MarketOrderProduct[];
+
+      onClose: () => void;
+    }) {
+      const itemCount =
+        products.length;
+
+      const keyExtractor =
+        useCallback(
+          (
+            item:
+              MarketOrderProduct,
+            index: number,
+          ) =>
+            item.productId ||
+            `product-${index}`,
+          [],
+        );
+
+      const renderItem =
+        useCallback(
+          ({
+            item,
+          }: {
+            item:
+              MarketOrderProduct;
+          }) => (
+            <GalleryItem
+              product={
+                item
+              }
+            />
+          ),
+          [],
+        );
+
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
           }
         >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
-
           <View
             style={
-              styles.modalHeader
+              styles.modalOverlay
             }
           >
-            <View>
-              <AppText
-                weight="bold"
-                style={
-                  styles.modalTitle
-                }
-              >
-                Order Gallery
-              </AppText>
-
-              <AppText
-                style={
-                  styles.modalSubtitle
-                }
-              >
-                {products.length}{" "}
-                {products.length ===
-                1
-                  ? "item"
-                  : "items"}
-              </AppText>
-            </View>
+            {/* BACKDROP */}
 
             <Pressable
               onPress={
                 onClose
               }
-              accessibilityRole="button"
-              accessibilityLabel="Close order gallery"
-              style={({ pressed }) => [
-                styles.closeButton,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="close"
-                size={20}
-                color="#0F172A"
-              />
-            </Pressable>
-          </View>
+              accessible={false}
+              style={
+                StyleSheet.absoluteFill
+              }
+            />
 
-          {/* ==================================================
-              ALL PRODUCTS
-          ================================================== */}
+            {/* SHEET */}
 
-          <ScrollView
-            showsVerticalScrollIndicator={
-              false
-            }
-            contentContainerStyle={
-              styles.galleryContent
-            }
-          >
             <View
               style={
-                styles.galleryGrid
+                styles.modal
               }
             >
-              {products.map(
-                (
-                  product,
-                  index,
-                ) => (
-                  <GalleryItem
-                    key={`${product.productId}-${index}`}
-                    product={
-                      product
+              {/* ==============================================
+                  HEADER
+              ============================================== */}
+
+              <View
+                style={
+                  styles.modalHeader
+                }
+              >
+                <View
+                  style={
+                    styles.modalHeaderText
+                  }
+                >
+                  <AppText
+                    variant="heading3"
+                    weight="bold"
+                    style={
+                      styles.modalTitle
+                    }
+                  >
+                    Order Gallery
+                  </AppText>
+
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={
+                      styles.modalSubtitle
+                    }
+                  >
+                    {itemCount}{" "}
+                    {itemCount === 1
+                      ? "item"
+                      : "items"}
+                  </AppText>
+                </View>
+
+                <Pressable
+                  onPress={
+                    onClose
+                  }
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close order gallery"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.closeButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppIcon
+                    name="close"
+                    size="sm"
+                    color={
+                      Colors.textPrimary
                     }
                   />
-                ),
-              )}
+                </Pressable>
+              </View>
+
+              {/* ==============================================
+                  PRODUCTS
+              ============================================== */}
+
+              <FlatList
+                data={
+                  products
+                }
+                keyExtractor={
+                  keyExtractor
+                }
+                renderItem={
+                  renderItem
+                }
+                numColumns={2}
+                showsVerticalScrollIndicator={
+                  false
+                }
+                initialNumToRender={8}
+                maxToRenderPerBatch={8}
+                windowSize={7}
+                columnWrapperStyle={
+                  styles.galleryRow
+                }
+                contentContainerStyle={
+                  styles.galleryContent
+                }
+              />
             </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+          </View>
+        </Modal>
+      );
+    },
   );
-}
 
-/* ==============================================================
+MarketOrderGallery.displayName =
+  "MarketOrderGallery";
+
+/* ============================================================
    GALLERY ITEM
-============================================================== */
+============================================================ */
 
-const GalleryItem = memo(
-  ({
-    product,
-  }: {
-    product: MarketOrderProduct;
-  }) => {
-    const image =
-      typeof product.image ===
-        "string" &&
-      product.image.trim()
-        ? product.image.trim()
-        : "";
+const GalleryItem =
+  memo(
+    function GalleryItem({
+      product,
+    }: {
+      product:
+        MarketOrderProduct;
+    }) {
+      const productName =
+        normalizeProductName(
+          product.name,
+        );
 
-    const price =
-      Number.isFinite(
-        product.price,
-      )
-        ? product.price
-        : 0;
+      const price =
+        normalizePrice(
+          product.price,
+        );
 
-    const quantity =
-      Number.isFinite(
-        product.quantity,
-      ) &&
-      product.quantity > 0
-        ? product.quantity
-        : 1;
+      const quantity =
+        normalizeQuantity(
+          product.quantity,
+        );
 
-    return (
-      <View
-        style={
-          styles.galleryItem
-        }
-      >
-        {/* IMAGE */}
+      const itemTotal =
+        useMemo(
+          () =>
+            price *
+            quantity,
+          [
+            price,
+            quantity,
+          ],
+        );
 
+      return (
         <View
           style={
-            styles.galleryImageBox
+            styles.galleryItem
           }
+          accessibilityLabel={`${productName}. Quantity ${quantity}. ${formatMoney(
+            itemTotal,
+          )}.`}
         >
-          {image ? (
-            <Image
-              source={{
-                uri: image,
-              }}
-              style={
-                styles.galleryImage
-              }
-            />
-          ) : (
-            <Ionicons
-              name="cube-outline"
-              size={30}
-              color="#94A3B8"
-            />
-          )}
+          <ProductImage
+            image={
+              product.image
+            }
+            productName={
+              productName
+            }
+            variant="gallery"
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={2}
+            style={
+              styles.galleryName
+            }
+          >
+            {productName}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.galleryQuantity
+            }
+          >
+            Qty: {quantity}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.galleryPrice
+            }
+          >
+            {formatMoney(
+              itemTotal,
+            )}
+          </AppText>
         </View>
-
-        {/* NAME */}
-
-        <AppText
-          weight="bold"
-          numberOfLines={2}
-          style={
-            styles.galleryName
-          }
-        >
-          {product.name ||
-            "Product"}
-        </AppText>
-
-        {/* QUANTITY */}
-
-        <AppText
-          style={
-            styles.galleryQuantity
-          }
-        >
-          Qty:{" "}
-          {quantity}
-        </AppText>
-
-        {/* PRICE */}
-
-        <AppText
-          weight="bold"
-          style={
-            styles.galleryPrice
-          }
-        >
-          ₦
-          {price.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
-    );
-  },
-);
+      );
+    },
+  );
 
 GalleryItem.displayName =
   "GalleryItem";
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -577,55 +820,70 @@ const styles =
     header: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     headerTitleBox: {
       flex: 1,
+
       minWidth: 0,
     },
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     count: {
-      marginTop: 2,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     galleryButton: {
-      minHeight: 36,
-      paddingHorizontal: 11,
-      borderRadius: 11,
-      backgroundColor:
-        "#EFF6FF",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 6,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     galleryText: {
-      fontSize: 9,
-      color: "#2563EB",
-    },
-
-    pressed: {
-      opacity: 0.7,
-      transform: [
-        {
-          scale: 0.97,
-        },
-      ],
+      color:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -633,69 +891,104 @@ const styles =
     ======================================================== */
 
     productRow: {
-      marginTop: 8,
-      paddingTop: 8,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
     productImageBox: {
-      width: 72,
-      height: 72,
-      borderRadius: 15,
-      backgroundColor:
-        "#F8FAFC",
-      overflow: "hidden",
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      flexShrink: 0,
+
+      overflow:
+        "hidden",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     productImage: {
       width: "100%",
+
       height: "100%",
-      resizeMode: "cover",
     },
 
     productInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 12,
-      marginRight: 8,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     productName: {
-      fontSize: 11,
-      lineHeight: 15,
-      color: "#0F172A",
+      lineHeight: 16,
+
+      color:
+        Colors.textPrimary,
     },
 
     quantity: {
-      marginTop: 5,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     productTotal: {
-      fontSize: 10.5,
-      color: "#0F172A",
+      flexShrink: 0,
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     empty: {
       minHeight: 100,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
     },
 
     emptyText: {
-      marginTop: 6,
-      fontSize: 9,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -704,124 +997,211 @@ const styles =
 
     modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15,23,42,0.45)",
+
       justifyContent:
         "flex-end",
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
     modal: {
-      maxHeight: "88%",
       minHeight: "45%",
+
+      maxHeight: "88%",
+
+      overflow:
+        "hidden",
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#F8FAFC",
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingTop: 8,
+        Colors.background,
     },
 
     modalHeader: {
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      backgroundColor:
-        "#FFFFFF",
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
+
+      gap:
+        FixxamTokens.spacing.md,
+
       borderBottomWidth: 1,
+
       borderBottomColor:
-        "#E2E8F0",
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalHeaderText: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     modalTitle: {
-      fontSize: 16,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalSubtitle: {
-      marginTop: 2,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     closeButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor:
-        "#F1F5F9",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
+
+    /* ========================================================
+       GALLERY
+    ======================================================== */
 
     galleryContent: {
-      padding: 14,
-      paddingBottom: 30,
+      padding:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    galleryGrid: {
-      flexDirection:
-        "row",
-      flexWrap:
-        "wrap",
-      justifyContent:
-        "space-between",
-      gap: 10,
+    galleryRow: {
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
     galleryItem: {
-      width: "48.5%",
-      padding: 8,
-      borderRadius: 14,
-      backgroundColor:
-        "#FFFFFF",
+      flex: 1,
+
+      maxWidth: "48.5%",
+
+      padding:
+        FixxamTokens.spacing.sm,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     galleryImageBox: {
       width: "100%",
+
       aspectRatio: 1,
-      borderRadius: 10,
-      backgroundColor:
-        "#F8FAFC",
-      overflow: "hidden",
+
+      overflow:
+        "hidden",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     galleryImage: {
       width: "100%",
+
       height: "100%",
-      resizeMode: "cover",
     },
 
     galleryName: {
-      marginTop: 7,
-      fontSize: 9.5,
-      lineHeight: 13,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 15,
+
+      color:
+        Colors.textPrimary,
     },
 
     galleryQuantity: {
-      marginTop: 3,
-      fontSize: 8,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     galleryPrice: {
-      marginTop: 4,
-      fontSize: 9,
-      color: "#2563EB",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

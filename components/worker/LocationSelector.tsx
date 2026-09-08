@@ -1,4 +1,9 @@
-import React, { useMemo } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
+
 import {
   StyleSheet,
   View,
@@ -9,61 +14,148 @@ import lgas from "@/assets/data/lgas.json";
 
 import SearchableModalPicker from "@/components/selectors/SearchableModalPicker";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   state: string;
+
   lga: string;
 
-  setState: (value: string) => void;
-  setLga: (value: string) => void;
+  setState: (
+    value: string,
+  ) => void;
+
+  setLga: (
+    value: string,
+  ) => void;
 };
 
-export default function LocationSelector({
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const STATE_OPTIONS =
+  states as string[];
+
+const LGA_MAP =
+  lgas as Record<
+    string,
+    string[]
+  >;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function LocationSelector({
   state,
   lga,
   setState,
   setLga,
 }: Props) {
-  const availableLgas = useMemo(() => {
-    const data =
-      lgas as Record<string, string[]>;
+  const availableLgas =
+    useMemo(() => {
+      if (!state) {
+        return [];
+      }
 
-    return state
-      ? data[state] || []
-      : [];
-  }, [state]);
+      return (
+        LGA_MAP[state] ??
+        []
+      );
+    }, [state]);
+
+  const handleStateSelect =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setState(value);
+
+        setLga("");
+      },
+      [
+        setLga,
+        setState,
+      ],
+    );
+
+  const handleLgaSelect =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setLga(value);
+      },
+      [setLga],
+    );
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <SearchableModalPicker
         label="State"
         placeholder="Select State"
-        value={state}
-        data={states as string[]}
-        onSelect={(value) => {
-          setState(value);
-          setLga("");
-        }}
+        value={
+          state
+        }
+        data={
+          STATE_OPTIONS
+        }
+        onSelect={
+          handleStateSelect
+        }
       />
 
-      <View style={styles.space} />
+      <View
+        style={
+          styles.space
+        }
+      />
 
       <SearchableModalPicker
         label="Local Government"
         placeholder="Select LGA"
-        value={lga}
-        data={availableLgas}
-        onSelect={setLga}
+        value={
+          lga
+        }
+        data={
+          availableLgas
+        }
+        onSelect={
+          handleLgaSelect
+        }
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 18,
-  },
+export default memo(
+  LocationSelector,
+);
 
-  space: {
-    height: 12,
-  },
-});
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
+
+    space: {
+      height:
+        FixxamTokens.spacing.md,
+    },
+  });

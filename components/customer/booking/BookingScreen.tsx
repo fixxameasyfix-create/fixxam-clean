@@ -7,7 +7,6 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -21,7 +20,6 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import * as ImagePicker from "expo-image-picker";
@@ -32,21 +30,39 @@ import {
 } from "react-native-keyboard-controller";
 
 import {
+  AppButton,
+  AppCard,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import RequestWorkerCard from "@/components/customer/request-service/RequestWorkerCard";
 import RequestDescription from "@/components/customer/request-service/RequestDescription";
 import RequestPhotos from "@/components/customer/request-service/RequestPhotos";
 import RequestLocation from "@/components/customer/request-service/RequestLocation";
+
 import RequestTiming, {
-  RequestTimingValue,
+  type RequestTimingValue,
 } from "@/components/customer/request-service/RequestTiming";
 
-import { auth } from "@/firebase/config";
+import {
+  auth,
+} from "@/firebase/config";
 
-import { getUser } from "@/firebase/queries/users";
+import {
+  getUser,
+} from "@/firebase/queries/users";
+
+import {
+  getFreshWorkerProfilePhotoUrl,
+} from "@/firebase/queries/workerPublicProfiles";
 
 import {
   createBooking,
@@ -73,18 +89,16 @@ type SelectedLocation = {
 
 type LocationSuggestion = {
   id: string;
+
   title: string;
+
   subtitle?: string;
+
   latitude: number;
+
   longitude: number;
 };
 
-/**
- * AI-prepared booking data.
- *
- * This data is only used to prefill
- * the request form.
- */
 type AiPrefilledBooking = {
   description?: string;
 
@@ -92,50 +106,89 @@ type AiPrefilledBooking = {
 
   address?: string;
 
-  latitude?: number | null;
+  latitude?:
+    | number
+    | null;
 
-  longitude?: number | null;
+  longitude?:
+    | number
+    | null;
 
-  bookingDate?: string | null;
+  bookingDate?:
+    | string
+    | null;
 
-  bookingTime?: string | null;
+  bookingTime?:
+    | string
+    | null;
 };
 
 type BookingParams = {
-  serviceId?: string | string[];
+  serviceId?:
+    | string
+    | string[];
 
-  serviceName?: string | string[];
+  serviceName?:
+    | string
+    | string[];
 
-  serviceIcon?: string | string[];
+  serviceIcon?:
+    | string
+    | string[];
 
-  serviceColor?: string | string[];
+  serviceColor?:
+    | string
+    | string[];
 
   serviceBackgroundColor?:
     | string
     | string[];
 
-  categoryId?: string | string[];
+  categoryId?:
+    | string
+    | string[];
 
-  workerId?: string | string[];
+  workerId?:
+    | string
+    | string[];
 
-  workerName?: string | string[];
+  workerName?:
+    | string
+    | string[];
 
-  workerPhoto?: string | string[];
+  workerPhoto?:
+    | string
+    | string[];
 
-  workerCategory?: string | string[];
+  workerCategory?:
+    | string
+    | string[];
 
-  workerOnline?: string | string[];
+  workerOnline?:
+    | string
+    | string[];
 
-  workerDistance?: string | string[];
+  workerDistance?:
+    | string
+    | string[];
 
-  reward?: string | string[];
+  reward?:
+    | string
+    | string[];
 
   customerDescription?:
     | string
     | string[];
 
-  booking?: string | string[];
+  booking?:
+    | string
+    | string[];
 };
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 /* ==============================================================
    CONSTANTS
@@ -143,13 +196,17 @@ type BookingParams = {
 
 const MAX_PHOTOS = 3;
 
-const MIN_DESCRIPTION_LENGTH = 3;
+const MIN_DESCRIPTION_LENGTH =
+  3;
 
-const MAX_DESCRIPTION_LENGTH = 300;
+const MAX_DESCRIPTION_LENGTH =
+  300;
 
-const LOCATION_SEARCH_LIMIT = 5;
+const LOCATION_SEARCH_LIMIT =
+  5;
 
-const LOCATION_SEARCH_DEBOUNCE = 450;
+const LOCATION_SEARCH_DEBOUNCE =
+  450;
 
 /* ==============================================================
    PARAM HELPER
@@ -161,13 +218,48 @@ function getParamValue(
     | string[]
     | undefined,
 ): string {
-  if (Array.isArray(value)) {
+  if (
+    Array.isArray(value)
+  ) {
     return (
-      value[0]?.trim() ?? ""
+      value[0]?.trim() ??
+      ""
     );
   }
 
-  return value?.trim() ?? "";
+  return (
+    value?.trim() ??
+    ""
+  );
+}
+
+/* ==============================================================
+   WORKER PHOTO
+============================================================== */
+
+function normalizeWorkerPhotoUrl(
+  value: string,
+): string {
+  const url =
+    value.trim();
+
+  if (!url) {
+    return "";
+  }
+
+  /*
+   * Production worker profile
+   * images must use HTTPS.
+   */
+  if (
+    !url.startsWith(
+      "https://",
+    )
+  ) {
+    return "";
+  }
+
+  return url;
 }
 
 /* ==============================================================
@@ -201,7 +293,9 @@ export default function BookingScreen() {
     booking,
   } = params;
 
-  const { location } =
+  const {
+    location,
+  } =
     useCurrentLocation();
 
   /* ============================================================
@@ -212,46 +306,58 @@ export default function BookingScreen() {
     useMemo<AiPrefilledBooking | null>(
       () => {
         const rawBooking =
-          getParamValue(booking);
+          getParamValue(
+            booking,
+          );
 
-        if (!rawBooking) {
+        if (
+          !rawBooking
+        ) {
           return null;
         }
 
         try {
           const parsed: unknown =
-            JSON.parse(rawBooking);
+            JSON.parse(
+              rawBooking,
+            );
 
           if (
             !parsed ||
             typeof parsed !==
               "object" ||
-            Array.isArray(parsed)
+            Array.isArray(
+              parsed,
+            )
           ) {
             return null;
           }
 
-          return parsed as AiPrefilledBooking;
+          return parsed as
+            AiPrefilledBooking;
         } catch (error) {
           console.error(
-            "INVALID_AI_BOOKING_JSON",
+            "INVALID_AI_BOOKING_JSON:",
             error,
           );
 
           return null;
         }
       },
-      [booking],
+      [
+        booking,
+      ],
     );
 
   /* ============================================================
-     AI INITIAL SCHEDULE
+     INITIAL SCHEDULE
   ============================================================ */
 
   const initialScheduledDate =
     useMemo(() => {
       const value =
-        aiPrefilledBooking?.bookingDate;
+        aiPrefilledBooking
+          ?.bookingDate;
 
       if (
         typeof value !==
@@ -280,10 +386,12 @@ export default function BookingScreen() {
       }
 
       return date;
-    }, [aiPrefilledBooking]);
+    }, [
+      aiPrefilledBooking,
+    ]);
 
   /* ============================================================
-     RESOLVED SERVICE
+     SERVICE
   ============================================================ */
 
   const resolvedServiceId =
@@ -292,7 +400,9 @@ export default function BookingScreen() {
         getParamValue(
           serviceId,
         ),
-      [serviceId],
+      [
+        serviceId,
+      ],
     );
 
   const resolvedServiceName =
@@ -301,69 +411,49 @@ export default function BookingScreen() {
         getParamValue(
           serviceName,
         ),
-      [serviceName],
+      [
+        serviceName,
+      ],
     );
-
-  /* ============================================================
-     SERVICE ICON
-  ============================================================ */
-
-  /**
-   * IMPORTANT:
-   *
-   * This must contain the SAME icon name
-   * used by CategoryCard:
-   *
-   * <MaterialCommunityIcons
-   *   name={icon}
-   * />
-   *
-   * Example:
-   *
-   * "car-wrench"
-   * "tools"
-   * "hammer-wrench"
-   *
-   * We do NOT convert it to Ionicons.
-   */
 
   const resolvedServiceIcon =
     useMemo(
       () =>
         getParamValue(
           serviceIcon,
-        ) || "tools",
-      [serviceIcon],
+        ) ||
+        "tools",
+      [
+        serviceIcon,
+      ],
     );
-
-  /* ============================================================
-     SERVICE COLOR
-  ============================================================ */
 
   const resolvedServiceColor =
     useMemo(
       () =>
         getParamValue(
           serviceColor,
-        ) || "#EA580C",
-      [serviceColor],
+        ) ||
+        CustomerColors.primary,
+      [
+        serviceColor,
+      ],
     );
-
-  /* ============================================================
-     SERVICE BACKGROUND
-  ============================================================ */
 
   const resolvedServiceBackgroundColor =
     useMemo(
       () =>
         getParamValue(
           serviceBackgroundColor,
-        ) || "#FFF7E8",
-      [serviceBackgroundColor],
+        ) ||
+        CustomerColors.primarySoft,
+      [
+        serviceBackgroundColor,
+      ],
     );
 
   /* ============================================================
-     RESOLVED WORKER
+     WORKER
   ============================================================ */
 
   const resolvedWorkerId =
@@ -372,7 +462,9 @@ export default function BookingScreen() {
         getParamValue(
           workerId,
         ),
-      [workerId],
+      [
+        workerId,
+      ],
     );
 
   const resolvedWorkerName =
@@ -382,16 +474,22 @@ export default function BookingScreen() {
           workerName,
         ) ||
         "Selected Worker",
-      [workerName],
+      [
+        workerName,
+      ],
     );
 
   const resolvedWorkerPhoto =
     useMemo(
       () =>
-        getParamValue(
-          workerPhoto,
+        normalizeWorkerPhotoUrl(
+          getParamValue(
+            workerPhoto,
+          ),
         ),
-      [workerPhoto],
+      [
+        workerPhoto,
+      ],
     );
 
   const resolvedWorkerCategory =
@@ -401,11 +499,180 @@ export default function BookingScreen() {
           workerCategory,
         ) ||
         "Service Provider",
-      [workerCategory],
+      [
+        workerCategory,
+      ],
     );
 
   /* ============================================================
-     WORKER STATUS
+     FRESH WORKER PHOTO
+  ============================================================ */
+
+  const [
+    freshWorkerPhoto,
+    setFreshWorkerPhoto,
+  ] =
+    useState("");
+
+  const [
+    workerPhotoLoading,
+    setWorkerPhotoLoading,
+  ] =
+    useState(false);
+
+  useEffect(() => {
+    let cancelled =
+      false;
+
+    const loadFreshWorkerPhoto =
+      async () => {
+        if (
+          !resolvedWorkerId
+        ) {
+          if (
+            !cancelled
+          ) {
+            setFreshWorkerPhoto(
+              "",
+            );
+
+            setWorkerPhotoLoading(
+              false,
+            );
+          }
+
+          return;
+        }
+
+        setWorkerPhotoLoading(
+          true,
+        );
+
+        try {
+          const freshUrl =
+            await getFreshWorkerProfilePhotoUrl(
+              resolvedWorkerId,
+            );
+
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+          const normalizedFreshUrl =
+            normalizeWorkerPhotoUrl(
+              freshUrl,
+            );
+
+          setFreshWorkerPhoto(
+            normalizedFreshUrl,
+          );
+
+          if (__DEV__) {
+            console.log(
+              "BOOKING_FRESH_WORKER_PHOTO",
+              {
+                workerId:
+                  resolvedWorkerId,
+
+                hasFreshPhoto:
+                  Boolean(
+                    normalizedFreshUrl,
+                  ),
+              },
+            );
+          }
+        } catch (error) {
+          if (
+            cancelled
+          ) {
+            return;
+          }
+
+          console.warn(
+            "BOOKING_FRESH_WORKER_PHOTO_ERROR",
+            {
+              workerId:
+                resolvedWorkerId,
+
+              error,
+            },
+          );
+
+          setFreshWorkerPhoto(
+            "",
+          );
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setWorkerPhotoLoading(
+              false,
+            );
+          }
+        }
+      };
+
+    void loadFreshWorkerPhoto();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    resolvedWorkerId,
+  ]);
+
+  const finalWorkerPhoto =
+    useMemo(
+      () =>
+        freshWorkerPhoto ||
+        resolvedWorkerPhoto,
+      [
+        freshWorkerPhoto,
+        resolvedWorkerPhoto,
+      ],
+    );
+
+  /* ============================================================
+     DEBUG WORKER PHOTO
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !__DEV__
+    ) {
+      return;
+    }
+
+    console.log(
+      "BOOKING_WORKER_IMAGE",
+      {
+        workerId:
+          resolvedWorkerId,
+
+        workerName:
+          resolvedWorkerName,
+
+        hasPhoto:
+          Boolean(
+            finalWorkerPhoto,
+          ),
+
+        loading:
+          workerPhotoLoading,
+      },
+    );
+  }, [
+    finalWorkerPhoto,
+    resolvedWorkerId,
+    resolvedWorkerName,
+    workerPhotoLoading,
+  ]);
+
+  /* ============================================================
+     STATUS
   ============================================================ */
 
   const isWorkerOnline =
@@ -432,7 +699,9 @@ export default function BookingScreen() {
         Number(raw);
 
       if (
-        !Number.isFinite(value)
+        !Number.isFinite(
+          value,
+        )
       ) {
         return undefined;
       }
@@ -441,7 +710,9 @@ export default function BookingScreen() {
         0,
         value,
       );
-    }, [workerDistance]);
+    }, [
+      workerDistance,
+    ]);
 
   /* ============================================================
      DESCRIPTION
@@ -450,21 +721,24 @@ export default function BookingScreen() {
   const [
     description,
     setDescription,
-  ] = useState(() => {
-    const aiDescription =
-      aiPrefilledBooking?.description?.trim();
+  ] =
+    useState(() => {
+      const aiDescription =
+        aiPrefilledBooking
+          ?.description
+          ?.trim();
 
-    const fallbackDescription =
-      getParamValue(
-        customerDescription,
+      const fallbackDescription =
+        getParamValue(
+          customerDescription,
+        );
+
+      return (
+        aiDescription ||
+        fallbackDescription ||
+        ""
       );
-
-    return (
-      aiDescription ||
-      fallbackDescription ||
-      ""
-    );
-  });
+    });
 
   /* ============================================================
      PHOTOS
@@ -473,30 +747,34 @@ export default function BookingScreen() {
   const [
     photos,
     setPhotos,
-  ] = useState<string[]>(() => {
-    if (
-      !Array.isArray(
-        aiPrefilledBooking?.photos,
-      )
-    ) {
-      return [];
-    }
+  ] =
+    useState<string[]>(
+      () => {
+        if (
+          !Array.isArray(
+            aiPrefilledBooking
+              ?.photos,
+          )
+        ) {
+          return [];
+        }
 
-    return aiPrefilledBooking.photos
-      .filter(
-        (
-          photo,
-        ): photo is string =>
-          typeof photo ===
-            "string" &&
-          photo.trim().length >
+        return aiPrefilledBooking.photos
+          .filter(
+            (
+              photo,
+            ): photo is string =>
+              typeof photo ===
+                "string" &&
+              photo.trim()
+                .length > 0,
+          )
+          .slice(
             0,
-      )
-      .slice(
-        0,
-        MAX_PHOTOS,
-      );
-  });
+            MAX_PHOTOS,
+          );
+      },
+    );
 
   /* ============================================================
      LOCATION
@@ -509,10 +787,12 @@ export default function BookingScreen() {
     useState<SelectedLocation | null>(
       () => {
         const latitude =
-          aiPrefilledBooking?.latitude;
+          aiPrefilledBooking
+            ?.latitude;
 
         const longitude =
-          aiPrefilledBooking?.longitude;
+          aiPrefilledBooking
+            ?.longitude;
 
         if (
           typeof latitude !==
@@ -539,11 +819,14 @@ export default function BookingScreen() {
   const [
     selectedAddress,
     setSelectedAddress,
-  ] = useState(
-    () =>
-      aiPrefilledBooking?.address?.trim() ||
-      "",
-  );
+  ] =
+    useState(
+      () =>
+        aiPrefilledBooking
+          ?.address
+          ?.trim() ||
+        "",
+    );
 
   /* ============================================================
      TIMING
@@ -562,27 +845,30 @@ export default function BookingScreen() {
   const [
     scheduledDate,
     setScheduledDate,
-  ] = useState<Date | null>(
-    initialScheduledDate,
-  );
+  ] =
+    useState<Date | null>(
+      initialScheduledDate,
+    );
 
   /* ============================================================
-     SUBMITTING
+     SUBMIT
   ============================================================ */
 
   const [
     submitting,
     setSubmitting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ============================================================
-     SIGN IN MODAL
+     SIGN IN
   ============================================================ */
 
   const [
     signInModalVisible,
     setSignInModalVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ============================================================
      LOCATION SEARCH
@@ -592,34 +878,35 @@ export default function BookingScreen() {
     locationSuggestions,
     setLocationSuggestions,
   ] =
-    useState<LocationSuggestion[]>(
-      [],
-    );
+    useState<
+      LocationSuggestion[]
+    >([]);
 
   const [
     locationSearchLoading,
     setLocationSearchLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const locationSearchTimer =
-    useRef<ReturnType<
-      typeof setTimeout
-    > | null>(null);
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
 
   const locationSearchRequestId =
     useRef(0);
 
-  /* ============================================================
-     CLEANUP LOCATION SEARCH
-  ============================================================ */
-
   useEffect(() => {
     return () => {
       if (
-        locationSearchTimer.current
+        locationSearchTimer
+          .current
       ) {
         clearTimeout(
-          locationSearchTimer.current,
+          locationSearchTimer
+            .current,
         );
 
         locationSearchTimer.current =
@@ -629,19 +916,17 @@ export default function BookingScreen() {
   }, []);
 
   /* ============================================================
-     CLEAN DESCRIPTION
+     DERIVED STATE
   ============================================================ */
 
   const cleanDescription =
     description.trim();
 
-  /* ============================================================
-     CURRENT LOCATION
-  ============================================================ */
-
   const currentCoordinates =
     useMemo(() => {
-      if (!location) {
+      if (
+        !location
+      ) {
         return null;
       }
 
@@ -663,33 +948,9 @@ export default function BookingScreen() {
         longitude:
           location.longitude,
       };
-    }, [location]);
-
-  /* ============================================================
-     TIMING CHANGE
-  ============================================================ */
-
-  const handleTimingChange =
-    useCallback(
-      (
-        value: RequestTimingValue,
-      ) => {
-        setTiming(value);
-
-        if (
-          value === "asap"
-        ) {
-          setScheduledDate(
-            null,
-          );
-        }
-      },
-      [],
-    );
-
-  /* ============================================================
-     CAN SUBMIT
-  ============================================================ */
+    }, [
+      location,
+    ]);
 
   const canSubmit =
     Boolean(
@@ -703,9 +964,63 @@ export default function BookingScreen() {
         selectedLocation &&
         selectedAddress.trim() &&
         (
-          timing === "asap" ||
+          timing ===
+            "asap" ||
           scheduledDate
         ),
+    );
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        submitting
+      ) {
+        return;
+      }
+
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/(tabs)/home",
+      );
+    }, [
+      submitting,
+    ]);
+
+  /* ============================================================
+     TIMING
+  ============================================================ */
+
+  const handleTimingChange =
+    useCallback(
+      (
+        value:
+          RequestTimingValue,
+      ) => {
+        setTiming(
+          value,
+        );
+
+        if (
+          value ===
+          "asap"
+        ) {
+          setScheduledDate(
+            null,
+          );
+        }
+      },
+      [],
     );
 
   /* ============================================================
@@ -717,31 +1032,30 @@ export default function BookingScreen() {
       const capturedPhoto =
         consumeCapturedPhoto();
 
-      if (!capturedPhoto) {
+      if (
+        !capturedPhoto
+      ) {
         return;
       }
 
-      setPhotos((current) => {
-        if (
-          current.length >=
-          MAX_PHOTOS
-        ) {
-          return current;
-        }
+      setPhotos(
+        (current) => {
+          if (
+            current.length >=
+              MAX_PHOTOS ||
+            current.includes(
+              capturedPhoto,
+            )
+          ) {
+            return current;
+          }
 
-        if (
-          current.includes(
+          return [
+            ...current,
             capturedPhoto,
-          )
-        ) {
-          return current;
-        }
-
-        return [
-          ...current,
-          capturedPhoto,
-        ];
-      });
+          ];
+        },
+      );
     }, []),
   );
 
@@ -757,7 +1071,9 @@ export default function BookingScreen() {
         longitude,
       }: {
         address?: string;
+
         latitude: number;
+
         longitude: number;
       }) => {
         if (
@@ -827,13 +1143,16 @@ export default function BookingScreen() {
             [];
 
           for (
-            let index = 0;
+            let index =
+              0;
             index <
             limitedResults.length;
             index += 1
           ) {
             const item =
-              limitedResults[index];
+              limitedResults[
+                index
+              ];
 
             if (
               !Number.isFinite(
@@ -864,7 +1183,9 @@ export default function BookingScreen() {
               const address =
                 addresses[0];
 
-              if (address) {
+              if (
+                address
+              ) {
                 subtitle =
                   [
                     address.city,
@@ -879,13 +1200,13 @@ export default function BookingScreen() {
                           value,
                         ),
                     )
-                    .join(", ");
+                    .join(
+                      ", ",
+                    );
               }
-            } catch (
-              error
-            ) {
+            } catch (error) {
               console.error(
-                "REVERSE_GEOCODE_SUGGESTION_ERROR",
+                "REVERSE_GEOCODE_SUGGESTION_ERROR:",
                 error,
               );
             }
@@ -898,7 +1219,8 @@ export default function BookingScreen() {
             }
 
             nextSuggestions.push({
-              id: `${item.latitude}-${item.longitude}-${index}`,
+              id:
+                `${item.latitude}-${item.longitude}-${index}`,
 
               title:
                 query,
@@ -934,7 +1256,7 @@ export default function BookingScreen() {
           }
 
           console.error(
-            "SEARCH_BOOKING_LOCATION_ERROR",
+            "SEARCH_BOOKING_LOCATION_ERROR:",
             error,
           );
 
@@ -956,20 +1278,24 @@ export default function BookingScreen() {
     );
 
   /* ============================================================
-     LOCATION SEARCH INPUT
+     LOCATION INPUT
   ============================================================ */
 
   const handleSearchLocationInput =
     useCallback(
-      (text: string) => {
+      (
+        text: string,
+      ) => {
         const query =
           text.trim();
 
         if (
-          locationSearchTimer.current
+          locationSearchTimer
+            .current
         ) {
           clearTimeout(
-            locationSearchTimer.current,
+            locationSearchTimer
+              .current,
           );
 
           locationSearchTimer.current =
@@ -979,7 +1305,9 @@ export default function BookingScreen() {
         locationSearchRequestId.current +=
           1;
 
-        if (!query) {
+        if (
+          !query
+        ) {
           setLocationSuggestions(
             [],
           );
@@ -996,13 +1324,18 @@ export default function BookingScreen() {
         );
 
         locationSearchTimer.current =
-          setTimeout(() => {
-            void handleSearchLocation(
-              query,
-            );
-          }, LOCATION_SEARCH_DEBOUNCE);
+          setTimeout(
+            () => {
+              void handleSearchLocation(
+                query,
+              );
+            },
+            LOCATION_SEARCH_DEBOUNCE,
+          );
       },
-      [handleSearchLocation],
+      [
+        handleSearchLocation,
+      ],
     );
 
   /* ============================================================
@@ -1025,9 +1358,12 @@ export default function BookingScreen() {
 
       try {
         const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+          await ImagePicker
+            .requestMediaLibraryPermissionsAsync();
 
-        if (!permission.granted) {
+        if (
+          !permission.granted
+        ) {
           Alert.alert(
             "Permission required",
             "Please allow photo access to select a photo.",
@@ -1037,8 +1373,8 @@ export default function BookingScreen() {
         }
 
         const result =
-          await ImagePicker.launchImageLibraryAsync(
-            {
+          await ImagePicker
+            .launchImageLibraryAsync({
               mediaTypes: [
                 "images",
               ],
@@ -1046,48 +1382,50 @@ export default function BookingScreen() {
               allowsEditing:
                 true,
 
-              quality: 0.8,
+              quality:
+                0.8,
 
-              selectionLimit: 1,
-            },
-          );
+              selectionLimit:
+                1,
+            });
 
         if (
           result.canceled ||
-          !result.assets?.length
+          !result.assets
+            ?.length
         ) {
           return;
         }
 
         const uri =
-          result.assets[0]?.uri;
+          result.assets[0]
+            ?.uri;
 
         if (!uri) {
           return;
         }
 
-        setPhotos((current) => {
-          if (
-            current.length >=
-            MAX_PHOTOS
-          ) {
-            return current;
-          }
+        setPhotos(
+          (current) => {
+            if (
+              current.length >=
+                MAX_PHOTOS ||
+              current.includes(
+                uri,
+              )
+            ) {
+              return current;
+            }
 
-          if (
-            current.includes(uri)
-          ) {
-            return current;
-          }
-
-          return [
-            ...current,
-            uri,
-          ];
-        });
+            return [
+              ...current,
+              uri,
+            ];
+          },
+        );
       } catch (error) {
         console.error(
-          "ADD_BOOKING_PHOTO_ERROR",
+          "ADD_BOOKING_PHOTO_ERROR:",
           error,
         );
 
@@ -1096,22 +1434,28 @@ export default function BookingScreen() {
           "Unable to select this photo. Please try again.",
         );
       }
-    }, [photos.length]);
+    }, [
+      photos.length,
+    ]);
 
   /* ============================================================
-     OPEN FIXXAM CAMERA
+     CAMERA
   ============================================================ */
 
   const handleTakePhoto =
     useCallback(() => {
-      if (submitting) {
+      if (
+        submitting
+      ) {
         return;
       }
 
       router.push(
         "/(customer)/requesting/camera",
       );
-    }, [submitting]);
+    }, [
+      submitting,
+    ]);
 
   /* ============================================================
      REMOVE PHOTO
@@ -1119,35 +1463,68 @@ export default function BookingScreen() {
 
   const handleRemovePhoto =
     useCallback(
-      (uri: string) => {
-        setPhotos((current) =>
-          current.filter(
-            (photo) =>
-              photo !== uri,
-          ),
+      (
+        uri: string,
+      ) => {
+        setPhotos(
+          (current) =>
+            current.filter(
+              (
+                photo,
+              ) =>
+                photo !==
+                uri,
+            ),
         );
       },
       [],
     );
 
   /* ============================================================
-     SUBMIT BOOKING
+     SIGN IN
+  ============================================================ */
+
+  const handleCloseSignIn =
+    useCallback(() => {
+      setSignInModalVisible(
+        false,
+      );
+    }, []);
+
+  const handleSignIn =
+    useCallback(() => {
+      setSignInModalVisible(
+        false,
+      );
+
+      router.push(
+        "/(auth)/login",
+      );
+    }, []);
+
+  /* ============================================================
+     SUBMIT
   ============================================================ */
 
   const handleSubmit =
     useCallback(async () => {
-      if (submitting) {
+      if (
+        submitting
+      ) {
         return;
       }
 
       const customerId =
-        auth.currentUser?.uid;
+        auth.currentUser
+          ?.uid;
 
       /* ========================================================
-         AUTHENTICATION
+         AUTH
       ======================================================== */
 
-      if (!customerId) {
+      if (
+        !customerId
+      ) {
         setSignInModalVisible(
           true,
         );
@@ -1156,32 +1533,28 @@ export default function BookingScreen() {
       }
 
       /* ========================================================
-         SERVICE VALIDATION
+         SERVICE
       ======================================================== */
 
-      if (!resolvedServiceId) {
+      if (
+        !resolvedServiceId ||
+        !resolvedServiceName
+      ) {
         Alert.alert(
           "Service unavailable",
-          "The selected service ID is missing.",
-        );
-
-        return;
-      }
-
-      if (!resolvedServiceName) {
-        Alert.alert(
-          "Service unavailable",
-          "The selected service name is missing.",
+          "The selected service is no longer available. Please choose the service again.",
         );
 
         return;
       }
 
       /* ========================================================
-         WORKER VALIDATION
+         WORKER
       ======================================================== */
 
-      if (!resolvedWorkerId) {
+      if (
+        !resolvedWorkerId
+      ) {
         Alert.alert(
           "Worker unavailable",
           "Please go back and select a worker.",
@@ -1191,7 +1564,7 @@ export default function BookingScreen() {
       }
 
       /* ========================================================
-         DESCRIPTION VALIDATION
+         DESCRIPTION
       ======================================================== */
 
       if (
@@ -1219,10 +1592,13 @@ export default function BookingScreen() {
       }
 
       /* ========================================================
-         LOCATION VALIDATION
+         LOCATION
       ======================================================== */
 
-      if (!selectedLocation) {
+      if (
+        !selectedLocation ||
+        !selectedAddress.trim()
+      ) {
         Alert.alert(
           "Location required",
           "Please select your service location.",
@@ -1231,19 +1607,8 @@ export default function BookingScreen() {
         return;
       }
 
-      if (
-        !selectedAddress.trim()
-      ) {
-        Alert.alert(
-          "Location required",
-          "Please select or enter your service location.",
-        );
-
-        return;
-      }
-
       /* ========================================================
-         SCHEDULE VALIDATION
+         SCHEDULE
       ======================================================== */
 
       if (
@@ -1274,11 +1639,13 @@ export default function BookingScreen() {
         return;
       }
 
-      setSubmitting(true);
+      setSubmitting(
+        true,
+      );
 
       try {
         /* ======================================================
-           GET CUSTOMER
+           CUSTOMER
         ====================================================== */
 
         const userSnapshot =
@@ -1293,29 +1660,31 @@ export default function BookingScreen() {
 
         const customerName =
           typeof user?.fullName ===
-          "string"
+            "string"
             ? user.fullName.trim()
             : "";
 
         const customerPhotoURL =
           typeof user?.photoUrl ===
-          "string"
+            "string"
             ? user.photoUrl.trim()
             : "";
 
         /* ======================================================
-           UPLOAD PHOTOS
+           PHOTOS
         ====================================================== */
 
         let uploadedPhotos: string[] =
           [];
 
         if (
-          photos.length > 0
+          photos.length >
+          0
         ) {
           uploadedPhotos =
             await uploadBookingPhotos(
               photos,
+              customerId,
             );
         }
 
@@ -1337,10 +1706,14 @@ export default function BookingScreen() {
             ? scheduledDate.toLocaleTimeString(
                 "en-US",
                 {
-                  hour: "2-digit",
+                  hour:
+                    "2-digit",
+
                   minute:
                     "2-digit",
-                  hour12: true,
+
+                  hour12:
+                    true,
                 },
               )
             : null;
@@ -1364,7 +1737,7 @@ export default function BookingScreen() {
               resolvedWorkerName,
 
             workerPhoto:
-              resolvedWorkerPhoto ||
+              finalWorkerPhoto ||
               null,
 
             serviceId:
@@ -1373,12 +1746,6 @@ export default function BookingScreen() {
             serviceName:
               resolvedServiceName,
 
-            /*
-             * IMPORTANT:
-             *
-             * This is the exact MaterialCommunityIcons
-             * icon from CategoryCard.
-             */
             serviceIcon:
               resolvedServiceIcon,
 
@@ -1391,7 +1758,8 @@ export default function BookingScreen() {
             categoryId:
               getParamValue(
                 categoryId,
-              ) || null,
+              ) ||
+              null,
 
             description:
               cleanDescription,
@@ -1417,19 +1785,23 @@ export default function BookingScreen() {
             amount: 0,
 
             urgent:
-              timing === "asap",
+              timing ===
+              "asap",
 
-            urgentFee: 0,
+            urgentFee:
+              0,
           });
 
-        if (!bookingId) {
+        if (
+          !bookingId
+        ) {
           throw new Error(
             "Booking ID was not returned.",
           );
         }
 
         /* ======================================================
-           GO TO PENDING
+           PENDING
         ====================================================== */
 
         router.replace({
@@ -1445,10 +1817,6 @@ export default function BookingScreen() {
             serviceName:
               resolvedServiceName,
 
-            /*
-             * Keep the icon available
-             * for the pending screen too.
-             */
             serviceIcon:
               resolvedServiceIcon,
 
@@ -1464,6 +1832,9 @@ export default function BookingScreen() {
             workerName:
               resolvedWorkerName,
 
+            workerPhoto:
+              finalWorkerPhoto,
+
             ...(getParamValue(
               reward,
             )
@@ -1478,44 +1849,37 @@ export default function BookingScreen() {
         });
       } catch (error) {
         console.error(
-          "CREATE_BOOKING_ERROR",
+          "CREATE_BOOKING_ERROR:",
           error,
         );
 
         Alert.alert(
           "Request failed",
-          error instanceof Error
-            ? error.message
-            : "We could not send your request. Please try again.",
+          "We could not send your request. Please try again.",
         );
       } finally {
-        setSubmitting(false);
+        setSubmitting(
+          false,
+        );
       }
     }, [
-      submitting,
-
+      categoryId,
+      cleanDescription,
+      finalWorkerPhoto,
+      photos,
+      resolvedServiceBackgroundColor,
+      resolvedServiceColor,
+      resolvedServiceIcon,
       resolvedServiceId,
       resolvedServiceName,
-      resolvedServiceIcon,
-      resolvedServiceColor,
-      resolvedServiceBackgroundColor,
-
       resolvedWorkerId,
       resolvedWorkerName,
-      resolvedWorkerPhoto,
-
-      categoryId,
       reward,
-
-      cleanDescription,
-
-      photos,
-
-      selectedLocation,
-      selectedAddress,
-
-      timing,
       scheduledDate,
+      selectedAddress,
+      selectedLocation,
+      submitting,
+      timing,
     ]);
 
   /* ============================================================
@@ -1524,16 +1888,22 @@ export default function BookingScreen() {
 
   return (
     <>
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <KeyboardAwareScrollView
           style={
-            styles.screenBackground
+            styles.screen
           }
           showsVerticalScrollIndicator={
             false
           }
           keyboardShouldPersistTaps="handled"
-          bottomOffset={48}
+          bottomOffset={
+            FixxamTokens.size
+              .buttonHeight
+          }
           contentContainerStyle={
             styles.content
           }
@@ -1548,27 +1918,39 @@ export default function BookingScreen() {
             }
           >
             <Pressable
-              onPress={() =>
-                router.back()
-              }
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
               disabled={
                 submitting
               }
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
+              hitSlop={8}
+              onPress={
+                handleBack
+              }
               style={({
                 pressed,
               }) => [
                 styles.backButton,
 
                 pressed &&
-                  styles.backButtonPressed,
+                !submitting
+                  ? styles.backButtonPressed
+                  : null,
+
+                submitting
+                  ? styles.controlDisabled
+                  : null,
               ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={21}
-                color="#0F172A"
+              <AppIcon
+                name="back"
+                role="customer"
+                size="sm"
+                state="default"
               />
             </Pressable>
 
@@ -1578,15 +1960,15 @@ export default function BookingScreen() {
               }
             >
               <AppText
+                variant="heading1"
                 weight="bold"
-                style={
-                  styles.title
-                }
               >
                 Request Service
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.subtitle
                 }
@@ -1612,7 +1994,7 @@ export default function BookingScreen() {
               resolvedWorkerName
             }
             photoUrl={
-              resolvedWorkerPhoto
+              finalWorkerPhoto
             }
             category={
               resolvedWorkerCategory
@@ -1629,18 +2011,17 @@ export default function BookingScreen() {
               SERVICE
           ================================================== */}
 
-          <View
+          <AppCard
+            role="customer"
+            variant="outlined"
             style={
               styles.serviceCard
             }
           >
-            {/* =================================================
-                EXACT CATEGORYCARD ICON
-            ================================================= */}
-
             <View
               style={[
                 styles.serviceIconBox,
+
                 {
                   backgroundColor:
                     resolvedServiceBackgroundColor,
@@ -1652,11 +2033,13 @@ export default function BookingScreen() {
             >
               <MaterialCommunityIcons
                 name={
-                  resolvedServiceIcon as React.ComponentProps<
-                    typeof MaterialCommunityIcons
-                  >["name"]
+                  resolvedServiceIcon as
+                    MaterialIconName
                 }
-                size={25}
+                size={
+                  FixxamTokens.size
+                    .iconMd
+                }
                 color={
                   resolvedServiceColor
                 }
@@ -1669,6 +2052,9 @@ export default function BookingScreen() {
               }
             >
               <AppText
+                variant="caption"
+                tone="muted"
+                weight="semibold"
                 style={
                   styles.serviceLabel
                 }
@@ -1677,11 +2063,9 @@ export default function BookingScreen() {
               </AppText>
 
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 numberOfLines={1}
-                style={
-                  styles.serviceName
-                }
               >
                 {resolvedServiceName ||
                   "Selected service"}
@@ -1693,13 +2077,15 @@ export default function BookingScreen() {
                 styles.serviceCheck
               }
             >
-              <Ionicons
-                name="checkmark"
-                size={16}
-                color="#FFFFFF"
+              <AppIcon
+                name="check"
+                role="customer"
+                size="xs"
+                state="inverse"
+                strokeWidth="strong"
               />
             </View>
-          </View>
+          </AppCard>
 
           {/* ==================================================
               DESCRIPTION
@@ -1737,15 +2123,15 @@ export default function BookingScreen() {
               }
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
-                style={
-                  styles.photoTitle
-                }
               >
                 Photos
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="muted"
                 style={
                   styles.optional
                 }
@@ -1846,79 +2232,40 @@ export default function BookingScreen() {
               SUBMIT
           ================================================== */}
 
-          <Pressable
-            onPress={
-              handleSubmit
+          <AppButton
+            title={
+              submitting
+                ? "Sending Request..."
+                : "Request Service"
+            }
+            role="customer"
+            loading={
+              submitting
             }
             disabled={
               submitting ||
               !canSubmit
             }
-            accessibilityRole="button"
-            accessibilityLabel="Request service"
-            accessibilityState={{
-              disabled:
-                submitting ||
-                !canSubmit,
-            }}
-            style={({
-              pressed,
-            }) => [
-              styles.submitButton,
-
-              !canSubmit &&
-                styles.submitInactive,
-
-              submitting &&
-                styles.submitDisabled,
-
-              pressed &&
-                canSubmit &&
-                !submitting &&
-                styles.submitPressed,
-            ]}
-          >
-            {submitting ? (
-              <>
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.submitText
-                  }
-                >
-                  SENDING REQUEST...
-                </AppText>
-              </>
-            ) : (
-              <>
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.submitText
-                  }
-                >
-                  REQUEST SERVICE
-                </AppText>
-
-                <Ionicons
-                  name="arrow-forward"
-                  size={21}
-                  color="#FFFFFF"
-                />
-              </>
-            )}
-          </Pressable>
+            rightIconName={
+              submitting
+                ? undefined
+                : "next"
+            }
+            onPress={
+              handleSubmit
+            }
+            style={
+              styles.submitButton
+            }
+          />
 
           {/* ==================================================
               FOOTER
           ================================================== */}
 
           <AppText
+            variant="caption"
+            tone="muted"
             center
             style={
               styles.footer
@@ -1942,10 +2289,8 @@ export default function BookingScreen() {
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() =>
-          setSignInModalVisible(
-            false,
-          )
+        onRequestClose={
+          handleCloseSignIn
         }
       >
         <View
@@ -1953,7 +2298,9 @@ export default function BookingScreen() {
             styles.modalOverlay
           }
         >
-          <View
+          <AppCard
+            role="customer"
+            variant="elevated"
             style={
               styles.modalCard
             }
@@ -1963,58 +2310,62 @@ export default function BookingScreen() {
                 styles.modalIcon
               }
             >
-              <Ionicons
-                name="person-outline"
-                size={25}
-                color="#2563EB"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="lg"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="heading2"
               weight="bold"
-              style={
-                styles.modalTitle
-              }
             >
               Sign in required
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               style={
                 styles.modalMessage
               }
             >
               Please sign in before
-              sending your request.
+              sending your service
+              request.
             </AppText>
 
-            <Pressable
-              onPress={() =>
-                setSignInModalVisible(
-                  false,
-                )
+            <View
+              style={
+                styles.modalActions
               }
-              accessibilityRole="button"
-              accessibilityLabel="Close sign in required message"
-              style={({
-                pressed,
-              }) => [
-                styles.modalButton,
-
-                pressed &&
-                  styles.modalButtonPressed,
-              ]}
             >
-              <AppText
-                weight="bold"
-                style={
-                  styles.modalButtonText
+              <AppButton
+                title="Cancel"
+                role="customer"
+                variant="ghost"
+                onPress={
+                  handleCloseSignIn
                 }
-              >
-                OK
-              </AppText>
-            </Pressable>
-          </View>
+                style={
+                  styles.modalAction
+                }
+              />
+
+              <AppButton
+                title="Sign In"
+                role="customer"
+                onPress={
+                  handleSignIn
+                }
+                style={
+                  styles.modalAction
+                }
+              />
+            </View>
+          </AppCard>
         </View>
       </Modal>
     </>
@@ -2030,6 +2381,7 @@ function SectionTitle({
   title,
 }: {
   number: string;
+
   title: string;
 }) {
   return (
@@ -2044,6 +2396,7 @@ function SectionTitle({
         }
       >
         <AppText
+          variant="caption"
           weight="bold"
           style={
             styles.sectionNumberText
@@ -2054,6 +2407,7 @@ function SectionTitle({
       </View>
 
       <AppText
+        variant="bodyMedium"
         weight="bold"
         style={
           styles.sectionText
@@ -2071,348 +2425,368 @@ function SectionTitle({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       SCREEN
-    ========================================================== */
+    screen: {
+      flex: 1,
 
-    screenBackground: {
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingBottom: 36,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: 6,
-      paddingBottom: 18,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
     },
 
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      alignItems: "center",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     backButtonPressed: {
-      opacity: 0.7,
+      borderColor:
+        CustomerColors.primaryLight,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.96,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
+    },
+
+    controlDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 11,
-    },
 
-    title: {
-      fontSize: 23,
-      lineHeight: 28,
-      color: "#0F172A",
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 12,
-      lineHeight: 18,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SECTION
-    ========================================================== */
+    ======================================================== */
 
     sectionTitle: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 7,
-      marginBottom: 9,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
     sectionNumber: {
-      width: 27,
-      height: 27,
-      borderRadius: 9,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      marginRight: 8,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     sectionNumberText: {
-      fontSize: 13,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     sectionText: {
       flex: 1,
-      fontSize: 16,
-      lineHeight: 21,
-      color: "#0F172A",
+
+      minWidth: 0,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SERVICE
-    ========================================================== */
+    ======================================================== */
 
     serviceCard: {
-      minHeight: 78,
-      marginTop: 11,
-      marginBottom: 21,
-      paddingHorizontal: 12,
-      paddingVertical: 11,
-      borderRadius: 20,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight,
 
-      shadowColor:
-        "#0F172A",
+      flexDirection:
+        "row",
 
-      shadowOpacity: 0.045,
+      alignItems:
+        "center",
 
-      shadowRadius: 12,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-      elevation: 3,
+      padding:
+        FixxamTokens.spacing.md,
     },
 
     serviceIconBox: {
-      width: 52,
-      height: 52,
-      borderRadius: 17,
-      alignItems: "center",
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
       borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
     },
 
     serviceInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 12,
-      marginRight: 10,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     serviceLabel: {
-      fontSize: 9.5,
-      lineHeight: 13,
-      letterSpacing: 1.1,
-      color: "#94A3B8",
-    },
+      marginBottom:
+        FixxamTokens.spacing.xxs,
 
-    serviceName: {
-      marginTop: 3,
-      fontSize: 16.5,
-      lineHeight: 22,
-      color: "#0F172A",
+      letterSpacing: 1,
     },
 
     serviceCheck: {
       width: 30,
+
       height: 30,
-      borderRadius: 15,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        PHOTOS
-    ========================================================== */
+    ======================================================== */
 
     photoSection: {
-      marginTop: 20,
-      marginBottom: 22,
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
     photoHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 9,
-    },
+      flexDirection:
+        "row",
 
-    photoTitle: {
-      fontSize: 14,
-      color: "#0F172A",
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
     optional: {
-      marginLeft: 7,
-      fontSize: 11,
-      color: "#94A3B8",
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
-    /* ==========================================================
+    /* ========================================================
        TIMING
-    ========================================================== */
+    ======================================================== */
 
     timingSection: {
-      marginTop: 22,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SUBMIT
-    ========================================================== */
+    ======================================================== */
 
     submitButton: {
-      minHeight: 56,
-      marginTop: 27,
-      borderRadius: 17,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 9,
-    },
+      width: "100%",
 
-    submitInactive: {
-      opacity: 0.5,
+      marginTop:
+        FixxamTokens.spacing.xxl,
     },
-
-    submitDisabled: {
-      opacity: 0.65,
-    },
-
-    submitPressed: {
-      opacity: 0.9,
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
-    },
-
-    submitText: {
-      fontSize: 14,
-      lineHeight: 19,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       FOOTER
-    ========================================================== */
 
     footer: {
-      marginTop: 10,
-      paddingHorizontal: 24,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
     },
 
-    /* ==========================================================
-       MODAL
-    ========================================================== */
+    /* ========================================================
+       SIGN-IN MODAL
+    ======================================================== */
 
     modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.58)",
-      alignItems: "center",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 46,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      backgroundColor:
+        Colors.overlayStrong,
     },
 
     modalCard: {
       width: "100%",
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 18,
-      paddingHorizontal: 24,
-      paddingTop: 22,
-      paddingBottom: 14,
 
-      shadowColor: "#000",
-      shadowOpacity: 0.18,
-      shadowRadius: 24,
-      shadowOffset: {
-        width: 0,
-        height: 10,
-      },
+      maxWidth: 390,
 
-      elevation: 10,
+      padding:
+        FixxamTokens.spacing.xxl,
     },
 
     modalIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.fabLarge,
+
+      height:
+        FixxamTokens.size.fabLarge,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      marginBottom: 14,
-    },
 
-    modalTitle: {
-      fontSize: 21,
-      lineHeight: 27,
-      color: "#0F172A",
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     modalMessage: {
-      marginTop: 8,
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    modalButton: {
-      alignSelf: "flex-end",
-      minWidth: 64,
-      height: 44,
-      paddingHorizontal: 14,
-      marginTop: 14,
-      alignItems: "center",
-      justifyContent:
-        "center",
-      borderRadius: 12,
+    modalActions: {
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    modalButtonPressed: {
-      backgroundColor:
-        "#EFF6FF",
-    },
-
-    modalButtonText: {
-      fontSize: 14,
-      letterSpacing: 0.5,
-      color: "#2563EB",
+    modalAction: {
+      flex: 1,
     },
   });

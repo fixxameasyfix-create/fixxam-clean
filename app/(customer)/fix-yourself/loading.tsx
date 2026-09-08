@@ -1,12 +1,12 @@
 import React, {
+  useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -16,12 +16,16 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
+import Toast from "react-native-toast-message";
+
 import {
   analyzeProblem,
-  ChatMessage,
+  type ChatMessage,
 } from "@/services/fixxamAi";
 
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
@@ -31,13 +35,14 @@ import {
 } from "@/components/fix-yourself";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-/* ============================================================
-   LOADING STEPS
-============================================================ */
+/* ==============================================================
+   CONSTANTS
+============================================================== */
 
 const STEPS = [
   "Analyzing your problem...",
@@ -45,20 +50,150 @@ const STEPS = [
   "Checking possible causes...",
   "Preparing Fixxam Smart Tips...",
   "Almost ready...",
-];
+] as const;
 
-/* ============================================================
+const STEP_INTERVAL_MS = 900;
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
+
+type AnalyzeResponse =
+  Awaited<
+    ReturnType<
+      typeof analyzeProblem
+    >
+  >;
+
+type FollowUp =
+  AnalyzeResponse["followUp"];
 
 type UnderstandingFailedState = {
   message: string;
   reason: string;
 } | null;
 
-/* ============================================================
+/* ==============================================================
+   FALLBACKS
+============================================================== */
+
+const DEFAULT_UNDERSTANDING_FAILURE = {
+  message:
+    "Yi haƙuri, Fixxam bai gane matsalar ba. Ka sake bayyana abin da ba ya aiki da abin da ya faru.",
+
+  reason:
+    "The customer problem could not be understood.",
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function createInitialConversation(
+  query: string,
+): ChatMessage[] {
+  return [
+    {
+      role: "user",
+      content: query,
+    },
+  ];
+}
+
+function parseConversation(
+  rawMessages: unknown,
+  query: string,
+): ChatMessage[] {
+  const fallback =
+    createInitialConversation(
+      query,
+    );
+
+  if (
+    typeof rawMessages !==
+      "string" ||
+    !rawMessages.trim()
+  ) {
+    return fallback;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(
+        rawMessages,
+      );
+
+    if (
+      !Array.isArray(parsed)
+    ) {
+      return fallback;
+    }
+
+    const validMessages =
+      parsed.reduce<
+        ChatMessage[]
+      >(
+        (
+          items,
+          item,
+        ) => {
+          if (
+            !item ||
+            typeof item !==
+              "object"
+          ) {
+            return items;
+          }
+
+          const role =
+            Reflect.get(
+              item,
+              "role",
+            );
+
+          const content =
+            Reflect.get(
+              item,
+              "content",
+            );
+
+          if (
+            (
+              role !==
+                "user" &&
+              role !==
+                "assistant"
+            ) ||
+            typeof content !==
+              "string" ||
+            !content.trim()
+          ) {
+            return items;
+          }
+
+          items.push({
+            role,
+            content:
+              content.trim(),
+          });
+
+          return items;
+        },
+        [],
+      );
+
+    return validMessages.length >
+      0
+      ? validMessages
+      : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/* ==============================================================
    SCREEN
-============================================================ */
+============================================================== */
 
 export default function FixYourselfLoadingScreen() {
   const params =
@@ -68,41 +203,50 @@ export default function FixYourselfLoadingScreen() {
     }>();
 
   const query =
-    typeof params.query === "string"
+    typeof params.query ===
+      "string"
       ? params.query.trim()
       : "";
 
-  /* ==========================================================
-     STATE
-  ========================================================== */
-
-  const [stepIndex, setStepIndex] =
+  const [
+    stepIndex,
+    setStepIndex,
+  ] =
     useState(0);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [followUp, setFollowUp] =
+  const [
+    followUp,
+    setFollowUp,
+  ] =
     useState<
-      Awaited<
-        ReturnType<
-          typeof analyzeProblem
-        >
-      >["followUp"] | null
+      FollowUp | null
     >(null);
 
-  const [messages, setMessages] =
-    useState<ChatMessage[]>(
-      [],
-    );
+  const [
+    messages,
+    setMessages,
+  ] =
+    useState<
+      ChatMessage[]
+    >([]);
 
-  const [answer, setAnswer] =
+  const [
+    answer,
+    setAnswer,
+  ] =
     useState("");
 
   const [
     followUpCount,
     setFollowUpCount,
-  ] = useState(0);
+  ] =
+    useState(0);
 
   const [
     understandingFailed,
@@ -112,428 +256,30 @@ export default function FixYourselfLoadingScreen() {
       null,
     );
 
-  /* ==========================================================
-     HELPERS
-  ========================================================== */
+  const [
+    analysisError,
+    setAnalysisError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  function clearFailureState() {
-    setUnderstandingFailed(
-      null,
-    );
-  }
+  const requestIdRef =
+    useRef(0);
 
-  function handleAnalyzeAgain() {
-    /*
-     * Return to the previous screen so the
-     * customer can correct or improve the
-     * problem description.
-     */
-    clearFailureState();
+  /* ============================================================
+     RESPONSE HANDLER
+  ============================================================ */
 
-    setFollowUp(null);
-
-    setAnswer("");
-
-    router.back();
-  }
-
-  async function handleTryHelpMeFix() {
-    /*
-     * Start a guided troubleshooting request
-     * using the existing conversation.
-     *
-     * We do not invent a diagnosis here.
-     */
-    try {
-      setUnderstandingFailed(
-        null,
-      );
-
-      setLoading(true);
-
-      const helpMessages: ChatMessage[] =
-        messages.length > 0
-          ? messages
-          : [
-              {
-                role: "user",
-                content: query,
-              },
-            ];
-
-      const response =
-        await analyzeProblem(
-          query,
-          helpMessages,
-          0,
-          false,
-        );
-
-      console.log(
-        "TRY HELP ME FIX RESPONSE:",
-        JSON.stringify(
-          response,
+  const applyResponse =
+    useCallback(
+      (
+        response:
+          AnalyzeResponse,
+      ): boolean => {
+        setAnalysisError(
           null,
-          2,
-        ),
-      );
-
-      /* --------------------------------------------------------
-         UNDERSTANDING FAILED AGAIN
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-        "understanding_failed"
-      ) {
-        setUnderstandingFailed(
-          response.understandingFailed ??
-            {
-              message:
-                "Yi haƙuri, Fixxam bai gane matsalar ba. Ka sake bayyana abin da ba ya aiki da abin da ya faru.",
-              reason:
-                "The customer problem could not be understood.",
-            },
         );
-
-        setLoading(false);
-
-        return;
-      }
-
-      /* --------------------------------------------------------
-         FOLLOW-UP
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-          "follow_up" &&
-        response.followUp
-      ) {
-        setFollowUp(
-          response.followUp,
-        );
-
-        setAnswer("");
-
-        setLoading(false);
-
-        return;
-      }
-
-      /* --------------------------------------------------------
-         COMPLETED
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-          "completed" &&
-        response.diagnosis
-      ) {
-        router.replace({
-          pathname:
-            "/(customer)/fix-yourself/result",
-
-          params: {
-            query,
-
-            result:
-              JSON.stringify(
-                response.diagnosis,
-              ),
-          },
-        });
-
-        return;
-      }
-
-      throw new Error(
-        "Invalid AI response.",
-      );
-    } catch (error) {
-      console.error(
-        "TRY HELP ME FIX ERROR:",
-        error,
-      );
-
-      Alert.alert(
-        "Analysis Failed",
-        "We couldn't start the guided troubleshooting right now. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ==========================================================
-     FOLLOW-UP CONTINUE
-  ========================================================== */
-
-  async function handleContinue() {
-    const value =
-      answer.trim();
-
-    if (
-      !value ||
-      !followUp
-    ) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      clearFailureState();
-
-      const currentFollowUp =
-        followUp;
-
-      setFollowUp(null);
-
-      const updatedMessages:
-        ChatMessage[] = [
-          ...messages,
-
-          {
-            role: "assistant",
-            content:
-              currentFollowUp.question,
-          },
-
-          {
-            role: "user",
-            content: value,
-          },
-        ];
-
-      setMessages(
-        updatedMessages,
-      );
-
-      const nextFollowUpCount =
-        followUpCount + 1;
-
-      setFollowUpCount(
-        nextFollowUpCount,
-      );
-
-      const forceDiagnosis =
-        nextFollowUpCount >= 2;
-
-      console.log(
-        "FOLLOW UP COUNT:",
-        nextFollowUpCount,
-      );
-
-      console.log(
-        "FORCE DIAGNOSIS:",
-        forceDiagnosis,
-      );
-
-      console.log(
-        "MESSAGES:",
-        JSON.stringify(
-          updatedMessages,
-          null,
-          2,
-        ),
-      );
-
-      const response =
-        await analyzeProblem(
-          query,
-          updatedMessages,
-          nextFollowUpCount,
-          forceDiagnosis,
-        );
-
-      console.log(
-        "FINAL RESPONSE:",
-        JSON.stringify(
-          response,
-          null,
-          2,
-        ),
-      );
-
-      /* --------------------------------------------------------
-         UNDERSTANDING FAILED
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-        "understanding_failed"
-      ) {
-        setUnderstandingFailed(
-          response.understandingFailed ??
-            {
-              message:
-                "Yi haƙuri, Fixxam bai gane matsalar ba. Ka sake bayyana abin da ba ya aiki da abin da ya faru.",
-              reason:
-                "The customer problem could not be understood.",
-            },
-        );
-
-        setLoading(false);
-
-        return;
-      }
-
-      /* --------------------------------------------------------
-         FOLLOW-UP
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-          "follow_up" &&
-        response.followUp
-      ) {
-        setFollowUp(
-          response.followUp,
-        );
-
-        setAnswer("");
-
-        setLoading(false);
-
-        return;
-      }
-
-      /* --------------------------------------------------------
-         COMPLETED
-      -------------------------------------------------------- */
-
-      if (
-        response.status ===
-          "completed" &&
-        response.diagnosis
-      ) {
-        router.replace({
-          pathname:
-            "/(customer)/fix-yourself/result",
-
-          params: {
-            query,
-
-            result:
-              JSON.stringify(
-                response.diagnosis,
-              ),
-          },
-        });
-
-        return;
-      }
-
-      throw new Error(
-        "Invalid AI response.",
-      );
-    } catch (error) {
-      console.error(
-        "FOLLOW-UP ERROR:",
-        error,
-      );
-
-      Alert.alert(
-        "Analysis Failed",
-        "We couldn't analyze your answer right now. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ==========================================================
-     LOADING STEPS ANIMATION
-  ========================================================== */
-
-  useEffect(() => {
-    const timer =
-      setInterval(() => {
-        setStepIndex(
-          (current) =>
-            current <
-            STEPS.length - 1
-              ? current + 1
-              : current,
-        );
-      }, 100);
-
-    return () =>
-      clearInterval(
-        timer,
-      );
-  }, []);
-
-  /* ==========================================================
-     INITIAL ANALYSIS
-  ========================================================== */
-
-  useEffect(() => {
-    let cancelled =
-      false;
-
-    async function analyze() {
-      if (!query) {
-        Alert.alert(
-          "Problem Required",
-          "Please describe your problem first.",
-          [
-            {
-              text: "OK",
-              onPress: () =>
-                router.back(),
-            },
-          ],
-        );
-
-        setLoading(false);
-
-        return;
-      }
-
-      try {
-        const conversation:
-          ChatMessage[] =
-          params.messages
-            ? JSON.parse(
-                params.messages,
-              )
-            : [
-                {
-                  role: "user",
-                  content: query,
-                },
-              ];
-
-        setMessages(
-          conversation,
-        );
-
-        const response =
-          await analyzeProblem(
-            query,
-            conversation,
-            0,
-            false,
-          );
-
-        if (cancelled) {
-          return;
-        }
-
-        console.log(
-          "INITIAL AI RESPONSE:",
-          JSON.stringify(
-            response,
-            null,
-            2,
-          ),
-        );
-
-        /* ------------------------------------------------------
-           UNDERSTANDING FAILED
-        ------------------------------------------------------ */
 
         if (
           response.status ===
@@ -541,29 +287,24 @@ export default function FixYourselfLoadingScreen() {
         ) {
           setUnderstandingFailed(
             response.understandingFailed ??
-              {
-                message:
-                  "Yi haƙuri, Fixxam bai gane matsalar ba. Ka sake bayyana abin da ba ya aiki da abin da ya faru.",
-                reason:
-                  "The customer problem could not be understood.",
-              },
+              DEFAULT_UNDERSTANDING_FAILURE,
           );
 
-          setLoading(false);
+          setFollowUp(
+            null,
+          );
 
-          return;
+          return true;
         }
-
-        /* ------------------------------------------------------
-           FOLLOW-UP
-        ------------------------------------------------------ */
 
         if (
           response.status ===
             "follow_up" &&
           response.followUp
         ) {
-          setLoading(false);
+          setUnderstandingFailed(
+            null,
+          );
 
           setFollowUp(
             response.followUp,
@@ -571,12 +312,8 @@ export default function FixYourselfLoadingScreen() {
 
           setAnswer("");
 
-          return;
+          return true;
         }
-
-        /* ------------------------------------------------------
-           COMPLETED
-        ------------------------------------------------------ */
 
         if (
           response.status ===
@@ -597,64 +334,515 @@ export default function FixYourselfLoadingScreen() {
             },
           });
 
+          return true;
+        }
+
+        return false;
+      },
+      [
+        query,
+      ],
+    );
+
+  /* ============================================================
+     INITIAL ANALYSIS
+  ============================================================ */
+
+  const runInitialAnalysis =
+    useCallback(
+      async () => {
+        if (!query) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Problem required",
+
+            text2:
+              "Please describe your problem first.",
+          });
+
+          router.back();
+
           return;
         }
 
-        throw new Error(
-          "Invalid AI response.",
-        );
-      } catch (error) {
-        console.error(
-          "INITIAL ANALYSIS ERROR:",
-          error,
+        const requestId =
+          ++requestIdRef.current;
+
+        const conversation =
+          parseConversation(
+            params.messages,
+            query,
+          );
+
+        setMessages(
+          conversation,
         );
 
-        if (cancelled) {
-          return;
+        setFollowUpCount(
+          0,
+        );
+
+        setFollowUp(
+          null,
+        );
+
+        setUnderstandingFailed(
+          null,
+        );
+
+        setAnalysisError(
+          null,
+        );
+
+        setStepIndex(
+          0,
+        );
+
+        setLoading(
+          true,
+        );
+
+        try {
+          const response =
+            await analyzeProblem(
+              query,
+              conversation,
+              0,
+              false,
+            );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          const handled =
+            applyResponse(
+              response,
+            );
+
+          if (!handled) {
+            throw new Error(
+              "Invalid AI response.",
+            );
+          }
+        } catch (error) {
+          console.error(
+            "FIX_YOURSELF_INITIAL_ANALYSIS_ERROR:",
+            error,
+          );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          setAnalysisError(
+            "We couldn't analyze your problem right now. Please try again.",
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Analysis failed",
+
+            text2:
+              "Please try again.",
+          });
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setLoading(
+              false,
+            );
+          }
         }
+      },
+      [
+        applyResponse,
+        params.messages,
+        query,
+      ],
+    );
 
-        Alert.alert(
-          "Analysis Failed",
-          "We couldn't analyze your problem right now. Please try again.",
-          [
-            {
-              text: "Retry",
-              onPress: () => {
-                analyze();
-              },
-            },
-            {
-              text: "Cancel",
-              style: "cancel",
-              onPress: () =>
-                router.back(),
-            },
-          ],
-        );
+  /* ============================================================
+     INITIAL RUN
+  ============================================================ */
 
-        setLoading(false);
-      }
-    }
-
-    analyze();
+  useEffect(() => {
+    void runInitialAnalysis();
 
     return () => {
-      cancelled = true;
+      requestIdRef.current +=
+        1;
     };
   }, [
-    query,
-    params.messages,
+    runInitialAnalysis,
   ]);
 
-  /* ==========================================================
-     UNDERSTANDING FAILED UI
-  ========================================================== */
+  /* ============================================================
+     LOADING STEP ANIMATION
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !loading ||
+      followUp ||
+      understandingFailed ||
+      analysisError
+    ) {
+      return;
+    }
+
+    const timer =
+      setInterval(() => {
+        setStepIndex(
+          (current) => {
+            if (
+              current >=
+              STEPS.length - 1
+            ) {
+              return current;
+            }
+
+            return (
+              current + 1
+            );
+          },
+        );
+      }, STEP_INTERVAL_MS);
+
+    return () => {
+      clearInterval(
+        timer,
+      );
+    };
+  }, [
+    analysisError,
+    followUp,
+    loading,
+    understandingFailed,
+  ]);
+
+  /* ============================================================
+     ANALYZE AGAIN
+  ============================================================ */
+
+  const handleAnalyzeAgain =
+    useCallback(() => {
+      setUnderstandingFailed(
+        null,
+      );
+
+      setAnalysisError(
+        null,
+      );
+
+      setFollowUp(
+        null,
+      );
+
+      setAnswer("");
+
+      router.back();
+    }, []);
+
+  /* ============================================================
+     TRY HELP ME FIX
+  ============================================================ */
+
+  const handleTryHelpMeFix =
+    useCallback(
+      async () => {
+        if (
+          loading ||
+          !query
+        ) {
+          return;
+        }
+
+        const requestId =
+          ++requestIdRef.current;
+
+        setUnderstandingFailed(
+          null,
+        );
+
+        setAnalysisError(
+          null,
+        );
+
+        setFollowUp(
+          null,
+        );
+
+        setStepIndex(
+          0,
+        );
+
+        setLoading(
+          true,
+        );
+
+        const helpMessages =
+          messages.length >
+          0
+            ? messages
+            : createInitialConversation(
+                query,
+              );
+
+        try {
+          const response =
+            await analyzeProblem(
+              query,
+              helpMessages,
+              0,
+              false,
+            );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          const handled =
+            applyResponse(
+              response,
+            );
+
+          if (!handled) {
+            throw new Error(
+              "Invalid AI response.",
+            );
+          }
+        } catch (error) {
+          console.error(
+            "FIX_YOURSELF_GUIDED_HELP_ERROR:",
+            error,
+          );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          setAnalysisError(
+            "We couldn't start guided troubleshooting right now. Please try again.",
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to start",
+
+            text2:
+              "Please try again.",
+          });
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setLoading(
+              false,
+            );
+          }
+        }
+      },
+      [
+        applyResponse,
+        loading,
+        messages,
+        query,
+      ],
+    );
+
+  /* ============================================================
+     FOLLOW-UP
+  ============================================================ */
+
+  const handleContinue =
+    useCallback(
+      async () => {
+        const value =
+          answer.trim();
+
+        if (
+          !value ||
+          !followUp ||
+          loading
+        ) {
+          return;
+        }
+
+        const requestId =
+          ++requestIdRef.current;
+
+        const currentFollowUp =
+          followUp;
+
+        const updatedMessages:
+          ChatMessage[] = [
+          ...messages,
+
+          {
+            role: "assistant",
+
+            content:
+              currentFollowUp.question,
+          },
+
+          {
+            role: "user",
+
+            content:
+              value,
+          },
+        ];
+
+        const nextFollowUpCount =
+          followUpCount +
+          1;
+
+        const forceDiagnosis =
+          nextFollowUpCount >=
+          2;
+
+        setMessages(
+          updatedMessages,
+        );
+
+        setFollowUpCount(
+          nextFollowUpCount,
+        );
+
+        setUnderstandingFailed(
+          null,
+        );
+
+        setAnalysisError(
+          null,
+        );
+
+        setFollowUp(
+          null,
+        );
+
+        setLoading(
+          true,
+        );
+
+        try {
+          const response =
+            await analyzeProblem(
+              query,
+              updatedMessages,
+              nextFollowUpCount,
+              forceDiagnosis,
+            );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          const handled =
+            applyResponse(
+              response,
+            );
+
+          if (!handled) {
+            throw new Error(
+              "Invalid AI response.",
+            );
+          }
+        } catch (error) {
+          console.error(
+            "FIX_YOURSELF_FOLLOW_UP_ERROR:",
+            error,
+          );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          /*
+           * Keep the current question and
+           * answer so the customer does not
+           * lose their work after a network
+           * or AI failure.
+           */
+          setFollowUp(
+            currentFollowUp,
+          );
+
+          setAnalysisError(
+            "We couldn't analyze your answer right now. Please try again.",
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Analysis failed",
+
+            text2:
+              "Your answer was kept. Please try again.",
+          });
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setLoading(
+              false,
+            );
+          }
+        }
+      },
+      [
+        answer,
+        applyResponse,
+        followUp,
+        followUpCount,
+        loading,
+        messages,
+        query,
+      ],
+    );
+
+  /* ============================================================
+     ANALYSIS ERROR UI
+  ============================================================ */
 
   if (
-    understandingFailed
+    analysisError &&
+    !followUp
   ) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+      >
         <View
           style={
             styles.failureContainer
@@ -662,34 +850,111 @@ export default function FixYourselfLoadingScreen() {
         >
           <View
             style={
-              styles.failureIcon
+              styles.errorIconBox
             }
           >
-            <AppText
+            <AppIcon
+              name="error"
+              role="customer"
               size="xl"
-              weight="bold"
-              center
-            >
-              ?
-            </AppText>
+              state="error"
+            />
           </View>
 
           <AppText
-            size="xl"
+            variant="heading2"
             weight="bold"
             center
             style={
               styles.failureTitle
             }
           >
-            Fixxam did't understand
+            Analysis Failed
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
-            color={
-              CustomerColors.textSecondary
+            style={
+              styles.failureMessage
             }
+          >
+            {analysisError}
+          </AppText>
+
+          <View
+            style={
+              styles.actions
+            }
+          >
+            <AppButton
+              title="Try Again"
+              role="customer"
+              variant="primary"
+              onPress={() =>
+                void runInitialAnalysis()
+              }
+            />
+
+            <AppButton
+              title="Go Back"
+              role="customer"
+              variant="outline"
+              onPress={() =>
+                router.back()
+              }
+            />
+          </View>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  /* ============================================================
+     UNDERSTANDING FAILED UI
+  ============================================================ */
+
+  if (
+    understandingFailed
+  ) {
+    return (
+      <AppScreen
+        role="customer"
+      >
+        <View
+          style={
+            styles.failureContainer
+          }
+        >
+          <View
+            style={
+              styles.helpIconBox
+            }
+          >
+            <AppIcon
+              name="help"
+              role="customer"
+              size="xl"
+              state="active"
+            />
+          </View>
+
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
+            style={
+              styles.failureTitle
+            }
+          >
+            Fixxam didn't understand
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.failureMessage
             }
@@ -704,72 +969,38 @@ export default function FixYourselfLoadingScreen() {
               styles.actions
             }
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Analyze Again"
+            <AppButton
+              title="Analyze Again"
+              role="customer"
+              variant="primary"
               onPress={
                 handleAnalyzeAgain
               }
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed &&
-                  styles.buttonPressed,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                center
-                style={
-                  styles.primaryButtonText
-                }
-              >
-                Analyze Again
-              </AppText>
-            </Pressable>
+            />
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Try Help Me Fix"
-              onPress={
-                handleTryHelpMeFix
+            <AppButton
+              title="Try Help Me Fix"
+              role="customer"
+              variant="outline"
+              loading={
+                loading
               }
-              disabled={loading}
-              style={({ pressed }) => [
-                styles.secondaryButton,
-                pressed &&
-                  styles.buttonPressed,
-                loading &&
-                  styles.buttonDisabled,
-              ]}
-            >
-              {loading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    CustomerColors.primary
-                  }
-                />
-              ) : (
-                <AppText
-                  weight="bold"
-                  center
-                  style={
-                    styles.secondaryButtonText
-                  }
-                >
-                  Try Help Me Fix
-                </AppText>
-              )}
-            </Pressable>
+              disabled={
+                loading
+              }
+              onPress={() =>
+                void handleTryHelpMeFix()
+              }
+            />
           </View>
         </View>
       </AppScreen>
     );
   }
 
-  /* ==========================================================
+  /* ============================================================
      FOLLOW-UP UI
-  ========================================================== */
+  ============================================================ */
 
   if (followUp) {
     return (
@@ -777,38 +1008,50 @@ export default function FixYourselfLoadingScreen() {
         question={
           followUp.question
         }
-        answer={answer}
-        loading={loading}
+        answer={
+          answer
+        }
+        loading={
+          loading
+        }
         onChangeAnswer={
           setAnswer
         }
-        onContinue={
-          handleContinue
+        onContinue={() =>
+          void handleContinue()
         }
       />
     );
   }
 
-  /* ==========================================================
+  /* ============================================================
      LOADING UI
-  ========================================================== */
+  ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+    >
       <View
         style={
           styles.container
         }
       >
-        <ActivityIndicator
-          size="large"
-          color={
-            CustomerColors.primary
+        <View
+          style={
+            styles.loadingIconBox
           }
-        />
+        >
+          <ActivityIndicator
+            size="large"
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
 
         <AppText
-          size="xl"
+          variant="heading2"
           weight="bold"
           center
           style={
@@ -819,213 +1062,249 @@ export default function FixYourselfLoadingScreen() {
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           center
-          color={
-            CustomerColors.textSecondary
-          }
           style={
             styles.message
           }
         >
-          {STEPS[stepIndex]}
+          {STEPS[
+            stepIndex
+          ]}
         </AppText>
 
-        {query.length > 0 && (
+        {query.length >
+        0 ? (
           <View
             style={
               styles.queryBox
             }
           >
-            <AppText
-              size="sm"
-              weight="semibold"
+            <View
+              style={
+                styles.queryHeader
+              }
             >
-              Your Problem
-            </AppText>
+              <AppIcon
+                name="file"
+                role="customer"
+                size="xs"
+                state="active"
+              />
+
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.queryLabel
+                }
+              >
+                Your Problem
+              </AppText>
+            </View>
 
             <AppText
+              variant="body"
+              tone="secondary"
               style={
                 styles.query
               }
             >
-              "{query}"
+              “{query}”
             </AppText>
           </View>
-        )}
+        ) : null}
       </View>
     </AppScreen>
   );
 }
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
     container: {
       flex: 1,
-
-      justifyContent:
-        "center",
 
       alignItems:
         "center",
 
+      justifyContent:
+        "center",
+
       padding:
-        FixxamTokens.spacing
-          .xl,
+        FixxamTokens.spacing.xl,
+    },
+
+    loadingIconBox: {
+      width: 76,
+
+      height: 76,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginTop: 24,
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     message: {
-      marginTop: 16,
-
       minHeight: 24,
 
-      textAlign:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      lineHeight: 21,
     },
+
+    /* ========================================================
+       QUERY
+    ======================================================== */
 
     queryBox: {
       width: "100%",
 
-      marginTop: 40,
+      marginTop:
+        FixxamTokens.spacing.xxl,
 
-      padding: 20,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        "#FFFFFF",
+      padding:
+        FixxamTokens.spacing.lg,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    queryHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    queryLabel: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     query: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      color:
-        CustomerColors.textSecondary,
+      lineHeight: 21,
     },
 
     /* ========================================================
-       UNDERSTANDING FAILED
+       FAILURE
     ======================================================== */
 
     failureContainer: {
       flex: 1,
 
-      justifyContent:
+      alignItems:
         "center",
 
-      alignItems:
+      justifyContent:
         "center",
 
       paddingHorizontal:
-        FixxamTokens.spacing
-          .xl,
+        FixxamTokens.spacing.xl,
     },
 
-    failureIcon: {
-      width: 64,
+    helpIconBox: {
+      width: 72,
 
-      height: 64,
-
-      borderRadius: 32,
-
-      justifyContent:
-        "center",
+      height: 72,
 
       alignItems:
         "center",
 
-      backgroundColor:
-        "#FFF4F4",
+      justifyContent:
+        "center",
 
-      marginBottom: 20,
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    errorIconBox: {
+      width: 72,
+
+      height: 72,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     failureTitle: {
-      marginBottom: 14,
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     failureMessage: {
-      lineHeight: 24,
-
-      textAlign:
-        "center",
-
       maxWidth: 420,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 24,
     },
 
     actions: {
       width: "100%",
 
-      marginTop: 32,
+      gap:
+        FixxamTokens.spacing.md,
 
-      gap: 12,
-    },
-
-    primaryButton: {
-      minHeight: 52,
-
-      borderRadius: 14,
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
-      paddingHorizontal: 20,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
-    primaryButtonText: {
-      color: "#FFFFFF",
-    },
-
-    secondaryButton: {
-      minHeight: 52,
-
-      borderRadius: 14,
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
-      paddingHorizontal: 20,
-
-      backgroundColor:
-        "#FFFFFF",
-
-      borderWidth: 1,
-
-      borderColor:
-        CustomerColors.primary,
-    },
-
-    secondaryButtonText: {
-      color:
-        CustomerColors.primary,
-    },
-
-    buttonPressed: {
-      opacity: 0.75,
-    },
-
-    buttonDisabled: {
-      opacity: 0.5,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

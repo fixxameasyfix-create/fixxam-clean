@@ -1,5 +1,11 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+} from "react";
+
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
 import {
   AppCard,
@@ -9,69 +15,125 @@ import {
 import PasswordField from "@/components/auth/PasswordField";
 
 import {
-  CustomerColors,
+  Colors,
+  FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   password: string;
+
   confirmPassword: string;
-  setPassword: (value: string) => void;
-  setConfirmPassword: (value: string) => void;
+
+  setPassword: (
+    value: string,
+  ) => void;
+
+  setConfirmPassword: (
+    value: string,
+  ) => void;
 };
 
-export default function CustomerSecurity({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CustomerSecurity({
   password,
   confirmPassword,
   setPassword,
   setConfirmPassword,
 }: Props) {
   return (
-    <AppCard style={styles.card}>
-      {/* HEADER */}
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
 
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Create your password
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Choose a password to keep your
-        Fixxam account secure.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Choose a password to keep your Fixxam account secure.
       </AppText>
 
-      {/* PASSWORD */}
+      {/* ========================================================
+          PASSWORD
+      ======================================================== */}
 
-      <View style={styles.field}>
+      <View
+        style={
+          styles.field
+        }
+      >
         <AppText
-          weight="semibold"
-          style={styles.label}
+          variant="body"
+          weight="medium"
+          style={
+            styles.label
+          }
         >
           Password
         </AppText>
 
         <PasswordField
           placeholder="Enter your password"
-          value={password}
-          onChangeText={setPassword}
+          value={
+            password
+          }
+          onChangeText={
+            setPassword
+          }
           variant="customer"
         />
       </View>
 
-      {/* CONFIRM PASSWORD */}
+      {/* ========================================================
+          CONFIRM PASSWORD
+      ======================================================== */}
 
-      <View style={styles.confirmField}>
+      <View
+        style={
+          styles.confirmField
+        }
+      >
         <AppText
-          weight="semibold"
-          style={styles.label}
+          variant="body"
+          weight="medium"
+          style={
+            styles.label
+          }
         >
           Confirm password
         </AppText>
 
         <PasswordField
           placeholder="Re-enter your password"
-          value={confirmPassword}
+          value={
+            confirmPassword
+          }
           onChangeText={
             setConfirmPassword
           }
@@ -79,14 +141,32 @@ export default function CustomerSecurity({
         />
       </View>
 
-      {/* PASSWORD HINT */}
+      {/* ========================================================
+          PASSWORD HINT
+      ======================================================== */}
 
-      <View style={styles.hint}>
-        <AppText style={styles.hintText}>
+      <View
+        style={
+          styles.hint
+        }
+      >
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.hintText
+          }
+        >
           Password must be 6–20 characters.
         </AppText>
 
-        <AppText style={styles.hintText}>
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.hintText
+          }
+        >
           Use a password you can remember.
         </AppText>
       </View>
@@ -94,63 +174,82 @@ export default function CustomerSecurity({
   );
 }
 
+export default memo(
+  CustomerSecurity,
+);
+
 /* ==============================================================
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 60,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 18,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    color:
-      CustomerColors.textPrimary,
-    marginBottom: 4,
-  },
+      marginTop:
+        FixxamTokens.spacing.xxxl,
 
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color:
-      CustomerColors.textSecondary,
-    marginBottom: 18,
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  field: {
-    width: "100%",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  confirmField: {
-    width: "100%",
-    marginTop: 16,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.md,
+    },
 
-  label: {
-    fontSize: 13,
-    lineHeight: 18,
-    color:
-      CustomerColors.textPrimary,
-    marginBottom: 7,
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-  hint: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#E8EDF3",
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  hintText: {
-    fontSize: 11,
-    lineHeight: 17,
-    color:
-      CustomerColors.textSecondary,
-  },
-});
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    field: {
+      width: "100%",
+    },
+
+    confirmField: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    label: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    hint: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
+    },
+
+    hintText: {
+      color:
+        Colors.textSecondary,
+    },
+  });

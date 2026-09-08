@@ -1,26 +1,55 @@
 import React from "react";
 
 import {
-  Image,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import ProfileAvatar from "@/components/profile/shared/ProfileAvatar";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   name: string;
+
   phone: string;
+
   email: string;
+
   photoUrl?: string;
+
   onEditPhoto: () => void;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function WorkerProfileHeader({
   name,
@@ -29,111 +58,152 @@ export default function WorkerProfileHeader({
   photoUrl,
   onEditPhoto,
 }: Props) {
+  const safeName =
+    cleanText(name) ||
+    "Fixxam Worker";
+
+  const safePhone =
+    cleanText(phone);
+
+  const safeEmail =
+    cleanText(email);
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.row}>
+    <AppCard
+      role="worker"
+      style={styles.card}
+    >
+      <View
+        style={styles.row}
+      >
         {/* ==================================================
-            PHOTO
+            PROFILE PHOTO
         ================================================== */}
 
-        <View style={styles.photoWrapper}>
-          {photoUrl ? (
-            <Image
-              source={{
-                uri: photoUrl,
-              }}
-              style={styles.photo}
-            />
-          ) : (
-            <View
-              style={styles.placeholder}
-            >
-              <Ionicons
-                name="person"
-                size={32}
-                color="#94A3B8"
-              />
-            </View>
-          )}
-
-          <Pressable
-            style={styles.cameraButton}
-            onPress={onEditPhoto}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile photo"
-          >
-            <Ionicons
-              name="camera"
-              size={13}
-              color="#2563EB"
-            />
-          </Pressable>
-        </View>
+        <ProfileAvatar
+          photoUrl={photoUrl}
+          size={
+            FixxamTokens.size
+              .avatarXl
+          }
+          editable
+          onPress={
+            onEditPhoto
+          }
+        />
 
         {/* ==================================================
             INFO
         ================================================== */}
 
-        <View style={styles.info}>
+        <View
+          style={styles.info}
+        >
+          {/* NAME */}
+
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.name}
             numberOfLines={1}
+            style={styles.name}
           >
-            {name}
+            {safeName}
           </AppText>
 
-          {/* WORKER BADGE */}
+          {/* =================================================
+              WORKER BADGE
+          ================================================= */}
 
-          <View style={styles.badge}>
-            <View style={styles.dot} />
+          <View
+            style={styles.badge}
+          >
+            <View
+              style={styles.dot}
+            />
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.badgeText}
+              style={
+                styles.badgeText
+              }
             >
               Worker Account
             </AppText>
           </View>
 
-          {/* PHONE */}
+          {/* =================================================
+              PHONE
+          ================================================= */}
 
-          <View style={styles.contactRow}>
-            <Ionicons
-              name="call-outline"
-              size={14}
-              color="#64748B"
-            />
-
-            <AppText
-              style={styles.contact}
-              numberOfLines={1}
+          {safePhone ? (
+            <View
+              style={
+                styles.contactRow
+              }
             >
-              {phone}
-            </AppText>
-          </View>
+              <AppIcon
+                name="phone"
+                role="worker"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
+              />
 
-          {/* EMAIL */}
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.contact
+                }
+              >
+                {safePhone}
+              </AppText>
+            </View>
+          ) : null}
 
-          <View style={styles.contactRow}>
-            <Ionicons
-              name="mail-outline"
-              size={14}
-              color="#64748B"
-            />
+          {/* =================================================
+              EMAIL
+          ================================================= */}
 
-            <AppText
-              style={styles.contact}
-              numberOfLines={1}
+          {safeEmail ? (
+            <View
+              style={
+                styles.contactRow
+              }
             >
-              {email}
-            </AppText>
-          </View>
+              <AppIcon
+                name="mail"
+                role="worker"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.contact
+                }
+              >
+                {safeEmail}
+              </AppText>
+            </View>
+          ) : null}
         </View>
       </View>
     </AppCard>
   );
 }
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
@@ -143,13 +213,27 @@ const styles =
 
     card: {
       marginHorizontal: 0,
+
       marginTop: 0,
+
       marginBottom: 0,
 
-      paddingHorizontal: 12,
-      paddingVertical: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 17,
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     /* ========================================================
@@ -158,67 +242,8 @@ const styles =
 
     row: {
       flexDirection: "row",
-      alignItems: "center",
-    },
-
-    /* ========================================================
-       PHOTO
-    ======================================================== */
-
-    photoWrapper: {
-      width: 70,
-      height: 70,
-      position: "relative",
-    },
-
-    photo: {
-      width: 70,
-      height: 70,
-      borderRadius: 22,
-      backgroundColor: "#F1F5F9",
-    },
-
-    placeholder: {
-      width: 70,
-      height: 70,
-      borderRadius: 22,
-      backgroundColor: "#E2E8F0",
 
       alignItems: "center",
-      justifyContent: "center",
-    },
-
-    /* ========================================================
-       CAMERA
-    ======================================================== */
-
-    cameraButton: {
-      position: "absolute",
-
-      right: -4,
-      bottom: -4,
-
-      width: 25,
-      height: 25,
-      borderRadius: 9,
-
-      backgroundColor: "#FFFFFF",
-
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      elevation: 3,
-
-      shadowColor: "#000",
-      shadowOpacity: 0.08,
-      shadowRadius: 5,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
     },
 
     /* ========================================================
@@ -227,51 +252,73 @@ const styles =
 
     info: {
       flex: 1,
-      minWidth: 0,
-      marginLeft: 12,
-    },
 
-    name: {
-      fontSize: 19,
-      lineHeight: 23,
-      color: "#0F172A",
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     /* ========================================================
-       BADGE
+       NAME
+    ======================================================== */
+
+    name: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       WORKER BADGE
     ======================================================== */
 
     badge: {
-      alignSelf: "flex-start",
+      alignSelf:
+        "flex-start",
 
-      marginTop: 4,
-      marginBottom: 5,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      paddingHorizontal: 7,
-      paddingVertical: 3,
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-      borderRadius: 7,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      backgroundColor: "#DCFCE7",
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
 
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     dot: {
       width: 6,
+
       height: 6,
-      borderRadius: 3,
 
-      backgroundColor: "#16A34A",
+      marginRight:
+        FixxamTokens.spacing.xs,
 
-      marginRight: 5,
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     badgeText: {
-      fontSize: 9,
-      lineHeight: 12,
-      color: "#15803D",
+      lineHeight: 14,
+
+      color:
+        WorkerColors.primary,
     },
 
     /* ========================================================
@@ -279,22 +326,25 @@ const styles =
     ======================================================== */
 
     contactRow: {
-      marginTop: 2,
+      minWidth: 0,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       flexDirection: "row",
-      alignItems: "center",
 
-      minWidth: 0,
+      alignItems: "center",
     },
 
     contact: {
       flex: 1,
 
-      marginLeft: 6,
+      minWidth: 0,
 
-      fontSize: 10,
-      lineHeight: 14,
+      marginLeft:
+        FixxamTokens.spacing.xs,
 
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
   });

@@ -1,10 +1,10 @@
 import React, {
+  memo,
   useCallback,
   useState,
 } from "react";
 
 import {
-  Alert,
   Linking,
   Modal,
   Pressable,
@@ -13,14 +13,29 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  router,
+} from "expo-router";
+
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    SUPPORT CONSTANTS
@@ -29,19 +44,63 @@ import {
 const WHATSAPP_SUPPORT_NUMBERS = [
   "+2347011712680",
   "+2349138712173",
-];
+] as const;
 
 const SUPPORT_EMAIL =
   "support@fixxam.com";
 
+const WHATSAPP_BRAND_COLOR =
+  "#25D366";
+
 /* ============================================================
-   MODAL TYPES
+   TYPES
 ============================================================ */
 
 type SupportModalType =
   | "contact"
   | "faq"
   | null;
+
+type SupportIconName =
+  | AppIconName
+  | "whatsapp-brand";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizePhoneNumber(
+  value: string,
+): string {
+  return value.replace(
+    /[^0-9]/g,
+    "",
+  );
+}
+
+function formatPhoneNumber(
+  value: string,
+): string {
+  const clean =
+    normalizePhoneNumber(
+      value,
+    );
+
+  if (
+    clean.startsWith("234") &&
+    clean.length === 13
+  ) {
+    return `+234 ${clean.slice(
+      3,
+      6,
+    )} ${clean.slice(
+      6,
+      9,
+    )} ${clean.slice(9)}`;
+  }
+
+  return value;
+}
 
 /* ============================================================
    CUSTOMER HELP & SUPPORT
@@ -51,12 +110,13 @@ export default function CustomerHelpSupportScreen() {
   const [
     modalType,
     setModalType,
-  ] = useState<SupportModalType>(
-    null,
-  );
+  ] =
+    useState<SupportModalType>(
+      null,
+    );
 
   /* ==========================================================
-     CLOSE MODAL
+     MODAL
   ========================================================== */
 
   const closeModal =
@@ -64,18 +124,48 @@ export default function CustomerHelpSupportScreen() {
       setModalType(null);
     }, []);
 
+  const handleFAQ =
+    useCallback(() => {
+      setModalType("faq");
+    }, []);
+
+  const handleContactSupport =
+    useCallback(() => {
+      setModalType(
+        "contact",
+      );
+    }, []);
+
   /* ==========================================================
-     OPEN WHATSAPP
+     WHATSAPP
   ========================================================== */
 
   const handleWhatsApp =
     useCallback(
-      async (phoneNumber: string) => {
+      async (
+        phoneNumber: string,
+      ) => {
         const cleanNumber =
-          phoneNumber.replace(
-            /[^0-9]/g,
-            "",
+          normalizePhoneNumber(
+            phoneNumber,
           );
+
+        if (
+          cleanNumber.length <
+            10 ||
+          cleanNumber.length >
+            15
+        ) {
+          Toast.show({
+            type: "error",
+            text1:
+              "Invalid support number",
+            text2:
+              "Please try another support option.",
+          });
+
+          return;
+        }
 
         const whatsappUrl =
           `whatsapp://send?phone=${cleanNumber}`;
@@ -89,6 +179,8 @@ export default function CustomerHelpSupportScreen() {
               whatsappUrl,
             );
 
+          closeModal();
+
           if (supported) {
             await Linking.openURL(
               whatsappUrl,
@@ -97,22 +189,8 @@ export default function CustomerHelpSupportScreen() {
             return;
           }
 
-          const webSupported =
-            await Linking.canOpenURL(
-              webUrl,
-            );
-
-          if (webSupported) {
-            await Linking.openURL(
-              webUrl,
-            );
-
-            return;
-          }
-
-          Alert.alert(
-            "WhatsApp unavailable",
-            "WhatsApp is not available on this device.",
+          await Linking.openURL(
+            webUrl,
           );
         } catch (error) {
           console.error(
@@ -120,17 +198,22 @@ export default function CustomerHelpSupportScreen() {
             error,
           );
 
-          Alert.alert(
-            "Unable to open WhatsApp",
-            "Please try again later.",
-          );
+          Toast.show({
+            type: "error",
+            text1:
+              "Unable to open WhatsApp",
+            text2:
+              "Please try again later.",
+          });
         }
       },
-      [],
+      [
+        closeModal,
+      ],
     );
 
   /* ==========================================================
-     EMAIL SUPPORT
+     EMAIL
   ========================================================== */
 
   const handleEmailSupport =
@@ -145,57 +228,63 @@ export default function CustomerHelpSupportScreen() {
           );
 
         if (!supported) {
-          Alert.alert(
-            "Email unavailable",
-            "No email application is available on this device.",
-          );
+          Toast.show({
+            type: "error",
+            text1:
+              "Email unavailable",
+            text2:
+              "No email application is available on this device.",
+          });
 
           return;
         }
 
-        await Linking.openURL(url);
+        closeModal();
+
+        await Linking.openURL(
+          url,
+        );
       } catch (error) {
         console.error(
           "EMAIL_SUPPORT_ERROR:",
           error,
         );
 
-        Alert.alert(
-          "Unable to open email",
-          "Please try again later.",
-        );
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to open email",
+          text2:
+            "Please try again later.",
+        });
       }
-    }, []);
+    }, [
+      closeModal,
+    ]);
 
   /* ==========================================================
-     CALL SUPPORT
+     CALL
   ========================================================== */
 
   const handleCallSupport =
     useCallback(() => {
-      Alert.alert(
-        "Call Support",
-        "Calling is not available on this device",
-      );
-    }, []);
+      closeModal();
 
-  /* ==========================================================
-     FAQ
-  ========================================================== */
-
-  const handleFAQ =
-    useCallback(() => {
-      setModalType("faq");
-    }, []);
-
-  /* ==========================================================
-     CONTACT SUPPORT
-  ========================================================== */
-
-  const handleContactSupport =
-    useCallback(() => {
-      setModalType("contact");
-    }, []);
+      /*
+       * No dedicated support-call number
+       * exists in the current source.
+       * Do not invent one.
+       */
+      Toast.show({
+        type: "info",
+        text1:
+          "Call support unavailable",
+        text2:
+          "Please use WhatsApp or email support.",
+      });
+    }, [
+      closeModal,
+    ]);
 
   /* ==========================================================
      RENDER
@@ -203,9 +292,8 @@ export default function CustomerHelpSupportScreen() {
 
   return (
     <AppScreen
-      contentContainerStyle={
-        styles.screen
-      }
+      role="customer"
+      style={styles.screen}
     >
       <ScrollView
         showsVerticalScrollIndicator={
@@ -220,25 +308,32 @@ export default function CustomerHelpSupportScreen() {
         ==================================================== */}
 
         <View
-          style={
-            styles.header
-          }
+          style={styles.header}
         >
           <Pressable
             onPress={() =>
               router.back()
             }
-            style={
-              styles.backButton
-            }
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            hitSlop={8}
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              role="customer"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
@@ -248,15 +343,16 @@ export default function CustomerHelpSupportScreen() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
-              style={
-                styles.title
-              }
+              style={styles.title}
             >
               Help & Support
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.subtitle
               }
@@ -280,10 +376,13 @@ export default function CustomerHelpSupportScreen() {
               styles.supportIcon
             }
           >
-            <Ionicons
-              name="headset-outline"
-              size={27}
-              color="#2563EB"
+            <AppIcon
+              name="headset"
+              role="customer"
+              size="md"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
@@ -293,6 +392,7 @@ export default function CustomerHelpSupportScreen() {
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.supportTitle
@@ -302,6 +402,8 @@ export default function CustomerHelpSupportScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.supportDescription
               }
@@ -320,12 +422,10 @@ export default function CustomerHelpSupportScreen() {
         />
 
         <View
-          style={
-            styles.card
-          }
+          style={styles.card}
         >
           <SupportRow
-            icon="help-circle-outline"
+            icon="help"
             title="Frequently Asked Questions"
             subtitle="Find answers to common questions"
             onPress={
@@ -336,7 +436,7 @@ export default function CustomerHelpSupportScreen() {
           <Divider />
 
           <SupportRow
-            icon="chatbubble-ellipses-outline"
+            icon="messages"
             title="Contact Support"
             subtitle="Talk to the Fixxam support team"
             onPress={
@@ -354,25 +454,25 @@ export default function CustomerHelpSupportScreen() {
         />
 
         <View
-          style={
-            styles.card
-          }
+          style={styles.card}
         >
           <SupportRow
-            icon="logo-whatsapp"
+            icon="whatsapp-brand"
             title="WhatsApp Support"
             subtitle="Chat with Fixxam support"
             onPress={
               handleContactSupport
-          }
+            }
           />
 
           <Divider />
 
           <SupportRow
-            icon="mail-outline"
+            icon="mail"
             title="Email Support"
-            subtitle={SUPPORT_EMAIL}
+            subtitle={
+              SUPPORT_EMAIL
+            }
             onPress={
               handleEmailSupport
             }
@@ -381,7 +481,7 @@ export default function CustomerHelpSupportScreen() {
           <Divider />
 
           <SupportRow
-            icon="call-outline"
+            icon="phone"
             title="Call Support"
             subtitle="Call Fixxam support"
             onPress={
@@ -404,10 +504,12 @@ export default function CustomerHelpSupportScreen() {
               styles.safetyIcon
             }
           >
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color="#16A34A"
+            <AppIcon
+              name="shield"
+              size="sm"
+              color={
+                Colors.success
+              }
             />
           </View>
 
@@ -417,6 +519,7 @@ export default function CustomerHelpSupportScreen() {
             }
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.safetyTitle
@@ -426,6 +529,7 @@ export default function CustomerHelpSupportScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
               style={
                 styles.safetyText
               }
@@ -442,7 +546,8 @@ export default function CustomerHelpSupportScreen() {
 
       <ContactSupportModal
         visible={
-          modalType === "contact"
+          modalType ===
+          "contact"
         }
         onClose={
           closeModal
@@ -485,6 +590,7 @@ function SectionTitle({
 }) {
   return (
     <AppText
+      variant="caption"
       weight="bold"
       style={
         styles.sectionTitle
@@ -492,6 +598,44 @@ function SectionTitle({
     >
       {title}
     </AppText>
+  );
+}
+
+/* ============================================================
+   SUPPORT ICON
+============================================================ */
+
+function SupportIcon({
+  name,
+  size = 20,
+}: {
+  name: SupportIconName;
+  size?: number;
+}) {
+  if (
+    name ===
+    "whatsapp-brand"
+  ) {
+    return (
+      <MaterialCommunityIcons
+        name="whatsapp"
+        size={size}
+        color={
+          WHATSAPP_BRAND_COLOR
+        }
+      />
+    );
+  }
+
+  return (
+    <AppIcon
+      name={name}
+      role="customer"
+      size="sm"
+      color={
+        CustomerColors.primary
+      }
+    />
   );
 }
 
@@ -505,31 +649,41 @@ function SupportRow({
   subtitle,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: SupportIconName;
+
   title: string;
+
   subtitle: string;
+
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        pressed &&
-          styles.pressedRow,
-      ]}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={
+        title
+      }
+      accessibilityHint={
+        subtitle
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.row,
+
+        pressed
+          ? styles.pressedRow
+          : null,
+      ]}
     >
       <View
         style={
           styles.iconBox
         }
       >
-        <Ionicons
+        <SupportIcon
           name={icon}
-          size={20}
-          color="#2563EB"
         />
       </View>
 
@@ -539,7 +693,9 @@ function SupportRow({
         }
       >
         <AppText
+          variant="body"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.rowTitle
           }
@@ -548,6 +704,9 @@ function SupportRow({
         </AppText>
 
         <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
           style={
             styles.rowSubtitle
           }
@@ -556,10 +715,12 @@ function SupportRow({
         </AppText>
       </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color="#94A3B8"
+      <AppIcon
+        name="next"
+        size="xs"
+        color={
+          Colors.textMuted
+        }
       />
     </Pressable>
   );
@@ -577,11 +738,15 @@ function ContactSupportModal({
   onCall,
 }: {
   visible: boolean;
+
   onClose: () => void;
+
   onWhatsApp: (
     phoneNumber: string,
   ) => void;
+
   onEmail: () => void;
+
   onCall: () => void;
 }) {
   return (
@@ -589,18 +754,27 @@ function ContactSupportModal({
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={
         onClose
       }
     >
-      <View
+      <Pressable
         style={
           styles.modalOverlay
         }
+        onPress={
+          onClose
+        }
       >
-        <View
+        <Pressable
           style={
             styles.modalCard
+          }
+          onPress={(
+            event,
+          ) =>
+            event.stopPropagation()
           }
         >
           {/* ICON */}
@@ -610,17 +784,22 @@ function ContactSupportModal({
               styles.modalIcon
             }
           >
-            <Ionicons
-              name="headset-outline"
-              size={31}
-              color="#2563EB"
+            <AppIcon
+              name="headset"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
           {/* TITLE */}
 
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.modalTitle
             }
@@ -629,6 +808,9 @@ function ContactSupportModal({
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.modalDescription
             }
@@ -636,36 +818,39 @@ function ContactSupportModal({
             Choose how you would like to contact our support team.
           </AppText>
 
-          {/* WHATSAPP 1 */}
+          {/* WHATSAPP NUMBERS */}
 
-          <ModalAction
-            icon="logo-whatsapp"
-            title="WhatsApp Support"
-            subtitle="+234 913 871 2173"
-            onPress={() =>
-              onWhatsApp(
-                WHATSAPP_SUPPORT_NUMBERS[0],
-              )
-            }
-          />
-
-          {/* WHATSAPP 2 */}
-
-          <ModalAction
-            icon="logo-whatsapp"
-            title="WhatsApp Support"
-            subtitle="+234 912 135 0789"
-            onPress={() =>
-              onWhatsApp(
-                WHATSAPP_SUPPORT_NUMBERS[1],
-              )
-            }
-          />
+          {WHATSAPP_SUPPORT_NUMBERS.map(
+            (
+              phoneNumber,
+              index,
+            ) => (
+              <ModalAction
+                key={
+                  phoneNumber
+                }
+                icon="whatsapp-brand"
+                title={`WhatsApp Support ${
+                  index + 1
+                }`}
+                subtitle={
+                  formatPhoneNumber(
+                    phoneNumber,
+                  )
+                }
+                onPress={() =>
+                  onWhatsApp(
+                    phoneNumber,
+                  )
+                }
+              />
+            ),
+          )}
 
           {/* EMAIL */}
 
           <ModalAction
-            icon="mail-outline"
+            icon="mail"
             title="Email Support"
             subtitle={
               SUPPORT_EMAIL
@@ -678,9 +863,9 @@ function ContactSupportModal({
           {/* CALL */}
 
           <ModalAction
-            icon="call-outline"
+            icon="phone"
             title="Call Support"
-            subtitle="Calling is not available on this device"
+            subtitle="Currently unavailable"
             onPress={
               onCall
             }
@@ -692,13 +877,20 @@ function ContactSupportModal({
             onPress={
               onClose
             }
-            style={({ pressed }) => [
+            accessibilityRole="button"
+            accessibilityLabel="Cancel"
+            style={({
+              pressed,
+            }) => [
               styles.cancelButton,
-              pressed &&
-                styles.cancelPressed,
+
+              pressed
+                ? styles.cancelPressed
+                : null,
             ]}
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.cancelText
@@ -707,8 +899,8 @@ function ContactSupportModal({
               Cancel
             </AppText>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -717,71 +909,88 @@ function ContactSupportModal({
    MODAL ACTION
 ============================================================ */
 
-function ModalAction({
-  icon,
-  title,
-  subtitle,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.modalAction,
-        pressed &&
-          styles.modalActionPressed,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      <View
-        style={
-          styles.modalActionIcon
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={21}
-          color="#2563EB"
-        />
-      </View>
+const ModalAction =
+  memo(
+    function ModalAction({
+      icon,
+      title,
+      subtitle,
+      onPress,
+    }: {
+      icon: SupportIconName;
 
-      <View
-        style={
-          styles.modalActionContent
-        }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.modalActionTitle
+      title: string;
+
+      subtitle: string;
+
+      onPress: () => void;
+    }) {
+      return (
+        <Pressable
+          onPress={
+            onPress
           }
-        >
-          {title}
-        </AppText>
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, ${subtitle}`}
+          style={({
+            pressed,
+          }) => [
+            styles.modalAction,
 
-        <AppText
-          style={
-            styles.modalActionSubtitle
-          }
+            pressed
+              ? styles.modalActionPressed
+              : null,
+          ]}
         >
-          {subtitle}
-        </AppText>
-      </View>
+          <View
+            style={
+              styles.modalActionIcon
+            }
+          >
+            <SupportIcon
+              name={icon}
+            />
+          </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color="#94A3B8"
-      />
-    </Pressable>
+          <View
+            style={
+              styles.modalActionContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.modalActionTitle
+              }
+            >
+              {title}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.modalActionSubtitle
+              }
+            >
+              {subtitle}
+            </AppText>
+          </View>
+
+          <AppIcon
+            name="next"
+            size="xs"
+            color={
+              Colors.textMuted
+            }
+          />
+        </Pressable>
+      );
+    },
   );
-}
 
 /* ============================================================
    FAQ MODAL
@@ -792,6 +1001,7 @@ function FAQModal({
   onClose,
 }: {
   visible: boolean;
+
   onClose: () => void;
 }) {
   return (
@@ -799,36 +1009,48 @@ function FAQModal({
       visible={visible}
       transparent
       animationType="fade"
+      statusBarTranslucent
       onRequestClose={
         onClose
       }
     >
-      <View
+      <Pressable
         style={
           styles.modalOverlay
         }
+        onPress={
+          onClose
+        }
       >
-        <View
+        <Pressable
           style={
             styles.faqModalCard
           }
+          onPress={(
+            event,
+          ) =>
+            event.stopPropagation()
+          }
         >
-          {/* ICON */}
-
           <View
             style={
               styles.faqIcon
             }
           >
-            <Ionicons
-              name="help-circle-outline"
-              size={31}
-              color="#2563EB"
+            <AppIcon
+              name="help"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.modalTitle
             }
@@ -837,6 +1059,9 @@ function FAQModal({
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.faqText
             }
@@ -848,13 +1073,20 @@ function FAQModal({
             onPress={
               onClose
             }
-            style={({ pressed }) => [
+            accessibilityRole="button"
+            accessibilityLabel="Close FAQ"
+            style={({
+              pressed,
+            }) => [
               styles.primaryButton,
-              pressed &&
-                styles.primaryPressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.primaryButtonText
@@ -863,8 +1095,8 @@ function FAQModal({
               Okay
             </AppText>
           </Pressable>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -889,16 +1121,24 @@ function Divider() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
-      paddingHorizontal: 0,
-      paddingTop: 0,
-      paddingBottom: 0,
+      backgroundColor:
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 110,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ========================================================
@@ -906,36 +1146,62 @@ const styles =
     ======================================================== */
 
     header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       flexDirection: "row",
+
       alignItems: "center",
-      marginBottom: 20,
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 20,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 11.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -943,40 +1209,73 @@ const styles =
     ======================================================== */
 
     supportBanner: {
-      padding: 14,
-      borderRadius: 17,
-      backgroundColor: "#EFF6FF",
-      borderWidth: 1,
-      borderColor: "#BFDBFE",
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      marginBottom: 22,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     supportIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 15,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     supportBannerContent: {
       flex: 1,
-      marginLeft: 11,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     supportTitle: {
-      fontSize: 14,
-      color: "#1E40AF",
+      color:
+        Colors.textPrimary,
     },
 
     supportDescription: {
-      marginTop: 3,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -984,11 +1283,16 @@ const styles =
     ======================================================== */
 
     sectionTitle: {
-      marginLeft: 4,
-      marginBottom: 8,
-      fontSize: 11,
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       letterSpacing: 0.7,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -996,12 +1300,21 @@ const styles =
     ======================================================== */
 
     card: {
-      marginBottom: 20,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
       overflow: "hidden",
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     /* ========================================================
@@ -1010,46 +1323,81 @@ const styles =
 
     row: {
       minHeight: 72,
-      paddingHorizontal: 14,
-      paddingVertical: 11,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     pressedRow: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     iconBox: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: "#EFF6FF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     rowContent: {
       flex: 1,
-      marginHorizontal: 12,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     rowTitle: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     rowSubtitle: {
-      marginTop: 3,
-      fontSize: 10.5,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 15,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     divider: {
       height: 1,
+
       marginLeft: 66,
-      backgroundColor: "#F1F5F9",
+
+      backgroundColor:
+        Colors.divider,
     },
 
     /* ========================================================
@@ -1057,39 +1405,70 @@ const styles =
     ======================================================== */
 
     safetyCard: {
-      padding: 13,
-      borderRadius: 16,
-      backgroundColor: "#F0FDF4",
-      borderWidth: 1,
-      borderColor: "#BBF7D0",
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     safetyIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     safetyContent: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     safetyTitle: {
-      fontSize: 12.5,
-      color: "#166534",
+      color:
+        Colors.success,
     },
 
     safetyText: {
-      marginTop: 3,
-      fontSize: 10,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 15,
-      color: "#4D7C5A",
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1098,133 +1477,254 @@ const styles =
 
     modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.45)",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 22,
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
     modalCard: {
       width: "100%",
+
       maxWidth: 430,
-      borderRadius: 26,
-      backgroundColor: "#FFFFFF",
-      paddingHorizontal: 18,
-      paddingTop: 24,
-      paddingBottom: 16,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.xl,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     faqModalCard: {
       width: "100%",
+
       maxWidth: 430,
-      borderRadius: 26,
-      backgroundColor: "#FFFFFF",
-      paddingHorizontal: 22,
-      paddingTop: 26,
-      paddingBottom: 20,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingTop:
+        FixxamTokens.spacing.xl,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     modalIcon: {
       width: 68,
+
       height: 68,
-      borderRadius: 22,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
       alignSelf: "center",
-      marginBottom: 14,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     faqIcon: {
       width: 68,
+
       height: 68,
-      borderRadius: 22,
-      backgroundColor: "#EFF6FF",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
       alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 14,
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     modalTitle: {
-      fontSize: 20,
-      lineHeight: 26,
-      textAlign: "center",
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalDescription: {
-      marginTop: 6,
-      marginBottom: 17,
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       lineHeight: 18,
-      textAlign: "center",
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
+
+    /* ========================================================
+       MODAL ACTION
+    ======================================================== */
 
     modalAction: {
       minHeight: 66,
-      borderRadius: 15,
-      backgroundColor: "#F8FAFC",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
-      paddingHorizontal: 11,
-      marginBottom: 8,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     modalActionPressed: {
-      opacity: 0.72,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     modalActionIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     modalActionContent: {
       flex: 1,
-      marginHorizontal: 10,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     modalActionTitle: {
-      fontSize: 12.5,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalActionSubtitle: {
-      marginTop: 3,
-      fontSize: 10,
-      lineHeight: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       CANCEL
+    ======================================================== */
+
     cancelButton: {
-      minHeight: 48,
-      marginTop: 6,
-      borderRadius: 14,
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.button,
     },
 
     cancelPressed: {
-      backgroundColor: "#F8FAFC",
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     cancelText: {
-      fontSize: 13,
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1232,29 +1732,57 @@ const styles =
     ======================================================== */
 
     faqText: {
-      marginTop: 12,
-      marginBottom: 22,
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
       lineHeight: 20,
-      textAlign: "center",
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     primaryButton: {
       width: "100%",
-      minHeight: 48,
-      borderRadius: 14,
-      backgroundColor: "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
-    },
 
-    primaryPressed: {
-      opacity: 0.8,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     primaryButtonText: {
-      fontSize: 13,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

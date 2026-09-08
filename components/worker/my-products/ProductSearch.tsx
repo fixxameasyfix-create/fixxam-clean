@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import React, {
+  useCallback,
+  useState,
+} from "react";
 
 import {
   Pressable,
@@ -7,61 +10,196 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function ProductSearch() {
-  const [search, setSearch] = useState("");
+  const [
+    search,
+    setSearch,
+  ] =
+    useState("");
+
+  const [
+    focused,
+    setFocused,
+  ] =
+    useState(false);
+
+  /* ==========================================================
+     CLEAR SEARCH
+  ========================================================== */
+
+  const handleClear =
+    useCallback(() => {
+      setSearch("");
+    }, []);
+
+  /* ==========================================================
+     ADD PRODUCT
+  ========================================================== */
+
+  const handleAddProduct =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products/add",
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchBox}>
-        <Ionicons
-          name="search-outline"
-          size={20}
-          color="#94A3B8"
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.searchBox,
+
+          focused
+            ? styles.searchBoxFocused
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="search"
+          role="worker"
+          size="sm"
+          color={
+            focused
+              ? WorkerColors.primary
+              : Colors.textMuted
+          }
         />
 
         <TextInput
-          value={search}
-          onChangeText={setSearch}
+          value={
+            search
+          }
+          onChangeText={
+            setSearch
+          }
+          onFocus={() => {
+            setFocused(
+              true,
+            );
+          }}
+          onBlur={() => {
+            setFocused(
+              false,
+            );
+          }}
           placeholder="Search products..."
-          placeholderTextColor="#94A3B8"
-          style={styles.input}
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            WorkerColors.primary
+          }
           returnKeyType="search"
+          autoCapitalize="none"
+          autoCorrect={
+            false
+          }
+          clearButtonMode="never"
+          accessibilityLabel="Search products"
+          style={
+            styles.input
+          }
         />
 
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch("")}>
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color="#94A3B8"
+        {search.length >
+        0 ? (
+          <Pressable
+            onPress={
+              handleClear
+            }
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Clear product search"
+            style={({
+              pressed,
+            }) => [
+              styles.clearButton,
+
+              pressed
+                ? styles.iconPressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="close"
+              size="xs"
+              color={
+                Colors.textMuted
+              }
             />
           </Pressable>
-        )}
+        ) : null}
       </View>
 
+      {/* ======================================================
+          ADD PRODUCT
+      ====================================================== */}
+
       <Pressable
-        style={styles.button}
-        onPress={() =>
-          router.push(
-            "/(worker)/products/add",
-          )
+        onPress={
+          handleAddProduct
         }
+        accessibilityRole="button"
+        accessibilityLabel="Add product"
+        accessibilityHint="Opens the add product screen"
+        style={({
+          pressed,
+        }) => [
+          styles.button,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
+        <AppIcon
           name="add"
-          size={20}
-          color="#FFFFFF"
+          role="worker"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.buttonText}
+          numberOfLines={1}
+          style={
+            styles.buttonText
+          }
         >
           Add Product
         </AppText>
@@ -70,66 +208,176 @@ export default function ProductSearch() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 18,
-    marginBottom: 13,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  searchBox: {
-    flex: 1,
-    height: 50,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+    container: {
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
-    elevation: 2,
-  },
 
-  input: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 15,
-    color: "#0F172A",
-  },
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
-  button: {
-    height: 50,
-    minWidth: 15,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: "#FF6B00",
+    searchBox: {
+      flex: 1,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      minWidth: 0,
 
-    shadowColor: "#FF6B00",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      height:
+        FixxamTokens.size.inputHeight,
+
+      paddingLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
-    elevation: 3,
-  },
 
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    marginLeft: 9,
-  },
-});
+    searchBoxFocused: {
+      borderColor:
+        WorkerColors.primary,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      height: "100%",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      paddingHorizontal: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    clearButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    /* ========================================================
+       ADD BUTTON
+    ======================================================== */
+
+    button: {
+      height:
+        FixxamTokens.size.inputHeight,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primary,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    buttonText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    iconPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+  });

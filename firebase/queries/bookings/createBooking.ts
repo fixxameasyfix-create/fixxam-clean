@@ -1,8 +1,19 @@
 import {
-  addDoc,
   collection,
+  doc,
   serverTimestamp,
+  setDoc,
 } from "firebase/firestore";
+
+import {
+  deleteObject,
+  getDownloadURL,
+  getStorage,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
+
+import { getAuth } from "firebase/auth";
 
 import { db } from "@/firebase/config";
 
@@ -39,21 +50,10 @@ export type CreateBookingPayload = {
 
   serviceName: string;
 
-  /**
-   * MaterialCommunityIcons icon name.
-   *
-   * Same icon system used by CategoryCard.
-   */
   serviceIcon?: string | null;
 
-  /**
-   * Same icon color used by CategoryCard.
-   */
   serviceColor?: string | null;
 
-  /**
-   * Same icon background color used by CategoryCard.
-   */
   serviceBackgroundColor?: string | null;
 
   /* ============================================================
@@ -117,7 +117,301 @@ export type CreateBookingPayload = {
 
 const MAX_PHOTOS = 5;
 
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+
 const MAX_DESCRIPTION_LENGTH = 300;
+
+const BOOKINGS_STORAGE_FOLDER = "bookings";
+
+/* ==============================================================
+   FIREBASE ERROR
+============================================================== */
+
+function getFirebaseErrorDetails(
+  error: unknown,
+): {
+  code: string;
+  message: string;
+} {
+  if (
+    error &&
+    typeof error === "object"
+  ) {
+    const firebaseError =
+      error as {
+        code?: unknown;
+        message?: unknown;
+      };
+
+    return {
+      code:
+        typeof firebaseError.code ===
+        "string"
+          ? firebaseError.code
+          : "unknown",
+
+      message:
+        typeof firebaseError.message ===
+        "string"
+          ? firebaseError.message
+          : "Unknown Firebase error.",
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      code: "unknown",
+      message: error.message,
+    };
+  }
+
+  return {
+    code: "unknown",
+    message: "Unknown Firebase error.",
+  };
+}
+
+/* ==============================================================
+   STRING HELPER
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ==============================================================
+   HTTPS URL
+============================================================== */
+
+function isHttpsUrl(
+  value: string,
+): boolean {
+  return value.startsWith(
+    "https://",
+  );
+}
+
+/* ==============================================================
+   LOCAL IMAGE URI
+============================================================== */
+
+function isLocalImageUri(
+  value: string,
+): boolean {
+  return (
+    value.startsWith("file://") ||
+    value.startsWith("content://")
+  );
+}
+
+/* ==============================================================
+   UPLOAD BOOKING PHOTO
+============================================================== */
+
+async function uploadBookingPhoto(
+  customerId: string,
+  bookingId: string,
+  photoUri: string,
+  index: number,
+): Promise<string> {
+  const normalizedUri =
+    cleanString(photoUri);
+
+  if (!normalizedUri) {
+    return "";
+  }
+
+  /*
+   * Existing HTTPS image.
+   *
+   * Do not upload it again.
+   */
+  if (isHttpsUrl(normalizedUri)) {
+    return normalizedUri;
+  }
+
+  /*
+   * Booking attachments coming from
+   * the device must be local image URIs.
+   */
+  if (
+    !isLocalImageUri(
+      normalizedUri,
+    )
+  ) {
+    throw new Error(
+      "Invalid booking photo source.",
+    );
+  }
+
+  /* ============================================================
+     READ LOCAL IMAGE
+  ============================================================ */
+
+  const response =
+    await fetch(normalizedUri);
+
+  if (!response.ok) {
+    throw new Error(
+      `Unable to read booking photo. HTTP ${response.status}`,
+    );
+  }
+
+  const blob =
+    await response.blob();
+
+  if (
+    !blob ||
+    blob.size <= 0
+  ) {
+    throw new Error(
+      "Booking photo is empty.",
+    );
+  }
+
+  /* ============================================================
+     SIZE VALIDATION
+  ============================================================ */
+
+  if (
+    blob.size >
+    MAX_PHOTO_SIZE
+  ) {
+    throw new Error(
+      "Each booking photo must be 5 MB or smaller.",
+    );
+  }
+
+  /* ============================================================
+     CONTENT TYPE
+  ============================================================ */
+
+  const contentType =
+    typeof blob.type === "string" &&
+    blob.type.startsWith("image/")
+      ? blob.type
+      : "image/jpeg";
+
+  if (
+    !contentType.startsWith(
+      "image/",
+    )
+  ) {
+    throw new Error(
+      "Booking attachment must be an image.",
+    );
+  }
+
+  /* ============================================================
+     STORAGE PATH
+  ============================================================ */
+
+  const fileName =
+    `request-${index + 1}.jpg`;
+
+  const storagePath =
+    `${BOOKINGS_STORAGE_FOLDER}/${customerId}/${bookingId}/${fileName}`;
+
+  const storage =
+    getStorage();
+
+  const storageRef =
+    ref(
+      storage,
+      storagePath,
+    );
+
+  /* ============================================================
+     UPLOAD
+  ============================================================ */
+
+  await uploadBytes(
+    storageRef,
+    blob,
+    {
+      contentType,
+
+      cacheControl:
+        "private,max-age=3600",
+    },
+  );
+
+  /* ============================================================
+     DOWNLOAD URL
+  ============================================================ */
+
+  const downloadUrl =
+    await getDownloadURL(
+      storageRef,
+    );
+
+  if (
+    !isHttpsUrl(downloadUrl)
+  ) {
+    throw new Error(
+      "Firebase did not return a valid booking photo URL.",
+    );
+  }
+
+  if (__DEV__) {
+    console.log(
+      "BOOKING_PHOTO_UPLOADED",
+      {
+        bookingId,
+        customerId,
+        storagePath,
+        contentType,
+        size: blob.size,
+      },
+    );
+  }
+
+  return downloadUrl;
+}
+
+/* ==============================================================
+   DELETE UPLOADED PHOTOS
+============================================================== */
+
+async function deleteUploadedBookingPhotos(
+  storagePaths: string[],
+): Promise<void> {
+  if (
+    storagePaths.length === 0
+  ) {
+    return;
+  }
+
+  const storage =
+    getStorage();
+
+  await Promise.allSettled(
+    storagePaths.map(
+      async (storagePath) => {
+        try {
+          await deleteObject(
+            ref(
+              storage,
+              storagePath,
+            ),
+          );
+        } catch (error) {
+          console.warn(
+            "BOOKING_PHOTO_CLEANUP_FAILED",
+            {
+              storagePath,
+              error,
+            },
+          );
+        }
+      },
+    ),
+  );
+}
 
 /* ==============================================================
    CREATE BOOKING
@@ -127,7 +421,7 @@ export async function createBooking(
   data: CreateBookingPayload,
 ): Promise<string> {
   /* ============================================================
-     BASIC PAYLOAD VALIDATION
+     BASIC VALIDATION
   ============================================================ */
 
   if (!data) {
@@ -137,16 +431,48 @@ export async function createBooking(
   }
 
   /* ============================================================
+     AUTHENTICATION
+  ============================================================ */
+
+  const auth =
+    getAuth();
+
+  const currentUser =
+    auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error(
+      "You must be signed in to create a booking.",
+    );
+  }
+
+  /* ============================================================
      CUSTOMER VALIDATION
   ============================================================ */
 
-  if (
-    typeof data.customerId !==
-      "string" ||
-    !data.customerId.trim()
-  ) {
+  const customerId =
+    cleanString(
+      data.customerId,
+    );
+
+  if (!customerId) {
     throw new Error(
       "Customer ID is required.",
+    );
+  }
+
+  /*
+   * Important security check.
+   *
+   * The client must not be able to create
+   * a booking on behalf of another user.
+   */
+  if (
+    currentUser.uid !==
+    customerId
+  ) {
+    throw new Error(
+      "Authenticated customer does not match booking customer.",
     );
   }
 
@@ -154,21 +480,23 @@ export async function createBooking(
      WORKER VALIDATION
   ============================================================ */
 
-  if (
-    typeof data.workerId !==
-      "string" ||
-    !data.workerId.trim()
-  ) {
+  const workerId =
+    cleanString(
+      data.workerId,
+    );
+
+  if (!workerId) {
     throw new Error(
       "Worker ID is required.",
     );
   }
 
-  if (
-    typeof data.workerName !==
-      "string" ||
-    !data.workerName.trim()
-  ) {
+  const workerName =
+    cleanString(
+      data.workerName,
+    );
+
+  if (!workerName) {
     throw new Error(
       "Worker name is required.",
     );
@@ -178,42 +506,42 @@ export async function createBooking(
      SERVICE VALIDATION
   ============================================================ */
 
-  if (
-    typeof data.serviceId !==
-      "string" ||
-    !data.serviceId.trim()
-  ) {
+  const serviceId =
+    cleanString(
+      data.serviceId,
+    );
+
+  if (!serviceId) {
     throw new Error(
       "Service ID is required.",
     );
   }
 
-  if (
-    typeof data.serviceName !==
-      "string" ||
-    !data.serviceName.trim()
-  ) {
+  const serviceName =
+    cleanString(
+      data.serviceName,
+    );
+
+  if (!serviceName) {
     throw new Error(
       "Service name is required.",
     );
   }
 
   /* ============================================================
-     DESCRIPTION VALIDATION
+     DESCRIPTION
   ============================================================ */
 
-  if (
-    typeof data.description !==
-      "string" ||
-    !data.description.trim()
-  ) {
+  const cleanDescription =
+    cleanString(
+      data.description,
+    );
+
+  if (!cleanDescription) {
     throw new Error(
       "Service description is required.",
     );
   }
-
-  const cleanDescription =
-    data.description.trim();
 
   if (
     cleanDescription.length >
@@ -225,96 +553,19 @@ export async function createBooking(
   }
 
   /* ============================================================
-     LOCATION VALIDATION
+     LOCATION
   ============================================================ */
 
-  if (
-    typeof data.address !==
-      "string" ||
-    !data.address.trim()
-  ) {
+  const address =
+    cleanString(
+      data.address,
+    );
+
+  if (!address) {
     throw new Error(
       "Service location is required.",
     );
   }
-
-  /* ============================================================
-     PHOTOS VALIDATION
-  ============================================================ */
-
-  if (!Array.isArray(data.photos)) {
-    throw new Error(
-      "Invalid booking photos.",
-    );
-  }
-
-  if (
-    data.photos.length >
-    MAX_PHOTOS
-  ) {
-    throw new Error(
-      `A maximum of ${MAX_PHOTOS} photos is allowed.`,
-    );
-  }
-
-  const cleanPhotos =
-    data.photos
-      .filter(
-        (
-          photo,
-        ): photo is string =>
-          typeof photo ===
-            "string" &&
-          photo.trim().length > 0,
-      )
-      .map((photo) =>
-        photo.trim(),
-      );
-
-  /* ============================================================
-     AMOUNT VALIDATION
-  ============================================================ */
-
-  const amount =
-    data.amount ?? null;
-
-  if (
-    amount !== null &&
-    (
-      typeof amount !==
-        "number" ||
-      !Number.isFinite(amount) ||
-      amount < 0
-    )
-  ) {
-    throw new Error(
-      "Invalid booking amount.",
-    );
-  }
-
-  /* ============================================================
-     URGENT FEE VALIDATION
-  ============================================================ */
-
-  const urgentFee =
-    data.urgentFee ?? 0;
-
-  if (
-    typeof urgentFee !==
-      "number" ||
-    !Number.isFinite(
-      urgentFee,
-    ) ||
-    urgentFee < 0
-  ) {
-    throw new Error(
-      "Invalid urgent fee.",
-    );
-  }
-
-  /* ============================================================
-     LOCATION COORDINATES
-  ============================================================ */
 
   const latitude =
     data.latitude ?? null;
@@ -357,147 +608,158 @@ export async function createBooking(
   }
 
   /* ============================================================
-     SERVICE ICON
+     PHOTOS
+  ============================================================ */
+
+  if (!Array.isArray(data.photos)) {
+    throw new Error(
+      "Invalid booking photos.",
+    );
+  }
+
+  if (
+    data.photos.length >
+    MAX_PHOTOS
+  ) {
+    throw new Error(
+      `A maximum of ${MAX_PHOTOS} photos is allowed.`,
+    );
+  }
+
+  const cleanPhotos =
+    data.photos
+      .filter(
+        (
+          photo,
+        ): photo is string =>
+          typeof photo ===
+            "string" &&
+          photo.trim().length > 0,
+      )
+      .map(
+        (photo) =>
+          photo.trim(),
+      );
+
+  /* ============================================================
+     AMOUNT
+  ============================================================ */
+
+  const amount =
+    data.amount ?? null;
+
+  if (
+    amount !== null &&
+    (
+      typeof amount !==
+        "number" ||
+      !Number.isFinite(amount) ||
+      amount < 0
+    )
+  ) {
+    throw new Error(
+      "Invalid booking amount.",
+    );
+  }
+
+  /* ============================================================
+     URGENT FEE
+  ============================================================ */
+
+  const urgentFee =
+    data.urgentFee ?? 0;
+
+  if (
+    typeof urgentFee !==
+      "number" ||
+    !Number.isFinite(
+      urgentFee,
+    ) ||
+    urgentFee < 0
+  ) {
+    throw new Error(
+      "Invalid urgent fee.",
+    );
+  }
+
+  /* ============================================================
+     SERVICE META
   ============================================================ */
 
   const serviceIcon =
-    typeof data.serviceIcon ===
-      "string" &&
-    data.serviceIcon.trim()
-      ? data.serviceIcon.trim()
-      : null;
-
-  /* ============================================================
-     SERVICE COLOR
-  ============================================================ */
+    cleanString(
+      data.serviceIcon,
+    ) || null;
 
   const serviceColor =
-    typeof data.serviceColor ===
-      "string" &&
-    data.serviceColor.trim()
-      ? data.serviceColor.trim()
-      : null;
-
-  /* ============================================================
-     SERVICE BACKGROUND COLOR
-  ============================================================ */
+    cleanString(
+      data.serviceColor,
+    ) || null;
 
   const serviceBackgroundColor =
-    typeof data.serviceBackgroundColor ===
-      "string" &&
-    data.serviceBackgroundColor.trim()
-      ? data.serviceBackgroundColor.trim()
-      : null;
+    cleanString(
+      data.serviceBackgroundColor,
+    ) || null;
 
   /* ============================================================
-     CUSTOMER NORMALIZATION
+     CUSTOMER META
   ============================================================ */
-
-  const customerId =
-    data.customerId.trim();
 
   const customerName =
-    typeof data.customerName ===
-      "string"
-      ? data.customerName.trim()
-      : "";
+    cleanString(
+      data.customerName,
+    );
 
   const customerPhotoURL =
-    typeof data.customerPhotoURL ===
-      "string"
-      ? data.customerPhotoURL.trim()
-      : "";
+    cleanString(
+      data.customerPhotoURL,
+    );
 
   /* ============================================================
-     WORKER NORMALIZATION
+     WORKER PHOTO
   ============================================================ */
-
-  const workerId =
-    data.workerId.trim();
-
-  const workerName =
-    data.workerName.trim();
 
   const workerPhoto =
-    typeof data.workerPhoto ===
-      "string" &&
-    data.workerPhoto.trim()
-      ? data.workerPhoto.trim()
-      : null;
+    cleanString(
+      data.workerPhoto,
+    ) || null;
 
   /* ============================================================
-     SERVICE NORMALIZATION
+     CATEGORY
   ============================================================ */
-
-  const serviceId =
-    data.serviceId.trim();
-
-  const serviceName =
-    data.serviceName.trim();
 
   const categoryId =
-    typeof data.categoryId ===
-      "string" &&
-    data.categoryId.trim()
-      ? data.categoryId.trim()
-      : null;
+    cleanString(
+      data.categoryId,
+    ) || null;
 
   /* ============================================================
-     LOCATION NORMALIZATION
-  ============================================================ */
-
-  const address =
-    data.address.trim();
-
-  /* ============================================================
-     BOOKING DATE
+     SCHEDULE
   ============================================================ */
 
   const bookingDate =
-    typeof data.bookingDate ===
-      "string" &&
-    data.bookingDate.trim()
-      ? data.bookingDate.trim()
-      : null;
-
-  /* ============================================================
-     BOOKING TIME
-  ============================================================ */
+    cleanString(
+      data.bookingDate,
+    ) || null;
 
   const bookingTime =
-    typeof data.bookingTime ===
-      "string" &&
-    data.bookingTime.trim()
-      ? data.bookingTime.trim()
-      : null;
+    cleanString(
+      data.bookingTime,
+    ) || null;
 
   /* ============================================================
-     BOOKING STATUS
+     URGENT
   ============================================================ */
 
-  /*
-   * Initial state:
-   *
-   * pending
-   *
-   * The worker has received the request
-   * but has not sent an offer yet.
-   */
+  const urgent =
+    data.urgent === true;
+
+  /* ============================================================
+     BOOKING STATE
+  ============================================================ */
 
   const status =
     "pending";
-
-  /* ============================================================
-     OFFER STATE
-  ============================================================ */
-
-  /*
-   * Initial offer state:
-   *
-   * none
-   *
-   * Worker has not submitted an offer.
-   */
 
   const offerStatus =
     "none";
@@ -514,206 +776,408 @@ export async function createBooking(
   const offerRespondedAt =
     null;
 
+  const agreedPrice =
+    null;
+
+  const counterOfferAmount =
+    null;
+
+  const counterOfferStatus =
+    "none";
+
+  const counterOfferBy =
+    null;
+
+  const counterOfferMessage =
+    null;
+
+  const negotiationStatus =
+    "none";
+
+  const offerRound =
+    0;
+
   /* ============================================================
-     URGENT
+     GENERATE BOOKING ID
   ============================================================ */
 
-  const urgent =
-    data.urgent ?? false;
+  /*
+   * We generate the Firestore document reference first.
+   *
+   * This lets us upload photos to:
+   *
+   * bookings/{customerId}/{bookingId}/request-X.jpg
+   *
+   * BEFORE creating the Firestore document.
+   */
+
+  const bookingRef =
+    doc(
+      collection(
+        db,
+        "bookings",
+      ),
+    );
+
+  const bookingId =
+    bookingRef.id;
 
   /* ============================================================
-     CREATE FIRESTORE DOCUMENT
+     UPLOADED STORAGE PATHS
+  ============================================================ */
+
+  const uploadedStoragePaths: string[] =
+    [];
+
+  /* ============================================================
+     FINAL PHOTO URLS
+  ============================================================ */
+
+  const uploadedPhotoUrls: string[] =
+    [];
+
+  /* ============================================================
+     UPLOAD BOOKING PHOTOS
   ============================================================ */
 
   try {
-    const bookingRef =
-      await addDoc(
-        collection(
-          db,
-          "bookings",
-        ),
+    for (
+      let index = 0;
+      index < cleanPhotos.length;
+      index += 1
+    ) {
+      const source =
+        cleanPhotos[index];
+
+      /*
+       * Existing HTTPS URL.
+       */
+      if (
+        isHttpsUrl(source)
+      ) {
+        uploadedPhotoUrls.push(
+          source,
+        );
+
+        continue;
+      }
+
+      const downloadUrl =
+        await uploadBookingPhoto(
+          customerId,
+          bookingId,
+          source,
+          index,
+        );
+
+      if (!downloadUrl) {
+        throw new Error(
+          `Unable to upload booking photo ${index + 1}.`,
+        );
+      }
+
+      uploadedPhotoUrls.push(
+        downloadUrl,
+      );
+
+      uploadedStoragePaths.push(
+        `${BOOKINGS_STORAGE_FOLDER}/${customerId}/${bookingId}/request-${index + 1}.jpg`,
+      );
+    }
+
+    /* ==========================================================
+       FIRESTORE PAYLOAD
+    ========================================================== */
+
+    const bookingPayload = {
+      /* ========================================================
+         CUSTOMER
+      ======================================================== */
+
+      customerId,
+
+      customerName,
+
+      customerPhotoURL,
+
+      /* ========================================================
+         WORKER
+      ======================================================== */
+
+      workerId,
+
+      workerName,
+
+      workerPhoto,
+
+      /* ========================================================
+         SERVICE
+      ======================================================== */
+
+      serviceId,
+
+      serviceName,
+
+      serviceIcon,
+
+      serviceColor,
+
+      serviceBackgroundColor,
+
+      /* ========================================================
+         CATEGORY
+      ======================================================== */
+
+      categoryId,
+
+      /* ========================================================
+         WORKER META
+      ======================================================== */
+
+      rating:
+        typeof data.rating ===
+          "number" &&
+        Number.isFinite(
+          data.rating,
+        )
+          ? Math.min(
+              5,
+              Math.max(
+                0,
+                data.rating,
+              ),
+            )
+          : null,
+
+      verified:
+        typeof data.verified ===
+          "boolean"
+          ? data.verified
+          : false,
+
+      /* ========================================================
+         CUSTOMER REQUEST
+      ======================================================== */
+
+      description:
+        cleanDescription,
+
+      photos:
+        uploadedPhotoUrls,
+
+      /* ========================================================
+         LOCATION
+      ======================================================== */
+
+      location: {
+        address,
+
+        latitude,
+
+        longitude,
+      },
+
+      address,
+
+      latitude,
+
+      longitude,
+
+      /* ========================================================
+         SCHEDULE
+      ======================================================== */
+
+      date:
+        bookingDate,
+
+      time:
+        bookingTime,
+
+      bookingDate,
+
+      bookingTime,
+
+      /* ========================================================
+         PRICE
+      ======================================================== */
+
+      price:
+        amount,
+
+      amount,
+
+      /* ========================================================
+         OFFER
+      ======================================================== */
+
+      offerStatus,
+
+      offerAmount,
+
+      offerMessage,
+
+      offerSentAt,
+
+      offerRespondedAt,
+
+      /* ========================================================
+         NEGOTIATION
+      ======================================================== */
+
+      agreedPrice,
+
+      counterOfferAmount,
+
+      counterOfferStatus,
+
+      counterOfferBy,
+
+      counterOfferMessage,
+
+      negotiationStatus,
+
+      offerRound,
+
+      /* ========================================================
+         URGENT
+      ======================================================== */
+
+      urgent,
+
+      urgentFee,
+
+      /* ========================================================
+         BOOKING STATUS
+      ======================================================== */
+
+      status,
+
+      paymentStatus:
+        "unpaid",
+
+      /* ========================================================
+         TIMESTAMPS
+      ======================================================== */
+
+      createdAt:
+        serverTimestamp(),
+
+      updatedAt:
+        serverTimestamp(),
+    };
+
+    /* ==========================================================
+       CREATE FIRESTORE BOOKING
+    ========================================================== */
+
+    await setDoc(
+      bookingRef,
+      bookingPayload,
+    );
+
+    /* ==========================================================
+       SUCCESS
+    ========================================================== */
+
+    if (__DEV__) {
+      console.log(
+        "BOOKING_CREATED_SUCCESSFULLY",
         {
-          /* ======================================================
-             CUSTOMER
-          ====================================================== */
+          bookingId,
 
           customerId,
 
-          customerName,
-
-          customerPhotoURL,
-
-          /* ======================================================
-             WORKER
-          ====================================================== */
-
           workerId,
-
-          workerName,
-
-          workerPhoto,
-
-          /* ======================================================
-             SERVICE
-          ====================================================== */
 
           serviceId,
 
-          serviceName,
-
-          /*
-           * These three values come from
-           * the same service/category data
-           * used by CategoryCard.
-           */
-
-          serviceIcon,
-
-          serviceColor,
-
-          serviceBackgroundColor,
-
-          /* ======================================================
-             CATEGORY
-          ====================================================== */
-
-          categoryId,
-
-          /* ======================================================
-             WORKER META
-          ====================================================== */
-
-          rating:
-            typeof data.rating ===
-              "number" &&
-            Number.isFinite(
-              data.rating,
-            )
-              ? data.rating
-              : null,
-
-          verified:
-            typeof data.verified ===
-              "boolean"
-              ? data.verified
-              : false,
-
-          /* ======================================================
-             CUSTOMER REQUEST
-          ====================================================== */
-
-          description:
-            cleanDescription,
-
           photos:
-            cleanPhotos,
-
-          /* ======================================================
-             LOCATION
-          ====================================================== */
-
-          location: {
-            address,
-
-            latitude,
-
-            longitude,
-          },
-
-          /*
-           * Keep root-level location
-           * fields for compatibility with
-           * existing screens.
-           */
-
-          address,
-
-          latitude,
-
-          longitude,
-
-          /* ======================================================
-             SCHEDULE
-          ====================================================== */
-
-          date:
-            bookingDate,
-
-          time:
-            bookingTime,
-
-          bookingDate,
-
-          bookingTime,
-
-          /* ======================================================
-             PRICE
-          ====================================================== */
-
-          /*
-           * Initial amount is normally
-           * null/zero because the worker
-           * will determine the offer.
-           */
-
-          price:
-            amount,
-
-          amount,
-
-          /* ======================================================
-             OFFER
-          ====================================================== */
-
-          offerStatus,
-
-          offerAmount,
-
-          offerMessage,
-
-          offerSentAt,
-
-          offerRespondedAt,
-
-          /* ======================================================
-             URGENT
-          ====================================================== */
-
-          urgent,
-
-          urgentFee,
-
-          /* ======================================================
-             BOOKING STATUS
-          ====================================================== */
+            uploadedPhotoUrls.length,
 
           status,
 
-          paymentStatus:
-            "unpaid",
+          offerStatus,
 
-          /* ======================================================
-             TIMESTAMPS
-          ====================================================== */
+          counterOfferStatus,
 
-          createdAt:
-            serverTimestamp(),
+          negotiationStatus,
 
-          updatedAt:
-            serverTimestamp(),
+          offerRound,
         },
       );
+    }
 
-    /* ============================================================
-       RETURN BOOKING ID
-    ============================================================ */
-
-    return bookingRef.id;
+    return bookingId;
   } catch (error) {
-    console.error(
-      "CREATE_BOOKING_FIRESTORE_ERROR",
-      error,
+    /* ==========================================================
+       CLEANUP
+    ========================================================== */
+
+    await deleteUploadedBookingPhotos(
+      uploadedStoragePaths,
     );
+
+    /* ==========================================================
+       FIREBASE ERROR
+    ========================================================== */
+
+    const {
+      code,
+      message,
+    } =
+      getFirebaseErrorDetails(
+        error,
+      );
+
+    console.error(
+      "CREATE_BOOKING_ERROR",
+      {
+        code,
+
+        message,
+
+        error,
+
+        bookingId,
+
+        customerId,
+
+        workerId,
+
+        serviceId,
+
+        uploadedPhotos:
+          uploadedPhotoUrls.length,
+      },
+    );
+
+    /* ==========================================================
+       USER-FACING ERROR
+    ========================================================== */
+
+    if (
+      code ===
+      "storage/unauthorized"
+    ) {
+      throw new Error(
+        "You do not have permission to upload booking photos.",
+      );
+    }
+
+    if (
+      code ===
+      "storage/unauthenticated"
+    ) {
+      throw new Error(
+        "Your session has expired. Please sign in again.",
+      );
+    }
+
+    if (__DEV__) {
+      throw new Error(
+        `Booking failed [${code}]: ${message}`,
+      );
+    }
 
     throw new Error(
       "Unable to create booking. Please try again.",

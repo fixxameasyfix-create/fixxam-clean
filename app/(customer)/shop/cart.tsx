@@ -1,33 +1,136 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
-import { useCart } from "@/contexts/CartContext";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  useCart,
+} from "@/contexts/CartContext";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type CartItem = {
   id: string;
+
   name: string;
+
   image?: string;
+
   price: number;
+
   quantity: number;
+
   sellerId?: string;
+
   storeId?: string;
 };
+
+type CartItemCardProps = {
+  item: CartItem;
+
+  onDecrease: (
+    item: CartItem,
+  ) => void;
+
+  onIncrease: (
+    item: CartItem,
+  ) => void;
+
+  onRemove: (
+    item: CartItem,
+  ) => void;
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafePrice(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed < 0
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function getSafeQuantity(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(
+      parsed,
+    ),
+  );
+}
+
+function formatMoney(
+  value: unknown,
+): string {
+  return getSafePrice(
+    value,
+  ).toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 0,
+    },
+  );
+}
+
+/* ============================================================
+   SCREEN
+============================================================ */
 
 export default function CartScreen() {
   const {
@@ -35,333 +138,1050 @@ export default function CartScreen() {
     total,
     removeFromCart,
     updateQuantity,
-  } = useCart();
+  } =
+    useCart();
 
-  const handleCheckoutPress = () => {
-    if (items.length === 0) {
-      return;
-    }
-
-    router.push(
-      "/(customer)/shop/checkout",
+  const cartItems =
+    useMemo(
+      () =>
+        items as CartItem[],
+      [
+        items,
+      ],
     );
-  };
+
+  const safeTotal =
+    useMemo(
+      () =>
+        getSafePrice(
+          total,
+        ),
+      [
+        total,
+      ],
+    );
+
+  const hasItems =
+    cartItems.length > 0;
+
+  /* ==========================================================
+     CHECKOUT
+  ========================================================== */
+
+  const handleCheckoutPress =
+    useCallback(() => {
+      if (
+        !hasItems
+      ) {
+        return;
+      }
+
+      router.push(
+        "/(customer)/shop/checkout",
+      );
+    }, [
+      hasItems,
+    ]);
+
+  /* ==========================================================
+     QUANTITY
+  ========================================================== */
+
+  const handleDecrease =
+    useCallback(
+      (
+        item: CartItem,
+      ) => {
+        const quantity =
+          getSafeQuantity(
+            item.quantity,
+          );
+
+        updateQuantity(
+          item.id,
+          Math.max(
+            1,
+            quantity - 1,
+          ),
+        );
+      },
+      [
+        updateQuantity,
+      ],
+    );
+
+  const handleIncrease =
+    useCallback(
+      (
+        item: CartItem,
+      ) => {
+        const quantity =
+          getSafeQuantity(
+            item.quantity,
+          );
+
+        updateQuantity(
+          item.id,
+          quantity + 1,
+        );
+      },
+      [
+        updateQuantity,
+      ],
+    );
+
+  /* ==========================================================
+     REMOVE
+  ========================================================== */
+
+  const handleRemove =
+    useCallback(
+      (
+        item: CartItem,
+      ) => {
+        removeFromCart(
+          item.id,
+        );
+      },
+      [
+        removeFromCart,
+      ],
+    );
+
+  /* ==========================================================
+     ITEM
+  ========================================================== */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: CartItem;
+      }) => (
+        <CartItemCard
+          item={
+            item
+          }
+          onDecrease={
+            handleDecrease
+          }
+          onIncrease={
+            handleIncrease
+          }
+          onRemove={
+            handleRemove
+          }
+        />
+      ),
+      [
+        handleDecrease,
+        handleIncrease,
+        handleRemove,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: CartItem,
+      ) =>
+        item.id,
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <FlatList
-        data={items as CartItem[]}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <AppText
-            weight="bold"
-            style={styles.title}
-          >
-            My Cart
-          </AppText>
+        data={
+          cartItems
         }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            {item.image ? (
-              <Image
-                source={{
-                  uri: item.image,
-                }}
-                style={styles.image}
-              />
-            ) : (
-              <View
-                style={styles.imagePlaceholder}
-              >
-                <Ionicons
-                  name="cube-outline"
-                  size={28}
-                  color="#94A3B8"
-                />
-              </View>
-            )}
+        keyExtractor={
+          keyExtractor
+        }
+        renderItem={
+          renderItem
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={[
+          styles.listContent,
 
-            <View style={styles.info}>
-              <AppText
-                weight="bold"
-                numberOfLines={2}
-                style={styles.productName}
-              >
-                {item.name}
-              </AppText>
-
-              <AppText style={styles.price}>
-                ₦
-                {item.price.toLocaleString()}
-              </AppText>
-
-              <View style={styles.qtyRow}>
-                <Pressable
-                  onPress={() =>
-                    updateQuantity(
-                      item.id,
-                      Math.max(
-                        1,
-                        item.quantity - 1,
-                      ),
-                    )
-                  }
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Decrease quantity of ${item.name}`}
-                >
-                  <Ionicons
-                    name="remove-circle"
-                    size={28}
-                    color="#2563EB"
-                  />
-                </Pressable>
-
-                <AppText
-                  weight="bold"
-                  style={styles.qty}
-                >
-                  {item.quantity}
-                </AppText>
-
-                <Pressable
-                  onPress={() =>
-                    updateQuantity(
-                      item.id,
-                      item.quantity + 1,
-                    )
-                  }
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Increase quantity of ${item.name}`}
-                >
-                  <Ionicons
-                    name="add-circle"
-                    size={28}
-                    color="#2563EB"
-                  />
-                </Pressable>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() =>
-                removeFromCart(item.id)
-              }
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${item.name} from cart`}
-            >
-              <Ionicons
-                name="trash"
-                size={24}
-                color="#EF4444"
-              />
-            </Pressable>
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons
-              name="cart-outline"
-              size={64}
-              color="#CBD5E1"
-            />
-
+          !hasItems
+            ? styles.emptyListContent
+            : null,
+        ]}
+        ListHeaderComponent={
+          <View
+            style={
+              styles.header
+            }
+          >
             <AppText
+              variant="heading1"
               weight="bold"
-              style={styles.emptyTitle}
+              style={
+                styles.title
+              }
             >
-              Your cart is empty
+              My Cart
             </AppText>
 
-            <AppText style={styles.emptyText}>
-              Add products from the market
-              to continue shopping.
-            </AppText>
+            {hasItems ? (
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.itemCount
+                }
+              >
+                {cartItems.length}{" "}
+                {cartItems.length === 1
+                  ? "item"
+                  : "items"}
+              </AppText>
+            ) : null}
           </View>
+        }
+        ListEmptyComponent={
+          <CartEmptyState />
         }
       />
 
-      <View style={styles.footer}>
-        <View style={styles.totalRow}>
-          <AppText style={styles.totalLabel}>
+      {/* ======================================================
+          FOOTER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.footer
+        }
+      >
+        <View
+          style={
+            styles.totalRow
+          }
+        >
+          <AppText
+            variant="bodyLarge"
+            tone="secondary"
+            style={
+              styles.totalLabel
+            }
+          >
             Total
           </AppText>
 
           <AppText
+            variant="heading2"
             weight="bold"
-            style={styles.totalPrice}
+            style={
+              styles.totalPrice
+            }
           >
             ₦
-            {total.toLocaleString()}
+            {formatMoney(
+              safeTotal,
+            )}
           </AppText>
         </View>
 
         <Pressable
-          style={({ pressed }) => [
-            styles.checkoutButton,
-            items.length === 0 &&
-              styles.disabledButton,
-            pressed &&
-              items.length > 0 &&
-              styles.buttonPressed,
-          ]}
-          disabled={items.length === 0}
-          onPress={handleCheckoutPress}
+          disabled={
+            !hasItems
+          }
+          onPress={
+            handleCheckoutPress
+          }
           accessibilityRole="button"
           accessibilityLabel="Proceed to checkout"
+          accessibilityState={{
+            disabled:
+              !hasItems,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.checkoutButton,
+
+            !hasItems
+              ? styles.checkoutButtonDisabled
+              : null,
+
+            pressed &&
+            hasItems
+              ? styles.pressed
+              : null,
+          ]}
         >
           <AppText
+            variant="body"
             weight="bold"
-            style={styles.checkoutText}
+            style={[
+              styles.checkoutText,
+
+              !hasItems
+                ? styles.checkoutTextDisabled
+                : null,
+            ]}
           >
             Proceed to Checkout
           </AppText>
+
+          <AppIcon
+            name="next"
+            size="sm"
+            color={
+              hasItems
+                ? Colors.textInverse
+                : Colors.textMuted
+            }
+          />
         </Pressable>
       </View>
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    paddingBottom: 180,
-  },
+/* ============================================================
+   CART ITEM
+============================================================ */
 
-  title: {
-    fontSize: 28,
-    marginBottom: 20,
-    color: "#111827",
-  },
+const CartItemCard =
+  memo(
+    function CartItemCard({
+      item,
+      onDecrease,
+      onIncrease,
+      onRemove,
+    }: CartItemCardProps) {
+      const name =
+        item.name?.trim() ||
+        "Product";
 
-  card: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 14,
-    alignItems: "center",
-  },
+      const image =
+        typeof item.image ===
+          "string"
+          ? item.image.trim()
+          : "";
 
-  image: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-  },
+      const quantity =
+        getSafeQuantity(
+          item.quantity,
+        );
 
-  imagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      const price =
+        getSafePrice(
+          item.price,
+        );
 
-  info: {
-    flex: 1,
-    marginHorizontal: 14,
-  },
+      return (
+        <View
+          style={
+            styles.card
+          }
+        >
+          {/* ==================================================
+              IMAGE
+          ================================================== */}
 
-  productName: {
-    fontSize: 16,
-    color: "#111827",
-  },
+          {image ? (
+            <Image
+              source={{
+                uri:
+                  image,
+              }}
+              style={
+                styles.image
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={150}
+              accessibilityLabel={`${name} product image`}
+            />
+          ) : (
+            <View
+              style={
+                styles.imagePlaceholder
+              }
+            >
+              <AppIcon
+                name="package"
+                size="lg"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </View>
+          )}
 
-  price: {
-    marginTop: 6,
-    color: "#2563EB",
-    fontSize: 17,
-    fontWeight: "700",
-  },
+          {/* ==================================================
+              INFO
+          ================================================== */}
 
-  qtyRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-  },
+          <View
+            style={
+              styles.info
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              numberOfLines={2}
+              style={
+                styles.productName
+              }
+            >
+              {name}
+            </AppText>
 
-  qty: {
-    marginHorizontal: 14,
-    color: "#111827",
-  },
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.price
+              }
+            >
+              ₦
+              {formatMoney(
+                price,
+              )}
+            </AppText>
 
-  footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
+            {/* ================================================
+                QUANTITY
+            ================================================ */}
 
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 18,
-  },
+            <View
+              style={
+                styles.qtyRow
+              }
+            >
+              <Pressable
+                onPress={() => {
+                  onDecrease(
+                    item,
+                  );
+                }}
+                disabled={
+                  quantity <= 1
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Decrease quantity of ${name}`}
+                accessibilityState={{
+                  disabled:
+                    quantity <= 1,
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.quantityButton,
 
-  totalLabel: {
-    fontSize: 18,
-    color: "#64748B",
-  },
+                  quantity <= 1
+                    ? styles.quantityButtonDisabled
+                    : null,
 
-  totalPrice: {
-    fontSize: 24,
-    color: "#111827",
-  },
+                  pressed &&
+                  quantity > 1
+                    ? styles.quantityPressed
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name="close"
+                  size="xs"
+                  color={
+                    quantity <= 1
+                      ? Colors.textMuted
+                      : CustomerColors.primary
+                  }
+                />
+              </Pressable>
 
-  checkoutButton: {
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#2563EB",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+              <View
+                style={
+                  styles.quantityValue
+                }
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.qty
+                  }
+                >
+                  {quantity}
+                </AppText>
+              </View>
 
-  checkoutText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-  },
+              <Pressable
+                onPress={() => {
+                  onIncrease(
+                    item,
+                  );
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Increase quantity of ${name}`}
+                style={({
+                  pressed,
+                }) => [
+                  styles.quantityButton,
 
-  disabledButton: {
-    opacity: 0.5,
-  },
+                  pressed
+                    ? styles.quantityPressed
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name="add"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </Pressable>
+            </View>
+          </View>
 
-  buttonPressed: {
-    opacity: 0.8,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+          {/* ==================================================
+              REMOVE
+          ================================================== */}
 
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 80,
-  },
+          <Pressable
+            onPress={() => {
+              onRemove(
+                item,
+              );
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${name} from cart`}
+            style={({
+              pressed,
+            }) => [
+              styles.removeButton,
 
-  emptyTitle: {
-    marginTop: 16,
-    fontSize: 20,
-  },
+              pressed
+                ? styles.removePressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="delete"
+              size="sm"
+              color={
+                Colors.error
+              }
+            />
+          </Pressable>
+        </View>
+      );
+    },
+  );
 
-  emptyText: {
-    marginTop: 8,
-    textAlign: "center",
-    color: "#64748B",
-    lineHeight: 20,
-  },
-});
+CartItemCard.displayName =
+  "CartItemCard";
+
+/* ============================================================
+   EMPTY
+============================================================ */
+
+const CartEmptyState =
+  memo(
+    function CartEmptyState() {
+      return (
+        <View
+          style={
+            styles.empty
+          }
+        >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="cart"
+              role="customer"
+              size="xl"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            center
+            style={
+              styles.emptyTitle
+            }
+          >
+            Your cart is empty
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
+          >
+            Add products from the market to continue shopping.
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+CartEmptyState.displayName =
+  "CartEmptyState";
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
+
+    listContent: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+    },
+
+    emptyListContent: {
+      flexGrow: 1,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      flex: 1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    itemCount: {
+      flexShrink: 0,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PRODUCT CARD
+    ======================================================== */
+
+    card: {
+      minHeight: 108,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    image: {
+      width: 80,
+
+      height: 80,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    imagePlaceholder: {
+      width: 80,
+
+      height: 80,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    productName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       QUANTITY
+    ======================================================== */
+
+    qtyRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    quantityButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    quantityButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    quantityPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    quantityValue: {
+      minWidth: 36,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    qty: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       REMOVE
+    ======================================================== */
+
+    removeButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    removePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    empty: {
+      flex: 1,
+
+      minHeight: 360,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    emptyText: {
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
+    footer: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    totalRow: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    totalLabel: {
+      color:
+        Colors.textSecondary,
+    },
+
+    totalPrice: {
+      color:
+        Colors.textPrimary,
+    },
+
+    checkoutButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    checkoutButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    checkoutText: {
+      color:
+        Colors.textInverse,
+    },
+
+    checkoutTextDisabled: {
+      color:
+        Colors.textMuted,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

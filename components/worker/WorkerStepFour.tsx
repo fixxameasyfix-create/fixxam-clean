@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   StyleSheet,
@@ -13,24 +16,49 @@ import {
 import ProfilePhotoPreview from "@/components/worker/ProfilePhotoPreview";
 import WorkerWorkGallery from "@/components/customer/WorkerWorkGallery";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   photo: string | null;
 
   onUploadPhoto: () => void;
+
   onCapturePhoto: () => void;
 
   about: string;
-  setAbout: (value: string) => void;
+
+  setAbout: (
+    value: string,
+  ) => void;
 
   workGallery: string[];
 
   onAddWorkPhoto: () => void;
+
   onRemoveWorkPhoto: (
     index: number,
   ) => void;
 };
 
-export default function WorkerStepFour({
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_ABOUT_LENGTH = 500;
+const MAX_WORK_IMAGES = 6;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerStepFour({
   photo,
 
   onUploadPhoto,
@@ -44,16 +72,41 @@ export default function WorkerStepFour({
   onAddWorkPhoto,
   onRemoveWorkPhoto,
 }: Props) {
+  const handleAboutChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setAbout(
+          value.slice(
+            0,
+            MAX_ABOUT_LENGTH,
+          ),
+        );
+      },
+      [setAbout],
+    );
+
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* =====================================================
           PROFILE PHOTO
       ===================================================== */}
 
       <ProfilePhotoPreview
-        photo={photo}
-        onUpload={onUploadPhoto}
-        onCapture={onCapturePhoto}
+        photo={
+          photo
+        }
+        onUpload={
+          onUploadPhoto
+        }
+        onCapture={
+          onCapturePhoto
+        }
         variant="worker"
       />
 
@@ -61,33 +114,57 @@ export default function WorkerStepFour({
           ABOUT
       ===================================================== */}
 
-      <View style={styles.aboutSection}>
+      <View
+        style={
+          styles.aboutSection
+        }
+      >
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           About you and your skills
         </AppText>
 
-        <AppText style={styles.subtitle}>
-          Tell customers a little about your
-          experience and skills.
+        <AppText
+          variant="body"
+          tone="secondary"
+          style={
+            styles.subtitle
+          }
+        >
+          Tell customers a little about your experience and skills.
         </AppText>
 
         <AppInput
           label="About you (Optional)"
           placeholder="Describe your skills and experience..."
-          value={about}
-          onChangeText={setAbout}
+          value={
+            about
+          }
+          onChangeText={
+            handleAboutChange
+          }
           variant="worker"
           multiline
           numberOfLines={4}
-          maxLength={500}
+          maxLength={
+            MAX_ABOUT_LENGTH
+          }
           textAlignVertical="top"
         />
 
-        <AppText style={styles.counter}>
-          {about.length}/500
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.counter
+          }
+        >
+          {about.length}/{MAX_ABOUT_LENGTH}
         </AppText>
       </View>
 
@@ -96,70 +173,86 @@ export default function WorkerStepFour({
       ===================================================== */}
 
       <WorkerWorkGallery
-        images={workGallery}
-        onAdd={onAddWorkPhoto}
-        onRemove={onRemoveWorkPhoto}
-        maxImages={6}
+        images={
+          workGallery
+        }
+        onAdd={
+          onAddWorkPhoto
+        }
+        onRemove={
+          onRemoveWorkPhoto
+        }
+        maxImages={
+          MAX_WORK_IMAGES
+        }
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-  },
+export default memo(
+  WorkerStepFour,
+);
 
-  aboutSection: {
-    marginTop: 8,
-    marginHorizontal: 12,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    padding: 12,
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 16,
-
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const styles =
+  StyleSheet.create({
+    container: {
+      width:
+        "100%",
     },
 
-    elevation: 2,
-  },
+    aboutSection: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-  title: {
-    fontSize: 17,
+      marginHorizontal:
+        FixxamTokens.spacing.md,
 
-    color: "#111827",
+      padding:
+        FixxamTokens.spacing.md,
 
-    marginBottom: 4,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  subtitle: {
-    fontSize: 12,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    lineHeight: 17,
+      borderWidth: 1,
 
-    color: "#64748B",
+      borderColor:
+        Colors.border,
 
-    marginBottom: 10,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  counter: {
-    fontSize: 10,
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-    color: "#94A3B8",
+      color:
+        Colors.textPrimary,
+    },
 
-    textAlign: "right",
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    marginTop: 4,
-  },
-});
+      color:
+        Colors.textSecondary,
+    },
+
+    counter: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      textAlign:
+        "right",
+
+      color:
+        Colors.textMuted,
+    },
+  });

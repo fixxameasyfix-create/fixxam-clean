@@ -1,16 +1,35 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   images: string[];
@@ -24,335 +43,686 @@ type Props = {
   maxImages?: number;
 };
 
-export default function WorkerWorkGallery({
+type GalleryImageProps = {
+  uri: string;
+
+  index: number;
+
+  onRemove: (
+    index: number,
+  ) => void;
+};
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const DEFAULT_MAX_IMAGES =
+  6;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeLimit(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return DEFAULT_MAX_IMAGES;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(
+      value,
+    ),
+  );
+}
+
+/* ==============================================================
+   GALLERY IMAGE
+============================================================== */
+
+const GalleryImage =
+  memo(function GalleryImage({
+    uri,
+    index,
+    onRemove,
+  }: GalleryImageProps) {
+    const [
+      imageFailed,
+      setImageFailed,
+    ] =
+      useState(false);
+
+    const cleanUri =
+      cleanString(
+        uri,
+      );
+
+    useEffect(() => {
+      setImageFailed(
+        false,
+      );
+    }, [
+      cleanUri,
+    ]);
+
+    const showImage =
+      Boolean(
+        cleanUri,
+      ) &&
+      !imageFailed;
+
+    return (
+      <View
+        style={
+          styles.imageWrapper
+        }
+      >
+        {showImage ? (
+          <Image
+            source={{
+              uri:
+                cleanUri,
+            }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={
+              FixxamTokens.motion.fast
+            }
+            style={
+              styles.image
+            }
+            accessibilityLabel={`Work photo ${
+              index + 1
+            }`}
+            onError={() =>
+              setImageFailed(
+                true,
+              )
+            }
+          />
+        ) : (
+          <View
+            style={
+              styles.imageFallback
+            }
+          >
+            <AppIcon
+              name="image"
+              role="worker"
+              size="lg"
+              state="muted"
+            />
+          </View>
+        )}
+
+        {/* ====================================================
+            REMOVE
+        ==================================================== */}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove work photo ${
+            index + 1
+          }`}
+          hitSlop={6}
+          onPress={() =>
+            onRemove(
+              index,
+            )
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.removeButton,
+
+            pressed
+              ? styles.removePressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="close"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
+        </Pressable>
+      </View>
+    );
+  });
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerWorkGallery({
   images,
   onAdd,
   onRemove,
-  maxImages = 6,
+  maxImages = DEFAULT_MAX_IMAGES,
 }: Props) {
+  const safeImages =
+    Array.isArray(
+      images,
+    )
+      ? images
+      : [];
+
+  const safeMaxImages =
+    normalizeLimit(
+      maxImages,
+    );
+
+  const imageCount =
+    safeImages.length;
+
   const canAdd =
-    images.length < maxImages;
+    imageCount <
+    safeMaxImages;
+
+  const countLabel =
+    useMemo(
+      () =>
+        `${imageCount}/${safeMaxImages}`,
+      [
+        imageCount,
+        safeMaxImages,
+      ],
+    );
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
-      <View style={styles.header}>
-        <View style={styles.headerText}>
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerText
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.title}
           >
             Work Gallery
           </AppText>
 
-          <AppText style={styles.subtitle}>
-            Show customers examples of your work.
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
+            Show customers examples
+            of your work.
           </AppText>
         </View>
 
-        <AppText style={styles.count}>
-          {images.length}/{maxImages}
-        </AppText>
+        <View
+          style={
+            styles.countChip
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.count
+            }
+          >
+            {countLabel}
+          </AppText>
+        </View>
       </View>
 
-      {/* HORIZONTAL GALLERY */}
+      {/* ======================================================
+          GALLERY
+      ====================================================== */}
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.gallery
         }
-        keyboardShouldPersistTaps="handled"
       >
-        {images.map(
-          (image, index) => (
-            <View
+        {safeImages.map(
+          (
+            image,
+            index,
+          ) => (
+            <GalleryImage
               key={`${image}-${index}`}
-              style={styles.imageWrapper}
-            >
-              <Image
-                source={{
-                  uri: image,
-                }}
-                style={styles.image}
-                resizeMode="cover"
-              />
-
-              <Pressable
-                onPress={() =>
-                  onRemove(index)
-                }
-                style={({ pressed }) => [
-                  styles.removeButton,
-                  pressed &&
-                    styles.removePressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove work photo ${index + 1}`}
-                hitSlop={6}
-              >
-                <Ionicons
-                  name="close"
-                  size={15}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-            </View>
+              uri={
+                image
+              }
+              index={
+                index
+              }
+              onRemove={
+                onRemove
+              }
+            />
           ),
         )}
 
-        {/* ADD BUTTON */}
+        {/* ====================================================
+            ADD PHOTO
+        ==================================================== */}
 
-        {canAdd && (
+        {canAdd ? (
           <Pressable
-            onPress={onAdd}
-            style={({ pressed }) => [
-              styles.addButton,
-              pressed &&
-                styles.addPressed,
-            ]}
             accessibilityRole="button"
             accessibilityLabel="Add work photo"
+            accessibilityHint={`You can add up to ${safeMaxImages} work photos`}
+            onPress={
+              onAdd
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.addButton,
+
+              pressed
+                ? styles.addPressed
+                : null,
+            ]}
           >
             <View
-              style={styles.addIcon}
+              style={
+                styles.addIcon
+              }
             >
-              <Ionicons
+              <AppIcon
                 name="add"
-                size={25}
-                color="#F97316"
+                role="worker"
+                size="md"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.addText}
+              style={
+                styles.addText
+              }
             >
               Add Photo
             </AppText>
           </Pressable>
-        )}
+        ) : null}
       </ScrollView>
 
-      {/* NOTE */}
+      {/* ======================================================
+          NOTE
+      ====================================================== */}
 
-      <AppText style={styles.note}>
-        Optional · You can add up to{" "}
-        {maxImages} photos.
-      </AppText>
+      <View
+        style={
+          styles.noteRow
+        }
+      >
+        <AppIcon
+          name="info"
+          role="worker"
+          size="xs"
+          state="muted"
+        />
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          style={
+            styles.note
+          }
+        >
+          Optional · You can add up
+          to {safeMaxImages} photos.
+        </AppText>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 8,
-    marginHorizontal: 12,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    padding: 12,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-    backgroundColor: "#FFFFFF",
+    container: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    borderRadius: 16,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+      padding:
+        FixxamTokens.spacing.md,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+      borderWidth: 1,
 
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  header: {
-    flexDirection: "row",
+    header: {
+      flexDirection:
+        "row",
 
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    justifyContent: "space-between",
+      justifyContent:
+        "space-between",
 
-    marginBottom: 12,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  headerText: {
-    flex: 1,
-  },
+    headerText: {
+      flex: 1,
 
-  title: {
-    fontSize: 17,
+      minWidth: 0,
 
-    color: "#111827",
+      paddingRight:
+        FixxamTokens.spacing.sm,
+    },
 
-    marginBottom: 3,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-  subtitle: {
-    fontSize: 11,
+    countChip: {
+      minHeight: 28,
 
-    lineHeight: 16,
+      flexShrink: 0,
 
-    color: "#64748B",
-  },
+      alignItems:
+        "center",
 
-  count: {
-    fontSize: 11,
+      justifyContent:
+        "center",
 
-    fontWeight: "700",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    color: "#94A3B8",
+      borderRadius:
+        FixxamTokens.radius.chip,
 
-    marginLeft: 8,
-  },
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
 
-  /*
-   * ============================================================
-   * HORIZONTAL GALLERY
-   * ============================================================
-   */
+    count: {
+      color:
+        WorkerColors.primary,
+    },
 
-  gallery: {
-    flexDirection: "row",
+    /* ========================================================
+       GALLERY
+    ======================================================== */
 
-    alignItems: "center",
+    gallery: {
+      flexDirection:
+        "row",
 
-    gap: 10,
+      alignItems:
+        "center",
 
-    paddingRight: 4,
-  },
+      gap:
+        FixxamTokens.spacing.sm,
 
-  /*
-   * Landscape 16:9 image
-   *
-   * 128 x 72
-   */
+      paddingRight:
+        FixxamTokens.spacing.xs,
+    },
 
-  imageWrapper: {
-    width: 128,
-    height: 72,
+    /* ========================================================
+       IMAGE
+    ======================================================== */
 
-    borderRadius: 10,
+    imageWrapper: {
+      position:
+        "relative",
 
-    overflow: "hidden",
+      width: 128,
 
-    backgroundColor: "#F8FAFC",
+      height: 72,
 
-    position: "relative",
-  },
+      overflow:
+        "hidden",
 
-  image: {
-    width: "100%",
-    height: "100%",
-  },
+      borderWidth: 1,
 
-  /*
-   * ============================================================
-   * REMOVE
-   * ============================================================
-   */
+      borderColor:
+        Colors.border,
 
-  removeButton: {
-    position: "absolute",
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    top: 5,
-    right: 5,
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-    width: 23,
-    height: 23,
+    image: {
+      width:
+        "100%",
 
-    borderRadius: 12,
+      height:
+        "100%",
+    },
 
-    backgroundColor:
-      "rgba(15, 23, 42, 0.78)",
+    imageFallback: {
+      flex: 1,
 
-    justifyContent: "center",
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    zIndex: 2,
-  },
+      justifyContent:
+        "center",
 
-  removePressed: {
-    opacity: 0.65,
-    transform: [
-      {
-        scale: 0.92,
-      },
-    ],
-  },
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  /*
-   * ============================================================
-   * ADD PHOTO
-   * ============================================================
-   */
+    /* ========================================================
+       REMOVE
+    ======================================================== */
 
-  addButton: {
-    width: 128,
-    height: 72,
+    removeButton: {
+      position:
+        "absolute",
 
-    borderRadius: 10,
+      top:
+        FixxamTokens.spacing.xs,
 
-    borderWidth: 1.5,
+      right:
+        FixxamTokens.spacing.xs,
 
-    borderColor: "#FDBA74",
+      width: 28,
 
-    borderStyle: "dashed",
+      height: 28,
 
-    backgroundColor: "#FFF7ED",
+      alignItems:
+        "center",
 
-    justifyContent: "center",
+      justifyContent:
+        "center",
 
-    alignItems: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  addIcon: {
-    width: 28,
-    height: 28,
+      backgroundColor:
+        Colors.error,
 
-    borderRadius: 14,
+      ...FixxamTokens.shadow.card,
+    },
 
-    backgroundColor: "#FFEDD5",
+    removePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    alignItems: "center",
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-    justifyContent: "center",
+    /* ========================================================
+       ADD PHOTO
+    ======================================================== */
 
-    marginBottom: 2,
-  },
+    addButton: {
+      width: 128,
 
-  addText: {
-    fontSize: 10,
+      height: 72,
 
-    color: "#F97316",
-  },
+      alignItems:
+        "center",
 
-  addPressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.98,
-      },
-    ],
-  },
+      justifyContent:
+        "center",
 
-  /*
-   * ============================================================
-   * NOTE
-   * ============================================================
-   */
+      borderWidth: 1,
 
-  note: {
-    fontSize: 9,
+      borderStyle:
+        "dashed",
 
-    color: "#94A3B8",
+      borderColor:
+        WorkerColors.primary,
 
-    marginTop: 9,
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    addIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    addText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    addPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       NOTE
+    ======================================================== */
+
+    noteRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    note: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+  });
+
+export default memo(
+  WorkerWorkGallery,
+);

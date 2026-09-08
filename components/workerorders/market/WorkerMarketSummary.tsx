@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -9,14 +11,28 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
 /* ============================================================
    TYPES
 ============================================================ */
 
 type Props = {
   subtotal: number;
+
   deliveryFee: number;
+
   total: number;
+};
+
+type SummaryRowProps = {
+  label: string;
+
+  value: string;
 };
 
 /* ============================================================
@@ -36,11 +52,23 @@ function safeMoney(
   if (
     typeof value === "string"
   ) {
+    const normalized =
+      value
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
+        .trim();
+
     const parsed =
-      Number(value);
+      Number(
+        normalized,
+      );
 
     if (
-      Number.isFinite(parsed)
+      Number.isFinite(
+        parsed,
+      )
     ) {
       return parsed;
     }
@@ -50,12 +78,19 @@ function safeMoney(
 }
 
 function formatMoney(
-  value: number,
+  value: unknown,
 ): string {
-  return `₦${safeMoney(
-    value,
-  ).toLocaleString(
+  const amount =
+    safeMoney(
+      value,
+    );
+
+  return `₦${amount.toLocaleString(
     "en-NG",
+    {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    },
   )}`;
 }
 
@@ -63,32 +98,45 @@ function formatMoney(
    SUMMARY ROW
 ============================================================ */
 
-function SummaryRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <View
-      style={styles.row}
-    >
-      <AppText
-        style={styles.label}
-      >
-        {label}
-      </AppText>
+const SummaryRow =
+  memo(
+    function SummaryRow({
+      label,
+      value,
+    }: SummaryRowProps) {
+      return (
+        <View
+          style={
+            styles.row
+          }
+        >
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.label
+            }
+          >
+            {label}
+          </AppText>
 
-      <AppText
-        weight="bold"
-        style={styles.value}
-      >
-        {value}
-      </AppText>
-    </View>
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.value
+            }
+          >
+            {value}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
+
+SummaryRow.displayName =
+  "WorkerMarketSummaryRow";
 
 /* ============================================================
    COMPONENT
@@ -100,18 +148,29 @@ function WorkerMarketSummary({
   total,
 }: Props) {
   const safeSubtotal =
-    safeMoney(subtotal);
+    safeMoney(
+      subtotal,
+    );
 
   const safeDeliveryFee =
-    safeMoney(deliveryFee);
+    safeMoney(
+      deliveryFee,
+    );
 
   const safeTotal =
-    safeMoney(total);
+    safeMoney(
+      total,
+    );
 
   const calculatedTotal =
     safeSubtotal +
     safeDeliveryFee;
 
+  /*
+   * Preserve the existing behavior:
+   * if total is zero but calculated values
+   * contain an amount, use the calculated total.
+   */
   const displayTotal =
     safeTotal > 0 ||
     calculatedTotal === 0
@@ -120,46 +179,92 @@ function WorkerMarketSummary({
 
   return (
     <View
-      style={styles.card}
+      style={
+        styles.card
+      }
+      accessibilityLabel={`Order summary. Subtotal ${formatMoney(
+        safeSubtotal,
+      )}. Delivery fee ${formatMoney(
+        safeDeliveryFee,
+      )}. Total ${formatMoney(
+        displayTotal,
+      )}.`}
     >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Order Summary
       </AppText>
 
-      <SummaryRow
-        label="Subtotal"
-        value={formatMoney(
-          safeSubtotal,
-        )}
-      />
-
-      <SummaryRow
-        label="Delivery fee"
-        value={formatMoney(
-          safeDeliveryFee,
-        )}
-      />
+      {/* ======================================================
+          BREAKDOWN
+      ====================================================== */}
 
       <View
-        style={styles.divider}
-      />
+        style={
+          styles.breakdown
+        }
+      >
+        <SummaryRow
+          label="Subtotal"
+          value={formatMoney(
+            safeSubtotal,
+          )}
+        />
+
+        <SummaryRow
+          label="Delivery fee"
+          value={formatMoney(
+            safeDeliveryFee,
+          )}
+        />
+      </View>
+
+      {/* ======================================================
+          DIVIDER
+      ====================================================== */}
 
       <View
-        style={styles.totalRow}
+        style={
+          styles.divider
+        }
+      />
+
+      {/* ======================================================
+          TOTAL
+      ====================================================== */}
+
+      <View
+        style={
+          styles.totalRow
+        }
       >
         <AppText
+          variant="bodyLarge"
           weight="bold"
-          style={styles.totalLabel}
+          style={
+            styles.totalLabel
+          }
         >
           Total
         </AppText>
 
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.totalValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={
+            styles.totalValue
+          }
         >
           {formatMoney(
             displayTotal,
@@ -169,6 +274,13 @@ function WorkerMarketSummary({
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerMarketSummary.displayName =
+  "WorkerMarketSummary";
 
 export default memo(
   WorkerMarketSummary,
@@ -181,57 +293,122 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: 20,
-      padding: 17,
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     title: {
-      fontSize: 16,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       BREAKDOWN
+    ======================================================== */
+
+    breakdown: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     row: {
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight: 28,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
-      marginTop: 11,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     label: {
-      fontSize: 12,
-      color: "#64748B",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
     value: {
-      fontSize: 12,
-      color: "#334155",
+      flexShrink: 0,
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
 
     divider: {
       height: 1,
-      backgroundColor: "#E2E8F0",
-      marginVertical: 15,
+
+      marginVertical:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.divider,
     },
 
+    /* ========================================================
+       TOTAL
+    ======================================================== */
+
     totalRow: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     totalLabel: {
-      fontSize: 15,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     totalValue: {
-      fontSize: 22,
-      color: "#2563EB",
+      flexShrink: 1,
+
+      textAlign: "right",
+
+      color:
+        WorkerColors.primary,
     },
   });

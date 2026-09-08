@@ -1,62 +1,33 @@
-import React from "react";
+import React, { memo } from "react";
 
-import {
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import AuthHeader from "@/components/auth/AuthHeader";
 
-export default function LoginHeader() {
+import type { FixxamRole } from "@/theme";
+
+export interface LoginHeaderProps {
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
+  variant?: "customer" | "worker";
+}
+
+function LoginHeader({
+  role = "customer",
+  variant,
+}: LoginHeaderProps) {
+  const resolvedRole: FixxamRole =
+    variant ?? role;
+
   return (
-    <View style={styles.container}>
-      <Text
-        style={styles.title}
-        accessibilityRole="header"
-      >
-        Welcome back
-      </Text>
-
-      <Text style={styles.subtitle}>
-        Sign in to continue with your account
-      </Text>
-    </View>
+    <AuthHeader
+      title="Welcome back"
+      subtitle="Sign in to continue with your account."
+      icon="lock"
+      role={resolvedRole}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-
-    paddingHorizontal: 24,
-
-    paddingTop: 42,
-
-    paddingBottom: 26,
-  },
-
-  title: {
-    color: "#0B1F3A",
-
-    fontSize: 34,
-
-    lineHeight: 42,
-
-    fontWeight: "800",
-
-    letterSpacing: -0.7,
-  },
-
-  subtitle: {
-    marginTop: 8,
-
-    color: "#64748B",
-
-    fontSize: 16,
-
-    lineHeight: 23,
-
-    fontWeight: "400",
-
-    maxWidth: 320,
-  },
-});
+export default memo(LoginHeader);

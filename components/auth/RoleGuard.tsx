@@ -1,22 +1,23 @@
-import React from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  View,
-} from "react-native";
+import React, {
+  type ReactNode,
+} from "react";
+
+import AppLoader from "@/components/common/AppLoader";
 
 import { useAuth } from "@/hooks/useAuth";
 import useUserProfile from "@/hooks/auth/useUserProfile";
 
-type Props = {
-  role: "customer" | "worker";
-  children: React.ReactNode;
-};
+import type { FixxamRole } from "@/theme";
+
+export interface RoleGuardProps {
+  role: FixxamRole;
+  children: ReactNode;
+}
 
 export default function RoleGuard({
   role,
   children,
-}: Props) {
+}: RoleGuardProps) {
   const {
     user,
     loading: authLoading,
@@ -27,53 +28,58 @@ export default function RoleGuard({
     loading: profileLoading,
   } = useUserProfile();
 
-  // Wait until auth is ready
+  /*
+   * Wait until authentication state is ready.
+   */
   if (authLoading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
-      </View>
+      <AppLoader
+        role={role}
+        message="Please wait..."
+      />
     );
   }
 
-  // User is not authenticated.
-  // Root layout / RoleResolver will redirect.
+  /*
+   * User is not authenticated.
+   * Root layout / RoleResolver handles navigation.
+   */
   if (!user) {
     return null;
   }
 
-  // Wait until Firestore profile snapshot arrives.
+  /*
+   * Wait for Firestore profile.
+   */
   if (profileLoading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
-      </View>
+      <AppLoader
+        role={role}
+        message="Loading profile..."
+      />
     );
   }
 
-  // Profile not found.
-  // RoleResolver will handle navigation.
+  /*
+   * Profile not found.
+   * RoleResolver handles navigation.
+   */
   if (!profile) {
     return null;
   }
 
-  // Wrong active role.
-  // Keep a loader visible while RoleResolver redirects.
+  /*
+   * Wrong active role.
+   * Keep loader visible while RoleResolver redirects.
+   */
   if (profile.activeRole !== role) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
-      </View>
+      <AppLoader
+        role={role}
+        message="Switching workspace..."
+      />
     );
   }
 
   return <>{children}</>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-});

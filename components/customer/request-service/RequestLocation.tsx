@@ -5,9 +5,9 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -17,98 +17,96 @@ import {
 
 import * as Location from "expo-location";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import BookingLocationType from "./BookingLocationType";
 
 import BookingManualLocation, {
-  BookingLocationSuggestion,
+  type BookingLocationSuggestion,
 } from "./BookingManualLocation";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Coordinates = {
   latitude: number;
   longitude: number;
 };
 
-type SelectedLocation = Coordinates & {
-  address?: string;
-};
+type SelectedLocation =
+  Coordinates & {
+    address?: string;
+  };
 
 type LocationType =
   | "current"
   | "manual";
 
 type Props = {
-  /*
-   * Whether a location has already
-   * been selected by the customer.
-   */
   selected: boolean;
 
-  /*
-   * Address currently displayed on
-   * the service location card.
-   */
   address?: string;
 
-  /*
-   * Called when customer opens/selects
-   * the location card.
-   */
   onPress: () => void;
 
-  /*
-   * Returns the final selected location
-   * to the parent screen.
-   */
   onLocationSelected?: (
     location: SelectedLocation,
   ) => void;
 
-  /*
-   * Disable the entire location selector.
-   */
   disabled?: boolean;
 
-  /*
-   * Existing/current coordinates supplied
-   * by the parent as a fallback.
-   */
   currentLocation?: Coordinates | null;
 
-  /*
-   * Location search suggestions.
-   */
   suggestions?: BookingLocationSuggestion[];
 
-  /*
-   * Whether location suggestions are
-   * currently loading.
-   */
   suggestionsLoading?: boolean;
 
-  /*
-   * Search callback connected to the
-   * parent/useBookingLocation hook.
-   */
   onSearchLocation?: (
     query: string,
   ) => void;
 };
 
-/*
- * ============================================================
- * COMPONENT
- * ============================================================
- */
+/* ==============================================================
+   COORDINATE VALIDATION
+============================================================== */
+
+function isValidCoordinates(
+  latitude: number,
+  longitude: number,
+): boolean {
+  return (
+    Number.isFinite(
+      latitude,
+    ) &&
+    Number.isFinite(
+      longitude,
+    ) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 export default function RequestLocation({
   selected,
@@ -117,96 +115,135 @@ export default function RequestLocation({
   onLocationSelected,
   disabled = false,
   currentLocation = null,
-
   suggestions = [],
-
   suggestionsLoading = false,
-
   onSearchLocation,
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
   /* ============================================================
-     MODAL STATE
+     MODAL
   ============================================================ */
 
-  const [visible, setVisible] =
+  const [
+    visible,
+    setVisible,
+  ] =
     useState(false);
 
-  const [locationType, setLocationType] =
-    useState<LocationType>("current");
+  const [
+    locationType,
+    setLocationType,
+  ] =
+    useState<LocationType>(
+      "current",
+    );
 
   const [
     selectedLocationType,
     setSelectedLocationType,
-  ] = useState<LocationType | null>(
-    null,
-  );
+  ] =
+    useState<LocationType | null>(
+      null,
+    );
 
-  const [manualAddress, setManualAddress] =
+  /* ============================================================
+     MANUAL LOCATION
+  ============================================================ */
+
+  const [
+    manualAddress,
+    setManualAddress,
+  ] =
     useState("");
 
-  /*
-   * Coordinates selected from a location
-   * search suggestion.
-   */
   const [
     manualCoordinates,
     setManualCoordinates,
-  ] = useState<Coordinates | null>(
-    null,
-  );
+  ] =
+    useState<Coordinates | null>(
+      null,
+    );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   const [
     selectingCurrent,
     setSelectingCurrent,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const [
+    confirmingManual,
+    setConfirmingManual,
+  ] =
+    useState(false);
+
+  const busy =
+    selectingCurrent ||
+    confirmingManual;
 
   /* ============================================================
-     OPEN MODAL
+     OPEN
   ============================================================ */
 
-  const openModal = useCallback(() => {
-    if (disabled) {
-      return;
-    }
+  const openModal =
+    useCallback(() => {
+      if (disabled) {
+        return;
+      }
 
-    /*
-     * Always start from current location.
-     */
-    setLocationType("current");
+      setLocationType(
+        "current",
+      );
 
-    /*
-     * Do not copy the existing address
-     * into manual search.
-     */
-    setManualAddress("");
+      setManualAddress(
+        "",
+      );
 
-    setManualCoordinates(null);
+      setManualCoordinates(
+        null,
+      );
 
-    setVisible(true);
+      onSearchLocation?.(
+        "",
+      );
 
-    onPress();
-  }, [
-    disabled,
-    onPress,
-  ]);
+      setVisible(
+        true,
+      );
+
+      onPress();
+    }, [
+      disabled,
+      onPress,
+      onSearchLocation,
+    ]);
 
   /* ============================================================
-     CLOSE MODAL
+     CLOSE
   ============================================================ */
 
-  const closeModal = useCallback(() => {
-    /*
-     * Prevent closing while GPS is being
-     * requested.
-     */
-    if (selectingCurrent) {
-      return;
-    }
+  const closeModal =
+    useCallback(() => {
+      if (busy) {
+        return;
+      }
 
-    setVisible(false);
-  }, [
-    selectingCurrent,
-  ]);
+      setVisible(
+        false,
+      );
+
+      onSearchLocation?.(
+        "",
+      );
+    }, [
+      busy,
+      onSearchLocation,
+    ]);
 
   /* ============================================================
      LOCATION TYPE
@@ -214,109 +251,155 @@ export default function RequestLocation({
 
   const handleTypeChange =
     useCallback(
-      (type: LocationType) => {
-        setLocationType(type);
-
-        /*
-         * Manual search starts clean.
-         */
-        if (type === "manual") {
-          setManualAddress("");
-
-          setManualCoordinates(null);
-
-          /*
-           * Clear previous search results
-           * through the parent hook.
-           */
-          onSearchLocation?.("");
-
+      (
+        type: LocationType,
+      ) => {
+        if (busy) {
           return;
         }
 
-        /*
-         * Switching back to current location
-         * should clear manual selection.
-         */
-        setManualAddress("");
+        setLocationType(
+          type,
+        );
 
-        setManualCoordinates(null);
+        setManualAddress(
+          "",
+        );
 
-        onSearchLocation?.("");
+        setManualCoordinates(
+          null,
+        );
+
+        onSearchLocation?.(
+          "",
+        );
       },
       [
+        busy,
         onSearchLocation,
       ],
     );
 
   /* ============================================================
-     BUILD READABLE ADDRESS
+     BUILD ADDRESS
   ============================================================ */
 
-  const buildAddress = useCallback(
-    (
-      place:
-        | Location.LocationGeocodedAddress
-        | undefined,
-    ): string => {
-      if (!place) {
-        return "";
-      }
+  const buildAddress =
+    useCallback(
+      (
+        place:
+          | Location.LocationGeocodedAddress
+          | undefined,
+      ): string => {
+        if (!place) {
+          return "";
+        }
 
-      /*
-       * Build street number + street.
-       */
-      const street = [
-        place.streetNumber,
-        place.street,
-      ]
-        .filter(
-          (
-            value,
-          ): value is string =>
-            Boolean(
-              value?.trim(),
+        const street =
+          [
+            place.streetNumber,
+            place.street,
+          ]
+            .filter(
+              (
+                value,
+              ): value is string =>
+                Boolean(
+                  value?.trim(),
+                ),
+            )
+            .join(" ")
+            .trim();
+
+        const parts =
+          [
+            street,
+            place.name,
+            place.district,
+            place.subregion,
+            place.city,
+            place.region,
+            place.country,
+          ].filter(
+            (
+              value,
+            ): value is string =>
+              Boolean(
+                value?.trim(),
+              ),
+          );
+
+        const uniqueParts =
+          [
+            ...new Set(
+              parts.map(
+                (part) =>
+                  part.trim(),
+              ),
             ),
-        )
-        .join(" ")
-        .trim();
+          ];
 
-      /*
-       * Build complete readable address.
-       */
-      const parts = [
-        street,
-        place.name,
-        place.district,
-        place.subregion,
-        place.city,
-        place.region,
-        place.country,
-      ].filter(
-        (
-          value,
-        ): value is string =>
-          Boolean(
-            value?.trim(),
-          ),
-      );
+        return uniqueParts.join(
+          ", ",
+        );
+      },
+      [],
+    );
 
-      /*
-       * Remove duplicate address
-       * sections.
-       */
-      const uniqueParts = [
-        ...new Set(
-          parts.map((part) =>
-            part.trim(),
-          ),
-        ),
-      ];
+  /* ============================================================
+     LOCATION PERMISSION
+  ============================================================ */
 
-      return uniqueParts.join(", ");
-    },
-    [],
-  );
+  const ensureLocationPermission =
+    useCallback(
+      async (): Promise<boolean> => {
+        let permission =
+          await Location
+            .getForegroundPermissionsAsync();
+
+        if (
+          permission.status ===
+          Location.PermissionStatus.GRANTED
+        ) {
+          return true;
+        }
+
+        if (
+          permission.canAskAgain
+        ) {
+          permission =
+            await Location
+              .requestForegroundPermissionsAsync();
+
+          if (
+            permission.status ===
+            Location.PermissionStatus.GRANTED
+          ) {
+            return true;
+          }
+        }
+
+        Alert.alert(
+          "Location permission required",
+          "Enable location access so Fixxam can use your current position.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "Open Settings",
+              onPress: () => {
+                void Linking.openSettings();
+              },
+            },
+          ],
+        );
+
+        return false;
+      },
+      [],
+    );
 
   /* ============================================================
      CURRENT LOCATION
@@ -324,91 +407,85 @@ export default function RequestLocation({
 
   const handleCurrentLocation =
     useCallback(async () => {
-      /*
-       * Prevent multiple GPS requests.
-       */
-      if (selectingCurrent) {
+      if (
+        selectingCurrent
+      ) {
         return;
       }
 
-      setSelectingCurrent(true);
+      setSelectingCurrent(
+        true,
+      );
 
       try {
-        /* ======================================================
-           PERMISSION
-        ====================================================== */
-
-        const permission =
-          await Location.getForegroundPermissionsAsync();
+        const hasPermission =
+          await ensureLocationPermission();
 
         if (
-          permission.status !==
-          Location.PermissionStatus.GRANTED
+          !hasPermission
         ) {
-          Alert.alert(
-            "Location permission required",
-            "Please allow Fixxam to access your location so we can use your current location.",
-          );
-
           return;
         }
 
-        /* ======================================================
-           GET FRESH GPS
-        ====================================================== */
-
-        let position:
-          | Location.LocationObject
+        let coordinates:
+          | Coordinates
           | null = null;
 
         try {
-          position =
-            await Location.getCurrentPositionAsync(
-              {
+          const position =
+            await Location
+              .getCurrentPositionAsync({
                 accuracy:
                   Location.Accuracy.High,
-              },
-            );
-        } catch (locationError) {
+              });
+
+          const {
+            latitude,
+            longitude,
+          } =
+            position.coords;
+
+          if (
+            isValidCoordinates(
+              latitude,
+              longitude,
+            )
+          ) {
+            coordinates = {
+              latitude,
+              longitude,
+            };
+          }
+        } catch (error) {
           console.warn(
-            "FRESH_LOCATION_ERROR",
-            locationError,
+            "FRESH_LOCATION_ERROR:",
+            error,
           );
 
           /*
-           * Fallback to parent coordinates
-           * if fresh GPS fails.
+           * Use parent location only
+           * when it is valid.
            */
-          if (currentLocation) {
-            position = {
-              coords: {
-                latitude:
-                  currentLocation.latitude,
+          if (
+            currentLocation &&
+            isValidCoordinates(
+              currentLocation.latitude,
+              currentLocation.longitude,
+            )
+          ) {
+            coordinates = {
+              latitude:
+                currentLocation.latitude,
 
-                longitude:
-                  currentLocation.longitude,
-
-                altitude: null,
-
-                accuracy: null,
-
-                altitudeAccuracy: null,
-
-                heading: null,
-
-                speed: null,
-              },
-
-              timestamp: Date.now(),
-            } as Location.LocationObject;
+              longitude:
+                currentLocation.longitude,
+            };
           }
         }
 
-        /* ======================================================
-           VALIDATE POSITION
-        ====================================================== */
-
-        if (!position) {
+        if (
+          !coordinates
+        ) {
           Alert.alert(
             "Location unavailable",
             "We couldn't determine your current location. Please check your GPS and try again.",
@@ -417,90 +494,61 @@ export default function RequestLocation({
           return;
         }
 
-        const latitude =
-          position.coords.latitude;
-
-        const longitude =
-          position.coords.longitude;
-
-        /*
-         * Validate coordinates.
-         */
-        if (
-          !Number.isFinite(latitude) ||
-          !Number.isFinite(longitude)
-        ) {
-          Alert.alert(
-            "Location unavailable",
-            "Your current location could not be determined. Please try again.",
-          );
-
-          return;
-        }
-
-        /* ======================================================
-           REVERSE GEOCODING
-        ====================================================== */
-
         let currentAddress =
           "Current location";
 
         try {
           const results =
-            await Location.reverseGeocodeAsync(
-              {
-                latitude,
-                longitude,
-              },
-            );
-
-          const place = results[0];
+            await Location
+              .reverseGeocodeAsync(
+                coordinates,
+              );
 
           const readableAddress =
-            buildAddress(place);
+            buildAddress(
+              results[0],
+            );
 
           if (
-            readableAddress.trim()
+            readableAddress
+              .trim()
           ) {
             currentAddress =
               readableAddress;
           }
-        } catch (geocodeError) {
+        } catch (error) {
           /*
-           * GPS is still valid even if
-           * reverse geocoding fails.
+           * Coordinates are still
+           * usable if reverse geocoding
+           * fails.
            */
           console.warn(
-            "CURRENT_LOCATION_GEOCODING_ERROR",
-            geocodeError,
+            "CURRENT_LOCATION_GEOCODING_ERROR:",
+            error,
           );
         }
-
-        /* ======================================================
-           SAVE CURRENT LOCATION
-        ====================================================== */
 
         setSelectedLocationType(
           "current",
         );
 
-        /*
-         * Send real coordinates + address
-         * to parent.
-         */
         onLocationSelected?.({
-          latitude,
-          longitude,
-          address: currentAddress,
+          ...coordinates,
+
+          address:
+            currentAddress,
         });
 
-        /*
-         * Close after successful selection.
-         */
-        setVisible(false);
+        onSearchLocation?.(
+          "",
+        );
+
+        setVisible(
+          false,
+        );
       } catch (error) {
         console.error(
-          "SELECT_CURRENT_LOCATION_ERROR",
+          "SELECT_CURRENT_LOCATION_ERROR:",
           error,
         );
 
@@ -509,48 +557,56 @@ export default function RequestLocation({
           "We couldn't select your current location. Please try again.",
         );
       } finally {
-        setSelectingCurrent(false);
+        setSelectingCurrent(
+          false,
+        );
       }
     }, [
       buildAddress,
       currentLocation,
+      ensureLocationPermission,
       onLocationSelected,
+      onSearchLocation,
       selectingCurrent,
     ]);
 
   /* ============================================================
-     MANUAL ADDRESS CHANGE
+     MANUAL ADDRESS
   ============================================================ */
 
   const handleManualChange =
     useCallback(
-      (text: string) => {
-        setManualAddress(text);
+      (
+        text: string,
+      ) => {
+        setManualAddress(
+          text,
+        );
 
         /*
-         * If the customer edits the selected
-         * suggestion, its coordinates are no
-         * longer guaranteed to match.
+         * Once text changes, previously
+         * selected coordinates may no
+         * longer represent that address.
          */
-        setManualCoordinates(null);
+        setManualCoordinates(
+          null,
+        );
       },
       [],
     );
 
   /* ============================================================
-     LOCATION SEARCH
+     SEARCH
   ============================================================ */
 
   const handleSearchLocation =
     useCallback(
-      (query: string) => {
-        /*
-         * Forward search to parent.
-         *
-         * The parent is responsible for
-         * debounce/network/API handling.
-         */
-        onSearchLocation?.(query);
+      (
+        query: string,
+      ) => {
+        onSearchLocation?.(
+          query,
+        );
       },
       [
         onSearchLocation,
@@ -558,23 +614,18 @@ export default function RequestLocation({
     );
 
   /* ============================================================
-     SELECT LOCATION SUGGESTION
+     SELECT SUGGESTION
   ============================================================ */
 
   const handleSuggestionSelected =
     useCallback(
       (
-        suggestion: BookingLocationSuggestion,
+        suggestion:
+          BookingLocationSuggestion,
       ) => {
-        /*
-         * Validate coordinates before
-         * accepting the suggestion.
-         */
         if (
-          !Number.isFinite(
+          !isValidCoordinates(
             suggestion.latitude,
-          ) ||
-          !Number.isFinite(
             suggestion.longitude,
           )
         ) {
@@ -586,16 +637,10 @@ export default function RequestLocation({
           return;
         }
 
-        /*
-         * Save readable address.
-         */
         setManualAddress(
-          suggestion.title,
+          suggestion.title.trim(),
         );
 
-        /*
-         * Save actual GPS coordinates.
-         */
         setManualCoordinates({
           latitude:
             suggestion.latitude,
@@ -612,14 +657,19 @@ export default function RequestLocation({
   ============================================================ */
 
   const handleConfirmManual =
-    useCallback(() => {
+    useCallback(async () => {
+      if (
+        confirmingManual
+      ) {
+        return;
+      }
+
       const cleanAddress =
         manualAddress.trim();
 
-      /*
-       * Address is required.
-       */
-      if (!cleanAddress) {
+      if (
+        !cleanAddress
+      ) {
         Alert.alert(
           "Enter your location",
           "Please enter the address or area where the worker should come.",
@@ -628,44 +678,119 @@ export default function RequestLocation({
         return;
       }
 
-      /*
-       * Manual location can either have:
-       *
-       * 1. Real coordinates from a suggestion.
-       * 2. 0,0 when customer entered an
-       *    address manually.
-       *
-       * This preserves compatibility with
-       * the existing booking model.
-       */
-      const latitude =
-        manualCoordinates?.latitude ?? 0;
-
-      const longitude =
-        manualCoordinates?.longitude ?? 0;
-
-      setSelectedLocationType(
-        "manual",
+      setConfirmingManual(
+        true,
       );
 
-      /*
-       * Return final location to parent.
-       */
-      onLocationSelected?.({
-        latitude,
-        longitude,
-        address: cleanAddress,
-      });
+      try {
+        let coordinates =
+          manualCoordinates;
 
-      setVisible(false);
+        /*
+         * Never create a booking with
+         * fake 0,0 coordinates.
+         *
+         * If user typed an address
+         * instead of selecting a result,
+         * resolve it before continuing.
+         */
+        if (
+          !coordinates
+        ) {
+          const geocoded =
+            await Location
+              .geocodeAsync(
+                cleanAddress,
+              );
+
+          const first =
+            geocoded.find(
+              (item) =>
+                isValidCoordinates(
+                  item.latitude,
+                  item.longitude,
+                ),
+            );
+
+          if (!first) {
+            Alert.alert(
+              "Choose a valid location",
+              "We couldn't find this address. Please select one of the suggested locations and try again.",
+            );
+
+            return;
+          }
+
+          coordinates = {
+            latitude:
+              first.latitude,
+
+            longitude:
+              first.longitude,
+          };
+        }
+
+        if (
+          !isValidCoordinates(
+            coordinates.latitude,
+            coordinates.longitude,
+          )
+        ) {
+          Alert.alert(
+            "Invalid location",
+            "Please select a valid service location.",
+          );
+
+          return;
+        }
+
+        setSelectedLocationType(
+          "manual",
+        );
+
+        onLocationSelected?.({
+          latitude:
+            coordinates.latitude,
+
+          longitude:
+            coordinates.longitude,
+
+          address:
+            cleanAddress,
+        });
+
+        onSearchLocation?.(
+          "",
+        );
+
+        setVisible(
+          false,
+        );
+      } catch (error) {
+        console.error(
+          "CONFIRM_MANUAL_LOCATION_ERROR:",
+          error,
+        );
+
+        Alert.alert(
+          "Location unavailable",
+          "We couldn't verify this address. Please select one of the suggested locations and try again.",
+        );
+      } finally {
+        setConfirmingManual(
+          false,
+        );
+      }
     }, [
+      confirmingManual,
       manualAddress,
       manualCoordinates,
       onLocationSelected,
+      onSearchLocation,
     ]);
 
   /* ============================================================
-     RESET LOADING STATE
+     RESET BUSY STATE
   ============================================================ */
 
   useEffect(() => {
@@ -673,17 +798,24 @@ export default function RequestLocation({
       return;
     }
 
-    setSelectingCurrent(false);
+    setSelectingCurrent(
+      false,
+    );
+
+    setConfirmingManual(
+      false,
+    );
   }, [
     visible,
   ]);
 
   /* ============================================================
-     CARD DATA
+     DISPLAY DATA
   ============================================================ */
 
   const cleanAddress =
-    address?.trim() || "";
+    address?.trim() ??
+    "";
 
   const locationLabel =
     selectedLocationType ===
@@ -692,7 +824,14 @@ export default function RequestLocation({
       : selectedLocationType ===
           "current"
         ? "Current location"
-        : null;
+        : "Selected location";
+
+  const manualCanConfirm =
+    Boolean(
+      manualAddress.trim(),
+    ) &&
+    !suggestionsLoading &&
+    !confirmingManual;
 
   /* ============================================================
      UI
@@ -705,8 +844,6 @@ export default function RequestLocation({
       ======================================================== */}
 
       <Pressable
-        onPress={openModal}
-        disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel={
           selected
@@ -717,47 +854,70 @@ export default function RequestLocation({
         accessibilityState={{
           disabled,
         }}
-        style={({ pressed }) => [
+        disabled={
+          disabled
+        }
+        onPress={
+          openModal
+        }
+        style={({
+          pressed,
+        }) => [
           styles.card,
 
-          disabled &&
-            styles.cardDisabled,
+          selected
+            ? styles.cardSelected
+            : null,
+
+          disabled
+            ? styles.cardDisabled
+            : null,
 
           pressed &&
-            !disabled &&
-            styles.cardPressed,
+          !disabled
+            ? styles.cardPressed
+            : null,
         ]}
       >
-        {/* LOCATION ICON */}
+        {/* ====================================================
+            ICON
+        ==================================================== */}
 
         <View
-          style={styles.iconContainer}
+          style={
+            styles.iconContainer
+          }
         >
-          <Ionicons
-            name="location-outline"
-            size={22}
-            color="#EF4444"
+          <AppIcon
+            name="location"
+            role="customer"
+            size="sm"
+            state="active"
           />
         </View>
 
-        {/* CONTENT */}
+        {/* ====================================================
+            CONTENT
+        ==================================================== */}
 
         <View
-          style={styles.cardContent}
+          style={
+            styles.cardContent
+          }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
-            style={styles.title}
           >
             Service location
           </AppText>
 
-          {selected &&
-          locationLabel ? (
+          {selected ? (
             <>
               <AppText
-                weight="bold"
+                variant="caption"
+                weight="semibold"
                 numberOfLines={1}
                 style={
                   styles.locationType
@@ -767,9 +927,13 @@ export default function RequestLocation({
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
                 ellipsizeMode="tail"
-                style={styles.address}
+                style={
+                  styles.address
+                }
               >
                 {cleanAddress ||
                   "Location selected"}
@@ -777,9 +941,13 @@ export default function RequestLocation({
             </>
           ) : (
             <AppText
+              variant="caption"
+              tone="secondary"
               numberOfLines={2}
               ellipsizeMode="tail"
-              style={styles.address}
+              style={
+                styles.address
+              }
             >
               Choose where the worker
               should come
@@ -787,17 +955,20 @@ export default function RequestLocation({
           )}
         </View>
 
-        {/* CHEVRON */}
+        {/* ====================================================
+            NEXT
+        ==================================================== */}
 
         <View
           style={
             styles.chevronContainer
           }
         >
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#64748B"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="sm"
+            state="muted"
           />
         </View>
       </Pressable>
@@ -807,52 +978,91 @@ export default function RequestLocation({
       ======================================================== */}
 
       <Modal
-        visible={visible}
+        visible={
+          visible
+        }
         transparent
         animationType="slide"
-        onRequestClose={closeModal}
         statusBarTranslucent
+        onRequestClose={
+          closeModal
+        }
       >
         <KeyboardAvoidingView
           behavior={
-            Platform.OS === "ios"
+            Platform.OS ===
+            "ios"
               ? "padding"
-              : undefined
+              : "height"
           }
-          style={styles.modalRoot}
+          style={
+            styles.modalRoot
+          }
         >
-          {/* BACKDROP */}
+          {/* ==================================================
+              BACKDROP
+          ================================================== */}
 
           <Pressable
-            style={styles.backdrop}
-            onPress={closeModal}
+            accessibilityRole="button"
+            accessibilityLabel="Close location options"
+            onPress={
+              closeModal
+            }
+            style={
+              styles.backdrop
+            }
           />
 
-          {/* SHEET */}
+          {/* ==================================================
+              SHEET
+          ================================================== */}
 
           <View
-            style={styles.modalCard}
+            style={[
+              styles.modalCard,
+
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
+                    FixxamTokens
+                      .spacing.lg,
+                  ) +
+                  FixxamTokens
+                    .spacing.sm,
+              },
+            ]}
           >
-            {/* HANDLE */}
+            {/* ================================================
+                HANDLE
+            ================================================ */}
 
             <View
-              style={styles.handle}
+              style={
+                styles.handle
+              }
             />
 
-            {/* HEADER */}
+            {/* ================================================
+                HEADER
+            ================================================ */}
 
             <View
-              style={styles.modalHeader}
+              style={
+                styles.modalHeader
+              }
             >
               <View
                 style={
                   styles.modalHeaderIcon
                 }
               >
-                <Ionicons
+                <AppIcon
                   name="location"
-                  size={21}
-                  color="#2563EB"
+                  role="customer"
+                  size="sm"
+                  state="active"
                 />
               </View>
 
@@ -862,66 +1072,88 @@ export default function RequestLocation({
                 }
               >
                 <AppText
+                  variant="heading3"
                   weight="bold"
-                  style={
-                    styles.modalTitle
-                  }
                 >
                   Service location
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.modalSubtitle
                   }
                 >
-                  Where should the worker come?
+                  Where should the
+                  worker come?
                 </AppText>
               </View>
 
               <Pressable
-                onPress={closeModal}
-                disabled={
-                  selectingCurrent
-                }
                 accessibilityRole="button"
                 accessibilityLabel="Close location"
                 accessibilityState={{
                   disabled:
-                    selectingCurrent,
+                    busy,
                 }}
-                style={({ pressed }) => [
+                disabled={
+                  busy
+                }
+                hitSlop={8}
+                onPress={
+                  closeModal
+                }
+                style={({
+                  pressed,
+                }) => [
                   styles.closeButton,
 
                   pressed &&
-                    styles.closeButtonPressed,
+                  !busy
+                    ? styles.closeButtonPressed
+                    : null,
+
+                  busy
+                    ? styles.controlDisabled
+                    : null,
                 ]}
               >
-                <Ionicons
+                <AppIcon
                   name="close"
-                  size={20}
-                  color="#475569"
+                  role="customer"
+                  size="sm"
+                  state="muted"
                 />
               </Pressable>
             </View>
 
-            {/* LOCATION TYPE */}
+            {/* ================================================
+                LOCATION TYPE
+            ================================================ */}
 
-            <BookingLocationType
-              value={locationType}
-              onChange={
-                handleTypeChange
-              }
-            />
+           <BookingLocationType
+  value={
+    locationType
+  }
+  onChange={
+    handleTypeChange
+  }
+  disabled={
+    busy
+  }
+/>
 
             {/* ==================================================
                 CURRENT LOCATION
             ================================================== */}
 
             {locationType ===
-              "current" && (
+            "current" ? (
               <>
-                <View
+                <AppCard
+                  role="customer"
+                  variant="outlined"
                   style={
                     styles.currentPanel
                   }
@@ -931,10 +1163,11 @@ export default function RequestLocation({
                       styles.currentIcon
                     }
                   >
-                    <Ionicons
-                      name="navigate"
-                      size={20}
-                      color="#2563EB"
+                    <AppIcon
+                      name="locate"
+                      role="customer"
+                      size="sm"
+                      state="active"
                     />
                   </View>
 
@@ -944,92 +1177,72 @@ export default function RequestLocation({
                     }
                   >
                     <AppText
+                      variant="bodyMedium"
                       weight="bold"
-                      style={
-                        styles.currentTitle
-                      }
                     >
                       Use my current location
                     </AppText>
 
                     <AppText
+                      variant="caption"
+                      tone="secondary"
                       style={
                         styles.currentText
                       }
                     >
-                      Fixxam will get your
-                      latest GPS position and
-                      use the location detected
-                      by your phone.
+                      Fixxam will use
+                      your latest GPS
+                      position to set
+                      the service
+                      location.
                     </AppText>
                   </View>
-                </View>
+                </AppCard>
 
-                <Pressable
-                  onPress={
-                    handleCurrentLocation
+                <AppButton
+                  title={
+                    selectingCurrent
+                      ? "Getting Location..."
+                      : "Use Current Location"
+                  }
+                  role="customer"
+                  loading={
+                    selectingCurrent
                   }
                   disabled={
                     selectingCurrent
                   }
-                  accessibilityRole="button"
-                  accessibilityLabel="Use current location"
-                  accessibilityState={{
-                    disabled:
-                      selectingCurrent,
-                  }}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-
-                    selectingCurrent &&
-                      styles.primaryButtonDisabled,
-
-                    pressed &&
-                      !selectingCurrent &&
-                      styles.primaryButtonPressed,
-                  ]}
-                >
-                  {selectingCurrent ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#FFFFFF"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="navigate"
-                      size={19}
-                      color="#FFFFFF"
-                    />
-                  )}
-
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.primaryButtonText
-                    }
-                  >
-                    {selectingCurrent
-                      ? "GETTING LOCATION..."
-                      : "USE CURRENT LOCATION"}
-                  </AppText>
-                </Pressable>
+                  leftIconName={
+                    selectingCurrent
+                      ? undefined
+                      : "locate"
+                  }
+                  onPress={
+                    handleCurrentLocation
+                  }
+                  style={
+                    styles.primaryButton
+                  }
+                />
               </>
-            )}
+            ) : null}
 
             {/* ==================================================
                 MANUAL LOCATION
             ================================================== */}
 
             {locationType ===
-              "manual" && (
+            "manual" ? (
               <>
                 <BookingManualLocation
-                  value={manualAddress}
+                  value={
+                    manualAddress
+                  }
                   onChange={
                     handleManualChange
                   }
                   disabled={
-                    suggestionsLoading
+                    confirmingManual
                   }
                   suggestions={
                     suggestions
@@ -1045,47 +1258,33 @@ export default function RequestLocation({
                   }
                 />
 
-                <Pressable
+                <AppButton
+                  title={
+                    confirmingManual
+                      ? "Confirming Location..."
+                      : "Confirm Location"
+                  }
+                  role="customer"
+                  loading={
+                    confirmingManual
+                  }
+                  disabled={
+                    !manualCanConfirm
+                  }
+                  leftIconName={
+                    confirmingManual
+                      ? undefined
+                      : "check"
+                  }
                   onPress={
                     handleConfirmManual
                   }
-                  disabled={
-                    !manualAddress.trim()
+                  style={
+                    styles.primaryButton
                   }
-                  accessibilityRole="button"
-                  accessibilityLabel="Confirm service location"
-                  accessibilityState={{
-                    disabled:
-                      !manualAddress.trim(),
-                  }}
-                  style={({ pressed }) => [
-                    styles.primaryButton,
-
-                    !manualAddress.trim() &&
-                      styles.primaryButtonDisabled,
-
-                    pressed &&
-                      manualAddress.trim() &&
-                      styles.primaryButtonPressed,
-                  ]}
-                >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.primaryButtonText
-                    }
-                  >
-                    CONFIRM LOCATION
-                  </AppText>
-                </Pressable>
+                />
               </>
-            )}
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1093,401 +1292,372 @@ export default function RequestLocation({
   );
 }
 
-/*
- * ==============================================================
- * STYLES
- * ==============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CARD
-  ========================================================== */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  card: {
-    minHeight: 82,
+    card: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    flexDirection: "row",
+      flexDirection:
+        "row",
 
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+      padding:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
+      borderWidth: 1,
 
-    borderWidth: 1,
+      borderColor:
+        Colors.border,
 
-    borderColor: "#E2E8F0",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    borderRadius: 18,
+      backgroundColor:
+        Colors.surface,
 
-    shadowColor: "#0F172A",
-
-    shadowOpacity: 0.035,
-
-    shadowRadius: 9,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    cardSelected: {
+      borderColor:
+        CustomerColors.primary,
 
-  cardPressed: {
-    opacity: 0.88,
-
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-  cardDisabled: {
-    opacity: 0.55,
-  },
-
-  /* ==========================================================
-     LOCATION ICON
-  ========================================================== */
-
-  iconContainer: {
-    width: 44,
-
-    height: 44,
-
-    borderRadius: 14,
-
-    backgroundColor: "#FEF2F2",
-
-    borderWidth: 1,
-
-    borderColor: "#FECACA",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-  },
-
-  /* ==========================================================
-     CARD CONTENT
-  ========================================================== */
-
-  cardContent: {
-    flex: 1,
-
-    minWidth: 0,
-
-    marginLeft: 10,
-
-    marginRight: 8,
-  },
-
-  title: {
-    fontSize: 14,
-
-    lineHeight: 19,
-
-    color: "#0F172A",
-  },
-
-  locationType: {
-    marginTop: 2,
-
-    fontSize: 11.5,
-
-    lineHeight: 16,
-
-    color: "#2563EB",
-  },
-
-  address: {
-    marginTop: 1,
-
-    fontSize: 11.5,
-
-    lineHeight: 17,
-
-    color: "#64748B",
-  },
-
-  /* ==========================================================
-     CHEVRON
-  ========================================================== */
-
-  chevronContainer: {
-    width: 34,
-
-    height: 34,
-
-    borderRadius: 11,
-
-    backgroundColor: "#F8FAFC",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-  },
-
-  /* ==========================================================
-     MODAL
-  ========================================================== */
-
-  modalRoot: {
-    flex: 1,
-
-    justifyContent: "flex-end",
-  },
-
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-
-    backgroundColor:
-      "rgba(15, 23, 42, 0.52)",
-  },
-
-  modalCard: {
-    width: "100%",
-
-    maxHeight: "90%",
-
-    paddingHorizontal: 18,
-
-    paddingTop: 9,
-
-    paddingBottom: 25,
-
-    backgroundColor: "#FFFFFF",
-
-    borderTopLeftRadius: 28,
-
-    borderTopRightRadius: 28,
-
-    shadowColor: "#000000",
-
-    shadowOpacity: 0.15,
-
-    shadowRadius: 20,
-
-    shadowOffset: {
-      width: 0,
-
-      height: -6,
+      backgroundColor:
+        Colors.surface,
     },
 
-    elevation: 20,
-  },
+    cardPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-  handle: {
-    alignSelf: "center",
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-    width: 42,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    height: 4,
-
-    borderRadius: 2,
-
-    backgroundColor: "#CBD5E1",
-
-    marginBottom: 15,
-  },
-
-  /* ==========================================================
-     HEADER
-  ========================================================== */
-
-  modalHeader: {
-    flexDirection: "row",
-
-    alignItems: "center",
-  },
-
-  modalHeaderIcon: {
-    width: 44,
-
-    height: 44,
-
-    borderRadius: 14,
-
-    backgroundColor: "#EFF6FF",
-
-    borderWidth: 1,
-
-    borderColor: "#DBEAFE",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-  },
-
-  modalHeaderContent: {
-    flex: 1,
-
-    minWidth: 0,
-
-    marginLeft: 10,
-  },
-
-  modalTitle: {
-    fontSize: 17,
-
-    lineHeight: 22,
-
-    color: "#0F172A",
-  },
-
-  modalSubtitle: {
-    marginTop: 1,
-
-    fontSize: 10.5,
-
-    lineHeight: 15,
-
-    color: "#64748B",
-  },
-
-  closeButton: {
-    width: 37,
-
-    height: 37,
-
-    borderRadius: 12,
-
-    backgroundColor: "#F8FAFC",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-  },
-
-  closeButtonPressed: {
-    opacity: 0.6,
-  },
-
-  /* ==========================================================
-     CURRENT LOCATION PANEL
-  ========================================================== */
-
-  currentPanel: {
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    marginTop: 14,
-
-    padding: 12,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-
-    borderColor: "#E2E8F0",
-
-    borderRadius: 18,
-
-    shadowColor: "#0F172A",
-
-    shadowOpacity: 0.03,
-
-    shadowRadius: 8,
-
-    shadowOffset: {
-      width: 0,
-
-      height: 3,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
-    elevation: 1,
-  },
+    cardDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
 
-  currentIcon: {
-    width: 42,
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-    height: 42,
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    borderRadius: 13,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    backgroundColor: "#EFF6FF",
+      flexShrink: 0,
 
-    borderWidth: 1,
+      alignItems:
+        "center",
 
-    borderColor: "#DBEAFE",
+      justifyContent:
+        "center",
 
-    alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-    justifyContent: "center",
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-  currentContent: {
-    flex: 1,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    minWidth: 0,
+    cardContent: {
+      flex: 1,
 
-    marginLeft: 9,
-  },
+      minWidth: 0,
 
-  currentTitle: {
-    fontSize: 13,
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
 
-    lineHeight: 18,
+    locationType: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-    color: "#0F172A",
-  },
+      color:
+        CustomerColors.primary,
+    },
 
-  currentText: {
-    marginTop: 2,
+    address: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-    fontSize: 10.5,
+    /* ========================================================
+       CHEVRON
+    ======================================================== */
 
-    lineHeight: 15,
+    chevronContainer: {
+      width: 34,
 
-    color: "#64748B",
-  },
+      height: 34,
 
-  /* ==========================================================
-     PRIMARY BUTTON
-  ========================================================== */
+      flexShrink: 0,
 
-  primaryButton: {
-    minHeight: 52,
+      alignItems:
+        "center",
 
-    marginTop: 12,
+      justifyContent:
+        "center",
 
-    borderRadius: 16,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    backgroundColor: "#2563EB",
+      backgroundColor:
+        Colors.background,
+    },
 
-    flexDirection: "row",
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
-    alignItems: "center",
+    modalRoot: {
+      flex: 1,
 
-    justifyContent: "center",
+      justifyContent:
+        "flex-end",
+    },
 
-    gap: 8,
-  },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
 
-  primaryButtonPressed: {
-    opacity: 0.88,
+      backgroundColor:
+        Colors.overlayMedium,
+    },
 
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+    modalCard: {
+      width: "100%",
 
-  primaryButtonDisabled: {
-    opacity: 0.45,
-  },
+      maxHeight: "90%",
 
-  primaryButtonText: {
-    fontSize: 12.5,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    lineHeight: 18,
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-    color: "#FFFFFF",
-  },
-});
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.modal,
+    },
+
+    handle: {
+      width: 42,
+
+      height: 4,
+
+      alignSelf:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabled,
+    },
+
+    /* ========================================================
+       MODAL HEADER
+    ======================================================== */
+
+    modalHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    modalHeaderIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    modalHeaderContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    closeButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    closeButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    controlDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    /* ========================================================
+       CURRENT LOCATION
+    ======================================================== */
+
+    currentPanel: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    currentIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    currentContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    currentText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       ACTION
+    ======================================================== */
+
+    primaryButton: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+  });

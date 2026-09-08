@@ -1,83 +1,209 @@
+import { Borders } from "./borders";
+import { CustomerColors } from "./customerColors";
+import { Shadows } from "./shadows";
+import { Spacing } from "./spacing";
+import { Typography } from "./typography";
+import { WorkerColors } from "./workerColors";
+
 export const FixxamTokens = {
+  /*
+   * Radius
+   * Single source: borders.ts
+   */
   radius: {
-    xs: 8,
-    sm: 12,
-    md: 16,
-    lg: 20,
-    xl: 24,
-    full: 999,
+    none: Borders.none,
+    xs: Borders.xs,
+    sm: Borders.sm,
+    md: Borders.md,
+    lg: Borders.lg,
+    xl: Borders.xl,
+    full: Borders.full,
+
+    button: Borders.button,
+    input: Borders.input,
+    search: Borders.search,
+    card: Borders.card,
+    modal: Borders.modal,
+    bottomSheet: Borders.bottomSheet,
+    badge: Borders.badge,
+    avatar: Borders.avatar,
+
+
+  iconButton: Borders.iconButton,
+  image: Borders.image,
+  chip: Borders.chip,
+
   },
 
+  /*
+   * Spacing
+   * Single source: spacing.ts
+   */
   spacing: {
-    xs: 4,
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 20,
-    xxl: 24,
-    xxxl: 32,
+    none: Spacing.none,
+    xxs: Spacing.xxs,
+    xs: Spacing.xs,
+    sm: Spacing.sm,
+    md: Spacing.md,
+    lg: Spacing.lg,
+    xl: Spacing.xl,
+    xxl: Spacing.xxl,
+    xxxl: Spacing.xxxl,
+
+    screen: Spacing.screenPadding,
+    section: Spacing.sectionGap,
+    card: Spacing.cardPadding,
+    form: Spacing.formGap,
+    content: Spacing.contentGap,
   },
 
+  /*
+   * Component Sizes
+   */
   size: {
-    inputHeight: 48,
-    buttonHeight: 50,
-    roleCardHeight: 82,
+    /*
+     * Accessibility
+     */
+    minimumTouchTarget: 44,
+
+    /*
+     * Inputs / Buttons
+     */
+    inputHeight: 52,
+    buttonHeight: 52,
+    buttonSmallHeight: 44,
+
+    /*
+     * Navigation
+     */
+    headerHeight: 56,
+    tabBarHeight: 64,
+
+    authHeaderIcon: 64,
+
+
+    /*
+     * Cards
+     */
+    roleCardHeight: 84,
+
+    /*
+     * Icons
+     */
+    iconXs: 16,
+    iconSm: 20,
+    iconMd: 24,
+    iconLg: 28,
+    iconXl: 32,
     iconBox: 48,
-    biometric: 58,
-    otpBox: 50,
-    avatar: 72,
+
+    /*
+     * Authentication
+     */
+    biometric: 56,
+    otpBox: 52,
+
+    /*
+     * Avatars
+     */
+    avatarXs: 32,
+    avatarSm: 40,
+    avatarMd: 48,
+    avatarLg: 56,
+    avatarXl: 72,
+
+    fab: 56,
+fabLarge: 64,
+
+  cardMinHeight: 72,
   },
 
+  /*
+   * Typography
+   * Single source: typography.ts
+   */
   font: {
-    title: 28,
-    heading: 22,
-    subHeading: 18,
-    body: 15,
-    caption: 13,
-    small: 12,
+    display: Typography.fontSize.display,
+    title: Typography.fontSize.xxl,
+    heading: Typography.fontSize.xl,
+    subHeading: Typography.fontSize.lg,
+    body: Typography.fontSize.md,
+    caption: Typography.fontSize.sm,
+    small: Typography.fontSize.xs,
   },
 
+  /*
+   * Shadows
+   * Single source: shadows.ts
+   */
   shadow: {
-    card: {
-      shadowColor: "#000",
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
-    },
-
-    button: {
-      shadowColor: "#000",
-      shadowOpacity: 0.08,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 3,
-    },
+    none: Shadows.none,
+    card: Shadows.card,
+    button: Shadows.sm,
+    floating: Shadows.floating,
+    modal: Shadows.modal,
   },
-};
 
+  /*
+   * Motion
+   */
+  motion: {
+    fast: 150,
+    normal: 220,
+    slow: 300,
+
+    pressedOpacity: 0.82,
+    disabledOpacity: 0.5,
+
+    scalePressed: 0.98,
+  },
+} as const;
+
+/*
+ * Compatibility colors.
+ *
+ * Brand colors come directly from the official
+ * Customer and Worker palettes.
+ */
 export const FixxamColors = {
-  customer: "#2563EB",
-  worker: "#F97316",
+  /*
+   * Role Brand
+   */
+  customer: CustomerColors.primary,
+  customerSoft: CustomerColors.primarySoft,
+  customerDark: CustomerColors.primaryDark,
 
-  success: "#22C55E",
-  warning: "#F59E0B",
-  error: "#EF4444",
+  worker: WorkerColors.primary,
+  workerSoft: WorkerColors.primarySoft,
+  workerDark: WorkerColors.primaryDark,
 
-  white: "#FFFFFF",
-  black: "#111827",
+  /*
+   * Status
+   */
+  success: CustomerColors.success,
+  warning: CustomerColors.warning,
+  error: CustomerColors.error,
+  info: CustomerColors.info,
 
-  textPrimary: "#111827",
-  textSecondary: "#6B7280",
+  /*
+   * Neutral
+   */
+  white: CustomerColors.white,
+  black: CustomerColors.textPrimary,
 
-  border: "#E5E7EB",
+  textPrimary: CustomerColors.textPrimary,
+  textSecondary: CustomerColors.textSecondary,
+  textMuted: CustomerColors.textMuted,
 
-  background: "#F8FAFC",
-  card: "#FFFFFF",
-};
+  border: CustomerColors.border,
+  divider: CustomerColors.divider,
+
+  background: CustomerColors.background,
+  surface: CustomerColors.surface,
+  card: CustomerColors.card,
+} as const;
+
+export type FixxamTokenType = typeof FixxamTokens;
+export type FixxamColorType = typeof FixxamColors;
+
+export default FixxamTokens;

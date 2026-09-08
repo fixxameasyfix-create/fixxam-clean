@@ -1,136 +1,139 @@
-import React, { useRef } from "react";
+import React, { memo, useCallback } from "react";
 import {
   StyleSheet,
   View,
-  TextInput,
 } from "react-native";
 
-import { AppButton } from "@/components/ui";
+import {
+  AppButton,
+  AppText,
+} from "@/components/ui";
+
+import OtpBoxes from "@/components/auth/OtpBoxes";
 
 import {
-  CustomerColors,
   FixxamTokens,
-  FIXXAM,
+  type FixxamRole,
 } from "@/theme";
 
-interface Props {
+export interface OtpVerificationCardProps {
   otp: string;
+
   loading: boolean;
+
   verified: boolean;
+
   onChangeOtp: (value: string) => void;
+
   onVerify: () => void;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
+  variant?: "customer" | "worker";
+
+  error?: string;
 }
 
-export default function OtpVerificationCard({
+function OtpVerificationCard({
   otp,
   loading,
   verified,
+
   onChangeOtp,
   onVerify,
-}: Props) {
-  const inputRefs =
-    useRef<Array<TextInput | null>>([]);
 
-  const otpArray = otp.padEnd(6).split("");
+  role = "customer",
+  variant,
 
-  const handleChange = (
-    value: string,
-    index: number
-  ) => {
-    if (!/^\d?$/.test(value)) return;
+  error,
+}: OtpVerificationCardProps) {
+  const resolvedRole: FixxamRole =
+    variant ?? role;
 
-    const newOtp = [...otpArray];
-    newOtp[index] = value;
+  const complete =
+    otp.replace(/\D/g, "").length === 6;
 
-    const code = newOtp.join("").trim();
-
-    onChangeOtp(code);
-
-    if (code.length === 6) {
-      setTimeout(() => {
-        onVerify();
-      }, 200);
+  const handleComplete = useCallback(() => {
+    if (
+      !verified &&
+      !loading
+    ) {
+      onVerify();
     }
-
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    if (!value && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
+  }, [
+    loading,
+    onVerify,
+    verified,
+  ]);
 
   return (
-    <>
-      <View style={styles.otpRow}>
-        {otpArray.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => {
-              inputRefs.current[index] = ref;
-            }}
-            value={digit === " " ? "" : digit}
-            onChangeText={(text) =>
-              handleChange(text, index)
-            }
-            onKeyPress={({ nativeEvent }) => {
-              if (
-                nativeEvent.key === "Backspace" &&
-                !otpArray[index] &&
-                index > 0
-              ) {
-                inputRefs.current[index - 1]?.focus();
-              }
-            }}
-            keyboardType="number-pad"
-            maxLength={1}
-            autoFocus={index === 0}
-            selectTextOnFocus
-            textAlign="center"
-            style={styles.otpBox}
-          />
-        ))}
-      </View>
+    <View style={styles.container}>
+      <OtpBoxes
+        value={otp}
+        onChange={onChangeOtp}
+        onComplete={handleComplete}
+        role={resolvedRole}
+        editable={
+          !loading &&
+          !verified
+        }
+        error={error}
+      />
+
+      {verified ? (
+        <AppText
+          variant="bodyMedium"
+          tone="success"
+          center
+          style={styles.verifiedText}
+        >
+          Code verified successfully
+        </AppText>
+      ) : null}
 
       <AppButton
         title={
           verified
-            ? "Verified ✓"
+            ? "Verified"
             : "Verify Code"
         }
-        variant="worker"
+        role={resolvedRole}
+        leftIconName={
+          verified
+            ? "success"
+            : "check"
+        }
         loading={loading}
-        disabled={verified}
+        disabled={
+          verified ||
+          !complete
+        }
         onPress={onVerify}
+        style={styles.button}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  otpRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: FixxamTokens.spacing.xl,
+  container: {
+    width: "100%",
   },
 
-  otpBox: {
-    width: FIXXAM.OTP_BOX_SIZE,
-    height: FIXXAM.OTP_BOX_SIZE,
+  verifiedText: {
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
 
-    borderWidth: 1,
-    borderColor: CustomerColors.primary,
+  button: {
+    width: "100%",
 
-    borderRadius:
-      FixxamTokens.radius.md,
-
-    backgroundColor: "#FFFFFF",
-
-    fontSize: FIXXAM.FONT_LG,
-    fontWeight: "700",
-    color: CustomerColors.textPrimary,
-
-    ...FixxamTokens.shadow.card,
+    marginTop:
+      FixxamTokens.spacing.lg,
   },
 });
+
+export default memo(OtpVerificationCard);

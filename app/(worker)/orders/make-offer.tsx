@@ -2,18 +2,16 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
@@ -22,19 +20,44 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
+
+import {
+  onAuthStateChanged,
+} from "firebase/auth";
 
 import {
   doc,
-  getDoc,
+  onSnapshot,
   runTransaction,
   serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
 
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+import MakeOfferHeader from "@/components/orders/make-offer/MakeOfferHeader";
+
+import MakeOfferOrderCard from "@/components/orders/make-offer/MakeOfferOrderCard";
+
+import MakeOfferFormSections from "@/components/orders/make-offer/MakeOfferFormSections";
+
+import MakeOfferSummarySection from "@/components/orders/make-offer/MakeOfferSummarySection";
 
 import {
   auth,
@@ -46,7 +69,9 @@ import {
 ============================================================== */
 
 type MakeOfferParams = {
-  orderId?: string | string[];
+  orderId?:
+    | string
+    | string[];
 };
 
 type BookingStatus =
@@ -78,7 +103,9 @@ type CounterOfferStatus =
 
 type BookingData = {
   serviceName: string;
+
   customerName: string;
+
   workerId: string;
 
   status: BookingStatus;
@@ -88,37 +115,54 @@ type BookingData = {
   offerRound: number;
 
   offerAmount?: number | null;
+
   offerMessage?: string | null;
 
   counterOfferAmount?: number | null;
+
   counterOfferMessage?: string | null;
 
   counterOfferBy: CounterOfferBy;
+
   counterOfferStatus: CounterOfferStatus;
+
+  negotiationStatus?: string | null;
 };
 
 /* ==============================================================
    CONSTANTS
 ============================================================== */
 
-const MAX_MESSAGE_LENGTH = 300;
+const MAX_MESSAGE_LENGTH =
+  300;
 
-const MAX_AMOUNT = 999_999_999;
+const MIN_MESSAGE_LENGTH =
+  3;
 
-const MIN_MESSAGE_LENGTH = 3;
+const MAX_AMOUNT =
+  999_999_999;
 
-const INITIAL_OFFER_ROUND = 1;
+const INITIAL_OFFER_ROUND =
+  0;
 
-/*
- * This is only used as a client-side expiry fallback.
- * Final expiry enforcement should also exist in Firestore
- * security rules / backend logic.
- */
-const OFFER_EXPIRY_HOURS = 24;
+const FIRST_OFFER_ROUND =
+  1;
+
+const OFFER_EXPIRY_HOURS =
+  24;
 
 /* ==============================================================
    HELPERS
 ============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
 
 function normalizeStatus(
   value: unknown,
@@ -170,12 +214,11 @@ function normalizeOfferStatus(
 function normalizeCounterOfferBy(
   value: unknown,
 ): CounterOfferBy {
-  if (value === "customer") {
-    return "customer";
-  }
-
-  if (value === "worker") {
-    return "worker";
+  if (
+    value === "customer" ||
+    value === "worker"
+  ) {
+    return value;
   }
 
   return null;
@@ -206,44 +249,231 @@ function normalizeRound(
   value: unknown,
 ): number {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
   ) {
     return INITIAL_OFFER_ROUND;
   }
 
   return Math.max(
     INITIAL_OFFER_ROUND,
-    Math.floor(value),
+    Math.floor(
+      value,
+    ),
   );
-}
-
-function normalizeString(
-  value: unknown,
-  fallback: string,
-): string {
-  if (
-    typeof value !== "string" ||
-    !value.trim()
-  ) {
-    return fallback;
-  }
-
-  return value.trim();
 }
 
 function normalizeOptionalAmount(
   value: unknown,
 ): number | null {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value) ||
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
     value <= 0
   ) {
     return null;
   }
 
   return value;
+}
+
+function mapBooking(
+  data: Record<
+    string,
+    unknown
+  >,
+  workerId: string,
+): BookingData {
+  return {
+    serviceName:
+      cleanString(
+        data.serviceName,
+      ) ||
+      "Service request",
+
+    customerName:
+      cleanString(
+        data.customerName,
+      ) ||
+      "Customer",
+
+    workerId,
+
+    status:
+      normalizeStatus(
+        data.status,
+      ),
+
+    offerStatus:
+      normalizeOfferStatus(
+        data.offerStatus,
+      ),
+
+    offerRound:
+      normalizeRound(
+        data.offerRound,
+      ),
+
+    offerAmount:
+      normalizeOptionalAmount(
+        data.offerAmount,
+      ),
+
+    offerMessage:
+      cleanString(
+        data.offerMessage,
+      ) ||
+      null,
+
+    counterOfferAmount:
+      normalizeOptionalAmount(
+        data.counterOfferAmount,
+      ),
+
+    counterOfferMessage:
+      cleanString(
+        data.counterOfferMessage,
+      ) ||
+      null,
+
+    counterOfferBy:
+      normalizeCounterOfferBy(
+        data.counterOfferBy,
+      ),
+
+    counterOfferStatus:
+      normalizeCounterOfferStatus(
+        data.counterOfferStatus,
+      ),
+
+    negotiationStatus:
+      cleanString(
+        data.negotiationStatus,
+      ) ||
+      null,
+  };
+}
+
+/* ==============================================================
+   OFFER ERROR
+============================================================== */
+
+function showOfferError(
+  error: unknown,
+) {
+  const firebaseError =
+    error as {
+      code?: string;
+    };
+
+  if (
+    firebaseError?.code ===
+    "permission-denied"
+  ) {
+    Toast.show({
+      type: "error",
+
+      text1:
+        "Permission denied",
+
+      text2:
+        "You are not allowed to send this offer.",
+    });
+
+    return;
+  }
+
+  if (
+    error instanceof Error
+  ) {
+    switch (
+      error.message
+    ) {
+      case "ORDER_NOT_FOUND":
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Order not found",
+
+          text2:
+            "This order no longer exists.",
+        });
+
+        return;
+
+      case "ACCESS_DENIED":
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Access denied",
+
+          text2:
+            "You cannot send an offer for this order.",
+        });
+
+        return;
+
+      case "ORDER_NOT_PENDING":
+        Toast.show({
+          type: "info",
+
+          text1:
+            "Order unavailable",
+
+          text2:
+            "This order is no longer pending.",
+        });
+
+        return;
+
+      case "OFFER_NOT_AVAILABLE":
+        Toast.show({
+          type: "info",
+
+          text1:
+            "Offer unavailable",
+
+          text2:
+            "This order already has an offer or negotiation in progress.",
+        });
+
+        return;
+
+      case "INVALID_OFFER_ROUND":
+        Toast.show({
+          type: "info",
+
+          text1:
+            "Negotiation already started",
+
+          text2:
+            "This order is already in a negotiation round.",
+        });
+
+        return;
+
+      default:
+        break;
+    }
+  }
+
+  Toast.show({
+    type: "error",
+
+    text1:
+      "Unable to send offer",
+
+    text2:
+      "Something went wrong. Please try again.",
+  });
 }
 
 /* ==============================================================
@@ -255,117 +485,207 @@ export default function MakeOfferScreen() {
     useLocalSearchParams<MakeOfferParams>();
 
   /* ============================================================
-     RESOLVED ORDER ID
+     ORDER ID
   ============================================================ */
 
-  const resolvedOrderId = useMemo(() => {
-    if (
-      typeof params.orderId ===
-      "string"
-    ) {
-      return params.orderId.trim();
-    }
+  const resolvedOrderId =
+    useMemo(() => {
+      if (
+        typeof params.orderId ===
+        "string"
+      ) {
+        return params.orderId.trim();
+      }
 
-    if (
-      Array.isArray(
-        params.orderId,
-      )
-    ) {
-      return (
-        params.orderId[0]?.trim() ||
-        ""
-      );
-    }
+      if (
+        Array.isArray(
+          params.orderId,
+        )
+      ) {
+        return (
+          params.orderId[0]?.trim() ||
+          ""
+        );
+      }
 
-    return "";
-  }, [params.orderId]);
+      return "";
+    }, [
+      params.orderId,
+    ]);
 
   /* ============================================================
-     STATE
+     AUTH
   ============================================================ */
 
-  const [booking, setBooking] =
+  const [
+    authReady,
+    setAuthReady,
+  ] =
+    useState(false);
+
+  const [
+    workerId,
+    setWorkerId,
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
+
+  /* ============================================================
+     BOOKING
+  ============================================================ */
+
+  const [
+    booking,
+    setBooking,
+  ] =
     useState<BookingData | null>(
       null,
     );
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [loadingError, setLoadingError] =
-    useState<string | null>(null);
-
-  const [amount, setAmount] =
-    useState("");
-
-  const [message, setMessage] =
-    useState("");
-
-  const [submitting, setSubmitting] =
-    useState(false);
+  const [
+    loadingError,
+    setLoadingError,
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
 
   /* ============================================================
-     LOAD BOOKING
+     FORM
+  ============================================================ */
+
+  const [
+    amount,
+    setAmount,
+  ] =
+    useState("");
+
+  const [
+    message,
+    setMessage,
+  ] =
+    useState("");
+
+  const [
+    submitting,
+    setSubmitting,
+  ] =
+    useState(false);
+
+  const submittingRef =
+    useRef(false);
+
+  /* ============================================================
+     AUTH LISTENER
   ============================================================ */
 
   useEffect(() => {
-    let mounted = true;
-
-    const loadBooking =
-      async () => {
-        const workerId =
-          auth.currentUser?.uid;
-
-        if (!workerId) {
-          if (!mounted) {
-            return;
-          }
-
-          setLoading(false);
-
-          setLoadingError(
-            "Please sign in to send an offer.",
-          );
-
-          return;
-        }
-
-        if (!resolvedOrderId) {
-          if (!mounted) {
-            return;
-          }
-
-          setLoading(false);
-
-          setLoadingError(
-            "Order ID is missing.",
-          );
-
-          return;
-        }
-
-        try {
-          setLoading(true);
-          setLoadingError(null);
-
-          const bookingRef =
-            doc(
-              db,
-              "bookings",
-              resolvedOrderId,
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        user => {
+          const uid =
+            cleanString(
+              user?.uid,
             );
 
-          const snapshot =
-            await getDoc(
-              bookingRef,
+          setWorkerId(
+            uid || null,
+          );
+
+          setAuthReady(
+            true,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, []);
+
+  /* ============================================================
+     REALTIME BOOKING
+  ============================================================ */
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    if (!workerId) {
+      setBooking(
+        null,
+      );
+
+      setLoading(
+        false,
+      );
+
+      setLoadingError(
+        "Please sign in to send an offer.",
+      );
+
+      return;
+    }
+
+    if (
+      !resolvedOrderId
+    ) {
+      setBooking(
+        null,
+      );
+
+      setLoading(
+        false,
+      );
+
+      setLoadingError(
+        "Order ID is missing.",
+      );
+
+      return;
+    }
+
+    setLoading(
+      true,
+    );
+
+    setLoadingError(
+      null,
+    );
+
+    const bookingRef =
+      doc(
+        db,
+        "bookings",
+        resolvedOrderId,
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        bookingRef,
+
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
+            setBooking(
+              null,
             );
 
-          if (!mounted) {
-            return;
-          }
-
-          if (!snapshot.exists()) {
-            setLoading(false);
+            setLoading(
+              false,
+            );
 
             setLoadingError(
               "This order no longer exists.",
@@ -378,10 +698,18 @@ export default function MakeOfferScreen() {
             snapshot.data();
 
           if (
-            data.workerId !==
+            cleanString(
+              data.workerId,
+            ) !==
             workerId
           ) {
-            setLoading(false);
+            setBooking(
+              null,
+            );
+
+            setLoading(
+              false,
+            );
 
             setLoadingError(
               "You do not have access to this order.",
@@ -390,99 +718,48 @@ export default function MakeOfferScreen() {
             return;
           }
 
-          const nextBooking: BookingData =
-            {
-              serviceName:
-                normalizeString(
-                  data.serviceName,
-                  "Service request",
-                ),
-
-              customerName:
-                normalizeString(
-                  data.customerName,
-                  "Customer",
-                ),
-
+          setBooking(
+            mapBooking(
+              data,
               workerId,
+            ),
+          );
 
-              status:
-                normalizeStatus(
-                  data.status,
-                ),
+          setLoading(
+            false,
+          );
 
-              offerStatus:
-                normalizeOfferStatus(
-                  data.offerStatus,
-                ),
+          setLoadingError(
+            null,
+          );
+        },
 
-              offerRound:
-                normalizeRound(
-                  data.offerRound,
-                ),
-
-              offerAmount:
-                normalizeOptionalAmount(
-                  data.offerAmount,
-                ),
-
-              offerMessage:
-                typeof data.offerMessage ===
-                "string"
-                  ? data.offerMessage
-                  : null,
-
-              counterOfferAmount:
-                normalizeOptionalAmount(
-                  data.counterOfferAmount,
-                ),
-
-              counterOfferMessage:
-                typeof data.counterOfferMessage ===
-                "string"
-                  ? data.counterOfferMessage
-                  : null,
-
-              counterOfferBy:
-                normalizeCounterOfferBy(
-                  data.counterOfferBy,
-                ),
-
-              counterOfferStatus:
-                normalizeCounterOfferStatus(
-                  data.counterOfferStatus,
-                ),
-            };
+        snapshotError => {
+          console.error(
+            "MAKE_OFFER_BOOKING_LISTENER_ERROR:",
+            snapshotError,
+          );
 
           setBooking(
-            nextBooking,
+            null,
           );
 
-          setLoading(false);
-        } catch (error) {
-          console.error(
-            "LOAD_MAKE_OFFER_BOOKING_ERROR",
-            error,
+          setLoading(
+            false,
           );
-
-          if (!mounted) {
-            return;
-          }
-
-          setLoading(false);
 
           setLoadingError(
             "Unable to load this order. Please try again.",
           );
-        }
-      };
+        },
+      );
 
-    void loadBooking();
-
-    return () => {
-      mounted = false;
-    };
-  }, [resolvedOrderId]);
+    return unsubscribe;
+  }, [
+    authReady,
+    resolvedOrderId,
+    workerId,
+  ]);
 
   /* ============================================================
      AMOUNT
@@ -501,41 +778,45 @@ export default function MakeOfferScreen() {
       }
 
       const value =
-        Number(cleaned);
+        Number(
+          cleaned,
+        );
 
-      if (
-        !Number.isFinite(value)
-      ) {
-        return 0;
-      }
-
-      return value;
-    }, [amount]);
+      return Number.isFinite(
+        value,
+      )
+        ? value
+        : 0;
+    }, [
+      amount,
+    ]);
 
   const formattedAmount =
     useMemo(() => {
-      if (numericAmount <= 0) {
+      if (
+        numericAmount <=
+        0
+      ) {
         return "₦0";
       }
 
       return `₦${numericAmount.toLocaleString(
         "en-NG",
       )}`;
-    }, [numericAmount]);
-
-  /* ============================================================
-     MESSAGE
-  ============================================================ */
-
-  const cleanMessage =
-    message.trim();
+    }, [
+      numericAmount,
+    ]);
 
   /* ============================================================
      VALIDATION
   ============================================================ */
 
+  const cleanMessage =
+    message.trim();
+
   const amountValid =
-    numericAmount > 0 &&
+    numericAmount >
+      0 &&
     numericAmount <=
       MAX_AMOUNT;
 
@@ -546,34 +827,39 @@ export default function MakeOfferScreen() {
       MAX_MESSAGE_LENGTH;
 
   const orderValid =
-    Boolean(booking) &&
+    Boolean(
+      booking,
+    ) &&
+    Boolean(
+      workerId,
+    ) &&
     booking?.workerId ===
-      auth.currentUser?.uid &&
+      workerId &&
     booking?.status ===
-      "pending";
-
-  const offerAvailable =
-    booking?.offerStatus !==
-      "sent" &&
-    booking?.offerStatus !==
-      "accepted";
+      "pending" &&
+    booking?.offerStatus ===
+      "none" &&
+    booking?.offerRound ===
+      INITIAL_OFFER_ROUND;
 
   const canSubmit =
+    authReady &&
     !loading &&
     !loadingError &&
     orderValid &&
-    offerAvailable &&
     amountValid &&
     messageValid &&
     !submitting;
 
   /* ============================================================
-     AMOUNT INPUT
+     AMOUNT CHANGE
   ============================================================ */
 
   const handleAmountChange =
     useCallback(
-      (text: string) => {
+      (
+        text: string,
+      ) => {
         const cleaned =
           text.replace(
             /[^0-9]/g,
@@ -587,26 +873,28 @@ export default function MakeOfferScreen() {
           return;
         }
 
-        setAmount(cleaned);
+        setAmount(
+          cleaned,
+        );
       },
       [],
     );
 
   /* ============================================================
-     MESSAGE INPUT
+     MESSAGE CHANGE
   ============================================================ */
 
   const handleMessageChange =
     useCallback(
-      (text: string) => {
-        if (
-          text.length >
-          MAX_MESSAGE_LENGTH
-        ) {
-          return;
-        }
-
-        setMessage(text);
+      (
+        text: string,
+      ) => {
+        setMessage(
+          text.slice(
+            0,
+            MAX_MESSAGE_LENGTH,
+          ),
+        );
       },
       [],
     );
@@ -618,36 +906,52 @@ export default function MakeOfferScreen() {
   const handleSendOffer =
     useCallback(
       async () => {
-        if (submitting) {
+        if (
+          submittingRef.current
+        ) {
           return;
         }
-
-        const workerId =
-          auth.currentUser?.uid;
 
         if (!workerId) {
-          Alert.alert(
-            "Sign in required",
-            "Please sign in again before sending an offer.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Sign in required",
+
+            text2:
+              "Please sign in again before sending an offer.",
+          });
 
           return;
         }
 
-        if (!resolvedOrderId) {
-          Alert.alert(
-            "Invalid order",
-            "The order ID is missing.",
-          );
+        if (
+          !resolvedOrderId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Invalid order",
+
+            text2:
+              "The order ID is missing.",
+          });
 
           return;
         }
 
         if (!booking) {
-          Alert.alert(
-            "Order unavailable",
-            "Unable to load this order.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Order unavailable",
+
+            text2:
+              "Unable to load this order.",
+          });
 
           return;
         }
@@ -656,10 +960,15 @@ export default function MakeOfferScreen() {
           booking.workerId !==
           workerId
         ) {
-          Alert.alert(
-            "Access denied",
-            "You cannot send an offer for this order.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Access denied",
+
+            text2:
+              "You cannot send an offer for this order.",
+          });
 
           return;
         }
@@ -668,45 +977,67 @@ export default function MakeOfferScreen() {
           booking.status !==
           "pending"
         ) {
-          Alert.alert(
-            "Order unavailable",
-            "This order is no longer pending.",
-          );
+          Toast.show({
+            type: "info",
+
+            text1:
+              "Order unavailable",
+
+            text2:
+              "This order is no longer pending.",
+          });
 
           return;
         }
 
         if (
-          booking.offerStatus ===
-          "sent"
+          booking.offerStatus !==
+          "none"
         ) {
-          Alert.alert(
-            "Offer already sent",
-            "You have already sent an offer for this order.",
-          );
+          Toast.show({
+            type: "info",
+
+            text1:
+              "Offer unavailable",
+
+            text2:
+              "This order already has an offer or negotiation in progress.",
+          });
 
           return;
         }
 
         if (
-          numericAmount <= 0
+          booking.offerRound !==
+          INITIAL_OFFER_ROUND
         ) {
-          Alert.alert(
-            "Offer amount required",
-            "Please enter the amount you want to charge.",
-          );
+          Toast.show({
+            type: "info",
+
+            text1:
+              "Negotiation already started",
+
+            text2:
+              "This order is already in a negotiation round.",
+          });
 
           return;
         }
 
         if (
-          numericAmount >
-          MAX_AMOUNT
+          !amountValid
         ) {
-          Alert.alert(
-            "Invalid amount",
-            "Please enter a valid offer amount.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Invalid offer amount",
+
+            text2:
+              `Enter an amount between ₦1 and ₦${MAX_AMOUNT.toLocaleString(
+                "en-NG",
+              )}.`,
+          });
 
           return;
         }
@@ -715,10 +1046,15 @@ export default function MakeOfferScreen() {
           cleanMessage.length <
           MIN_MESSAGE_LENGTH
         ) {
-          Alert.alert(
-            "Message required",
-            "Please explain what your offer includes.",
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Message required",
+
+            text2:
+              "Please explain what your offer includes.",
+          });
 
           return;
         }
@@ -727,17 +1063,27 @@ export default function MakeOfferScreen() {
           cleanMessage.length >
           MAX_MESSAGE_LENGTH
         ) {
-          Alert.alert(
-            "Message too long",
-            `Please keep your message within ${MAX_MESSAGE_LENGTH} characters.`,
-          );
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Message too long",
+
+            text2:
+              `Keep your message within ${MAX_MESSAGE_LENGTH} characters.`,
+          });
 
           return;
         }
 
-        try {
-          setSubmitting(true);
+        submittingRef.current =
+          true;
 
+        setSubmitting(
+          true,
+        );
+
+        try {
           const bookingRef =
             doc(
               db,
@@ -745,14 +1091,9 @@ export default function MakeOfferScreen() {
               resolvedOrderId,
             );
 
-          /*
-           * Transaction prevents two workers / two devices
-           * from successfully changing the same pending order
-           * at the same time.
-           */
           await runTransaction(
             db,
-            async (transaction) => {
+            async transaction => {
               const snapshot =
                 await transaction.get(
                   bookingRef,
@@ -769,28 +1110,26 @@ export default function MakeOfferScreen() {
               const latestData =
                 snapshot.data();
 
-              /*
-               * Worker ownership.
-               */
+              /* ================================================
+                 OWNERSHIP
+              ================================================= */
+
               if (
-                latestData.workerId !==
-                workerId
+                cleanString(
+                  latestData.workerId,
+                ) !== workerId
               ) {
                 throw new Error(
                   "ACCESS_DENIED",
                 );
               }
 
-              /*
-               * Order must still be pending.
-               */
-              const latestStatus =
-                normalizeStatus(
-                  latestData.status,
-                );
+              /* ================================================
+                 STATUS
+              ================================================= */
 
               if (
-                latestStatus !==
+                latestData.status !==
                 "pending"
               ) {
                 throw new Error(
@@ -798,53 +1137,43 @@ export default function MakeOfferScreen() {
                 );
               }
 
-              /*
-               * Do not overwrite an existing active offer.
-               */
-              const latestOfferStatus =
-                normalizeOfferStatus(
-                  latestData.offerStatus,
-                );
+              /* ================================================
+                 OFFER STATUS
+              ================================================= */
 
               if (
-                latestOfferStatus ===
-                "sent"
+                latestData.offerStatus !==
+                "none"
               ) {
                 throw new Error(
-                  "OFFER_ALREADY_SENT",
+                  "OFFER_NOT_AVAILABLE",
                 );
               }
 
-              /*
-               * If another offer was accepted,
-               * the order cannot receive a new offer.
-               */
-              if (
-                latestOfferStatus ===
-                "accepted"
-              ) {
-                throw new Error(
-                  "OFFER_ALREADY_ACCEPTED",
-                );
-              }
+              /* ================================================
+                 ROUND
+              ================================================= */
 
-              /*
-               * First worker offer starts negotiation at round 1.
-               */
-              const offerRound =
+              const currentOfferRound =
                 normalizeRound(
                   latestData.offerRound,
                 );
 
-              /*
-               * Keep an expiry timestamp for the customer
-               * order screen.
-               *
-               * Backend / security rules should also enforce
-               * expiry for full protection.
-               */
+              if (
+                currentOfferRound !==
+                INITIAL_OFFER_ROUND
+              ) {
+                throw new Error(
+                  "INVALID_OFFER_ROUND",
+                );
+              }
+
+              /* ================================================
+                 EXPIRY
+              ================================================= */
+
               const offerExpiresAt =
-                new Date(
+                Timestamp.fromMillis(
                   Date.now() +
                     OFFER_EXPIRY_HOURS *
                       60 *
@@ -852,12 +1181,13 @@ export default function MakeOfferScreen() {
                       1000,
                 );
 
+              /* ================================================
+                 UPDATE
+              ================================================= */
+
               transaction.update(
                 bookingRef,
                 {
-                  /*
-                   * Worker offer
-                   */
                   offerAmount:
                     numericAmount,
 
@@ -868,9 +1198,7 @@ export default function MakeOfferScreen() {
                     "sent",
 
                   offerRound:
-
-                    offerRound ||
-                    INITIAL_OFFER_ROUND,
+                    FIRST_OFFER_ROUND,
 
                   offerWorkerId:
                     workerId,
@@ -883,17 +1211,16 @@ export default function MakeOfferScreen() {
 
                   offerExpiresAt,
 
-                  /*
-                   * Clear old counter state.
-                   *
-                   * This is important if the same order
-                   * previously had a declined/cancelled
-                   * negotiation state.
-                   */
                   counterOfferAmount:
                     null,
 
                   counterOfferMessage:
+                    null,
+
+                  counterOfferSentAt:
+                    null,
+
+                  counterOfferRespondedAt:
                     null,
 
                   counterOfferBy:
@@ -902,11 +1229,8 @@ export default function MakeOfferScreen() {
                   counterOfferStatus:
                     "none",
 
-                  counterOfferSentAt:
-                    null,
-
-                  counterOfferRespondedAt:
-                    null,
+                  negotiationStatus:
+                    "negotiating",
 
                   updatedAt:
                     serverTimestamp(),
@@ -915,50 +1239,16 @@ export default function MakeOfferScreen() {
             },
           );
 
-          /*
-           * Update local state before navigation
-           * so the screen remains internally consistent.
-           */
-          setBooking(
-            (current) => {
-              if (!current) {
-                return current;
-              }
+          Toast.show({
+            type: "success",
 
-              return {
-                ...current,
+            text1:
+              "Offer sent",
 
-                offerStatus:
-                  "sent",
+            text2:
+              `Your offer of ${formattedAmount} was sent to ${booking.customerName}.`,
+          });
 
-                offerAmount:
-                  numericAmount,
-
-                offerMessage:
-                  cleanMessage,
-
-                offerRound:
-                  current.offerRound ||
-                  INITIAL_OFFER_ROUND,
-
-                counterOfferAmount:
-                  null,
-
-                counterOfferMessage:
-                  null,
-
-                counterOfferBy:
-                  null,
-
-                counterOfferStatus:
-                  "none",
-              };
-            },
-          );
-
-          /*
-           * Navigate to confirmation screen.
-           */
           router.replace({
             pathname:
               "/(worker)/orders/offer-sent",
@@ -982,76 +1272,32 @@ export default function MakeOfferScreen() {
                 cleanMessage,
             },
           } as never);
-        } catch (error) {
+        } catch (sendError) {
           console.error(
-            "SEND_WORKER_OFFER_ERROR",
-            error,
+            "SEND_WORKER_OFFER_ERROR:",
+            sendError,
           );
 
-          if (
-            error instanceof
-            Error
-          ) {
-            switch (
-              error.message
-            ) {
-              case "ORDER_NOT_FOUND":
-                Alert.alert(
-                  "Order not found",
-                  "This order no longer exists.",
-                );
-                break;
-
-              case "ACCESS_DENIED":
-                Alert.alert(
-                  "Access denied",
-                  "You cannot send an offer for this order.",
-                );
-                break;
-
-              case "ORDER_NOT_PENDING":
-                Alert.alert(
-                  "Order unavailable",
-                  "This order is no longer pending.",
-                );
-                break;
-
-              case "OFFER_ALREADY_SENT":
-                Alert.alert(
-                  "Offer already sent",
-                  "An active offer already exists for this order.",
-                );
-                break;
-
-              case "OFFER_ALREADY_ACCEPTED":
-                Alert.alert(
-                  "Order already accepted",
-                  "This order has already accepted an offer.",
-                );
-                break;
-
-              default:
-                Alert.alert(
-                  "Unable to send offer",
-                  "Something went wrong. Please try again.",
-                );
-            }
-          } else {
-            Alert.alert(
-              "Unable to send offer",
-              "Something went wrong. Please try again.",
-            );
-          }
+          showOfferError(
+            sendError,
+          );
         } finally {
-          setSubmitting(false);
+          submittingRef.current =
+            false;
+
+          setSubmitting(
+            false,
+          );
         }
       },
       [
-        submitting,
-        resolvedOrderId,
+        amountValid,
         booking,
-        numericAmount,
         cleanMessage,
+        formattedAmount,
+        numericAmount,
+        resolvedOrderId,
+        workerId,
       ],
     );
 
@@ -1061,20 +1307,26 @@ export default function MakeOfferScreen() {
 
   const handleCancel =
     useCallback(() => {
-      if (submitting) {
+      if (
+        submittingRef.current
+      ) {
         return;
       }
 
       router.back();
-    }, [submitting]);
+    }, []);
 
   /* ============================================================
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    !authReady ||
+    loading
+  ) {
     return (
       <AppScreen
+        role="worker"
         contentContainerStyle={
           styles.screen
         }
@@ -1084,12 +1336,23 @@ export default function MakeOfferScreen() {
             styles.centerContainer
           }
         >
-          <ActivityIndicator
-            size="small"
-            color="#2563EB"
-          />
+          <View
+            style={
+              styles.loadingIcon
+            }
+          >
+            <ActivityIndicator
+              size="small"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.loadingText
             }
@@ -1110,68 +1373,24 @@ export default function MakeOfferScreen() {
     !booking
   ) {
     return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
+      <CenteredState
+        icon="error"
+        iconColor={
+          Colors.error
         }
-      >
-        <View
-          style={
-            styles.centerContainer
-          }
-        >
-          <View
-            style={
-              styles.errorIcon
-            }
-          >
-            <Ionicons
-              name="alert-circle-outline"
-              size={29}
-              color="#DC2626"
-            />
-          </View>
-
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Unable to make offer
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {loadingError ??
-              "Order information is unavailable."}
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleCancel
-            }
-            style={({ pressed }) => [
-              styles.errorBackButton,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.errorBackText
-              }
-            >
-              GO BACK
-            </AppText>
-          </Pressable>
-        </View>
-      </AppScreen>
+        iconBackground={
+          Colors.errorSoft
+        }
+        title="Unable to make offer"
+        description={
+          loadingError ??
+          "Order information is unavailable."
+        }
+        buttonTitle="Go Back"
+        onPress={
+          handleCancel
+        }
+      />
     );
   }
 
@@ -1184,73 +1403,26 @@ export default function MakeOfferScreen() {
     "pending"
   ) {
     return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
+      <CenteredState
+        icon="warning"
+        iconColor={
+          Colors.warning
         }
-      >
-        <View
-          style={
-            styles.centerContainer
-          }
-        >
-          <View
-            style={
-              styles.warningIcon
-            }
-          >
-            <Ionicons
-              name="information-circle-outline"
-              size={32}
-              color="#2563EB"
-            />
-          </View>
-
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Order unavailable
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            This order is no longer
-            accepting offers.
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleCancel
-            }
-            style={({ pressed }) => [
-              styles.errorBackButton,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.errorBackText
-              }
-            >
-              BACK TO ORDER
-            </AppText>
-          </Pressable>
-        </View>
-      </AppScreen>
+        iconBackground={
+          Colors.warningSoft
+        }
+        title="Order unavailable"
+        description="This order is no longer accepting offers."
+        buttonTitle="Back to Order"
+        onPress={
+          handleCancel
+        }
+      />
     );
   }
 
   /* ============================================================
-     ALREADY SENT
+     OFFER ALREADY SENT
   ============================================================ */
 
   if (
@@ -1258,68 +1430,75 @@ export default function MakeOfferScreen() {
     "sent"
   ) {
     return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
+      <CenteredState
+        icon="success"
+        iconColor={
+          Colors.success
         }
-      >
-        <View
-          style={
-            styles.centerContainer
-          }
-        >
-          <View
-            style={
-              styles.successIcon
-            }
-          >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={32}
-              color="#16A34A"
-            />
-          </View>
+        iconBackground={
+          Colors.successSoft
+        }
+        title="Offer already sent"
+        description="You have already sent an offer for this order."
+        buttonTitle="Back to Order"
+        onPress={
+          handleCancel
+        }
+      />
+    );
+  }
 
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Offer already sent
-          </AppText>
+  /* ============================================================
+     OTHER OFFER STATE
+  ============================================================ */
 
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            You have already sent an
-            offer for this order.
-          </AppText>
+  if (
+    booking.offerStatus !==
+    "none"
+  ) {
+    return (
+      <CenteredState
+        icon="info"
+        iconColor={
+          Colors.info
+        }
+        iconBackground={
+          Colors.infoSoft
+        }
+        title="Offer unavailable"
+        description="This order already has an offer response or negotiation state."
+        buttonTitle="Back to Order"
+        onPress={
+          handleCancel
+        }
+      />
+    );
+  }
 
-          <Pressable
-            onPress={
-              handleCancel
-            }
-            style={({ pressed }) => [
-              styles.errorBackButton,
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.errorBackText
-              }
-            >
-              BACK TO ORDER
-            </AppText>
-          </Pressable>
-        </View>
-      </AppScreen>
+  /* ============================================================
+     NEGOTIATION STARTED
+  ============================================================ */
+
+  if (
+    booking.offerRound !==
+    INITIAL_OFFER_ROUND
+  ) {
+    return (
+      <CenteredState
+        icon="messages"
+        iconColor={
+          Colors.warning
+        }
+        iconBackground={
+          Colors.warningSoft
+        }
+        title="Negotiation already started"
+        description="This order is already in a negotiation round."
+        buttonTitle="Back to Order"
+        onPress={
+          handleCancel
+        }
+      />
     );
   }
 
@@ -1329,6 +1508,7 @@ export default function MakeOfferScreen() {
 
   return (
     <AppScreen
+      role="worker"
       contentContainerStyle={
         styles.screen
       }
@@ -1355,568 +1535,162 @@ export default function MakeOfferScreen() {
             false
           }
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={
+            Platform.OS ===
+            "ios"
+              ? "interactive"
+              : "on-drag"
+          }
         >
           {/* ==================================================
               HEADER
           ================================================== */}
 
-          <View
-            style={
-              styles.header
+          <MakeOfferHeader
+            disabled={
+              submitting
             }
-          >
-            <Pressable
-              onPress={
-                handleCancel
-              }
-              disabled={
-                submitting
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={21}
-                color="#0F172A"
-              />
-            </Pressable>
-
-            <View
-              style={
-                styles.headerText
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.headerTitle
-                }
-              >
-                Make Offer
-              </AppText>
-
-              <AppText
-                style={
-                  styles.headerSubtitle
-                }
-              >
-                Send your price to the
-                customer.
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              ORDER CONTEXT
-          ================================================== */}
-
-          <View
-            style={
-              styles.orderCard
+            onBack={
+              handleCancel
             }
-          >
-            <View
-              style={
-                styles.serviceIcon
-              }
-            >
-              <Ionicons
-                name="construct-outline"
-                size={24}
-                color="#2563EB"
-              />
-            </View>
-
-            <View
-              style={
-                styles.orderInfo
-              }
-            >
-              <AppText
-                style={
-                  styles.orderLabel
-                }
-              >
-                SERVICE
-              </AppText>
-
-              <AppText
-                weight="bold"
-                numberOfLines={1}
-                style={
-                  styles.serviceName
-                }
-              >
-                {
-                  booking.serviceName
-                }
-              </AppText>
-
-              <AppText
-                style={
-                  styles.customerText
-                }
-              >
-                Customer:{" "}
-                {
-                  booking.customerName
-                }
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.orderBadge
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.orderBadgeText
-                }
-              >
-                #
-                {
-                  resolvedOrderId
-                }
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              1. OFFER
-          ================================================== */}
-
-          <SectionTitle
-            number="1"
-            title="Your offer"
           />
 
-          <View
-            style={
-              styles.inputCard
-            }
-          >
-            <View
-              style={
-                styles.inputHeader
-              }
-            >
-              <View
-                style={
-                  styles.inputHeaderText
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.inputTitle
-                  }
-                >
-                  Offer amount
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.inputHint
-                  }
-                >
-                  Enter the total price
-                  for this service.
-                </AppText>
-              </View>
-
-              <View
-                style={
-                  styles.nairaCircle
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.nairaText
-                  }
-                >
-                  ₦
-                </AppText>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.amountInputWrapper,
-                amount.length > 0 &&
-                  !amountValid &&
-                  styles.inputError,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.amountPrefix
-                }
-              >
-                ₦
-              </AppText>
-
-              <TextInput
-                value={amount}
-                onChangeText={
-                  handleAmountChange
-                }
-                placeholder="0"
-                placeholderTextColor="#CBD5E1"
-                keyboardType="number-pad"
-                editable={
-                  !submitting
-                }
-                style={
-                  styles.amountInput
-                }
-                maxLength={9}
-                accessibilityLabel="Offer amount"
-              />
-            </View>
-
-            {amount.length > 0 &&
-              !amountValid && (
-                <AppText
-                  style={
-                    styles.validationText
-                  }
-                >
-                  Enter an amount between
-                  ₦1 and ₦
-                  {MAX_AMOUNT.toLocaleString(
-                    "en-NG",
-                  )}
-                  .
-                </AppText>
-              )}
-          </View>
-
           {/* ==================================================
-              2. MESSAGE
+              ORDER
           ================================================== */}
 
-          <SectionTitle
-            number="2"
-            title="Message to customer"
+          <MakeOfferOrderCard
+            orderId={
+              resolvedOrderId
+            }
+            serviceName={
+              booking.serviceName
+            }
+            customerName={
+              booking.customerName
+            }
           />
 
-          <View
-            style={
-              styles.messageCard
-            }
-          >
-            <View
-              style={
-                styles.messageTop
-              }
-            >
-              <View
-                style={
-                  styles.messageIcon
-                }
-              >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={22}
-                  color="#2563EB"
-                />
-              </View>
-
-              <View
-                style={
-                  styles.messageContent
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.inputTitle
-                  }
-                >
-                  Explain your offer
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.inputHint
-                  }
-                >
-                  Tell the customer what
-                  your price includes.
-                </AppText>
-              </View>
-            </View>
-
-            <TextInput
-              value={message}
-              onChangeText={
-                handleMessageChange
-              }
-              placeholder="Example: This includes site visit, consultation and detailed planning..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              textAlignVertical="top"
-              editable={
-                !submitting
-              }
-              maxLength={
-                MAX_MESSAGE_LENGTH
-              }
-              style={[
-                styles.messageInput,
-                message.length > 0 &&
-                  !messageValid &&
-                  styles.messageInputError,
-              ]}
-              accessibilityLabel="Offer message"
-            />
-
-            <View
-              style={
-                styles.messageFooter
-              }
-            >
-              <AppText
-                style={
-                  styles.messageValidation
-                }
-              >
-                {message.length > 0 &&
-                message.length <
-                  MIN_MESSAGE_LENGTH
-                  ? `Minimum ${MIN_MESSAGE_LENGTH} characters`
-                  : ""}
-              </AppText>
-
-              <AppText
-                style={
-                  styles.characterCount
-                }
-              >
-                {message.length}/
-                {MAX_MESSAGE_LENGTH}
-              </AppText>
-            </View>
-          </View>
-
           {/* ==================================================
-              3. SUMMARY
+              AMOUNT + MESSAGE
           ================================================== */}
 
-          <SectionTitle
-            number="3"
-            title="Offer summary"
+          <MakeOfferFormSections
+            amount={
+              amount
+            }
+            message={
+              message
+            }
+            amountValid={
+              amountValid
+            }
+            messageValid={
+              messageValid
+            }
+            submitting={
+              submitting
+            }
+            cleanMessageLength={
+              cleanMessage.length
+            }
+            maxAmount={
+              MAX_AMOUNT
+            }
+            minMessageLength={
+              MIN_MESSAGE_LENGTH
+            }
+            maxMessageLength={
+              MAX_MESSAGE_LENGTH
+            }
+            onAmountChange={
+              handleAmountChange
+            }
+            onMessageChange={
+              handleMessageChange
+            }
           />
 
-          <View
-            style={
-              styles.summaryCard
-            }
-          >
-            <View
-              style={
-                styles.summaryHeader
-              }
-            >
-              <View
-                style={
-                  styles.summaryIcon
-                }
-              >
-                <Ionicons
-                  name="receipt-outline"
-                  size={21}
-                  color="#2563EB"
-                />
-              </View>
-
-              <View
-                style={
-                  styles.summaryHeaderText
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.summaryTitle
-                  }
-                >
-                  Ready to send
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.summarySubtitle
-                  }
-                >
-                  Customer will review
-                  your offer.
-                </AppText>
-              </View>
-            </View>
-
-            <View
-              style={
-                styles.divider
-              }
-            />
-
-            <SummaryRow
-              label="Service"
-              value={
-                booking.serviceName
-              }
-            />
-
-            <SummaryRow
-              label="Customer"
-              value={
-                booking.customerName
-              }
-            />
-
-            <SummaryRow
-              label="Your offer"
-              value={
-                formattedAmount
-              }
-              strong
-            />
-          </View>
-
           {/* ==================================================
-              INFO
+              SUMMARY
           ================================================== */}
 
-          <View
-            style={
-              styles.infoCard
+          <MakeOfferSummarySection
+            serviceName={
+              booking.serviceName
             }
-          >
-            <Ionicons
-              name="information-circle-outline"
-              size={19}
-              color="#2563EB"
-            />
-
-            <AppText
-              style={
-                styles.infoText
-              }
-            >
-              The customer will receive
-              this offer inside the order
-              and can accept or decline
-              it.
-            </AppText>
-          </View>
+            customerName={
+              booking.customerName
+            }
+            formattedAmount={
+              formattedAmount
+            }
+          />
 
           {/* ==================================================
               SEND
           ================================================== */}
 
-          <Pressable
-            onPress={
-              handleSendOffer
+          <View
+            style={
+              styles.sendAction
             }
-            disabled={
-              !canSubmit
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Send offer"
-            accessibilityState={{
-              disabled:
-                !canSubmit,
-            }}
-            style={({ pressed }) => [
-              styles.sendButton,
-
-              !canSubmit &&
-                styles.sendButtonDisabled,
-
-              pressed &&
-                canSubmit &&
-                styles.sendButtonPressed,
-            ]}
           >
-            {submitting ? (
-              <ActivityIndicator
-                size="small"
-                color="#FFFFFF"
-              />
-            ) : (
-              <Ionicons
-                name="paper-plane-outline"
-                size={19}
-                color="#FFFFFF"
-              />
-            )}
-
-            <AppText
-              weight="bold"
-              style={
-                styles.sendButtonText
+            <AppButton
+              title={
+                submitting
+                  ? "Sending Offer..."
+                  : "Send Offer"
               }
-            >
-              {submitting
-                ? "SENDING OFFER..."
-                : "SEND OFFER"}
-            </AppText>
-
-            {!submitting && (
-              <Ionicons
-                name="arrow-forward"
-                size={19}
-                color="#FFFFFF"
-              />
-            )}
-          </Pressable>
+              role="worker"
+              variant="primary"
+              loading={
+                submitting
+              }
+              disabled={
+                !canSubmit
+              }
+              onPress={
+                handleSendOffer
+              }
+            />
+          </View>
 
           {/* ==================================================
               CANCEL
           ================================================== */}
 
-          <Pressable
-            onPress={
-              handleCancel
+          <View
+            style={
+              styles.cancelAction
             }
-            disabled={
-              submitting
-            }
-            style={({ pressed }) => [
-              styles.cancelButton,
-              pressed &&
-                styles.cancelPressed,
-            ]}
           >
-            <AppText
-              weight="bold"
-              style={
-                styles.cancelText
+            <AppButton
+              title="Cancel"
+              role="worker"
+              variant="ghost"
+              disabled={
+                submitting
               }
-            >
-              CANCEL
-            </AppText>
-          </Pressable>
+              onPress={
+                handleCancel
+              }
+            />
+          </View>
+
+          {/* ==================================================
+              FOOTER
+          ================================================== */}
 
           <AppText
+            variant="caption"
+            tone="secondary"
             center
             style={
               styles.footer
             }
           >
-            Order #
-            {resolvedOrderId}
+            Order #{resolvedOrderId}
           </AppText>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1925,92 +1699,106 @@ export default function MakeOfferScreen() {
 }
 
 /* ==============================================================
-   SECTION TITLE
+   CENTERED STATE
 ============================================================== */
 
-function SectionTitle({
-  number,
+function CenteredState({
+  icon,
+  iconColor,
+  iconBackground,
   title,
+  description,
+  buttonTitle,
+  onPress,
 }: {
-  number: string;
+  icon: AppIconName;
+
+  iconColor: string;
+
+  iconBackground: string;
+
   title: string;
+
+  description: string;
+
+  buttonTitle: string;
+
+  onPress: () => void;
 }) {
   return (
-    <View
-      style={
-        styles.sectionTitle
+    <AppScreen
+      role="worker"
+      contentContainerStyle={
+        styles.screen
       }
     >
       <View
         style={
-          styles.sectionNumber
+          styles.centerContainer
         }
       >
+        <View
+          style={[
+            styles.stateIcon,
+
+            {
+              backgroundColor:
+                iconBackground,
+            },
+          ]}
+        >
+          <AppIcon
+            name={
+              icon
+            }
+            size="lg"
+            color={
+              iconColor
+            }
+          />
+        </View>
+
         <AppText
+          variant="heading3"
           weight="bold"
+          center
           style={
-            styles.sectionNumberText
+            styles.errorTitle
           }
         >
-          {number}
+          {title}
         </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.errorText
+          }
+        >
+          {description}
+        </AppText>
+
+        <View
+          style={
+            styles.stateAction
+          }
+        >
+          <AppButton
+            title={
+              buttonTitle
+            }
+            role="worker"
+            variant="primary"
+            leftIconName="back"
+            onPress={
+              onPress
+            }
+          />
+        </View>
       </View>
-
-      <AppText
-        weight="bold"
-        style={
-          styles.sectionText
-        }
-      >
-        {title}
-      </AppText>
-    </View>
-  );
-}
-
-/* ==============================================================
-   SUMMARY ROW
-============================================================== */
-
-function SummaryRow({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <View
-      style={
-        styles.summaryRow
-      }
-    >
-      <AppText
-        style={
-          styles.summaryLabel
-        }
-      >
-        {label}
-      </AppText>
-
-      <AppText
-        weight={
-          strong
-            ? "bold"
-            : undefined
-        }
-        numberOfLines={1}
-        style={[
-          styles.summaryValue,
-          strong &&
-            styles.summaryValueStrong,
-        ]}
-      >
-        {value}
-      </AppText>
-    </View>
+    </AppScreen>
   );
 }
 
@@ -2020,684 +1808,165 @@ function SummaryRow({
 
 const styles =
   StyleSheet.create({
-    keyboard: {
-      flex: 1,
-      width: "100%",
-    },
-
     screen: {
       flex: 1,
+
       width: "100%",
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
+    },
+
+    keyboard: {
+      flex: 1,
+
+      width: "100%",
     },
 
     scrollView: {
       flex: 1,
+
       width: "100%",
     },
 
     content: {
       width: "100%",
+
       flexGrow: 1,
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 40,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    /* ==========================================================
-       HEADER
-    ========================================================== */
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
 
-    header: {
+    sendAction: {
       width: "100%",
-      minHeight: 58,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingBottom: 8,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    headerText: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 11,
-    },
-
-    headerTitle: {
-      fontSize: 21,
-      lineHeight: 26,
-      color: "#0F172A",
-    },
-
-    headerSubtitle: {
-      marginTop: 2,
-      fontSize: 11,
-      lineHeight: 16,
-      color: "#64748B",
-    },
-
-    /* ==========================================================
-       ORDER
-    ========================================================== */
-
-    orderCard: {
+    cancelAction: {
       width: "100%",
-      minHeight: 78,
-      marginTop: 10,
-      padding: 11,
-      borderRadius: 19,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.035,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 2,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
-
-    serviceIcon: {
-      width: 51,
-      height: 51,
-      borderRadius: 16,
-      backgroundColor:
-        "#EFF6FF",
-      borderWidth: 1,
-      borderColor:
-        "#DBEAFE",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    orderInfo: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 11,
-      marginRight: 8,
-    },
-
-    orderLabel: {
-      fontSize: 8.5,
-      letterSpacing: 1,
-      color: "#94A3B8",
-    },
-
-    serviceName: {
-      marginTop: 3,
-      fontSize: 14.5,
-      color: "#0F172A",
-    },
-
-    customerText: {
-      marginTop: 3,
-      fontSize: 10,
-      color: "#64748B",
-    },
-
-    orderBadge: {
-      maxWidth: 85,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 8,
-      backgroundColor:
-        "#F8FAFC",
-    },
-
-    orderBadgeText: {
-      fontSize: 8,
-      color: "#64748B",
-    },
-
-    /* ==========================================================
-       SECTION
-    ========================================================== */
-
-    sectionTitle: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 20,
-      marginBottom: 9,
-    },
-
-    sectionNumber: {
-      width: 27,
-      height: 27,
-      borderRadius: 9,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      marginRight: 8,
-    },
-
-    sectionNumberText: {
-      fontSize: 12,
-      color: "#2563EB",
-    },
-
-    sectionText: {
-      fontSize: 15,
-      color: "#0F172A",
-    },
-
-    /* ==========================================================
-       INPUT CARD
-    ========================================================== */
-
-    inputCard: {
-      width: "100%",
-      padding: 14,
-      borderRadius: 19,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.03,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 2,
-    },
-
-    inputHeader: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
-    },
-
-    inputHeaderText: {
-      flex: 1,
-      minWidth: 0,
-      paddingRight: 10,
-    },
-
-    inputTitle: {
-      fontSize: 13,
-      color: "#0F172A",
-    },
-
-    inputHint: {
-      marginTop: 3,
-      maxWidth: 260,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
-    },
-
-    nairaCircle: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    nairaText: {
-      fontSize: 20,
-      color: "#2563EB",
-    },
-
-    amountInputWrapper: {
-      width: "100%",
-      height: 68,
-      marginTop: 14,
-      borderRadius: 15,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#DBEAFE",
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 16,
-    },
-
-    inputError: {
-      borderColor:
-        "#FCA5A5",
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    amountPrefix: {
-      fontSize: 26,
-      color: "#2563EB",
-    },
-
-    amountInput: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 8,
-      paddingVertical: 0,
-      fontSize: 29,
-      fontWeight: "700",
-      color: "#0F172A",
-    },
-
-    validationText: {
-      marginTop: 6,
-      fontSize: 9,
-      color: "#DC2626",
-    },
-
-    /* ==========================================================
-       MESSAGE
-    ========================================================== */
-
-    messageCard: {
-      width: "100%",
-      padding: 14,
-      borderRadius: 19,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.03,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 2,
-    },
-
-    messageTop: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-    },
-
-    messageIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    messageContent: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
-
-    messageInput: {
-      width: "100%",
-      minHeight: 120,
-      marginTop: 13,
-      paddingHorizontal: 13,
-      paddingVertical: 12,
-      borderRadius: 14,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      fontSize: 12,
-      lineHeight: 18,
-      color: "#0F172A",
-    },
-
-    messageInputError: {
-      borderColor:
-        "#FCA5A5",
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    messageFooter: {
-      minHeight: 17,
-      marginTop: 5,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
-    },
-
-    messageValidation: {
-      flex: 1,
-      fontSize: 9,
-      color: "#DC2626",
-    },
-
-    characterCount: {
-      fontSize: 9,
-      color: "#94A3B8",
-    },
-
-    /* ==========================================================
-       SUMMARY
-    ========================================================== */
-
-    summaryCard: {
-      width: "100%",
-      padding: 14,
-      borderRadius: 19,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.03,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 2,
-    },
-
-    summaryHeader: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-    },
-
-    summaryIcon: {
-      width: 43,
-      height: 43,
-      borderRadius: 13,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      marginRight: 10,
-    },
-
-    summaryHeaderText: {
-      flex: 1,
-      minWidth: 0,
-    },
-
-    summaryTitle: {
-      fontSize: 13,
-      color: "#0F172A",
-    },
-
-    summarySubtitle: {
-      marginTop: 2,
-      fontSize: 10,
-      color: "#64748B",
-    },
-
-    divider: {
-      height: 1,
-      backgroundColor:
-        "#F1F5F9",
-      marginVertical: 13,
-    },
-
-    summaryRow: {
-      width: "100%",
-      minHeight: 30,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
-    },
-
-    summaryLabel: {
-      fontSize: 10.5,
-      color: "#64748B",
-    },
-
-    summaryValue: {
-      flex: 1,
-      maxWidth: "62%",
-      marginLeft: 12,
-      fontSize: 10.5,
-      textAlign: "right",
-      color: "#334155",
-    },
-
-    summaryValueStrong: {
-      fontSize: 16,
-      color: "#2563EB",
-    },
-
-    /* ==========================================================
-       INFO
-    ========================================================== */
-
-    infoCard: {
-      width: "100%",
-      marginTop: 12,
-      paddingHorizontal: 13,
-      paddingVertical: 11,
-      borderRadius: 15,
-      backgroundColor:
-        "#EFF6FF",
-      flexDirection: "row",
-      alignItems: "center",
-    },
-
-    infoText: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 8,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#475569",
-    },
-
-    /* ==========================================================
-       SEND
-    ========================================================== */
-
-    sendButton: {
-      width: "100%",
-      minHeight: 56,
-      marginTop: 20,
-      borderRadius: 17,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 8,
-      shadowColor:
-        "#2563EB",
-      shadowOpacity: 0.16,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-      elevation: 4,
-    },
-
-    sendButtonDisabled: {
-      opacity: 0.45,
-    },
-
-    sendButtonPressed: {
-      opacity: 0.9,
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
-    },
-
-    sendButtonText: {
-      fontSize: 13,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       CANCEL
-    ========================================================== */
-
-    cancelButton: {
-      width: "100%",
-      minHeight: 44,
-      marginTop: 8,
-      borderRadius: 14,
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    cancelPressed: {
-      opacity: 0.6,
-    },
-
-    cancelText: {
-      fontSize: 11,
-      color: "#64748B",
-    },
-
-    /* ==========================================================
-       CENTER
-    ========================================================== */
-
-    centerContainer: {
-      flex: 1,
-      width: "100%",
-      minHeight: 600,
-      alignItems: "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 30,
-    },
-
-    loadingText: {
-      marginTop: 10,
-      fontSize: 11,
-      color: "#64748B",
-    },
-
-    errorIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
-      backgroundColor:
-        "#FEF2F2",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    warningIcon: {
-      width: 68,
-      height: 68,
-      borderRadius: 22,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    successIcon: {
-      width: 68,
-      height: 68,
-      borderRadius: 22,
-      backgroundColor:
-        "#ECFDF5",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    errorTitle: {
-      marginTop: 15,
-      fontSize: 17,
-      color: "#0F172A",
-    },
-
-    errorText: {
-      marginTop: 5,
-      fontSize: 12,
-      lineHeight: 18,
-      color: "#64748B",
-    },
-
-    errorBackButton: {
-      marginTop: 18,
-      minHeight: 44,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    errorBackText: {
-      fontSize: 10,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       PRESS
-    ========================================================== */
-
-    pressed: {
-      opacity: 0.7,
-      transform: [
-        {
-          scale: 0.97,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       FOOTER
-    ========================================================== */
 
     footer: {
       width: "100%",
-      marginTop: 18,
-      marginBottom: 10,
-      fontSize: 9,
-      lineHeight: 15,
-      color: "#94A3B8",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    centerContainer: {
+      flex: 1,
+
+      width: "100%",
+
+      minHeight: 560,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    stateIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    errorTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    errorText: {
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    stateAction: {
+      width: "100%",
+
+      maxWidth: 230,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

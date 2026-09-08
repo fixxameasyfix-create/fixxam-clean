@@ -1,75 +1,183 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
+  ActivityIndicator,
+  Pressable,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
 import { router } from "expo-router";
 
 import {
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-export default function LoginFooter() {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+export interface LoginFooterProps {
+  role?: FixxamRole;
+
+  onBiometricPress?: () => void;
+
+  biometricAvailable?: boolean;
+
+  biometricLoading?: boolean;
+}
+
+function LoginFooter({
+  role = "customer",
+
+  onBiometricPress,
+
+  biometricAvailable = false,
+
+  biometricLoading = false,
+}: LoginFooterProps) {
+  const roleColors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const showBiometric =
+    biometricAvailable &&
+    Boolean(onBiometricPress);
+
+  const handleBiometricPress =
+    useCallback(() => {
+      if (
+        biometricLoading ||
+        !onBiometricPress
+      ) {
+        return;
+      }
+
+      onBiometricPress();
+    }, [
+      biometricLoading,
+      onBiometricPress,
+    ]);
+
+  const handleSignUp =
+    useCallback(() => {
+      router.push(
+        "/(auth)/role-selection",
+      );
+    }, []);
+
   return (
     <View style={styles.container}>
-      {/* OR DIVIDER */}
+      {showBiometric ? (
+        <>
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            style={styles.dividerRow}
+          >
+            <View style={styles.divider} />
 
-      <View style={styles.dividerRow}>
-        <View style={styles.divider} />
+            <AppText
+              variant="caption"
+              tone="muted"
+              style={styles.orText}
+            >
+              OR
+            </AppText>
 
-        <Text style={styles.orText}>
-          OR
-        </Text>
+            <View style={styles.divider} />
+          </View>
 
-        <View style={styles.divider} />
-      </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Continue with biometrics"
+            accessibilityState={{
+              disabled:
+                biometricLoading,
+              busy:
+                biometricLoading,
+            }}
+            disabled={biometricLoading}
+            onPress={
+              handleBiometricPress
+            }
+            style={({ pressed }) => [
+              styles.biometricButton,
 
-      {/* BIOMETRIC */}
+              {
+                borderColor:
+                  roleColors.border,
+                backgroundColor:
+                  roleColors.surface,
+              },
 
-      <TouchableOpacity
-        style={styles.bioButton}
-        activeOpacity={0.8}
-        onPress={() => {
-          // Keep existing biometric logic here.
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="Continue with biometrics"
-      >
-        <MaterialCommunityIcons
-          name="fingerprint"
-          size={48}
-          color="#F47A16"
-        />
-      </TouchableOpacity>
+              pressed &&
+              !biometricLoading
+                ? styles.pressed
+                : null,
 
-      <Text style={styles.bioText}>
-        Continue with Biometrics
-      </Text>
+              biometricLoading
+                ? styles.disabled
+                : null,
+            ]}
+          >
+            {biometricLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  roleColors.primary
+                }
+              />
+            ) : (
+              <AppIcon
+                name="fingerprint"
+                role={role}
+                size="xl"
+                state="active"
+                strokeWidth="medium"
+              />
+            )}
+          </Pressable>
 
-      {/* SIGN UP */}
+          <AppText
+            variant="bodyMedium"
+            tone="secondary"
+            center
+            style={styles.biometricText}
+          >
+            Continue with Biometrics
+          </AppText>
+        </>
+      ) : null}
 
       <View style={styles.signUpRow}>
-        <Text style={styles.normalText}>
-          Don't have an account?
-        </Text>
-
-        <TouchableOpacity
-          onPress={() =>
-            router.push(
-              "/(auth)/role-selection",
-            )
-          }
-          activeOpacity={0.7}
-          accessibilityRole="link"
+        <AppText
+          variant="body"
+          tone="secondary"
         >
-          <Text style={styles.signUpText}>
-            Sign Up
-          </Text>
-        </TouchableOpacity>
+          Don't have an account?
+        </AppText>
+
+        <AppText
+          variant="bodyMedium"
+          role={role}
+          tone="primary"
+          accessibilityRole="link"
+          accessibilityLabel="Sign up"
+          onPress={handleSignUp}
+        >
+          Sign Up
+        </AppText>
       </View>
     </View>
   );
@@ -81,111 +189,99 @@ const styles = StyleSheet.create({
 
     alignItems: "center",
 
-    paddingHorizontal: 16,
+    paddingHorizontal:
+      FixxamTokens.spacing.lg,
 
-    marginTop: 20,
+    paddingBottom:
+      FixxamTokens.spacing.xl,
 
-    paddingBottom: 20,
+    marginTop:
+      FixxamTokens.spacing.xl,
   },
 
   dividerRow: {
     width: "100%",
 
     flexDirection: "row",
-
     alignItems: "center",
 
-    marginBottom: 18,
+    marginBottom:
+      FixxamTokens.spacing.lg,
   },
 
   divider: {
     flex: 1,
 
-    height: 1,
+    height: StyleSheet.hairlineWidth,
 
-    backgroundColor: "#E2E8F0",
+    backgroundColor:
+      Colors.divider,
   },
 
   orText: {
-    marginHorizontal: 14,
+    marginHorizontal:
+      FixxamTokens.spacing.md,
 
-    color: "#94A3B8",
-
-    fontSize: 12,
-
-    fontWeight: "800",
-
-    letterSpacing: 1.2,
+    letterSpacing:
+      Typography.letterSpacing.wide,
   },
 
-  bioButton: {
-    width: 70,
+  biometricButton: {
+    width:
+      FixxamTokens.size.biometric,
 
-    height: 70,
-
-    borderRadius: 35,
+    height:
+      FixxamTokens.size.biometric,
 
     alignItems: "center",
-
     justifyContent: "center",
-
-    backgroundColor: "#FFFFFF",
 
     borderWidth: 1,
 
-    borderColor: "#E5EAF1",
+    borderRadius:
+      FixxamTokens.radius.full,
 
-    shadowColor: "#0F172A",
-
-    shadowOpacity: 0.08,
-
-    shadowRadius: 12,
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
-    elevation: 5,
+    ...FixxamTokens.shadow.floating,
   },
 
-  bioText: {
-    marginTop: 10,
-
-    color: "#64748B",
-
-    fontSize: 14,
-
-    fontWeight: "600",
-
-    textAlign: "center",
+  biometricText: {
+    marginTop:
+      FixxamTokens.spacing.sm,
   },
 
   signUpRow: {
     flexDirection: "row",
-
     alignItems: "center",
-
     justifyContent: "center",
 
-    marginTop: 22,
+    flexWrap: "wrap",
+
+    gap:
+      FixxamTokens.spacing.xs,
+
+    marginTop:
+      FixxamTokens.spacing.xl,
   },
 
-  normalText: {
-    color: "#64748B",
+  pressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
 
-    fontSize: 14,
-
-    fontWeight: "500",
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
+      },
+    ],
   },
 
-  signUpText: {
-    marginLeft: 5,
-
-    color: "#1769D1",
-
-    fontSize: 14,
-
-    fontWeight: "800",
+  disabled: {
+    opacity:
+      FixxamTokens.motion
+        .disabledOpacity,
   },
 });
+
+export default memo(LoginFooter);

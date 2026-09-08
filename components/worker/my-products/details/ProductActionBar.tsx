@@ -1,179 +1,126 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
-  ActivityIndicator,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
-  AppText,
+  AppButton,
 } from "@/components/ui";
 
-type Props = {
+import {
+  FixxamTokens,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   loading: boolean;
 
   onEdit: () => void;
 
   onDelete: () => void;
-
 };
 
-export default function ProductActionBar({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProductActionBar({
   loading,
-
   onEdit,
-
   onDelete,
-
 }: Props) {
-
   return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          EDIT
+      ====================================================== */}
 
-    <View style={styles.container}>
+      <AppButton
+        title="Edit Product"
+        role="worker"
+        variant="primary"
+        disabled={
+          loading
+        }
+        onPress={
+          onEdit
+        }
+        style={
+          styles.button
+        }
+      />
 
-      <Pressable
+      {/* ======================================================
+          DELETE
+      ====================================================== */}
 
-        style={[
-          styles.button,
-          styles.editButton,
-        ]}
-
-        onPress={onEdit}
-
-        disabled={loading}
-
-      >
-
-        <Ionicons
-          name="create-outline"
-          size={20}
-          color="#FFFFFF"
-        />
-
-        <AppText
-
-          weight="bold"
-
-          style={styles.buttonText}
-
-        >
-
-          Edit Product
-
-        </AppText>
-
-      </Pressable>
-
-      <Pressable
-
-        style={[
-          styles.button,
-          styles.deleteButton,
-        ]}
-
-        onPress={onDelete}
-
-        disabled={loading}
-
-      >
-
-        {loading ? (
-
-          <ActivityIndicator
-            color="#FFFFFF"
-          />
-
-        ) : (
-
-          <>
-
-            <Ionicons
-              name="trash-outline"
-              size={20}
-              color="#FFFFFF"
-            />
-
-            <AppText
-
-              weight="bold"
-
-              style={styles.buttonText}
-
-            >
-
-              Delete Product
-
-            </AppText>
-
-          </>
-
-        )}
-
-      </Pressable>
-
+      <AppButton
+        title="Delete Product"
+        role="worker"
+        variant="danger"
+        leftIconName="delete"
+        loading={
+          loading
+        }
+        disabled={
+          loading
+        }
+        onPress={
+          onDelete
+        }
+        style={
+          styles.button
+        }
+      />
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductActionBar =
+  memo(
+    ProductActionBar,
   );
 
-}
+MemoizedProductActionBar.displayName =
+  "ProductActionBar";
+
+export default MemoizedProductActionBar;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     container: {
+      width: "100%",
 
-      marginTop: 24,
+      marginTop:
+        FixxamTokens.spacing.xl,
 
-      marginBottom: 40,
+      marginBottom:
+        FixxamTokens.spacing.xxl,
 
-      gap: 14,
-
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     button: {
-
-      height: 58,
-
-      borderRadius: 18,
-
-      flexDirection: "row",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-
+      width: "100%",
     },
-
-    editButton: {
-
-      backgroundColor:
-        "#FF6B00",
-
-    },
-
-    deleteButton: {
-
-      backgroundColor:
-        "#DC2626",
-
-    },
-
-    buttonText: {
-
-      color: "#FFFFFF",
-
-      fontSize: 16,
-
-      marginLeft: 10,
-
-    },
-
   });

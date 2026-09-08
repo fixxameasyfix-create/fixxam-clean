@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
 } from "react";
 
@@ -6,6 +7,7 @@ import {
   Modal,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -14,9 +16,17 @@ import Animated, {
   SlideOutRight,
 } from "react-native-reanimated";
 
-import { AppText } from "@/components/ui";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
@@ -37,11 +47,11 @@ interface Props {
   onHistory: () => void;
 
   /**
-   * Requests the parent screen to show
-   * the Clear Chat confirmation modal.
+   * Requests the parent screen
+   * to open Clear Chat confirmation.
    *
-   * This component must NEVER delete
-   * the current conversation itself.
+   * This drawer never clears
+   * the conversation directly.
    */
   onClear: () => void;
 }
@@ -50,70 +60,78 @@ interface Props {
    COMPONENT
 ============================================================== */
 
-export default function AiMenuDrawer({
+function AiMenuDrawer({
   visible,
   onClose,
   onNewChat,
   onHistory,
   onClear,
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
+  const {
+    width: screenWidth,
+  } =
+    useWindowDimensions();
+
+  /* ============================================================
+     RESPONSIVE WIDTH
+  ============================================================ */
+
+  const drawerWidth =
+    Math.min(
+      320,
+      Math.max(
+        280,
+        screenWidth * 0.82,
+      ),
+    );
+
   /* ============================================================
      NEW CHAT
   ============================================================ */
 
-  const handleNewChat = useCallback(() => {
-    /*
-     * Close drawer first.
-     *
-     * Parent screen decides whether to:
-     * - start immediately
-     * - show Save / Clear confirmation
-     */
-    onClose();
-    onNewChat();
-  }, [
-    onClose,
-    onNewChat,
-  ]);
+  const handleNewChat =
+    useCallback(() => {
+      onClose();
+
+      onNewChat();
+    }, [
+      onClose,
+      onNewChat,
+    ]);
 
   /* ============================================================
      HISTORY
   ============================================================ */
 
-  const handleHistory = useCallback(() => {
-    /*
-     * Close drawer before navigation.
-     */
-    onClose();
-    onHistory();
-  }, [
-    onClose,
-    onHistory,
-  ]);
+  const handleHistory =
+    useCallback(() => {
+      onClose();
+
+      onHistory();
+    }, [
+      onClose,
+      onHistory,
+    ]);
 
   /* ============================================================
      CLEAR CHAT
   ============================================================ */
 
-  const handleClearChat = useCallback(() => {
-    /*
-     * IMPORTANT:
-     *
-     * This component does NOT clear
-     * any conversation.
-     *
-     * It only tells the parent screen
-     * to open the confirmation modal.
-     */
-    onClose();
-    onClear();
-  }, [
-    onClose,
-    onClear,
-  ]);
+  const handleClearChat =
+    useCallback(() => {
+      onClose();
+
+      onClear();
+    }, [
+      onClose,
+      onClear,
+    ]);
 
   /* ============================================================
-     RENDER
+     UI
   ============================================================ */
 
   return (
@@ -124,16 +142,22 @@ export default function AiMenuDrawer({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
+      <View
+        style={
+          styles.overlay
+        }
+      >
         {/* ====================================================
             BACKDROP
         ==================================================== */}
 
         <Pressable
-          style={styles.backdrop}
-          onPress={onClose}
           accessibilityRole="button"
           accessibilityLabel="Close menu"
+          onPress={onClose}
+          style={
+            styles.backdrop
+          }
         />
 
         {/* ====================================================
@@ -141,60 +165,144 @@ export default function AiMenuDrawer({
         ==================================================== */}
 
         <Animated.View
-          entering={SlideInRight.duration(220)}
-          exiting={SlideOutRight.duration(180)}
-          style={styles.drawer}
+          entering={
+            SlideInRight.duration(
+              FixxamTokens.motion
+                .normal,
+            )
+          }
+          exiting={
+            SlideOutRight.duration(
+              FixxamTokens.motion
+                .fast,
+            )
+          }
+          style={[
+            styles.drawer,
+
+            {
+              width:
+                drawerWidth,
+
+              paddingTop:
+                insets.top +
+                FixxamTokens
+                  .spacing.lg,
+
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens
+                    .spacing.lg,
+                ),
+            },
+          ]}
         >
           {/* ==================================================
               HEADER
           ================================================== */}
 
-          <View style={styles.header}>
-            <AppText
-              weight="bold"
-              style={styles.title}
+          <View
+            style={
+              styles.header
+            }
+          >
+            <View
+              style={
+                styles.headerText
+              }
             >
-              Menu
-            </AppText>
+              <AppText
+                variant="heading2"
+                weight="semibold"
+                numberOfLines={1}
+              >
+                Menu
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.subtitle
+                }
+              >
+                Fixxam Smarter
+              </AppText>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+              hitSlop={8}
+              onPress={onClose}
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed
+                  ? styles.closePressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="close"
+                role="customer"
+                size="sm"
+                state="muted"
+              />
+            </Pressable>
           </View>
 
           {/* ==================================================
-              NEW CHAT
+              PRIMARY MENU
           ================================================== */}
 
-          <MenuItem
-            icon="chatbubble-ellipses-outline"
-            title="New Chat"
-            onPress={handleNewChat}
-          />
+          <View
+            style={
+              styles.menuItems
+            }
+          >
+            <MenuItem
+              icon="messages"
+              title="New Chat"
+              onPress={
+                handleNewChat
+              }
+            />
 
-          {/* ==================================================
-              HISTORY
-          ================================================== */}
-
-          <MenuItem
-            icon="time-outline"
-            title="History"
-            onPress={handleHistory}
-          />
+            <MenuItem
+              icon="clock"
+              title="History"
+              onPress={
+                handleHistory
+              }
+            />
+          </View>
 
           {/* ==================================================
               DIVIDER
           ================================================== */}
 
           <View
-            style={styles.divider}
+            style={
+              styles.divider
+            }
           />
 
           {/* ==================================================
-              CLEAR CHAT
+              DANGER ACTION
           ================================================== */}
 
           <MenuItem
-            icon="trash-outline"
+            icon="delete"
             title="Clear Chat"
             danger
-            onPress={handleClearChat}
+            onPress={
+              handleClearChat
+            }
           />
         </Animated.View>
       </View>
@@ -206,77 +314,150 @@ export default function AiMenuDrawer({
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  /* ============================================================
-     OVERLAY
-  ============================================================ */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
-  overlay: {
-    flex: 1,
+    overlay: {
+      flex: 1,
 
-    flexDirection: "row",
+      flexDirection: "row",
 
-    justifyContent: "flex-end",
+      justifyContent:
+        "flex-end",
 
-    backgroundColor:
-      "rgba(0, 0, 0, 0.35)",
-  },
+      backgroundColor:
+        Colors.overlayMedium,
+    },
 
-  /* ============================================================
-     BACKDROP
-  ============================================================ */
+    /* ========================================================
+       BACKDROP
+    ======================================================== */
 
-  backdrop: {
-    flex: 1,
-  },
+    backdrop: {
+      flex: 1,
+    },
 
-  /* ============================================================
-     DRAWER
-  ============================================================ */
+    /* ========================================================
+       DRAWER
+    ======================================================== */
 
-  drawer: {
-    width: 300,
+    drawer: {
+      height: "100%",
 
-    backgroundColor: "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    paddingTop: 70,
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
 
-    paddingHorizontal: 18,
+      borderBottomLeftRadius:
+        FixxamTokens.radius.xl,
 
-    borderTopLeftRadius: 28,
+      backgroundColor:
+        Colors.surface,
 
-    borderBottomLeftRadius: 28,
+      ...FixxamTokens.shadow.modal,
+    },
 
-    ...FixxamTokens.shadow.card,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  /* ============================================================
-     HEADER
-  ============================================================ */
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-  header: {
-    marginBottom: 22,
-  },
+      flexDirection: "row",
 
-  title: {
-    fontSize: 24,
+      alignItems: "center",
 
-    lineHeight: 30,
+      justifyContent:
+        "space-between",
 
-    color:
-      CustomerColors.textPrimary,
-  },
+      gap:
+        FixxamTokens.spacing.md,
 
-  /* ============================================================
-     DIVIDER
-  ============================================================ */
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
 
-  divider: {
-    height: 1,
+    headerText: {
+      flex: 1,
 
-    backgroundColor:
-      "#EEF2F7",
+      minWidth: 0,
+    },
 
-    marginVertical: 18,
-  },
-});
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    closeButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+    },
+
+    closePressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       MENU ITEMS
+    ======================================================== */
+
+    menuItems: {
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
+
+    divider: {
+      height: 1,
+
+      marginVertical:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.divider,
+    },
+  });
+
+export default memo(
+  AiMenuDrawer,
+);

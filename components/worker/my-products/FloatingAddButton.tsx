@@ -1,66 +1,142 @@
-import React from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
   Pressable,
   StyleSheet,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import {
+  AppIcon,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function FloatingAddButton() {
+  const insets =
+    useSafeAreaInsets();
+
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
+
+  const handlePress =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products/add",
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <Pressable
-      style={styles.button}
-      onPress={() =>
-        router.push(
-          "/(worker)/products/add",
-        )
+      onPress={
+        handlePress
       }
+      accessibilityRole="button"
+      accessibilityLabel="Add product"
+      accessibilityHint="Opens the add product screen"
+      hitSlop={8}
+      style={({
+        pressed,
+      }) => [
+        styles.button,
+
+        {
+          bottom:
+            Math.max(
+              insets.bottom,
+              FixxamTokens.spacing.lg,
+            ) +
+            FixxamTokens.spacing.sm,
+        },
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
-      <Ionicons
+      <AppIcon
         name="add"
-        size={32}
-        color="#FFFFFF"
+        role="worker"
+        size="lg"
+        color={
+          Colors.textInverse
+        }
       />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   STYLES
+============================================================ */
 
-  button: {
-    position: "absolute",
+const styles =
+  StyleSheet.create({
+    button: {
+      position:
+        "absolute",
 
-    right: 24,
+      right:
+        FixxamTokens.spacing.xl,
 
-    bottom: 30,
+      width:
+        FixxamTokens.size.fabLarge,
 
-    width: 64,
+      height:
+        FixxamTokens.size.fabLarge,
 
-    height: 64,
+      alignItems:
+        "center",
 
-    borderRadius: 32,
+      justifyContent:
+        "center",
 
-    backgroundColor: "#FF6B00",
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    justifyContent: "center",
+      backgroundColor:
+        WorkerColors.primary,
 
-    alignItems: "center",
+      ...FixxamTokens.shadow.card,
 
-    shadowColor: "#FF6B00",
+      elevation: 8,
 
-    shadowOpacity: 0.35,
-
-    shadowRadius: 12,
-
-    shadowOffset: {
-      width: 0,
-      height: 6,
+      zIndex: 20,
     },
 
-    elevation: 10,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-});
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

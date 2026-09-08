@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -11,71 +13,119 @@ import {
   AppText,
 } from "@/components/ui";
 
-export default function EmptyServices() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+function EmptyServices() {
   return (
-    <View style={styles.container}>
-      <View style={styles.iconBox}>
+    <View
+      style={
+        styles.container
+      }
+      accessibilityRole="text"
+    >
+      <View
+        style={
+          styles.iconBox
+        }
+      >
         <MaterialCommunityIcons
           name="tools"
-          size={34}
-          color="#94A3B8"
+          size={
+            FixxamTokens.size.iconLg
+          }
+          color={
+            Colors.textMuted
+          }
         />
       </View>
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        center
+        style={
+          styles.title
+        }
       >
         No services found
       </AppText>
 
-      <AppText style={styles.subtitle}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.subtitle
+        }
+      >
         Try another search or category.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    justifyContent: "center",
+export default memo(
+  EmptyServices,
+);
 
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  iconBox: {
-    width: 68,
-    height: 68,
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
 
-    borderRadius: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-    backgroundColor: "#F1F5F9",
+      alignItems:
+        "center",
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      justifyContent:
+        "center",
+    },
 
-  title: {
-    marginTop: 14,
+    iconBox: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-    fontSize: 18,
-    lineHeight: 23,
+      height:
+        FixxamTokens.size.avatarLg,
 
-    color: "#111827",
+      alignItems:
+        "center",
 
-    textAlign: "center",
-  },
+      justifyContent:
+        "center",
 
-  subtitle: {
-    marginTop: 6,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    fontSize: 13,
-    lineHeight: 19,
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-    color: "#6B7280",
+    title: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-    textAlign: "center",
-  },
-});
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      maxWidth: 280,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

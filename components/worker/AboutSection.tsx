@@ -1,5 +1,10 @@
-import React from "react";
-import { StyleSheet } from "react-native";
+import React, {
+  memo,
+} from "react";
+
+import {
+  StyleSheet,
+} from "react-native";
 
 import {
   AppCard,
@@ -7,31 +12,55 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   about: string;
-  setAbout: (value: string) => void;
+
+  setAbout: (
+    value: string,
+  ) => void;
 };
 
-export default function AboutSection({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AboutSection({
   about,
   setAbout,
 }: Props) {
   return (
     <>
       <AppText
-        size="lg"
-        weight="semibold"
-        style={styles.title}
+        variant="heading3"
+        weight="bold"
+        style={
+          styles.title
+        }
       >
         About Me
       </AppText>
 
-      <AppCard>
+      <AppCard
+        role="worker"
+        variant="outlined"
+      >
         <AppInput
           label="About Me"
           placeholder="Tell customers about your skills, experience and services..."
-          value={about}
-          onChangeText={setAbout}
+          value={
+            about
+          }
+          onChangeText={
+            setAbout
+          }
           multiline
           numberOfLines={5}
           variant="worker"
@@ -41,9 +70,21 @@ export default function AboutSection({
   );
 }
 
-const styles = StyleSheet.create({
-  title: {
-    marginTop: 24,
-    marginBottom: 12,
-  },
-});
+export default memo(
+  AboutSection,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    title: {
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+  });

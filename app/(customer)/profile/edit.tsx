@@ -1,28 +1,35 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
+  type TextInputProps,
   View,
 } from "react-native";
 
+import {
+  Image,
+} from "expo-image";
+
 import * as ImagePicker from "expo-image-picker";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import Toast from "react-native-toast-message";
 
 import {
   doc,
@@ -37,32 +44,96 @@ import {
 } from "firebase/storage";
 
 import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+import {
   auth,
   db,
   storage,
 } from "@/firebase/config";
 
-import {
-  AppScreen,
-  AppText,
-} from "@/components/ui";
-
 import useUserProfile from "@/hooks/auth/useUserProfile";
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_NAME_LENGTH = 60;
+
+const MAX_PHONE_LENGTH = 30;
+
+const MAX_PROFILE_PHOTO_BYTES =
+  8 * 1024 * 1024;
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function clean(value: string): string {
+function clean(
+  value: string,
+): string {
   return value.trim();
 }
 
-function isValidPhone(value: string): boolean {
-  const cleaned = value.replace(/\s+/g, "");
+function isValidPhone(
+  value: string,
+): boolean {
+  const cleaned =
+    value.replace(
+      /\s+/g,
+      "",
+    );
 
   return /^[0-9+()-]{7,20}$/.test(
     cleaned,
   );
+}
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
 }
 
 /* ============================================================
@@ -73,7 +144,18 @@ export default function CustomerProfileEditScreen() {
   const {
     profile,
     loading,
-  } = useUserProfile();
+  } =
+    useUserProfile();
+
+  /* ==========================================================
+     MUTATION GUARDS
+  ========================================================== */
+
+  const saveInFlight =
+    useRef(false);
+
+  const photoUploadInFlight =
+    useRef(false);
 
   /* ==========================================================
      FORM
@@ -82,27 +164,32 @@ export default function CustomerProfileEditScreen() {
   const [
     firstName,
     setFirstName,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     otherName,
     setOtherName,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     surname,
     setSurname,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     phone,
     setPhone,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     email,
     setEmail,
-  ] = useState("");
+  ] =
+    useState("");
 
   /* ==========================================================
      PHOTO
@@ -111,19 +198,28 @@ export default function CustomerProfileEditScreen() {
   const [
     photoUrl,
     setPhotoUrl,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    photoFailed,
+    setPhotoFailed,
+  ] =
+    useState(false);
 
   const [
     uploadingPhoto,
     setUploadingPhoto,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     saving,
     setSaving,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ==========================================================
      LOAD PROFILE
@@ -135,84 +231,127 @@ export default function CustomerProfileEditScreen() {
     }
 
     setFirstName(
-      profile.firstName ?? "",
+      profile.firstName ??
+        "",
     );
 
     setOtherName(
-      profile.otherName ?? "",
+      profile.otherName ??
+        "",
     );
 
     setSurname(
-      profile.surname ?? "",
+      profile.surname ??
+        "",
     );
 
     setPhone(
-      profile.phone ?? "",
+      profile.phone ??
+        "",
     );
 
+    /*
+     * Firebase Auth is authoritative
+     * for the account email.
+     */
     setEmail(
-      profile.email ??
-        auth.currentUser?.email ??
+      auth.currentUser
+        ?.email ??
+        profile.email ??
         "",
     );
 
     setPhotoUrl(
-      profile.photoUrl ?? null,
+      profile.photoUrl ??
+        null,
     );
-  }, [profile]);
+
+    setPhotoFailed(
+      false,
+    );
+  }, [
+    profile,
+  ]);
 
   /* ==========================================================
      FULL NAME
   ========================================================== */
 
   const fullName =
-    useMemo(() => {
-      return [
-        clean(firstName),
-        clean(otherName),
-        clean(surname),
-      ]
-        .filter(Boolean)
-        .join(" ");
-    }, [
-      firstName,
-      otherName,
-      surname,
-    ]);
+    useMemo(
+      () =>
+        [
+          clean(
+            firstName,
+          ),
+          clean(
+            otherName,
+          ),
+          clean(
+            surname,
+          ),
+        ]
+          .filter(Boolean)
+          .join(" "),
+      [
+        firstName,
+        otherName,
+        surname,
+      ],
+    );
 
   /* ==========================================================
-     PICK PHOTO
+     PICK + UPLOAD PHOTO
   ========================================================== */
 
   const handlePickPhoto =
     useCallback(async () => {
+      if (
+        photoUploadInFlight.current ||
+        saveInFlight.current ||
+        uploadingPhoto ||
+        saving
+      ) {
+        return;
+      }
+
       try {
-        if (uploadingPhoto || saving) {
-          return;
-        }
-
         const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+          await ImagePicker
+            .requestMediaLibraryPermissionsAsync();
 
-        if (!permission.granted) {
-          Alert.alert(
-            "Permission required",
-            "Please allow photo access so you can change your profile photo.",
+        if (
+          !permission.granted
+        ) {
+          showInfoToast(
+            "Photo permission required",
+            "Please allow photo access to change your profile photo.",
           );
 
           return;
         }
 
         const result =
-          await ImagePicker.launchImageLibraryAsync(
-            {
-              mediaTypes: ["images"],
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.85,
-              selectionLimit: 1,
-            },
-          );
+          await ImagePicker
+            .launchImageLibraryAsync({
+              mediaTypes: [
+                "images",
+              ],
+
+              allowsEditing:
+                true,
+
+              allowsMultipleSelection:
+                false,
+
+              aspect: [
+                1,
+                1,
+              ],
+
+              quality:
+                0.85,
+            });
 
         if (
           result.canceled ||
@@ -224,7 +363,42 @@ export default function CustomerProfileEditScreen() {
         const asset =
           result.assets[0];
 
-        if (!asset.uri) {
+        if (
+          !asset?.uri
+        ) {
+          showErrorToast(
+            "Photo unavailable",
+            "The selected photo could not be read.",
+          );
+
+          return;
+        }
+
+        if (
+          typeof asset.fileSize ===
+            "number" &&
+          asset.fileSize >
+            MAX_PROFILE_PHOTO_BYTES
+        ) {
+          showErrorToast(
+            "Photo is too large",
+            "Please choose an image smaller than 8 MB.",
+          );
+
+          return;
+        }
+
+        if (
+          asset.mimeType &&
+          !asset.mimeType.startsWith(
+            "image/",
+          )
+        ) {
+          showErrorToast(
+            "Invalid photo",
+            "Please choose a valid image file.",
+          );
+
           return;
         }
 
@@ -232,7 +406,7 @@ export default function CustomerProfileEditScreen() {
           auth.currentUser;
 
         if (!user) {
-          Alert.alert(
+          showErrorToast(
             "Sign in required",
             "Please sign in again before changing your profile photo.",
           );
@@ -240,37 +414,52 @@ export default function CustomerProfileEditScreen() {
           return;
         }
 
-        setUploadingPhoto(true);
+        photoUploadInFlight.current =
+          true;
 
-        /* ------------------------------------------------------
-           CONVERT LOCAL IMAGE TO BLOB
-        ------------------------------------------------------ */
+        setUploadingPhoto(
+          true,
+        );
+
+        /* ----------------------------------------------------
+           LOCAL IMAGE → BLOB
+        ---------------------------------------------------- */
 
         const response =
-          await fetch(asset.uri);
+          await fetch(
+            asset.uri,
+          );
 
         if (!response.ok) {
           throw new Error(
-            "Unable to read selected image.",
+            "PROFILE_PHOTO_READ_FAILED",
           );
         }
 
         const blob =
           await response.blob();
 
-        /* ------------------------------------------------------
-           FIREBASE STORAGE PATH
-        ------------------------------------------------------ */
+        if (
+          blob.size >
+          MAX_PROFILE_PHOTO_BYTES
+        ) {
+          showErrorToast(
+            "Photo is too large",
+            "Please choose an image smaller than 8 MB.",
+          );
+
+          return;
+        }
+
+        /* ----------------------------------------------------
+           STORAGE
+        ---------------------------------------------------- */
 
         const storageRef =
           ref(
             storage,
             `users/${user.uid}/profile/profile-photo.jpg`,
           );
-
-        /* ------------------------------------------------------
-           UPLOAD
-        ------------------------------------------------------ */
 
         await uploadBytes(
           storageRef,
@@ -282,18 +471,14 @@ export default function CustomerProfileEditScreen() {
           },
         );
 
-        /* ------------------------------------------------------
-           DOWNLOAD URL
-        ------------------------------------------------------ */
-
         const downloadURL =
           await getDownloadURL(
             storageRef,
           );
 
-        /* ------------------------------------------------------
-           UPDATE FIRESTORE
-        ------------------------------------------------------ */
+        /* ----------------------------------------------------
+           FIRESTORE
+        ---------------------------------------------------- */
 
         await updateDoc(
           doc(
@@ -314,26 +499,37 @@ export default function CustomerProfileEditScreen() {
           downloadURL,
         );
 
-        Alert.alert(
+        setPhotoFailed(
+          false,
+        );
+
+        showSuccessToast(
           "Photo updated",
           "Your profile photo has been updated successfully.",
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.error(
           "CUSTOMER_PROFILE_PHOTO_UPLOAD_ERROR:",
           error,
         );
 
-        Alert.alert(
+        showErrorToast(
           "Upload failed",
           "We could not update your profile photo. Please try again.",
         );
       } finally {
-        setUploadingPhoto(false);
+        photoUploadInFlight.current =
+          false;
+
+        setUploadingPhoto(
+          false,
+        );
       }
     }, [
-      uploadingPhoto,
       saving,
+      uploadingPhoto,
     ]);
 
   /* ==========================================================
@@ -341,9 +537,11 @@ export default function CustomerProfileEditScreen() {
   ========================================================== */
 
   const validate =
-    useCallback(() => {
-      if (!auth.currentUser) {
-        Alert.alert(
+    useCallback((): boolean => {
+      if (
+        !auth.currentUser
+      ) {
+        showErrorToast(
           "Sign in required",
           "Please sign in again before editing your profile.",
         );
@@ -351,8 +549,30 @@ export default function CustomerProfileEditScreen() {
         return false;
       }
 
-      if (!clean(firstName)) {
-        Alert.alert(
+      const cleanFirstName =
+        clean(
+          firstName,
+        );
+
+      const cleanOtherName =
+        clean(
+          otherName,
+        );
+
+      const cleanSurname =
+        clean(
+          surname,
+        );
+
+      const cleanPhone =
+        clean(
+          phone,
+        );
+
+      if (
+        !cleanFirstName
+      ) {
+        showErrorToast(
           "First name required",
           "Please enter your first name.",
         );
@@ -360,8 +580,34 @@ export default function CustomerProfileEditScreen() {
         return false;
       }
 
-      if (!clean(surname)) {
-        Alert.alert(
+      if (
+        cleanFirstName.length >
+        MAX_NAME_LENGTH
+      ) {
+        showErrorToast(
+          "First name is too long",
+          `First name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+        );
+
+        return false;
+      }
+
+      if (
+        cleanOtherName.length >
+        MAX_NAME_LENGTH
+      ) {
+        showErrorToast(
+          "Other name is too long",
+          `Other name must be ${MAX_NAME_LENGTH} characters or fewer.`,
+        );
+
+        return false;
+      }
+
+      if (
+        !cleanSurname
+      ) {
+        showErrorToast(
           "Surname required",
           "Please enter your surname.",
         );
@@ -369,16 +615,25 @@ export default function CustomerProfileEditScreen() {
         return false;
       }
 
-      const cleanedPhone =
-        clean(phone);
+      if (
+        cleanSurname.length >
+        MAX_NAME_LENGTH
+      ) {
+        showErrorToast(
+          "Surname is too long",
+          `Surname must be ${MAX_NAME_LENGTH} characters or fewer.`,
+        );
+
+        return false;
+      }
 
       if (
-        cleanedPhone &&
+        cleanPhone &&
         !isValidPhone(
-          cleanedPhone,
+          cleanPhone,
         )
       ) {
-        Alert.alert(
+        showErrorToast(
           "Invalid phone",
           "Please enter a valid phone number.",
         );
@@ -389,8 +644,9 @@ export default function CustomerProfileEditScreen() {
       return true;
     }, [
       firstName,
-      surname,
+      otherName,
       phone,
+      surname,
     ]);
 
   /* ==========================================================
@@ -399,7 +655,16 @@ export default function CustomerProfileEditScreen() {
 
   const handleSave =
     useCallback(async () => {
-      if (!validate()) {
+      if (
+        saveInFlight.current ||
+        saving
+      ) {
+        return;
+      }
+
+      if (
+        !validate()
+      ) {
         return;
       }
 
@@ -410,18 +675,26 @@ export default function CustomerProfileEditScreen() {
         return;
       }
 
-      if (uploadingPhoto) {
-        Alert.alert(
-          "Please wait",
-          "Your profile photo is still uploading.",
+      if (
+        photoUploadInFlight.current ||
+        uploadingPhoto
+      ) {
+        showInfoToast(
+          "Photo is uploading",
+          "Please wait for your profile photo to finish uploading.",
         );
 
         return;
       }
 
-      try {
-        setSaving(true);
+      saveInFlight.current =
+        true;
 
+      setSaving(
+        true,
+      );
+
+      try {
         const profileRef =
           doc(
             db,
@@ -433,67 +706,78 @@ export default function CustomerProfileEditScreen() {
           profileRef,
           {
             firstName:
-              clean(firstName),
+              clean(
+                firstName,
+              ),
 
             otherName:
-              clean(otherName),
+              clean(
+                otherName,
+              ),
 
             surname:
-              clean(surname),
+              clean(
+                surname,
+              ),
 
-            fullName:
-              fullName,
+            fullName,
 
             phone:
-              clean(phone),
+              clean(
+                phone,
+              ),
 
             /*
-             * Email belongs to Firebase Auth.
-             * We do not allow editing it here.
+             * Firebase Auth remains the
+             * authoritative email source.
              */
             email:
               user.email ??
-              clean(email),
+              clean(
+                email,
+              ),
 
             updatedAt:
               serverTimestamp(),
           },
         );
 
-        Alert.alert(
+        showSuccessToast(
           "Profile updated",
           "Your profile has been updated successfully.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                router.back();
-              },
-            },
-          ],
         );
-      } catch (error) {
+
+        router.back();
+      } catch (
+        error
+      ) {
         console.error(
           "CUSTOMER_PROFILE_UPDATE_ERROR:",
           error,
         );
 
-        Alert.alert(
+        showErrorToast(
           "Unable to update",
           "We could not update your profile. Please try again.",
         );
       } finally {
-        setSaving(false);
+        saveInFlight.current =
+          false;
+
+        setSaving(
+          false,
+        );
       }
     }, [
-      validate,
-      firstName,
-      otherName,
-      surname,
-      phone,
       email,
+      firstName,
       fullName,
+      otherName,
+      phone,
+      saving,
+      surname,
       uploadingPhoto,
+      validate,
     ]);
 
   /* ==========================================================
@@ -502,7 +786,12 @@ export default function CustomerProfileEditScreen() {
 
   if (loading) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
         <View
           style={
             styles.loading
@@ -510,10 +799,14 @@ export default function CustomerProfileEditScreen() {
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -529,22 +822,39 @@ export default function CustomerProfileEditScreen() {
      AUTH
   ========================================================== */
 
-  if (!auth.currentUser) {
+  if (
+    !auth.currentUser
+  ) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
         <View
           style={
             styles.loading
           }
         >
-          <Ionicons
-            name="person-outline"
-            size={42}
-            color="#94A3B8"
-          />
+          <View
+            style={
+              styles.authIcon
+            }
+          >
+            <AppIcon
+              name="profile"
+              size="lg"
+              color={
+                Colors.textMuted
+              }
+            />
+          </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.authTitle
             }
@@ -553,12 +863,14 @@ export default function CustomerProfileEditScreen() {
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.authText
             }
           >
-            Please sign in to edit your
-            profile.
+            Please sign in to edit your profile.
           </AppText>
         </View>
       </AppScreen>
@@ -571,6 +883,7 @@ export default function CustomerProfileEditScreen() {
 
   return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
         styles.screen
       }
@@ -580,7 +893,8 @@ export default function CustomerProfileEditScreen() {
           styles.flex
         }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
             : undefined
         }
@@ -590,6 +904,7 @@ export default function CustomerProfileEditScreen() {
             false
           }
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           contentContainerStyle={
             styles.content
           }
@@ -604,22 +919,28 @@ export default function CustomerProfileEditScreen() {
             }
           >
             <Pressable
-              onPress={() =>
-                router.back()
-              }
+              onPress={() => {
+                router.back();
+              }}
               hitSlop={10}
-              style={({ pressed }) => [
-                styles.backButton,
-                pressed &&
-                  styles.pressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel="Go back"
+              style={({
+                pressed,
+              }) => [
+                styles.backButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={23}
-                color="#0F172A"
+              <AppIcon
+                name="back"
+                size="md"
+                color={
+                  Colors.textPrimary
+                }
               />
             </Pressable>
 
@@ -629,6 +950,7 @@ export default function CustomerProfileEditScreen() {
               }
             >
               <AppText
+                variant="heading2"
                 weight="bold"
                 style={
                   styles.title
@@ -638,6 +960,8 @@ export default function CustomerProfileEditScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.subtitle
                 }
@@ -664,20 +988,42 @@ export default function CustomerProfileEditScreen() {
                 uploadingPhoto ||
                 saving
               }
-              style={({ pressed }) => [
-                styles.avatarButton,
-                pressed &&
-                  !uploadingPhoto &&
-                  !saving &&
-                  styles.avatarPressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel="Change profile photo"
+              accessibilityState={{
+                disabled:
+                  uploadingPhoto ||
+                  saving,
+
+                busy:
+                  uploadingPhoto,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.avatarButton,
+
+                pressed &&
+                !uploadingPhoto &&
+                !saving
+                  ? styles.avatarPressed
+                  : null,
+              ]}
             >
-              {photoUrl ? (
+              {photoUrl &&
+              !photoFailed ? (
                 <Image
                   source={{
-                    uri: photoUrl,
+                    uri:
+                      photoUrl,
+                  }}
+                  contentFit="cover"
+                  cachePolicy="none"
+                  accessibilityLabel="Profile photo"
+                  onError={() => {
+                    setPhotoFailed(
+                      true,
+                    );
                   }}
                   style={
                     styles.avatarImage
@@ -689,15 +1035,16 @@ export default function CustomerProfileEditScreen() {
                     styles.avatarPlaceholder
                   }
                 >
-                  <Ionicons
-                    name="person"
-                    size={34}
-                    color="#64748B"
+                  <AppIcon
+                    name="profile"
+                    role="customer"
+                    size="lg"
+                    color={
+                      CustomerColors.primary
+                    }
                   />
                 </View>
               )}
-
-              {/* CAMERA BADGE */}
 
               <View
                 style={
@@ -707,13 +1054,17 @@ export default function CustomerProfileEditScreen() {
                 {uploadingPhoto ? (
                   <ActivityIndicator
                     size="small"
-                    color="#FFFFFF"
+                    color={
+                      Colors.textInverse
+                    }
                   />
                 ) : (
-                  <Ionicons
+                  <AppIcon
                     name="camera"
-                    size={15}
-                    color="#FFFFFF"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
                   />
                 )}
               </View>
@@ -725,6 +1076,7 @@ export default function CustomerProfileEditScreen() {
               }
             >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 numberOfLines={1}
                 style={
@@ -736,6 +1088,8 @@ export default function CustomerProfileEditScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
                 style={
                   styles.previewEmail
@@ -754,8 +1108,11 @@ export default function CustomerProfileEditScreen() {
                   saving
                 }
                 hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Change profile photo"
               >
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.changePhotoText
@@ -779,6 +1136,7 @@ export default function CustomerProfileEditScreen() {
             }
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.sectionTitle
@@ -796,8 +1154,13 @@ export default function CustomerProfileEditScreen() {
                 setFirstName
               }
               placeholder="Enter first name"
-              icon="person-outline"
+              icon="profile"
               autoCapitalize="words"
+              autoComplete="given-name"
+              textContentType="givenName"
+              maxLength={
+                MAX_NAME_LENGTH
+              }
               editable={
                 !saving
               }
@@ -812,8 +1175,13 @@ export default function CustomerProfileEditScreen() {
                 setOtherName
               }
               placeholder="Enter other name"
-              icon="person-outline"
+              icon="profile"
               autoCapitalize="words"
+              autoComplete="additional-name"
+              textContentType="middleName"
+              maxLength={
+                MAX_NAME_LENGTH
+              }
               editable={
                 !saving
               }
@@ -828,8 +1196,13 @@ export default function CustomerProfileEditScreen() {
                 setSurname
               }
               placeholder="Enter surname"
-              icon="person-outline"
+              icon="profile"
               autoCapitalize="words"
+              autoComplete="family-name"
+              textContentType="familyName"
+              maxLength={
+                MAX_NAME_LENGTH
+              }
               editable={
                 !saving
               }
@@ -844,8 +1217,13 @@ export default function CustomerProfileEditScreen() {
                 setPhone
               }
               placeholder="Enter phone number"
-              icon="call-outline"
+              icon="phone"
               keyboardType="phone-pad"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              maxLength={
+                MAX_PHONE_LENGTH
+              }
               editable={
                 !saving
               }
@@ -860,9 +1238,11 @@ export default function CustomerProfileEditScreen() {
                 setEmail
               }
               placeholder="Email address"
-              icon="mail-outline"
+              icon="mail"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
               editable={false}
               disabled
             />
@@ -882,10 +1262,13 @@ export default function CustomerProfileEditScreen() {
                 styles.noteIcon
               }
             >
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={19}
-                color="#2563EB"
+              <AppIcon
+                name="shield"
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
@@ -895,6 +1278,7 @@ export default function CustomerProfileEditScreen() {
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.noteTitle
@@ -904,13 +1288,13 @@ export default function CustomerProfileEditScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.noteText
                 }
               >
-                Your email is managed by
-                your Firebase account and
-                cannot be changed here.
+                Your email is managed by your Firebase account and cannot be changed here.
               </AppText>
             </View>
           </View>
@@ -920,48 +1304,59 @@ export default function CustomerProfileEditScreen() {
           ================================================== */}
 
           <Pressable
-            onPress={
-              handleSave
-            }
+            onPress={() => {
+              void handleSave();
+            }}
             disabled={
               saving ||
               uploadingPhoto
             }
-            style={({ pressed }) => [
-              styles.saveButton,
-
-              (saving ||
-                uploadingPhoto) &&
-                styles.saveDisabled,
-
-              pressed &&
-                !saving &&
-                !uploadingPhoto &&
-                styles.pressed,
-            ]}
             accessibilityRole="button"
             accessibilityLabel="Save profile changes"
             accessibilityState={{
               disabled:
                 saving ||
                 uploadingPhoto,
-              busy: saving,
+
+              busy:
+                saving,
             }}
+            style={({
+              pressed,
+            }) => [
+              styles.saveButton,
+
+              saving ||
+              uploadingPhoto
+                ? styles.saveDisabled
+                : null,
+
+              pressed &&
+              !saving &&
+              !uploadingPhoto
+                ? styles.pressed
+                : null,
+            ]}
           >
             {saving ? (
               <ActivityIndicator
                 size="small"
-                color="#FFFFFF"
+                color={
+                  Colors.textInverse
+                }
               />
             ) : (
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#FFFFFF"
+              <AppIcon
+                name="check"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             )}
 
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.saveText
@@ -990,95 +1385,142 @@ export default function CustomerProfileEditScreen() {
    INPUT FIELD
 ============================================================ */
 
-function InputField({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  icon,
-  keyboardType,
-  autoCapitalize,
-  editable = true,
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (
-    value: string,
-  ) => void;
-  placeholder: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  keyboardType?:
-    | "default"
-    | "email-address"
-    | "phone-pad";
-  autoCapitalize?:
-    | "none"
-    | "sentences"
-    | "words";
-  editable?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <View
-      style={
-        styles.field
-      }
-    >
-      <AppText
-        weight="bold"
-        style={
-          styles.fieldLabel
-        }
-      >
-        {label}
-      </AppText>
+const InputField =
+  memo(
+    function InputField({
+      label,
+      value,
+      onChangeText,
+      placeholder,
+      icon,
+      disabled = false,
+      editable = true,
+      ...inputProps
+    }: {
+      label: string;
 
-      <View
-        style={[
-          styles.inputContainer,
-          disabled &&
-            styles.inputDisabled,
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={19}
-          color={
-            disabled
-              ? "#CBD5E1"
-              : "#64748B"
-          }
-        />
+      value: string;
 
-        <TextInput
-          value={value}
-          onChangeText={
-            onChangeText
-          }
-          placeholder={
-            placeholder
-          }
-          placeholderTextColor="#94A3B8"
-          keyboardType={
-            keyboardType
-          }
-          autoCapitalize={
-            autoCapitalize
-          }
-          editable={
-            editable &&
-            !disabled
-          }
+      onChangeText:
+        (value: string) => void;
+
+      placeholder: string;
+
+      icon: AppIconName;
+
+      disabled?: boolean;
+
+      editable?: boolean;
+    } & Pick<
+      TextInputProps,
+      | "keyboardType"
+      | "autoCapitalize"
+      | "autoComplete"
+      | "textContentType"
+      | "maxLength"
+    >) {
+      const [
+        focused,
+        setFocused,
+      ] =
+        useState(false);
+
+      return (
+        <View
           style={
-            styles.input
+            styles.field
           }
-          selectionColor="#2563EB"
-        />
-      </View>
-    </View>
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.fieldLabel
+            }
+          >
+            {label}
+          </AppText>
+
+          <View
+            style={[
+              styles.inputContainer,
+
+              focused &&
+              !disabled
+                ? styles.inputFocused
+                : null,
+
+              disabled
+                ? styles.inputDisabled
+                : null,
+            ]}
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              color={
+                disabled
+                  ? Colors.disabled
+                  : focused
+                    ? CustomerColors.primary
+                    : Colors.textSecondary
+              }
+            />
+
+            <TextInput
+              value={
+                value
+              }
+              onChangeText={
+                onChangeText
+              }
+              placeholder={
+                placeholder
+              }
+              placeholderTextColor={
+                Colors.textMuted
+              }
+              editable={
+                editable &&
+                !disabled
+              }
+              selectionColor={
+                CustomerColors.primary
+              }
+              autoCorrect={false}
+              onFocus={() => {
+                setFocused(
+                  true,
+                );
+              }}
+              onBlur={() => {
+                setFocused(
+                  false,
+                );
+              }}
+              accessibilityLabel={
+                label
+              }
+              style={[
+                styles.input,
+
+                disabled
+                  ? styles.inputTextDisabled
+                  : null,
+              ]}
+              {...inputProps}
+            />
+          </View>
+        </View>
+      );
+    },
   );
-}
+
+InputField.displayName =
+  "InputField";
 
 /* ============================================================
    STYLES
@@ -1086,20 +1528,36 @@ function InputField({
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     flex: {
       flex: 1,
     },
 
     screen: {
-      flexGrow: 1,
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 30,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
     /* ========================================================
@@ -1107,40 +1565,63 @@ const styles =
     ======================================================== */
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 16,
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor:
-        "#FFFFFF",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 22,
-      lineHeight: 27,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
@@ -1148,87 +1629,142 @@ const styles =
     ======================================================== */
 
     previewCard: {
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 12,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     avatarButton: {
-      width: 76,
-      height: 76,
-      borderRadius: 24,
-      position: "relative",
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      position:
+        "relative",
     },
 
     avatarPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.97,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     avatarImage: {
-      width: 76,
-      height: 76,
-      borderRadius: 24,
+      width: "100%",
+
+      height: "100%",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
     },
 
     avatarPlaceholder: {
-      width: 76,
-      height: 76,
-      borderRadius: 24,
+      width: "100%",
+
+      height: "100%",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        CustomerColors.primarySoft,
     },
 
     cameraBadge: {
-      position: "absolute",
+      position:
+        "absolute",
+
       right: -4,
+
       bottom: -4,
+
       width: 30,
+
       height: 30,
-      borderRadius: 15,
-      backgroundColor:
-        "#2563EB",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 3,
+
       borderColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     previewContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 13,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     previewName: {
-      fontSize: 17,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     previewEmail: {
-      marginTop: 4,
-      fontSize: 11.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     changePhotoText: {
-      marginTop: 7,
-      fontSize: 11.5,
-      color: "#2563EB",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -1236,19 +1772,29 @@ const styles =
     ======================================================== */
 
     section: {
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     sectionTitle: {
-      marginBottom: 12,
-      fontSize: 15,
-      color: "#0F172A",
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -1256,82 +1802,147 @@ const styles =
     ======================================================== */
 
     field: {
-      marginBottom: 12,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     fieldLabel: {
-      marginBottom: 6,
-      fontSize: 11.5,
-      color: "#334155",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
     inputContainer: {
-      height: 48,
-      borderRadius: 13,
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
       backgroundColor:
-        "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 13,
+        Colors.surface,
+    },
+
+    inputFocused: {
+      borderColor:
+        CustomerColors.primary,
     },
 
     inputDisabled: {
-      backgroundColor:
-        "#F8FAFC",
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     input: {
       flex: 1,
-      marginLeft: 9,
+
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       paddingVertical: 0,
-      fontSize: 14,
-      color: "#0F172A",
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    inputTextDisabled: {
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
-       NOTE
+       SECURITY NOTE
     ======================================================== */
 
     note: {
-      marginTop: 10,
-      padding: 12,
-      borderRadius: 15,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#EFF6FF",
-      flexDirection: "row",
-      alignItems: "flex-start",
+        CustomerColors.primarySoft,
     },
 
     noteIcon: {
-      width: 34,
-      height: 34,
-      borderRadius: 11,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.surface,
     },
 
     noteContent: {
       flex: 1,
-      marginLeft: 9,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     noteTitle: {
-      fontSize: 12,
-      color: "#1D4ED8",
+      color:
+        CustomerColors.primary,
     },
 
     noteText: {
-      marginTop: 2,
-      fontSize: 10.5,
-      lineHeight: 16,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1339,71 +1950,128 @@ const styles =
     ======================================================== */
 
     saveButton: {
-      height: 50,
-      marginTop: 14,
-      borderRadius: 14,
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
+        CustomerColors.primary,
     },
 
     saveDisabled: {
-      opacity: 0.65,
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     saveText: {
-      fontSize: 14,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
-       LOADING
+       LOADING / AUTH
     ======================================================== */
 
     loading: {
       flex: 1,
+
       minHeight: 350,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 30,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 9,
-      fontSize: 12,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    authIcon: {
+      width: 68,
+
+      height: 68,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     authTitle: {
-      marginTop: 12,
-      fontSize: 17,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     authText: {
-      marginTop: 5,
-      fontSize: 12,
-      textAlign: "center",
-      color: "#64748B",
+      maxWidth: 280,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
-       PRESS
+       STATES
     ======================================================== */
 
     pressed: {
-      opacity: 0.78,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     bottomSpace: {
-      height: 30,
+      height:
+        FixxamTokens.spacing.xl,
     },
   });

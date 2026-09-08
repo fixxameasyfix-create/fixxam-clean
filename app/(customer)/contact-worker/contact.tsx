@@ -1,7 +1,9 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -9,7 +11,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -19,7 +20,7 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image } from "expo-image";
 
 import { router } from "expo-router";
 
@@ -33,6 +34,8 @@ import * as Location from "expo-location";
 
 import {
   AppCard,
+  AppIcon,
+  AppScreen,
   AppText,
 } from "@/components/ui";
 
@@ -51,364 +54,345 @@ import {
   calculateArrivalTime,
 } from "@/utils/location/calculateArrivalTime";
 
-/* ============================================================
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Worker = {
   id: string;
+
   name: string;
+
   service: string;
+
   rating: number;
+
   distance: number | null;
+
   arrivalTime: string;
+
   online: boolean;
+
   image: string;
-  phoneNumber: string;
 };
 
 type UserLocation = {
   latitude: number;
+
   longitude: number;
 };
 
-/*
- * Flexible public worker shape.
- *
- * This allows the screen to support both:
- *
- * NEW Build Your Profile fields
- * and
- * LEGACY fields.
- */
-type FirestoreWorker = WorkerPublicProfile & {
-  uid?: string;
+type FirestoreWorker =
+  WorkerPublicProfile & {
+    uid?: string;
 
-  fullName?: string;
+    fullName?: string;
 
-  firstName?: string;
-  otherName?: string;
-  surname?: string;
+    firstName?: string;
 
-  name?: string;
+    otherName?: string;
 
-  rating?: number;
-  online?: boolean;
-  available?: boolean;
+    surname?: string;
 
-  phoneNumber?: string;
-  phone?: string;
-  mobileNumber?: string;
+    name?: string;
 
-  photoURL?: string;
-  photoUrl?: string;
+    rating?: number;
 
-  category?: string;
-  subcategory?: string;
+    online?: boolean;
 
-  latitude?: number | null;
-  longitude?: number | null;
+    available?: boolean;
 
-  workerProfile?: {
-    category?: string;
-    subcategory?: string;
-
-    photoUrl?: string;
     photoURL?: string;
 
+    photoUrl?: string;
+
+    category?: string;
+
+    subcategory?: string;
+
     latitude?: number | null;
+
     longitude?: number | null;
 
-    phoneNumber?: string;
-    phone?: string;
+    workerProfile?: {
+      category?: string;
+
+      subcategory?: string;
+
+      photoUrl?: string;
+
+      photoURL?: string;
+
+      latitude?: number | null;
+
+      longitude?: number | null;
+    };
   };
+
+type LoadWorkersOptions = {
+  silent?: boolean;
+
+  refreshLocation?: boolean;
 };
 
-/* ============================================================
+type WorkerCardProps = {
+  worker: Worker;
+
+  onContact: (
+    worker: Worker,
+  ) => void;
+};
+
+/* ==============================================================
    CONSTANTS
-============================================================ */
+============================================================== */
 
-const MAX_DISTANCE_KM = 50;
+const MAX_DISTANCE_KM =
+  50;
 
-const PAGE_HORIZONTAL_PADDING = 20;
+const WORKER_REFRESH_INTERVAL =
+  60_000;
 
-const WORKER_CARD_RADIUS = 20;
-
-/*
- * Public profile refresh.
- *
- * If worker changes:
- *
- * name
- * photo
- * phone
- * category
- * online
- * location
- *
- * the screen will fetch the latest public profile.
- */
-const WORKER_REFRESH_INTERVAL = 10_000;
-
-/* ============================================================
-   SAFE STRING
-============================================================ */
+/* ==============================================================
+   HELPERS
+============================================================== */
 
 function cleanString(
   value: unknown,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !==
+    "string"
+  ) {
     return "";
   }
 
   return value.trim();
 }
 
-/* ============================================================
+function normalizeSearch(
+  value: string,
+): string {
+  return value
+    .trim()
+    .toLocaleLowerCase()
+    .replace(
+      /\s+/g,
+      " ",
+    );
+}
+
+/* ==============================================================
    WORKER NAME
-============================================================ */
+============================================================== */
 
 function getWorkerName(
   worker: FirestoreWorker,
 ): string {
-  /*
-   * 1. NEW BUILD YOUR PROFILE
-   *
-   * fullName has highest priority.
-   */
   const fullName =
     cleanString(
       worker.fullName,
     );
 
-  if (fullName) {
+  if (
+    fullName
+  ) {
     return fullName;
   }
 
-  /*
-   * 2. LEGACY INDIVIDUAL NAMES
-   */
-  const individualName = [
-    worker.firstName,
-    worker.otherName,
-    worker.surname,
-  ]
-    .map(cleanString)
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const individualName =
+    [
+      worker.firstName,
+      worker.otherName,
+      worker.surname,
+    ]
+      .map(
+        cleanString,
+      )
+      .filter(
+        Boolean,
+      )
+      .join(
+        " ",
+      )
+      .trim();
 
-  if (individualName) {
+  if (
+    individualName
+  ) {
     return individualName;
   }
 
-  /*
-   * 3. LEGACY name
-   */
   const legacyName =
     cleanString(
       worker.name,
     );
 
-  if (legacyName) {
+  if (
+    legacyName
+  ) {
     return legacyName;
   }
 
   return "Worker";
 }
 
-/* ============================================================
+/* ==============================================================
    WORKER SERVICE
-============================================================ */
+============================================================== */
 
 function getWorkerService(
   worker: FirestoreWorker,
 ): string {
-  /*
-   * New editable workerProfile fields.
-   */
-  const subcategory =
+  const nestedSubcategory =
     cleanString(
       worker.workerProfile
         ?.subcategory,
     );
 
-  if (subcategory) {
-    return subcategory;
+  if (
+    nestedSubcategory
+  ) {
+    return nestedSubcategory;
   }
 
-  const category =
+  const nestedCategory =
     cleanString(
       worker.workerProfile
         ?.category,
     );
 
-  if (category) {
-    return category;
+  if (
+    nestedCategory
+  ) {
+    return nestedCategory;
   }
 
-  /*
-   * Top-level fallback.
-   */
-  const topSubcategory =
+  const subcategory =
     cleanString(
       worker.subcategory,
     );
 
-  if (topSubcategory) {
-    return topSubcategory;
+  if (
+    subcategory
+  ) {
+    return subcategory;
   }
 
-  const topCategory =
+  const category =
     cleanString(
       worker.category,
     );
 
-  if (topCategory) {
-    return topCategory;
+  if (
+    category
+  ) {
+    return category;
   }
 
   return "Service Provider";
 }
 
-/* ============================================================
+/* ==============================================================
    WORKER IMAGE
-============================================================ */
+============================================================== */
 
 function getWorkerImage(
   worker: FirestoreWorker,
 ): string {
-  /*
-   * IMPORTANT:
-   *
-   * Build Your Profile may save the image
-   * using different field names depending
-   * on the current/legacy profile structure.
-   *
-   * Priority:
-   *
-   * 1. top-level photoURL
-   * 2. top-level photoUrl
-   * 3. nested workerProfile.photoURL
-   * 4. nested workerProfile.photoUrl
-   */
-
-  const topPhotoURL =
+  return (
     cleanString(
       worker.photoURL,
-    );
-
-  if (topPhotoURL) {
-    return topPhotoURL;
-  }
-
-  const topPhotoUrl =
+    ) ||
     cleanString(
       worker.photoUrl,
-    );
-
-  if (topPhotoUrl) {
-    return topPhotoUrl;
-  }
-
-  const nestedPhotoURL =
+    ) ||
     cleanString(
       worker.workerProfile
         ?.photoURL,
-    );
-
-  if (nestedPhotoURL) {
-    return nestedPhotoURL;
-  }
-
-  const nestedPhotoUrl =
+    ) ||
     cleanString(
       worker.workerProfile
         ?.photoUrl,
-    );
-
-  if (nestedPhotoUrl) {
-    return nestedPhotoUrl;
-  }
-
-  return "";
+    )
+  );
 }
 
-/* ============================================================
-   WORKER PHONE
-============================================================ */
+/* ==============================================================
+   WORKER COORDINATES
+============================================================== */
 
-function getWorkerPhone(
+function getWorkerCoordinates(
   worker: FirestoreWorker,
-): string {
-  /*
-   * Prefer top-level public phone.
-   */
-  const phoneNumber =
-    cleanString(
-      worker.phoneNumber,
-    );
+): UserLocation | null {
+  const latitude =
+    typeof worker
+      .workerProfile
+      ?.latitude ===
+      "number"
+      ? worker.workerProfile
+          .latitude
+      : typeof worker.latitude ===
+          "number"
+        ? worker.latitude
+        : null;
 
-  if (phoneNumber) {
-    return phoneNumber;
+  const longitude =
+    typeof worker
+      .workerProfile
+      ?.longitude ===
+      "number"
+      ? worker.workerProfile
+          .longitude
+      : typeof worker.longitude ===
+          "number"
+        ? worker.longitude
+        : null;
+
+  if (
+    latitude === null ||
+    longitude === null ||
+    !Number.isFinite(
+      latitude,
+    ) ||
+    !Number.isFinite(
+      longitude,
+    ) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
   }
 
-  const phone =
-    cleanString(
-      worker.phone,
-    );
-
-  if (phone) {
-    return phone;
-  }
-
-  const mobileNumber =
-    cleanString(
-      worker.mobileNumber,
-    );
-
-  if (mobileNumber) {
-    return mobileNumber;
-  }
-
-  /*
-   * Legacy nested fallback.
-   */
-  const nestedPhoneNumber =
-    cleanString(
-      worker.workerProfile
-        ?.phoneNumber,
-    );
-
-  if (nestedPhoneNumber) {
-    return nestedPhoneNumber;
-  }
-
-  const nestedPhone =
-    cleanString(
-      worker.workerProfile
-        ?.phone,
-    );
-
-  if (nestedPhone) {
-    return nestedPhone;
-  }
-
-  return "";
+  return {
+    latitude,
+    longitude,
+  };
 }
 
-/* ============================================================
+/* ==============================================================
    ARRIVAL TIME
-============================================================ */
+============================================================== */
 
 function getWorkerArrivalTime(
   distance: number | null,
 ): string {
   if (
     distance === null ||
-    !Number.isFinite(distance)
+    !Number.isFinite(
+      distance,
+    )
   ) {
-    return "Nearby";
+    return "Location unavailable";
   }
 
   return calculateArrivalTime(
@@ -416,9 +400,241 @@ function getWorkerArrivalTime(
   );
 }
 
-/* ============================================================
+/* ==============================================================
+   WORKER AVATAR
+============================================================== */
+
+const WorkerAvatar =
+  memo(function WorkerAvatar({
+    uri,
+    online,
+  }: {
+    uri: string;
+
+    online: boolean;
+  }) {
+    const [
+      imageFailed,
+      setImageFailed,
+    ] =
+      useState(
+        false,
+      );
+
+    useEffect(() => {
+      setImageFailed(
+        false,
+      );
+    }, [
+      uri,
+    ]);
+
+    const showImage =
+      Boolean(
+        uri.trim(),
+      ) &&
+      !imageFailed;
+
+    return (
+      <View
+        style={
+          styles.imageContainer
+        }
+      >
+        {showImage ? (
+          <Image
+            source={{
+              uri,
+            }}
+            style={
+              styles.image
+            }
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            accessibilityLabel="Worker profile photo"
+            onError={() => {
+              setImageFailed(
+                true,
+              );
+            }}
+          />
+        ) : (
+          <View
+            style={
+              styles.imagePlaceholder
+            }
+          >
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="lg"
+              state="muted"
+            />
+          </View>
+        )}
+
+        <View
+          accessibilityLabel={
+            online
+              ? "Online"
+              : "Offline"
+          }
+          style={[
+            styles.onlineIndicator,
+
+            online
+              ? styles.onlineIndicatorActive
+              : styles.onlineIndicatorInactive,
+          ]}
+        />
+      </View>
+    );
+  });
+
+/* ==============================================================
+   WORKER CARD
+============================================================== */
+
+const WorkerCard =
+  memo(function WorkerCard({
+    worker,
+    onContact,
+  }: WorkerCardProps) {
+    const handleContact =
+      useCallback(() => {
+        onContact(
+          worker,
+        );
+      }, [
+        onContact,
+        worker,
+      ]);
+
+    return (
+      <AppCard
+        role="customer"
+        variant="outlined"
+        style={
+          styles.card
+        }
+      >
+        <WorkerAvatar
+          uri={
+            worker.image
+          }
+          online={
+            worker.online
+          }
+        />
+
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          center
+          numberOfLines={1}
+          style={
+            styles.name
+          }
+        >
+          {worker.name}
+        </AppText>
+
+        <AppText
+          variant="caption"
+          tone="secondary"
+          center
+          numberOfLines={1}
+          style={
+            styles.service
+          }
+        >
+          {worker.service}
+        </AppText>
+
+        <View
+          style={
+            styles.ratingRow
+          }
+        >
+          <AppIcon
+            name="star"
+            role="customer"
+            size="xs"
+            color={
+              Colors.warning
+            }
+          />
+
+          <AppText
+            variant="caption"
+            style={
+              styles.rating
+            }
+          >
+            {worker.rating >
+            0
+              ? worker.rating.toFixed(
+                  1,
+                )
+              : "New"}
+          </AppText>
+        </View>
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          center
+          numberOfLines={1}
+          style={
+            styles.distance
+          }
+        >
+          {worker.arrivalTime}
+        </AppText>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Contact ${worker.name}`}
+          onPress={
+            handleContact
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.callButton,
+
+            pressed
+              ? styles.callButtonPressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="phone"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
+
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            style={
+              styles.callText
+            }
+          >
+            Contact
+          </AppText>
+        </Pressable>
+      </AppCard>
+    );
+  });
+
+/* ==============================================================
    CALL WORKER MODAL
-============================================================ */
+============================================================== */
 
 function CallWorkerModal({
   visible,
@@ -427,33 +643,41 @@ function CallWorkerModal({
   onConfirm,
 }: {
   visible: boolean;
-  worker: Worker | null;
+
+  worker:
+    | Worker
+    | null;
+
   onCancel: () => void;
+
   onConfirm: () => void;
 }) {
-  if (!worker) {
+  if (
+    !worker
+  ) {
     return null;
   }
 
-  const hasPhone =
-    Boolean(
-      worker.phoneNumber.trim(),
-    );
-
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={
+        onCancel
+      }
     >
       <View
         style={
           styles.callModalOverlay
         }
       >
-        <View
+        <AppCard
+          role="customer"
+          variant="elevated"
           style={
             styles.callModal
           }
@@ -463,44 +687,42 @@ function CallWorkerModal({
               styles.callModalIcon
             }
           >
-            <Ionicons
-              name={
-                hasPhone
-                  ? "call-outline"
-                  : "call-outline"
-              }
-              size={34}
-              color="#2563EB"
+            <AppIcon
+              name="phone"
+              role="customer"
+              size="xl"
+              state="active"
             />
           </View>
 
           <AppText
+            variant="heading2"
             weight="bold"
-            style={
-              styles.callModalTitle
-            }
+            center
           >
             Call {worker.name}?
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.callModalDescription
             }
           >
-            {hasPhone
-              ? `${worker.name} is available for contact.`
-              : `${worker.name} has not added a public phone number yet.`}
+            Start an in-app voice call with {worker.name}.
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.callModalQuestion
             }
           >
-            {hasPhone
-              ? "Do you want to call this worker?"
-              : "Calling is currently unavailable."}
+            You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
           </AppText>
 
           <View
@@ -509,48 +731,57 @@ function CallWorkerModal({
             }
           >
             <Pressable
-              onPress={onCancel}
-              style={({ pressed }) => [
-                styles.callModalCancel,
-                pressed &&
-                  styles.callModalPressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel="Cancel call"
+              onPress={
+                onCancel
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.callModalCancel,
+
+                pressed
+                  ? styles.callModalPressed
+                  : null,
+              ]}
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
-                style={
-                  styles.callModalCancelText
-                }
+                tone="secondary"
               >
                 Cancel
               </AppText>
             </Pressable>
 
             <Pressable
-              onPress={onConfirm}
-              disabled={!hasPhone}
-              style={({ pressed }) => [
-                styles.callModalConfirm,
-
-                !hasPhone &&
-                  styles.callModalDisabled,
-
-                pressed &&
-                  hasPhone &&
-                  styles.callModalConfirmPressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel={`Call ${worker.name}`}
+              onPress={
+                onConfirm
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.callModalConfirm,
+
+                pressed
+                  ? styles.callModalConfirmPressed
+                  : null,
+              ]}
             >
-              <Ionicons
-                name="call-outline"
-                size={18}
-                color="#FFFFFF"
+              <AppIcon
+                name="phone"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
               />
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.callModalConfirmText
@@ -560,151 +791,212 @@ function CallWorkerModal({
               </AppText>
             </Pressable>
           </View>
-        </View>
+        </AppCard>
       </View>
     </Modal>
   );
 }
 
-/* ============================================================
+/* ==============================================================
    SCREEN
-============================================================ */
+============================================================== */
 
 export default function ContactWorkersScreen() {
-  /* ==========================================================
+  /* ============================================================
      SEARCH
-  ========================================================== */
+  ============================================================ */
 
   const [
     search,
     setSearch,
-  ] = useState("");
+  ] =
+    useState(
+      "",
+    );
 
-  /* ==========================================================
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
+    useState(
+      false,
+    );
+
+  /* ============================================================
      WORKERS
-  ========================================================== */
+  ============================================================ */
 
   const [
     workers,
     setWorkers,
-  ] = useState<Worker[]>([]);
+  ] =
+    useState<
+      Worker[]
+    >(
+      [],
+    );
 
-  /* ==========================================================
+  /* ============================================================
      AUTH
-  ========================================================== */
+  ============================================================ */
 
   const [
     currentUser,
     setCurrentUser,
-  ] = useState<User | null>(
-    getAuth().currentUser,
-  );
+  ] =
+    useState<
+      User | null
+    >(
+      getAuth()
+        .currentUser,
+    );
 
-  /*
-   * Worker selected by guest before login.
-   */
   const [
     pendingWorker,
     setPendingWorker,
-  ] = useState<Worker | null>(
-    null,
-  );
+  ] =
+    useState<
+      Worker | null
+    >(
+      null,
+    );
 
-  /*
-   * Worker currently being called.
-   */
   const [
     callWorker,
     setCallWorker,
-  ] = useState<Worker | null>(
-    null,
-  );
+  ] =
+    useState<
+      Worker | null
+    >(
+      null,
+    );
 
-  /* ==========================================================
+  /* ============================================================
      LOADING
-  ========================================================== */
+  ============================================================ */
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      true,
+    );
 
   const [
     refreshing,
     setRefreshing,
-  ] = useState(false);
+  ] =
+    useState(
+      false,
+    );
 
-  /* ==========================================================
+  /* ============================================================
      LOCATION
-  ========================================================== */
+  ============================================================ */
 
   const [
     locationPermissionDenied,
     setLocationPermissionDenied,
-  ] = useState(false);
+  ] =
+    useState(
+      false,
+    );
 
-  /* ==========================================================
+  const customerLocationRef =
+    useRef<
+      UserLocation | null
+    >(
+      null,
+    );
+
+  /* ============================================================
+     REQUEST CONTROL
+  ============================================================ */
+
+  const requestIdRef =
+    useRef(
+      0,
+    );
+
+  /* ============================================================
      AUTH STATE
-  ========================================================== */
+  ============================================================ */
 
   useEffect(() => {
-    const firebaseAuth =
-      getAuth();
-
     const unsubscribe =
       onAuthStateChanged(
-        firebaseAuth,
-        (user) => {
-          setCurrentUser(user);
-
-          /*
-           * Guest pressed Contact.
-           *
-           * After successful login,
-           * automatically continue.
-           */
-          if (
-            user &&
-            pendingWorker
-          ) {
-            setCallWorker(
-              pendingWorker,
-            );
-
-            setPendingWorker(
-              null,
-            );
-          }
+        getAuth(),
+        (
+          user,
+        ) => {
+          setCurrentUser(
+            user,
+          );
         },
       );
 
     return unsubscribe;
+  }, []);
+
+  /*
+   * Customer selected a worker while
+   * signed out. Continue after login.
+   */
+  useEffect(() => {
+    if (
+      !currentUser ||
+      !pendingWorker
+    ) {
+      return;
+    }
+
+    setCallWorker(
+      pendingWorker,
+    );
+
+    setPendingWorker(
+      null,
+    );
   }, [
+    currentUser,
     pendingWorker,
   ]);
 
-  /* ==========================================================
+  /* ============================================================
      CUSTOMER LOCATION
-  ========================================================== */
+  ============================================================ */
 
   const loadCustomerLocation =
     useCallback(
-      async (): Promise<
+      async (
+        requestIfNeeded:
+          boolean,
+      ): Promise<
         UserLocation | null
       > => {
         try {
-          const {
-            status,
-          } =
-            await Location.requestForegroundPermissionsAsync();
+          let permission =
+            await Location.getForegroundPermissionsAsync();
 
           if (
-            status !==
-            Location.PermissionStatus.GRANTED
+            !permission.granted &&
+            requestIfNeeded &&
+            permission.canAskAgain
+          ) {
+            permission =
+              await Location.requestForegroundPermissionsAsync();
+          }
+
+          if (
+            !permission.granted
           ) {
             setLocationPermissionDenied(
               true,
             );
+
+            customerLocationRef.current =
+              null;
 
             return null;
           }
@@ -717,15 +1009,18 @@ export default function ContactWorkersScreen() {
             await Location.getCurrentPositionAsync(
               {
                 accuracy:
-                  Location.Accuracy.Balanced,
+                  Location.Accuracy
+                    .Balanced,
               },
             );
 
           const latitude =
-            location.coords.latitude;
+            location.coords
+              .latitude;
 
           const longitude =
-            location.coords.longitude;
+            location.coords
+              .longitude;
 
           if (
             !Number.isFinite(
@@ -733,140 +1028,135 @@ export default function ContactWorkersScreen() {
             ) ||
             !Number.isFinite(
               longitude,
-            )
+            ) ||
+            latitude < -90 ||
+            latitude > 90 ||
+            longitude < -180 ||
+            longitude > 180
           ) {
-            return null;
+            return customerLocationRef.current;
           }
 
-          return {
-            latitude,
-            longitude,
-          };
-        } catch (error) {
+          const nextLocation: UserLocation =
+            {
+              latitude,
+              longitude,
+            };
+
+          customerLocationRef.current =
+            nextLocation;
+
+          return nextLocation;
+        } catch (
+          error
+        ) {
           console.error(
             "CUSTOMER_LOCATION_ERROR:",
             error,
           );
 
-          return null;
+          return customerLocationRef.current;
         }
       },
       [],
     );
 
-  /* ==========================================================
+  /* ============================================================
      LOAD WORKERS
-  ========================================================== */
+  ============================================================ */
 
   const loadWorkers =
     useCallback(
       async (
-        options?: {
-          silent?: boolean;
-        },
+        options:
+          LoadWorkersOptions = {},
       ) => {
-        const silent =
-          options?.silent === true;
+        const {
+          silent = false,
+          refreshLocation = false,
+        } =
+          options;
+
+        const requestId =
+          ++requestIdRef.current;
 
         try {
-          if (!silent) {
-            setLoading(true);
+          if (
+            !silent
+          ) {
+            setLoading(
+              true,
+            );
           }
 
-          /*
-           * Public workers do not require login.
-           */
-          const [
-            workerSnapshot,
-            customerLocation,
-          ] =
-            await Promise.all([
-              getPublicWorkers(),
-              loadCustomerLocation(),
-            ]);
+          const customerLocation =
+            refreshLocation
+              ? await loadCustomerLocation(
+                  true,
+                )
+              : customerLocationRef.current;
 
-          const firebaseWorkers: Worker[] =
+          const workerSnapshot =
+            await getPublicWorkers();
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          const nextWorkers: Worker[] =
             [];
 
           workerSnapshot.forEach(
-            (document) => {
+            (
+              document,
+            ) => {
               const data =
                 document.data() as FirestoreWorker;
 
-              /*
-               * Worker must be available.
-               */
               if (
-                data.available === false
+                data.available ===
+                false
               ) {
                 return;
               }
 
-              /*
-               * LOCATION
-               */
-              const latitude =
-                typeof data.workerProfile
-                  ?.latitude ===
-                "number"
-                  ? data.workerProfile
-                      .latitude
-                  : typeof data.latitude ===
-                      "number"
-                    ? data.latitude
-                    : null;
-
-              const longitude =
-                typeof data.workerProfile
-                  ?.longitude ===
-                "number"
-                  ? data.workerProfile
-                      .longitude
-                  : typeof data.longitude ===
-                      "number"
-                    ? data.longitude
-                    : null;
+              const coordinates =
+                getWorkerCoordinates(
+                  data,
+                );
 
               let distance:
                 | number
-                | null = null;
+                | null =
+                null;
 
-              /*
-               * Calculate customer → worker distance.
-               */
               if (
                 customerLocation &&
-                latitude !== null &&
-                longitude !== null &&
-                Number.isFinite(
-                  latitude,
-                ) &&
-                Number.isFinite(
-                  longitude,
-                )
+                coordinates
               ) {
-                distance =
+                const calculatedDistance =
                   calculateDistance(
                     customerLocation.latitude,
                     customerLocation.longitude,
-                    latitude,
-                    longitude,
+                    coordinates.latitude,
+                    coordinates.longitude,
                   );
 
                 if (
-                  !Number.isFinite(
-                    distance,
+                  Number.isFinite(
+                    calculatedDistance,
                   )
                 ) {
-                  distance = null;
+                  distance =
+                    calculatedDistance;
                 }
 
-                /*
-                 * Ignore workers outside
-                 * the configured radius.
-                 */
                 if (
-                  distance !== null &&
+                  distance !==
+                    null &&
                   distance >
                     MAX_DISTANCE_KM
                 ) {
@@ -874,11 +1164,22 @@ export default function ContactWorkersScreen() {
                 }
               }
 
-              /*
-               * Build current worker object
-               * from the latest public document.
-               */
-              firebaseWorkers.push({
+              const rating =
+                typeof data.rating ===
+                  "number" &&
+                Number.isFinite(
+                  data.rating,
+                )
+                  ? Math.min(
+                      5,
+                      Math.max(
+                        0,
+                        data.rating,
+                      ),
+                    )
+                  : 0;
+
+              nextWorkers.push({
                 id:
                   cleanString(
                     data.uid,
@@ -895,20 +1196,7 @@ export default function ContactWorkersScreen() {
                     data,
                   ),
 
-                rating:
-                  typeof data.rating ===
-                    "number" &&
-                  Number.isFinite(
-                    data.rating,
-                  )
-                    ? Math.min(
-                        5,
-                        Math.max(
-                          0,
-                          data.rating,
-                        ),
-                      )
-                    : 0,
+                rating,
 
                 distance,
 
@@ -921,34 +1209,23 @@ export default function ContactWorkersScreen() {
                   data.online ===
                   true,
 
-                /*
-                 * IMPORTANT:
-                 *
-                 * Image now reads both:
-                 *
-                 * photoURL
-                 * photoUrl
-                 *
-                 * top-level and nested.
-                 */
                 image:
                   getWorkerImage(
-                    data,
-                  ),
-
-                phoneNumber:
-                  getWorkerPhone(
                     data,
                   ),
               });
             },
           );
 
-          /*
-           * Nearest worker first.
-           */
-          firebaseWorkers.sort(
-            (a, b) => {
+          /* ==================================================
+             NEAREST FIRST
+          ================================================== */
+
+          nextWorkers.sort(
+            (
+              a,
+              b,
+            ) => {
               if (
                 a.distance !==
                   null &&
@@ -975,6 +1252,15 @@ export default function ContactWorkersScreen() {
                 return 1;
               }
 
+              if (
+                a.online !==
+                b.online
+              ) {
+                return a.online
+                  ? -1
+                  : 1;
+              }
+
               return a.name.localeCompare(
                 b.name,
               );
@@ -982,26 +1268,50 @@ export default function ContactWorkersScreen() {
           );
 
           setWorkers(
-            firebaseWorkers,
+            nextWorkers,
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
           console.error(
             "LOAD_CONTACT_WORKERS_ERROR:",
             error,
           );
 
-          if (!silent) {
+          if (
+            !silent
+          ) {
             Alert.alert(
               "Unable to load workers",
               "We couldn't load workers right now. Please try again.",
             );
           }
         } finally {
-          if (!silent) {
-            setLoading(false);
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
           }
 
-          setRefreshing(false);
+          if (
+            !silent
+          ) {
+            setLoading(
+              false,
+            );
+          }
+
+          setRefreshing(
+            false,
+          );
         }
       },
       [
@@ -1009,27 +1319,42 @@ export default function ContactWorkersScreen() {
       ],
     );
 
-  /* ==========================================================
+  /* ============================================================
      INITIAL LOAD
-  ========================================================== */
+  ============================================================ */
 
   useEffect(() => {
-    void loadWorkers();
+    void loadWorkers({
+      refreshLocation:
+        true,
+    });
+
+    return () => {
+      requestIdRef.current +=
+        1;
+    };
   }, [
     loadWorkers,
   ]);
 
-  /* ==========================================================
-     AUTOMATIC PROFILE REFRESH
-  ========================================================== */
+  /* ============================================================
+     SILENT PROFILE REFRESH
+  ============================================================ */
 
   useEffect(() => {
     const interval =
-      setInterval(() => {
-        void loadWorkers({
-          silent: true,
-        });
-      }, WORKER_REFRESH_INTERVAL);
+      setInterval(
+        () => {
+          void loadWorkers({
+            silent:
+              true,
+
+            refreshLocation:
+              false,
+          });
+        },
+        WORKER_REFRESH_INTERVAL,
+      );
 
     return () => {
       clearInterval(
@@ -1040,63 +1365,119 @@ export default function ContactWorkersScreen() {
     loadWorkers,
   ]);
 
-  /* ==========================================================
+  /* ============================================================
      MANUAL REFRESH
-  ========================================================== */
+  ============================================================ */
 
   const handleRefresh =
-    useCallback(async () => {
-      setRefreshing(true);
+    useCallback(() => {
+      if (
+        refreshing
+      ) {
+        return;
+      }
 
-      await loadWorkers();
+      setRefreshing(
+        true,
+      );
+
+      void loadWorkers({
+        refreshLocation:
+          true,
+      });
+    }, [
+      loadWorkers,
+      refreshing,
+    ]);
+
+  /* ============================================================
+     LOCATION PERMISSION ACTION
+  ============================================================ */
+
+  const handleLocationPermission =
+    useCallback(async () => {
+      try {
+        const permission =
+          await Location.getForegroundPermissionsAsync();
+
+        if (
+          !permission.granted &&
+          !permission.canAskAgain
+        ) {
+          await Linking.openSettings();
+
+          return;
+        }
+
+        await loadWorkers({
+          refreshLocation:
+            true,
+        });
+      } catch (
+        error
+      ) {
+        console.error(
+          "LOCATION_PERMISSION_ACTION_ERROR:",
+          error,
+        );
+      }
     }, [
       loadWorkers,
     ]);
 
-  /* ==========================================================
+  /* ============================================================
      SEARCH
-  ========================================================== */
+  ============================================================ */
+
+  const normalizedSearch =
+    normalizeSearch(
+      search,
+    );
+
+  const hasSearch =
+    normalizedSearch.length >
+    0;
 
   const filteredWorkers =
     useMemo(() => {
-      const query =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!query) {
+      if (
+        !normalizedSearch
+      ) {
         return workers;
       }
 
       return workers.filter(
-        (worker) =>
+        (
+          worker,
+        ) =>
           worker.name
-            .toLowerCase()
-            .includes(query) ||
+            .toLocaleLowerCase()
+            .includes(
+              normalizedSearch,
+            ) ||
           worker.service
-            .toLowerCase()
-            .includes(query),
+            .toLocaleLowerCase()
+            .includes(
+              normalizedSearch,
+            ),
       );
     }, [
-      search,
+      normalizedSearch,
       workers,
     ]);
 
-  /* ==========================================================
-     CONTACT WORKER
-  ========================================================== */
+  /* ============================================================
+     CONTACT
+  ============================================================ */
 
   const handleContactPress =
     useCallback(
-      (worker: Worker) => {
-        /*
-         * Always check Firebase Auth directly.
-         */
-        const firebaseAuth =
-          getAuth();
-
+      (
+        worker: Worker,
+      ) => {
         if (
-          !firebaseAuth.currentUser
+          !getAuth()
+            .currentUser
         ) {
           setPendingWorker(
             worker,
@@ -1112,9 +1493,9 @@ export default function ContactWorkersScreen() {
       [],
     );
 
-  /* ==========================================================
-     CLOSE CALL MODAL
-  ========================================================== */
+  /* ============================================================
+     CALL MODAL
+  ============================================================ */
 
   const handleCloseCallModal =
     useCallback(() => {
@@ -1123,87 +1504,24 @@ export default function ContactWorkersScreen() {
       );
     }, []);
 
-  /* ==========================================================
-     NORMALIZE PHONE
-  ========================================================== */
-
-  const normalizePhoneNumber =
-    useCallback(
-      (
-        value: string,
-      ): string => {
-        let phone =
-          value.trim();
-
-        if (!phone) {
-          return "";
-        }
-
-        /*
-         * Remove spaces, brackets,
-         * dashes and other characters.
-         */
-        phone =
-          phone.replace(
-            /[^\d+]/g,
-            "",
-          );
-
-        /*
-         * Nigerian local format:
-         *
-         * 08012345678
-         */
-        if (
-          phone.startsWith(
-            "0",
-          ) &&
-          phone.length === 11
-        ) {
-          phone =
-            `+234${phone.slice(1)}`;
-        }
-
-        /*
-         * Nigerian international format:
-         *
-         * 2348012345678
-         */
-        if (
-          phone.startsWith(
-            "234",
-          ) &&
-          !phone.startsWith(
-            "+234",
-          )
-        ) {
-          phone =
-            `+${phone}`;
-        }
-
-        return phone;
-      },
-      [],
-    );
-
-  /* ==========================================================
-     CONFIRM CALL
-  ========================================================== */
+  /* ============================================================
+     CONFIRM IN-APP CALL
+  ============================================================ */
 
   const handleConfirmCall =
-    useCallback(async () => {
-      if (!callWorker) {
+    useCallback(() => {
+      if (
+        !callWorker
+      ) {
         return;
       }
 
-      /*
-       * Re-check authentication.
-       */
-      const firebaseAuth =
-        getAuth();
+      const currentAuthUser =
+        getAuth()
+          .currentUser;
 
       if (
-        !firebaseAuth.currentUser
+        !currentAuthUser
       ) {
         setPendingWorker(
           callWorker,
@@ -1216,64 +1534,49 @@ export default function ContactWorkersScreen() {
         return;
       }
 
-      const phone =
-        normalizePhoneNumber(
-          callWorker.phoneNumber,
-        );
+      const worker =
+        callWorker;
 
-      if (!phone) {
-        Alert.alert(
-          "Phone unavailable",
-          "This worker does not have a contact number available yet.",
-        );
+      setCallWorker(
+        null,
+      );
 
-        return;
-      }
+      /*
+       * No phone number is sent.
+       *
+       * The in-app call session identifies
+       * the worker with workerId.
+       */
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
 
-      try {
-        const phoneUrl =
-          `tel:${phone}`;
+        params: {
+          workerId:
+            worker.id,
 
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
+          name:
+            worker.name,
 
-        if (!supported) {
-          Alert.alert(
-            "Unable to call",
-            "Your device cannot make phone calls.",
-          );
+          service:
+            worker.service,
 
-          return;
-        }
+          image:
+            worker.image,
 
-        setCallWorker(
-          null,
-        );
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (error) {
-        console.error(
-          "CALL_WORKER_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Unable to call",
-          "We couldn't start the call. Please try again.",
-        );
-      }
+          rating:
+            String(
+              worker.rating,
+            ),
+        },
+      });
     }, [
       callWorker,
-      normalizePhoneNumber,
     ]);
 
-  /* ==========================================================
-     CLOSE LOGIN
-  ========================================================== */
+  /* ============================================================
+     LOGIN MODAL
+  ============================================================ */
 
   const handleCloseLoginModal =
     useCallback(() => {
@@ -1282,743 +1585,983 @@ export default function ContactWorkersScreen() {
       );
     }, []);
 
-  /* ==========================================================
-     LOADING
-  ========================================================== */
+  /* ============================================================
+     CLEAR SEARCH
+  ============================================================ */
 
-  if (loading) {
-    return (
-      <View
-        style={
-          styles.loadingContainer
-        }
-      >
-        <ActivityIndicator
-          size="large"
-          color="#2563EB"
+  const handleClearSearch =
+    useCallback(() => {
+      setSearch(
+        "",
+      );
+    }, []);
+
+  /* ============================================================
+     RENDER ITEM
+  ============================================================ */
+
+  const renderWorker =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: Worker;
+      }) => (
+        <WorkerCard
+          worker={
+            item
+          }
+          onContact={
+            handleContactPress
+          }
         />
+      ),
+      [
+        handleContactPress,
+      ],
+    );
 
-        <AppText
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  if (
+    loading &&
+    workers.length ===
+      0
+  ) {
+    return (
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
+        <View
           style={
-            styles.loadingText
+            styles.loadingContainer
           }
         >
-          Finding workers near you...
-        </AppText>
-      </View>
+          <ActivityIndicator
+            size="large"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Finding workers near you...
+          </AppText>
+        </View>
+      </AppScreen>
     );
   }
 
-  /* ==========================================================
-     MAIN
-  ========================================================== */
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View
-      style={
-        styles.container
-      }
+    <AppScreen
+      role="customer"
+      padded={false}
     >
-      {/* ====================================================
-          HEADER
-      ==================================================== */}
-
       <View
         style={
-          styles.header
+          styles.container
         }
       >
-        <Pressable
-          style={
-            styles.backButton
-          }
-          onPress={() =>
-            router.back()
-          }
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons
-            name="arrow-back"
-            size={23}
-            color="#111827"
-          />
-        </Pressable>
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
         <View
           style={
-            styles.headerText
+            styles.header
           }
         >
-          <AppText
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Contact Workers
-          </AppText>
-
-          <AppText
-            style={
-              styles.subtitle
-            }
-          >
-            Easily connect with your favorite worker
-            with just a call for better service.
-          </AppText>
-        </View>
-      </View>
-
-      {/* ====================================================
-          SEARCH
-      ==================================================== */}
-
-      <View
-        style={
-          styles.searchContainer
-        }
-      >
-        <Ionicons
-          name="search-outline"
-          size={21}
-          color="#94A3B8"
-        />
-
-        <TextInput
-          value={search}
-          onChangeText={
-            setSearch
-          }
-          placeholder="Search workers or services..."
-          placeholderTextColor="#94A3B8"
-          style={
-            styles.searchInput
-          }
-          returnKeyType="search"
-          autoCapitalize="none"
-          autoCorrect={false}
-          accessibilityLabel="Search workers or services"
-        />
-
-        {search.length > 0 && (
           <Pressable
-            onPress={() =>
-              setSearch("")
-            }
-            hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Clear search"
+            accessibilityLabel="Go back"
+            hitSlop={8}
+            onPress={() =>
+              router.back()
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.backButtonPressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="close-circle"
-              size={20}
-              color="#94A3B8"
+            <AppIcon
+              name="back"
+              role="customer"
+              size="sm"
+              state="default"
             />
           </Pressable>
-        )}
-      </View>
 
-      {/* ====================================================
-          LOCATION NOTICE
-      ==================================================== */}
-
-      {locationPermissionDenied && (
-        <View
-          style={
-            styles.locationNotice
-          }
-        >
-          <Ionicons
-            name="location-outline"
-            size={18}
-            color="#F59E0B"
-          />
-
-          <AppText
+          <View
             style={
-              styles.locationNoticeText
+              styles.headerText
             }
           >
-            Location permission is off. Worker
-            distances cannot be calculated accurately.
-          </AppText>
-        </View>
-      )}
-
-      {/* ====================================================
-          LIST
-      ==================================================== */}
-
-      <FlatList
-        data={
-          filteredWorkers
-        }
-        keyExtractor={(
-          item,
-        ) => item.id}
-        numColumns={2}
-        showsVerticalScrollIndicator={
-          false
-        }
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={
-          styles.list
-        }
-        columnWrapperStyle={
-          styles.row
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={
-              refreshing
-            }
-            onRefresh={
-              handleRefresh
-            }
-            tintColor="#2563EB"
-          />
-        }
-        renderItem={({
-          item,
-        }) => (
-          <AppCard
-            style={
-              styles.card
-            }
-          >
-            {/* ==================================================
-                IMAGE
-            ================================================== */}
-
-            <View
-              style={
-                styles.imageContainer
-              }
-            >
-              {item.image ? (
-                <Image
-                  source={{
-                    uri: item.image,
-                  }}
-                  style={
-                    styles.image
-                  }
-                  resizeMode="cover"
-                  onError={() => {
-                    /*
-                     * Image error is intentionally
-                     * not shown to the customer.
-                     *
-                     * Placeholder remains visually
-                     * safe if the remote image fails.
-                     */
-                  }}
-                />
-              ) : (
-                <View
-                  style={
-                    styles.imagePlaceholder
-                  }
-                >
-                  <Ionicons
-                    name="person"
-                    size={34}
-                    color="#94A3B8"
-                  />
-                </View>
-              )}
-
-              <View
-                style={[
-                  styles.online,
-                  {
-                    backgroundColor:
-                      item.online
-                        ? "#22C55E"
-                        : "#9CA3AF",
-                  },
-                ]}
-              />
-            </View>
-
-            {/* ==================================================
-                NAME
-            ================================================== */}
-
             <AppText
+              variant="heading1"
               weight="bold"
-              numberOfLines={1}
-              style={
-                styles.name
-              }
             >
-              {item.name}
+              Contact Workers
             </AppText>
-
-            {/* ==================================================
-                SERVICE
-            ================================================== */}
 
             <AppText
-              numberOfLines={1}
+              variant="caption"
+              tone="secondary"
               style={
-                styles.service
+                styles.subtitle
               }
             >
-              {item.service}
+              Find an available worker and start a secure in-app call.
             </AppText>
+          </View>
+        </View>
 
-            {/* ==================================================
-                RATING
-            ================================================== */}
+        {/* ====================================================
+            SEARCH
+        ==================================================== */}
 
-            <View
-              style={
-                styles.ratingRow
-              }
-            >
-              <Ionicons
-                name="star"
-                size={13}
-                color="#F59E0B"
-              />
+        <View
+          style={[
+            styles.searchContainer,
 
-              <AppText
-                style={
-                  styles.rating
-                }
-              >
-                {item.rating >
-                0
-                  ? item.rating.toFixed(
-                      1,
-                    )
-                  : "New"}
-              </AppText>
-            </View>
+            searchFocused
+              ? styles.searchFocused
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="search"
+            role="customer"
+            size="sm"
+            state={
+              searchFocused
+                ? "active"
+                : "muted"
+            }
+          />
 
-            {/* ==================================================
-                ARRIVAL
-            ================================================== */}
+          <TextInput
+            value={
+              search
+            }
+            onChangeText={
+              setSearch
+            }
+            onFocus={() =>
+              setSearchFocused(
+                true,
+              )
+            }
+            onBlur={() =>
+              setSearchFocused(
+                false,
+              )
+            }
+            placeholder="Search workers or services..."
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            selectionColor={
+              CustomerColors.primary
+            }
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Search workers or services"
+            style={
+              styles.searchInput
+            }
+          />
 
-            <AppText
-              style={
-                styles.distance
-              }
-            >
-              {item.arrivalTime}
-            </AppText>
-
-            {/* ==================================================
-                CONTACT
-            ================================================== */}
-
+          {hasSearch ? (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={8}
+              onPress={
+                handleClearSearch
+              }
               style={({
                 pressed,
               }) => [
-                styles.callButton,
-                pressed &&
-                  styles.callButtonPressed,
-              ]}
-              onPress={() =>
-                handleContactPress(
-                  item,
-                )
-              }
-              accessibilityRole="button"
-              accessibilityLabel={`Contact ${item.name}`}
-            >
-              <Ionicons
-                name="call-outline"
-                size={17}
-                color="#FFFFFF"
-              />
+                styles.searchAction,
 
-              <AppText
-                weight="bold"
-                style={
-                  styles.callText
-                }
-              >
-                Contact
-              </AppText>
+                pressed
+                  ? styles.searchActionPressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="close"
+                role="customer"
+                size="xs"
+                state="muted"
+              />
             </Pressable>
-          </AppCard>
-        )}
-        ListEmptyComponent={
-          <View
-            style={
-              styles.empty
+          ) : null}
+        </View>
+
+        {/* ====================================================
+            LOCATION NOTICE
+        ==================================================== */}
+
+        {locationPermissionDenied ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Enable location access"
+            onPress={
+              handleLocationPermission
             }
+            style={({
+              pressed,
+            }) => [
+              styles.locationNotice,
+
+              pressed
+                ? styles.locationNoticePressed
+                : null,
+            ]}
           >
             <View
               style={
-                styles.emptyIcon
+                styles.locationNoticeIcon
               }
             >
-              <Ionicons
-                name="people-outline"
-                size={42}
-                color="#94A3B8"
+              <AppIcon
+                name="location"
+                role="customer"
+                size="xs"
+                state="active"
               />
             </View>
 
-            <AppText
-              weight="bold"
+            <View
               style={
-                styles.emptyTitle
+                styles.locationNoticeContent
               }
             >
-              No Workers Found
-            </AppText>
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+              >
+                Enable location
+              </AppText>
 
-            <AppText
-              center
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.locationNoticeText
+                }
+              >
+                Location helps Fixxam show nearby workers and estimate arrival time.
+              </AppText>
+            </View>
+
+            <AppIcon
+              name="next"
+              role="customer"
+              size="xs"
+              state="muted"
+            />
+          </Pressable>
+        ) : null}
+
+        {/* ====================================================
+            LIST
+        ==================================================== */}
+
+        <FlatList
+          data={
+            filteredWorkers
+          }
+          keyExtractor={(
+            item,
+          ) =>
+            item.id
+          }
+          renderItem={
+            renderWorker
+          }
+          numColumns={2}
+          showsVerticalScrollIndicator={
+            false
+          }
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={
+            styles.list
+          }
+          columnWrapperStyle={
+            styles.row
+          }
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          refreshControl={
+            <RefreshControl
+              refreshing={
+                refreshing
+              }
+              onRefresh={
+                handleRefresh
+              }
+              tintColor={
+                CustomerColors.primary
+              }
+              colors={[
+                CustomerColors.primary,
+              ]}
+            />
+          }
+          ListEmptyComponent={
+            <View
               style={
-                styles.emptyText
+                styles.empty
               }
             >
-              {search.trim()
-                ? "Try searching for another worker or service."
-                : "There are no available workers near you right now."}
-            </AppText>
-          </View>
-        }
-      />
+              <View
+                style={
+                  styles.emptyIcon
+                }
+              >
+                <AppIcon
+                  name="users"
+                  role="customer"
+                  size="xl"
+                  state="muted"
+                />
+              </View>
 
-      {/* ====================================================
-          LOGIN REQUIRED
-      ==================================================== */}
+              <AppText
+                variant="heading2"
+                weight="bold"
+                center
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No Workers Found
+              </AppText>
 
-      <AuthRequiredModal
-        visible={
-          !!pendingWorker &&
-          !currentUser
-        }
-        title="Login required"
-        description="You can browse workers freely. Login or create an account to contact a worker."
-        onClose={
-          handleCloseLoginModal
-        }
-      />
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.emptyText
+                }
+              >
+                {hasSearch
+                  ? "Try searching for another worker or service."
+                  : "There are no available workers near you right now."}
+              </AppText>
+            </View>
+          }
+        />
 
-      {/* ====================================================
-          CALL CONFIRMATION
-      ==================================================== */}
+        {/* ====================================================
+            LOGIN REQUIRED
+        ==================================================== */}
 
-      <CallWorkerModal
-        visible={
-          !!callWorker &&
-          !!currentUser
-        }
-        worker={
-          callWorker
-        }
-        onCancel={
-          handleCloseCallModal
-        }
-        onConfirm={
-          handleConfirmCall
-        }
-      />
-    </View>
+        <AuthRequiredModal
+          visible={
+            Boolean(
+              pendingWorker,
+            ) &&
+            !currentUser
+          }
+          title="Login required"
+          description="You can browse workers freely. Login or create an account to contact a worker."
+          onClose={
+            handleCloseLoginModal
+          }
+        />
+
+        {/* ====================================================
+            IN-APP CALL CONFIRMATION
+        ==================================================== */}
+
+        <CallWorkerModal
+          visible={
+            Boolean(
+              callWorker,
+            ) &&
+            Boolean(
+              currentUser,
+            )
+          }
+          worker={
+            callWorker
+          }
+          onCancel={
+            handleCloseCallModal
+          }
+          onConfirm={
+            handleConfirmCall
+          }
+        />
+      </View>
+    </AppScreen>
   );
 }
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       paddingHorizontal:
-        PAGE_HORIZONTAL_PADDING,
-      paddingTop: 16,
-      paddingBottom: 18,
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
     },
 
     backButton: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor:
-        "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      shadowColor:
-        "#000000",
-      shadowOpacity: 0.06,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    backButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 14,
-    },
 
-    title: {
-      fontSize: 25,
-      color: "#111827",
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     subtitle: {
-      marginTop: 4,
-      fontSize: 13,
-      lineHeight: 19,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
+    /* ========================================================
+       SEARCH
+    ======================================================== */
+
     searchContainer: {
-      height: 48,
-      marginHorizontal:
-        PAGE_HORIZONTAL_PADDING,
-      marginBottom: 14,
-      paddingHorizontal: 16,
-      borderRadius: 24,
-      backgroundColor:
-        "#FFFFFF",
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      shadowColor:
-        "#000000",
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 2,
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      paddingLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    searchFocused: {
+      borderColor:
+        CustomerColors.primary,
     },
 
     searchInput: {
       flex: 1,
-      marginLeft: 9,
-      fontSize: 14,
-      color: "#111827",
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal: 0,
+
       paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
     },
 
-    locationNotice: {
-      marginHorizontal:
-        PAGE_HORIZONTAL_PADDING,
-      marginBottom: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 12,
-      backgroundColor:
-        "#FFFBEB",
-      flexDirection:
-        "row",
+    searchAction: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems:
         "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    searchActionPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       LOCATION
+    ======================================================== */
+
+    locationNotice: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    locationNoticePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    locationNoticeIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    locationNoticeContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     locationNoticeText: {
-      flex: 1,
-      marginLeft: 8,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#92400E",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    loadingContainer: {
-      flex: 1,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 30,
-      backgroundColor:
-        "#F8FAFC",
-    },
-
-    loadingText: {
-      marginTop: 12,
-      fontSize: 14,
-      color: "#64748B",
-    },
+    /* ========================================================
+       LIST
+    ======================================================== */
 
     list: {
+      flexGrow: 1,
+
       paddingHorizontal:
-        PAGE_HORIZONTAL_PADDING,
-      paddingTop: 4,
-      paddingBottom: 40,
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     row: {
       justifyContent:
         "space-between",
-      marginBottom: 14,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
+    /* ========================================================
+       WORKER CARD
+    ======================================================== */
+
     card: {
-      width: "48.2%",
-      padding: 14,
+      width: "48.5%",
+
       alignItems:
         "center",
-      borderRadius:
-        WORKER_CARD_RADIUS,
+
+      padding:
+        FixxamTokens.spacing.md,
     },
 
     imageContainer: {
-      position: "relative",
+      position:
+        "relative",
     },
 
     image: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     imagePlaceholder: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor:
-        "#E2E8F0",
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    online: {
-      position: "absolute",
+    onlineIndicator: {
+      position:
+        "absolute",
+
       right: 1,
+
       bottom: 1,
-      width: 15,
-      height: 15,
-      borderRadius: 8,
+
+      width: 16,
+
+      height: 16,
+
       borderWidth: 2,
+
       borderColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    onlineIndicatorActive: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    onlineIndicatorInactive: {
+      backgroundColor:
+        Colors.textMuted,
     },
 
     name: {
       width: "100%",
-      marginTop: 10,
-      fontSize: 15,
-      color: "#111827",
-      textAlign:
-        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     service: {
       width: "100%",
-      marginTop: 3,
-      fontSize: 12,
-      color: "#64748B",
-      textAlign:
-        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     ratingRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      marginTop: 8,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     rating: {
-      marginLeft: 4,
-      fontSize: 12,
-      color: "#111827",
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
     },
 
     distance: {
-      marginTop: 3,
-      fontSize: 12,
-      color: "#94A3B8",
-      textAlign:
-        "center",
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
+    /* ========================================================
+       CONTACT
+    ======================================================== */
+
     callButton: {
-      marginTop: 12,
       width: "100%",
-      height: 40,
-      borderRadius: 12,
-      backgroundColor:
-        "#F97316",
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 6,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     callButtonPressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     callText: {
-      color: "#FFFFFF",
-      fontSize: 13,
+      color:
+        Colors.textInverse,
     },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     empty: {
       alignItems:
         "center",
-      paddingHorizontal: 30,
-      paddingTop: 90,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingTop:
+        FixxamTokens.spacing.xxxl,
     },
 
     emptyIcon: {
       width: 86,
+
       height: 86,
-      borderRadius: 28,
-      backgroundColor:
-        "#E2E8F0",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 16,
-      fontSize: 20,
-      color: "#111827",
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     emptyText: {
-      marginTop: 7,
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#64748B",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     /* ========================================================
@@ -2027,138 +2570,161 @@ const styles =
 
     callModalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.52)",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 24,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
     callModal: {
       width: "100%",
+
       maxWidth: 430,
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 28,
-      paddingTop: 28,
-      paddingHorizontal: 26,
-      paddingBottom: 24,
-      shadowColor:
-        "#000000",
-      shadowOffset: {
-        width: 0,
-        height: 12,
-      },
-      shadowOpacity: 0.22,
-      shadowRadius: 24,
-      elevation: 12,
+
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      ...FixxamTokens.shadow.modal,
     },
 
     callModalIcon: {
-      width: 76,
-      height: 76,
-      borderRadius: 22,
-      backgroundColor:
-        "#EFF6FF",
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      alignSelf:
-        "center",
-      marginBottom: 22,
-    },
 
-    callModalTitle: {
-      fontSize: 23,
-      lineHeight: 29,
-      color: "#111827",
-      textAlign:
-        "center",
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     callModalDescription: {
-      marginTop: 12,
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       lineHeight: 22,
-      color: "#64748B",
-      textAlign:
-        "center",
     },
 
     callModalQuestion: {
-      marginTop: 8,
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 22,
-      color: "#64748B",
-      textAlign:
-        "center",
     },
 
     callModalActions: {
-      marginTop: 26,
+      width: "100%",
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      justifyContent:
-        "space-between",
-      gap: 12,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
     callModalCancel: {
       flex: 1,
-      height: 52,
-      borderRadius: 14,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      backgroundColor:
-        "#F8FAFC",
-    },
 
-    callModalCancelText: {
-      fontSize: 14,
-      color: "#64748B",
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.background,
     },
 
     callModalConfirm: {
       flex: 1.35,
-      height: 52,
-      borderRadius: 14,
-      backgroundColor:
-        "#2563EB",
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 8,
-    },
 
-    callModalDisabled: {
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#CBD5E1",
+        CustomerColors.primary,
     },
 
     callModalConfirmText: {
-      fontSize: 14,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     callModalPressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     callModalConfirmPressed: {
-      opacity: 0.85,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

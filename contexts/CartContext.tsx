@@ -1,5 +1,3 @@
-// contexts/CartContext.tsx
-
 import React, {
   createContext,
   useCallback,
@@ -10,6 +8,8 @@ import React, {
 } from "react";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { auth } from "@/firebase/config";
 
 /* ============================================================
    TYPES
@@ -26,9 +26,6 @@ export type CartItem = {
 
   /**
    * Actual customer price per unit.
-   *
-   * Without discount:
-   * unitPrice === price
    */
   unitPrice: number;
 
@@ -37,20 +34,18 @@ export type CartItem = {
   quantity: number;
 
   /**
-   * Discount percentage captured when
-   * the product was added to cart.
+   * Discount percentage captured
+   * when product was added to cart.
    */
   discountPercentage?: number;
 
   /**
    * Discounted unit price.
-   *
-   * Normally equal to unitPrice.
    */
   discountedPrice?: number;
 
   /**
-   * Deal responsible for the discount.
+   * Deal responsible for discount.
    */
   dealId?: string;
 
@@ -61,11 +56,17 @@ export type CartItem = {
 
   /**
    * Seller / store owner.
+   *
+   * IMPORTANT:
+   * sellerId is NOT used as workerId.
    */
   sellerId?: string;
 
   /**
    * Worker responsible for the product.
+   *
+   * This must come directly from
+   * product.workerId.
    */
   workerId?: string;
 };
@@ -146,14 +147,36 @@ function normalizeId(
     : "";
 }
 
+/* ============================================================
+   WORKER ID
+============================================================ */
+
+/**
+ * IMPORTANT:
+ *
+ * workerId MUST come directly from
+ * item.workerId.
+ *
+ * NEVER fallback to sellerId.
+ *
+ * Fixxam supports:
+ *
+ * customerId === workerId
+ *
+ * because one Firebase Auth account
+ * can have both Customer and Worker roles.
+ */
 function getWorkerId(
   item: CartItem,
 ): string {
-  return (
-    normalizeId(item.workerId) ||
-    normalizeId(item.sellerId)
+  return normalizeId(
+    item.workerId,
   );
 }
+
+/* ============================================================
+   SELLER ID
+============================================================ */
 
 function getSellerId(
   item: CartItem,
@@ -163,6 +186,10 @@ function getSellerId(
   );
 }
 
+/* ============================================================
+   STORE ID
+============================================================ */
+
 function getStoreId(
   item: CartItem,
 ): string {
@@ -170,6 +197,10 @@ function getStoreId(
     item.storeId,
   );
 }
+
+/* ============================================================
+   UNIT PRICE
+============================================================ */
 
 /**
  * Resolve actual customer unit price.
@@ -251,6 +282,12 @@ function normalizeCartItem(
   const sellerId =
     getSellerId(item);
 
+  /*
+   * IMPORTANT:
+   *
+   * workerId ONLY comes from
+   * item.workerId.
+   */
   const workerId =
     getWorkerId(item);
 
@@ -265,7 +302,9 @@ function normalizeCartItem(
     );
 
   const dealId =
-    normalizeId(item.dealId);
+    normalizeId(
+      item.dealId,
+    );
 
   const hasDiscount =
     Number.isFinite(
@@ -308,7 +347,9 @@ function normalizeCartItem(
     ...(hasDiscount
       ? {
           discountPercentage,
+
           discountedPrice,
+
           ...(dealId
             ? {
                 dealId,
@@ -353,6 +394,13 @@ function validateCartItem(
   const workerId =
     getWorkerId(item);
 
+  const sellerId =
+    getSellerId(item);
+
+  /* ----------------------------------------------------------
+     BASIC
+  ---------------------------------------------------------- */
+
   if (!id) {
     return false;
   }
@@ -360,6 +408,10 @@ function validateCartItem(
   if (!name) {
     return false;
   }
+
+  /* ----------------------------------------------------------
+     PRICE
+  ---------------------------------------------------------- */
 
   if (
     !Number.isFinite(price) ||
@@ -376,6 +428,10 @@ function validateCartItem(
     return false;
   }
 
+  /* ----------------------------------------------------------
+     QUANTITY
+  ---------------------------------------------------------- */
+
   if (
     !Number.isInteger(quantity) ||
     quantity < 1
@@ -383,9 +439,35 @@ function validateCartItem(
     return false;
   }
 
+  /* ----------------------------------------------------------
+     WORKER
+  ---------------------------------------------------------- */
+
+  /*
+   * Every market product must have
+   * a real workerId.
+   */
   if (!workerId) {
     return false;
   }
+
+  /* ----------------------------------------------------------
+     SELLER
+  ---------------------------------------------------------- */
+
+  if (!sellerId) {
+    return false;
+  }
+
+  /*
+   * workerId === sellerId is VALID.
+   *
+   * A worker can own their own store.
+   */
+
+  /* ----------------------------------------------------------
+     DISCOUNT
+  ---------------------------------------------------------- */
 
   const hasDiscount =
     unitPrice < price;
@@ -402,7 +484,9 @@ function validateCartItem(
       );
 
     const dealId =
-      normalizeId(item.dealId);
+      normalizeId(
+        item.dealId,
+      );
 
     if (
       !Number.isFinite(
@@ -516,21 +600,38 @@ export function CartProvider({
                 validateCartItem,
               );
 
+          /*
+           * Invalid/stale items are
+           * automatically discarded.
+           */
           if (
             normalizedItems.length ===
-              0
+            0
           ) {
             return;
           }
 
-          /*
-           * Only one worker can own
-           * a market cart.
-           */
+          /* ----------------------------------------------------
+             ONE WORKER PER CART
+          ---------------------------------------------------- */
+
           const workerId =
             getWorkerId(
               normalizedItems[0],
             );
+
+          if (!workerId) {
+            console.warn(
+              "FIXXAM_CART_LOAD_WORKER_MISSING",
+              {
+                productId:
+                  normalizedItems[0]
+                    ?.id ?? null,
+              },
+            );
+
+            return;
+          }
 
           const consistentItems =
             normalizedItems.filter(
@@ -538,6 +639,24 @@ export function CartProvider({
                 getWorkerId(item) ===
                 workerId,
             );
+
+          if (
+            consistentItems.length !==
+            normalizedItems.length
+          ) {
+            console.warn(
+              "FIXXAM_CART_LOAD_WORKER_CONFLICT",
+              {
+                workerId,
+
+                totalItems:
+                  normalizedItems.length,
+
+                keptItems:
+                  consistentItems.length,
+              },
+            );
+          }
 
           if (mounted) {
             setItems(
@@ -611,163 +730,304 @@ export function CartProvider({
             rawItem,
           );
 
+        /* ------------------------------------------------------
+           VALIDATE
+        ------------------------------------------------------ */
+
         if (
           !validateCartItem(item)
         ) {
           console.error(
-            "FIXXAM_INVALID_CART_ITEM:",
-            item,
+            "FIXXAM_INVALID_CART_ITEM",
+            {
+              productId:
+                item.id,
+
+              productName:
+                item.name,
+
+              workerId:
+                item.workerId ??
+                null,
+
+              sellerId:
+                item.sellerId ??
+                null,
+
+              storeId:
+                item.storeId ??
+                null,
+
+              currentUserId:
+                auth.currentUser
+                  ?.uid ?? null,
+            },
           );
 
           return "invalid";
         }
 
+        /* ------------------------------------------------------
+           WORKER
+        ------------------------------------------------------ */
+
         const newWorkerId =
           getWorkerId(item);
 
-        const currentItems =
-          items;
-
-        /* ------------------------------------------------------
-           EMPTY CART
-        ------------------------------------------------------ */
-
-        if (
-          currentItems.length ===
-          0
-        ) {
-          setItems([item]);
-
-          return "added";
-        }
-
-        /* ------------------------------------------------------
-           CURRENT WORKER
-        ------------------------------------------------------ */
-
-        const currentWorkerId =
-          getWorkerId(
-            currentItems[0],
-          );
-
-        if (!currentWorkerId) {
+        if (!newWorkerId) {
           console.error(
             "FIXXAM_CART_WORKER_MISSING",
+            {
+              productId:
+                item.id,
+
+              productName:
+                item.name,
+
+              sellerId:
+                item.sellerId ??
+                null,
+            },
           );
 
-          return "worker-conflict";
+          return "invalid";
         }
 
         /* ------------------------------------------------------
-           WORKER CONFLICT
+           DEBUG
         ------------------------------------------------------ */
 
-        if (
-          currentWorkerId !==
-          newWorkerId
-        ) {
-          return "worker-conflict";
-        }
-
-        /* ------------------------------------------------------
-           EXISTING PRODUCT
-        ------------------------------------------------------ */
-
-        const existingIndex =
-          currentItems.findIndex(
-            (existing) =>
-              existing.id ===
+        console.log(
+          "FIXXAM_CART_WORKER_DEBUG",
+          {
+            productId:
               item.id,
-          );
 
-        if (
-          existingIndex !== -1
-        ) {
-          const existing =
-            currentItems[
-              existingIndex
-            ];
+            productName:
+              item.name,
 
-          const updatedItems =
-            currentItems.map(
-              (
-                current,
-                index,
-              ) => {
-                if (
-                  index !==
-                  existingIndex
-                ) {
-                  return current;
-                }
+            itemWorkerId:
+              newWorkerId,
 
-                return {
-                  ...current,
+            itemSellerId:
+              item.sellerId ??
+              null,
 
-                  /*
-                   * Always refresh pricing
-                   * from the latest product.
-                   */
-                  price:
-                    item.price,
+            itemStoreId:
+              item.storeId ??
+              null,
 
-                  unitPrice:
-                    item.unitPrice,
+            currentUserId:
+              auth.currentUser
+                ?.uid ?? null,
 
-                  discountPercentage:
-                    item.discountPercentage,
+            sameAccount:
+              normalizeId(
+                auth.currentUser
+                  ?.uid,
+              ) ===
+              newWorkerId,
+          },
+        );
 
-                  discountedPrice:
-                    item.discountedPrice,
-
-                  dealId:
-                    item.dealId,
-
-                  /*
-                   * Preserve product metadata
-                   * but use newest ownership.
-                   */
-                  storeId:
-                    item.storeId,
-
-                  sellerId:
-                    item.sellerId,
-
-                  workerId:
-                    item.workerId,
-
-                  image:
-                    item.image,
-
-                  name:
-                    item.name,
-
-                  quantity:
-                    existing.quantity +
-                    item.quantity,
-                };
-              },
-            );
-
-          setItems(
-            updatedItems,
-          );
-
-          return "updated";
-        }
+        /*
+         * IMPORTANT:
+         *
+         * We intentionally DO NOT block:
+         *
+         * currentUserId === workerId
+         *
+         * because Fixxam supports a multi-role
+         * Firebase account.
+         *
+         * Example:
+         *
+         * Customer UID = ABC
+         * Worker UID   = ABC
+         *
+         * This is valid.
+         */
 
         /* ------------------------------------------------------
-           NEW PRODUCT
+           STATE UPDATE
         ------------------------------------------------------ */
 
-        setItems([
-          ...currentItems,
-          item,
-        ]);
+        let result:
+          | AddToCartResult
+          | null = null;
 
-        return "added";
+        setItems(
+          (currentItems) => {
+            /* --------------------------------------------------
+               EMPTY CART
+            -------------------------------------------------- */
+
+            if (
+              currentItems.length ===
+              0
+            ) {
+              result = "added";
+
+              return [item];
+            }
+
+            /* --------------------------------------------------
+               CURRENT WORKER
+            -------------------------------------------------- */
+
+            const currentWorkerId =
+              getWorkerId(
+                currentItems[0],
+              );
+
+            if (!currentWorkerId) {
+              console.error(
+                "FIXXAM_EXISTING_CART_WORKER_MISSING",
+                {
+                  productId:
+                    currentItems[0]
+                      ?.id ?? null,
+                },
+              );
+
+              result =
+                "worker-conflict";
+
+              return currentItems;
+            }
+
+            /* --------------------------------------------------
+               DIFFERENT WORKER
+            -------------------------------------------------- */
+
+            if (
+              currentWorkerId !==
+              newWorkerId
+            ) {
+              console.warn(
+                "FIXXAM_CART_WORKER_CONFLICT",
+                {
+                  currentWorkerId,
+
+                  newWorkerId,
+
+                  currentProductId:
+                    currentItems[0]
+                      ?.id ?? null,
+
+                  newProductId:
+                    item.id,
+                },
+              );
+
+              result =
+                "worker-conflict";
+
+              return currentItems;
+            }
+
+            /* --------------------------------------------------
+               EXISTING PRODUCT
+            -------------------------------------------------- */
+
+            const existingIndex =
+              currentItems.findIndex(
+                (existing) =>
+                  existing.id ===
+                  item.id,
+              );
+
+            if (
+              existingIndex !==
+              -1
+            ) {
+              const existing =
+                currentItems[
+                  existingIndex
+                ];
+
+              const updatedItems =
+                currentItems.map(
+                  (
+                    current,
+                    index,
+                  ) => {
+                    if (
+                      index !==
+                      existingIndex
+                    ) {
+                      return current;
+                    }
+
+                    return {
+                      ...current,
+
+                      /* pricing */
+                      price:
+                        item.price,
+
+                      unitPrice:
+                        item.unitPrice,
+
+                      discountPercentage:
+                        item.discountPercentage,
+
+                      discountedPrice:
+                        item.discountedPrice,
+
+                      dealId:
+                        item.dealId,
+
+                      /* ownership */
+                      storeId:
+                        item.storeId,
+
+                      sellerId:
+                        item.sellerId,
+
+                      workerId:
+                        item.workerId,
+
+                      /* product */
+                      image:
+                        item.image,
+
+                      name:
+                        item.name,
+
+                      quantity:
+                        existing.quantity +
+                        item.quantity,
+                    };
+                  },
+                );
+
+              result =
+                "updated";
+
+              return updatedItems;
+            }
+
+            /* --------------------------------------------------
+               NEW PRODUCT
+            -------------------------------------------------- */
+
+            result =
+              "added";
+
+            return [
+              ...currentItems,
+              item,
+            ];
+          },
+        );
+
+        return (
+          result ??
+          "invalid"
+        );
       },
-      [items],
+      [],
     );
 
   /* ==========================================================
@@ -838,6 +1098,7 @@ export function CartProvider({
                 normalizedId
                   ? {
                       ...item,
+
                       quantity:
                         normalizedQuantity,
                     }
@@ -946,8 +1207,9 @@ export function CartProvider({
       }
 
       return (
-        getWorkerId(items[0]) ||
-        null
+        getWorkerId(
+          items[0],
+        ) || null
       );
     }, [items]);
 
@@ -962,8 +1224,9 @@ export function CartProvider({
       }
 
       return (
-        getSellerId(items[0]) ||
-        null
+        getSellerId(
+          items[0],
+        ) || null
       );
     }, [items]);
 
@@ -978,8 +1241,9 @@ export function CartProvider({
       }
 
       return (
-        getStoreId(items[0]) ||
-        null
+        getStoreId(
+          items[0],
+        ) || null
       );
     }, [items]);
 
@@ -1016,16 +1280,27 @@ export function CartProvider({
       }),
       [
         items,
+
         addToCart,
+
         removeFromCart,
+
         updateQuantity,
+
         clearCart,
+
         subtotal,
+
         discountTotal,
+
         total,
+
         cartWorkerId,
+
         cartSellerId,
+
         cartStoreId,
+
         cartReady,
       ],
     );

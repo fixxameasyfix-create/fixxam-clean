@@ -1,137 +1,340 @@
-import React, { useRef } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import {
-  View,
-  TextInput,
   StyleSheet,
+  TextInput,
+  type TextInputKeyPressEventData,
+  type NativeSyntheticEvent,
+  View,
 } from "react-native";
+
+import AppText from "@/components/ui/AppText";
 
 import {
   CustomerColors,
+  FixxamTokens,
+  Typography,
   WorkerColors,
-  FIXXAM,
+  type FixxamRole,
 } from "@/theme";
 
-type Props = {
-  value: string;
-  onChange: (value: string) => void;
-  onComplete?: (value: string) => void;
-  variant?: "customer" | "worker";
-  editable?: boolean;
-};
+const OTP_LENGTH = 6;
 
-export default function OtpBoxes({
+export interface OtpBoxesProps {
+  value: string;
+
+  onChange: (value: string) => void;
+
+  onComplete?: (value: string) => void;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
+  variant?: "customer" | "worker";
+
+  editable?: boolean;
+
+  error?: string;
+
+  helperText?: string;
+
+  autoFocus?: boolean;
+}
+
+function OtpBoxes({
   value,
   onChange,
   onComplete,
-  variant = "customer",
+
+  role = "customer",
+  variant,
+
   editable = true,
-}: Props) {
-  const inputs = useRef<TextInput[]>([]);
 
-  const activeColor =
-    variant === "worker"
-      ? WorkerColors.primary
-      : CustomerColors.primary;
+  error,
+  helperText,
 
-  const digits = Array.from({ length: 6 }, (_, index) =>
-    value[index] || ""
+  autoFocus = false,
+}: OtpBoxesProps) {
+  const inputs =
+    useRef<Array<TextInput | null>>([]);
+
+  const [focusedIndex, setFocusedIndex] =
+    useState<number | null>(null);
+
+  const resolvedRole: FixxamRole =
+    variant ?? role;
+
+  const colors =
+    resolvedRole === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const sanitizedValue = useMemo(
+    () =>
+      value
+        .replace(/\D/g, "")
+        .slice(0, OTP_LENGTH),
+    [value],
   );
 
-  const handleChange = (
-    text: string,
-    index: number
-  ) => {
-    const digit = text.replace(/\D/g, "").slice(-1);
+  const digits = useMemo(
+    () =>
+      Array.from(
+        { length: OTP_LENGTH },
+        (_, index) =>
+          sanitizedValue[index] ?? "",
+      ),
+    [sanitizedValue],
+  );
 
-    const otp = value.padEnd(6, " ").split("");
+  const emitValue = useCallback(
+    (nextValue: string) => {
+      const sanitized = nextValue
+        .replace(/\D/g, "")
+        .slice(0, OTP_LENGTH);
 
-    otp[index] = digit;
+      onChange(sanitized);
 
-    const newOtp = otp.join("").replace(/\s/g, "");
+      if (sanitized.length === OTP_LENGTH) {
+        onComplete?.(sanitized);
+      }
+    },
+    [onChange, onComplete],
+  );
 
-    onChange(newOtp);
+  const handleChange = useCallback(
+    (text: string, index: number) => {
+      const incoming = text.replace(
+        /\D/g,
+        "",
+      );
 
-    if (newOtp.length === 6) {
-  onComplete?.(newOtp);
-}
+      if (!incoming) {
+        const next =
+          sanitizedValue.split("");
 
-    if (digit && index < 5) {
-      inputs.current[index + 1]?.focus();
-    }
-  };
+        next.splice(index, 1);
 
-  const handleKeyPress = (
-    key: string,
-    index: number
-  ) => {
-    if (
-      key === "Backspace" &&
-      !digits[index] &&
-      index > 0
-    ) {
-      inputs.current[index - 1]?.focus();
-    }
-  };
+        emitValue(next.join(""));
+        return;
+      }
+
+      /*
+       * Supports typing a single digit
+       * and pasting multiple OTP digits.
+       */
+      if (incoming.length > 1) {
+        const prefix =
+          sanitizedValue.slice(0, index);
+
+        const suffix =
+          sanitizedValue.slice(
+            index + incoming.length,
+          );
+
+        const next = (
+          prefix +
+          incoming +
+          suffix
+        ).slice(0, OTP_LENGTH);
+
+        emitValue(next);
+
+        const nextFocusIndex = Math.min(
+          index + incoming.length,
+          OTP_LENGTH - 1,
+        );
+
+        inputs.current[
+          next.length >= OTP_LENGTH
+            ? OTP_LENGTH - 1
+            : nextFocusIndex
+        ]?.focus();
+
+        return;
+      }
+
+      const next =
+        sanitizedValue
+          .padEnd(OTP_LENGTH, " ")
+          .split("");
+
+      next[index] = incoming;
+
+      const nextValue = next
+        .join("")
+        .replace(/\s/g, "");
+
+      emitValue(nextValue);
+
+      if (index < OTP_LENGTH - 1) {
+        inputs.current[index + 1]?.focus();
+      }
+    },
+    [emitValue, sanitizedValue],
+  );
+
+  const handleKeyPress = useCallback(
+    (
+      event: NativeSyntheticEvent<TextInputKeyPressEventData>,
+      index: number,
+    ) => {
+      if (
+        event.nativeEvent.key ===
+          "Backspace" &&
+        !digits[index] &&
+        index > 0
+      ) {
+        inputs.current[index - 1]?.focus();
+      }
+    },
+    [digits],
+  );
 
   return (
-    <View style={styles.container}>
-      {digits.map((digit, index) => (
-        <TextInput
-          key={index}
-          ref={(ref) => {
-            if (ref) {
-              inputs.current[index] = ref;
-            }
-          }}
-          value={digit}
-          editable={editable}
-          keyboardType="number-pad"
-          maxLength={1}
-          textAlign="center"
-          style={[
-            styles.box,
-            {
-              borderColor: activeColor,
-            },
-          ]}
-          onChangeText={(text) =>
-            handleChange(text, index)
-          }
-          onKeyPress={({ nativeEvent }) =>
-            handleKeyPress(
-              nativeEvent.key,
-              index
-            )
-          }
-        />
-      ))}
+    <View style={styles.wrapper}>
+      <View
+        accessibilityLabel="One-time verification code"
+        style={styles.container}
+      >
+        {digits.map((digit, index) => {
+          const focused =
+            focusedIndex === index;
+
+          const borderColor = error
+            ? colors.error
+            : focused
+              ? colors.primary
+              : digit
+                ? colors.borderStrong
+                : colors.border;
+
+          return (
+            <TextInput
+              key={index}
+              ref={(ref) => {
+                inputs.current[index] = ref;
+              }}
+              value={digit}
+              editable={editable}
+              autoFocus={
+                autoFocus && index === 0
+              }
+              keyboardType="number-pad"
+              inputMode="numeric"
+              maxLength={OTP_LENGTH}
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              importantForAutofill="yes"
+              selectTextOnFocus
+              textAlign="center"
+              cursorColor={colors.primary}
+              selectionColor={colors.primary}
+              accessibilityLabel={`OTP digit ${
+                index + 1
+              } of ${OTP_LENGTH}`}
+              accessibilityState={{
+                disabled: !editable,
+              }}
+              onFocus={() =>
+                setFocusedIndex(index)
+              }
+              onBlur={() =>
+                setFocusedIndex((current) =>
+                  current === index
+                    ? null
+                    : current,
+                )
+              }
+              onChangeText={(text) =>
+                handleChange(text, index)
+              }
+              onKeyPress={(event) =>
+                handleKeyPress(event, index)
+              }
+              style={[
+                styles.box,
+                Typography.styles.heading3,
+                {
+                  borderColor,
+                  color: editable
+                    ? colors.textPrimary
+                    : colors.textMuted,
+                  backgroundColor: editable
+                    ? colors.surface
+                    : colors.disabledBackground,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+
+      {error ? (
+        <AppText
+          variant="caption"
+          tone="error"
+          style={styles.supportingText}
+        >
+          {error}
+        </AppText>
+      ) : helperText ? (
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={styles.supportingText}
+        >
+          {helperText}
+        </AppText>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  wrapper: {
+    width: "100%",
+  },
 
-    marginTop: 4,
-    marginBottom: 6,
+  container: {
+    width: "100%",
+
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    gap: FixxamTokens.spacing.sm,
   },
 
   box: {
-    width: 40,
-    height: 40,
+    flex: 1,
 
-    borderWidth: 1.5,
-    borderRadius: 12,
+    minWidth: 0,
 
-    fontSize: 20,
-    fontWeight: "700",
+    height: FixxamTokens.size.otpBox,
 
-    textAlign: "center",
+    borderWidth: 1,
 
-    color: CustomerColors.textPrimary,
-    backgroundColor: "#FFFFFF",
+    borderRadius:
+      FixxamTokens.radius.input,
+
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+
+  supportingText: {
+    marginTop:
+      FixxamTokens.spacing.sm,
   },
 });
+
+export default memo(OtpBoxes);

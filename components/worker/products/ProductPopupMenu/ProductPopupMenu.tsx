@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useEffect,
   useRef,
 } from "react";
@@ -10,12 +11,46 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import styles from "./ProductPopupMenu.styles";
-import { ProductPopupMenuProps } from "./ProductPopupMenu.types";
+
+import type {
+  ProductPopupMenuProps,
+} from "./ProductPopupMenu.types";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type MenuItemProps = {
+  icon: AppIconName;
+
+  title: string;
+
+  color: string;
+
+  danger?: boolean;
+
+  onPress: () => void;
+};
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function ProductPopupMenu({
   visible,
@@ -26,109 +61,193 @@ export default function ProductPopupMenu({
   onShare,
   onDelete,
 }: ProductPopupMenuProps) {
-  const opacity = useRef(
-    new Animated.Value(0),
-  ).current;
+  const opacity =
+    useRef(
+      new Animated.Value(0),
+    ).current;
 
-  const scale = useRef(
-    new Animated.Value(0.95),
-  ).current;
+  const scale =
+    useRef(
+      new Animated.Value(
+        FixxamTokens.motion
+          .scalePressed,
+      ),
+    ).current;
+
+  /* ==========================================================
+     ANIMATION
+  ========================================================== */
 
   useEffect(() => {
     if (visible) {
       Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      opacity.setValue(0);
-      scale.setValue(0.95);
-    }
-  }, [visible]);
+        Animated.timing(
+          opacity,
+          {
+            toValue: 1,
 
-  if (!anchor) return null;
+            duration:
+              FixxamTokens
+                .motion
+                .fast,
+
+            useNativeDriver:
+              true,
+          },
+        ),
+
+        Animated.spring(
+          scale,
+          {
+            toValue: 1,
+
+            useNativeDriver:
+              true,
+          },
+        ),
+      ]).start();
+
+      return;
+    }
+
+    opacity.setValue(0);
+
+    scale.setValue(
+      FixxamTokens.motion
+        .scalePressed,
+    );
+  }, [
+    opacity,
+    scale,
+    visible,
+  ]);
+
+  /* ==========================================================
+     ANCHOR
+  ========================================================== */
+
+  if (!anchor) {
+    return null;
+  }
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="none"
-      onRequestClose={onClose}
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
     >
       <Pressable
-        style={styles.overlay}
-        onPress={onClose}
+        style={
+          styles.overlay
+        }
+        onPress={
+          onClose
+        }
+        accessibilityRole="button"
+        accessibilityLabel="Close product actions"
       >
         <Animated.View
           style={[
             styles.menu,
+
             {
-              top: anchor.y + anchor.height + 6,
-              left: Math.max(
-                12,
-                anchor.x - 160,
-              ),
+              top:
+                anchor.y +
+                anchor.height +
+                6,
+
+              left:
+                Math.max(
+                  12,
+                  anchor.x -
+                    160,
+                ),
+
               opacity,
-              transform: [{ scale }],
+
+              transform: [
+                {
+                  scale,
+                },
+              ],
             },
           ]}
         >
+          {/* ==================================================
+              EDIT
+          ================================================== */}
+
           <MenuItem
-            icon={
-              <Ionicons
-                name="create-outline"
-                size={20}
-                color="#2563EB"
-              />
-            }
+            icon="settings"
             title="Edit Product"
-            onPress={onEdit}
+            color={
+              WorkerColors.primary
+            }
+            onPress={
+              onEdit
+            }
           />
 
+          {/* ==================================================
+              DUPLICATE
+          ================================================== */}
+
           <MenuItem
-            icon={
-              <Ionicons
-                name="copy-outline"
-                size={20}
-                color="#64748B"
-              />
-            }
+            icon="file"
             title="Duplicate Product"
-            onPress={onDuplicate}
+            color={
+              Colors.textSecondary
+            }
+            onPress={
+              onDuplicate
+            }
           />
 
+          {/* ==================================================
+              SHARE
+          ================================================== */}
+
           <MenuItem
-            icon={
-              <Ionicons
-                name="share-social-outline"
-                size={20}
-                color="#16A34A"
-              />
-            }
+            icon="upload"
             title="Share Product"
-            onPress={onShare}
+            color={
+              WorkerColors.primary
+            }
+            onPress={
+              onShare
+            }
           />
 
-          <View style={styles.divider} />
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          {/* ==================================================
+              DELETE
+          ================================================== */}
 
           <MenuItem
-            icon={
-              <Ionicons
-                name="trash-outline"
-                size={20}
-                color="#DC2626"
-              />
-            }
+            icon="delete"
             title="Delete Product"
+            color={
+              Colors.error
+            }
             danger
-            onPress={onDelete}
+            onPress={
+              onDelete
+            }
           />
         </Animated.View>
       </Pressable>
@@ -136,37 +255,68 @@ export default function ProductPopupMenu({
   );
 }
 
-type MenuItemProps = {
-  icon: React.ReactNode;
-  title: string;
-  danger?: boolean;
-  onPress: () => void;
-};
+/* ============================================================
+   MENU ITEM
+============================================================ */
 
-function MenuItem({
-  icon,
-  title,
-  danger,
-  onPress,
-}: MenuItemProps) {
-  return (
-    <Pressable
-      style={styles.item}
-      android_ripple={{
-        color: "#F1F5F9",
-      }}
-      onPress={onPress}
-    >
-      {icon}
+const MenuItem =
+  memo(
+    function MenuItem({
+      icon,
+      title,
+      color,
+      danger = false,
+      onPress,
+    }: MenuItemProps) {
+      return (
+        <Pressable
+          onPress={
+            onPress
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
+          }
+          android_ripple={{
+            color:
+              Colors.disabledBackground,
+          }}
+          style={
+            styles.item
+          }
+        >
+          <AppIcon
+            name={
+              icon
+            }
+            role={
+              danger
+                ? undefined
+                : "worker"
+            }
+            size="sm"
+            color={
+              color
+            }
+          />
 
-      <AppText
-        style={[
-          styles.itemText,
-          danger && styles.deleteText,
-        ]}
-      >
-        {title}
-      </AppText>
-    </Pressable>
+          <AppText
+            variant="bodyMedium"
+            weight="medium"
+            style={[
+              styles.itemText,
+
+              danger
+                ? styles.deleteText
+                : null,
+            ]}
+          >
+            {title}
+          </AppText>
+        </Pressable>
+      );
+    },
   );
-}
+
+MenuItem.displayName =
+  "ProductPopupMenuItem";

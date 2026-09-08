@@ -8,175 +8,350 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import { AppText } from "@/components/ui";
-import { CustomerColors } from "@/theme/customerColors";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-const MAX_DESCRIPTION_LENGTH = 4000;
-const MIN_DESCRIPTION_LENGTH = 5;
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_DESCRIPTION_LENGTH =
+  4000;
+
+const MIN_DESCRIPTION_LENGTH =
+  5;
+
+const WARNING_THRESHOLD =
+  3600;
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function DescribePartScreen() {
-  const [description, setDescription] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
+  const insets =
+    useSafeAreaInsets();
 
-  const trimmedDescription = useMemo(
-    () => description.trim(),
-    [description],
-  );
+  const [
+    description,
+    setDescription,
+  ] =
+    useState("");
+
+  const [
+    isFocused,
+    setIsFocused,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     DESCRIPTION STATE
+  ============================================================ */
+
+  const trimmedDescription =
+    useMemo(
+      () =>
+        description.trim(),
+      [
+        description,
+      ],
+    );
+
+  const characterCount =
+    description.length;
 
   const canContinue =
     trimmedDescription.length >=
     MIN_DESCRIPTION_LENGTH;
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, []);
+  const isNearLimit =
+    characterCount >=
+    WARNING_THRESHOLD;
 
-  const handleDescriptionChange = useCallback(
-    (value: string) => {
+  const isAtLimit =
+    characterCount >=
+    MAX_DESCRIPTION_LENGTH;
+
+  const counterColor =
+    useMemo(() => {
       if (
-        value.length >
-        MAX_DESCRIPTION_LENGTH
+        isAtLimit
+      ) {
+        return Colors.error;
+      }
+
+      if (
+        isNearLimit
+      ) {
+        return Colors.warning;
+      }
+
+      return Colors.textMuted;
+    }, [
+      isAtLimit,
+      isNearLimit,
+    ]);
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/buy-spare-parts/spare-products",
+      );
+    }, []);
+
+  /* ============================================================
+     DESCRIPTION
+  ============================================================ */
+
+  const handleDescriptionChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setDescription(
+          value.slice(
+            0,
+            MAX_DESCRIPTION_LENGTH,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
+     PHOTO
+  ============================================================ */
+
+  const handleTakePhoto =
+    useCallback(() => {
+      router.push(
+        "/(customer)/buy-spare-parts/take-photo",
+      );
+    }, []);
+
+  /* ============================================================
+     FIND PARTS
+  ============================================================ */
+
+  const handleFindParts =
+    useCallback(() => {
+      if (
+        !canContinue
       ) {
         return;
       }
 
-      setDescription(value);
-    },
-    [],
-  );
+      router.push({
+        pathname:
+          "/(customer)/buy-spare-parts/find-part",
 
-  const handleTakePhoto = useCallback(() => {
-    router.push(
-      "/(customer)/buy-spare-parts/take-photo",
-    );
-  }, []);
+        params: {
+          source:
+            "description",
 
-  const handleFindParts = useCallback(() => {
-    if (!canContinue) {
-      return;
-    }
+          description:
+            trimmedDescription,
+        },
+      });
+    }, [
+      canContinue,
+      trimmedDescription,
+    ]);
 
-    router.push({
-      pathname:
-        "/(customer)/buy-spare-parts/find-part",
-      params: {
-        source: "description",
-        description: trimmedDescription,
-      },
-    });
-  }, [
-    canContinue,
-    trimmedDescription,
-  ]);
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <KeyboardAvoidingView
-        style={styles.keyboard}
+        style={
+          styles.keyboard
+        }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
-            : undefined
+            : "height"
+        }
+        keyboardVerticalOffset={
+          0
         }
       >
-        <View style={styles.container}>
+        <View
+          style={
+            styles.container
+          }
+        >
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={
+              false
+            }
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             contentContainerStyle={
               styles.scrollContent
             }
           >
-            {/* HEADER */}
+            {/* ==================================================
+                HEADER
+            ================================================== */}
 
-            <View style={styles.header}>
+            <View
+              style={
+                styles.header
+              }
+            >
               <Pressable
-                onPress={handleBack}
-                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
-                style={({ pressed }) => [
+                hitSlop={8}
+                onPress={
+                  handleBack
+                }
+                style={({
+                  pressed,
+                }) => [
                   styles.backButton,
-                  pressed &&
-                    styles.backButtonPressed,
+
+                  pressed
+                    ? styles.backButtonPressed
+                    : null,
                 ]}
               >
-                <Ionicons
-                  name="arrow-back"
-                  size={20}
-                  color="#0F172A"
+                <AppIcon
+                  name="back"
+                  role="customer"
+                  size="sm"
+                  state="default"
                 />
               </Pressable>
 
               <View
-                style={styles.headerContent}
+                style={
+                  styles.headerContent
+                }
               >
                 <AppText
+                  variant="heading1"
                   weight="bold"
                   numberOfLines={1}
-                  style={styles.headerTitle}
                 >
                   Describe Your Part
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   numberOfLines={1}
-                  style={styles.headerSubtitle}
+                  style={
+                    styles.headerSubtitle
+                  }
                 >
                   Tell Fixxam what you need.
                 </AppText>
               </View>
             </View>
 
-            {/* INTRO */}
+            {/* ==================================================
+                INTRO
+            ================================================== */}
 
-            <View style={styles.introCard}>
-              <View style={styles.introIcon}>
-                <Ionicons
-                  name="search-outline"
-                  size={24}
-                  color={
-                    CustomerColors.primary
-                  }
+            <AppCard
+              role="customer"
+              variant="accent"
+              style={
+                styles.introCard
+              }
+            >
+              <View
+                style={
+                  styles.introIcon
+                }
+              >
+                <AppIcon
+                  name="search"
+                  role="customer"
+                  size="md"
+                  state="active"
                 />
               </View>
 
               <View
-                style={styles.introContent}
+                style={
+                  styles.introContent
+                }
               >
                 <AppText
+                  variant="bodyLarge"
                   weight="bold"
-                  style={styles.introTitle}
                 >
                   Let Fixxam find it
                 </AppText>
 
                 <AppText
-                  numberOfLines={2}
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.introDescription
                   }
                 >
-                  You don't need to know the
-                  part name. Just describe what
-                  you need.
+                  You don't need to know
+                  the exact part name.
+                  Describe what you need
+                  and we'll help identify it.
                 </AppText>
               </View>
-            </View>
+            </AppCard>
 
-            {/* DESCRIPTION */}
+            {/* ==================================================
+                DESCRIPTION
+            ================================================== */}
 
-            <View
+            <AppCard
+              role="customer"
+              variant="outlined"
               style={
                 styles.descriptionCard
               }
@@ -187,6 +362,7 @@ export default function DescribePartScreen() {
                 }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
                   style={
                     styles.descriptionTitle
@@ -196,33 +372,51 @@ export default function DescribePartScreen() {
                 </AppText>
 
                 <AppText
-                  weight="bold"
-                  style={
-                    styles.characterCount
-                  }
+                  variant="caption"
+                  weight="semibold"
+                  style={[
+                    styles.characterCount,
+
+                    {
+                      color:
+                        counterColor,
+                    },
+                  ]}
                 >
-                  {description.length}/
+                  {characterCount}/
                   {MAX_DESCRIPTION_LENGTH}
                 </AppText>
               </View>
 
+              {/* ================================================
+                  TEXT AREA
+              ================================================ */}
+
               <View
                 style={[
                   styles.textArea,
-                  isFocused &&
-                    styles.textAreaFocused,
+
+                  isFocused
+                    ? styles.textAreaFocused
+                    : null,
                 ]}
               >
                 <TextInput
-                  value={description}
+                  value={
+                    description
+                  }
                   onChangeText={
                     handleDescriptionChange
                   }
                   onFocus={() =>
-                    setIsFocused(true)
+                    setIsFocused(
+                      true,
+                    )
                   }
                   onBlur={() =>
-                    setIsFocused(false)
+                    setIsFocused(
+                      false,
+                    )
                   }
                   multiline
                   maxLength={
@@ -230,482 +424,671 @@ export default function DescribePartScreen() {
                   }
                   textAlignVertical="top"
                   placeholder="Describe the part you need..."
-                  placeholderTextColor="#A0AEC0"
+                  placeholderTextColor={
+                    Colors.textMuted
+                  }
+                  selectionColor={
+                    CustomerColors.primary
+                  }
+                  autoCorrect
+                  autoCapitalize="sentences"
+                  accessibilityLabel="Describe the spare part you need"
+                  accessibilityHint="Describe the equipment, problem, brand, model, or spare part you are looking for"
                   style={
                     styles.textInput
                   }
-                  autoCorrect
-                  accessibilityLabel="Describe the spare part you need"
                 />
               </View>
 
+              {/* ================================================
+                  EXAMPLE
+              ================================================ */}
+
               <View
-                style={styles.exampleRow}
+                style={
+                  styles.exampleRow
+                }
               >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={17}
-                  color="#64748B"
+                <AppIcon
+                  name="info"
+                  role="customer"
+                  size="xs"
+                  state="muted"
                 />
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.exampleText
                   }
                 >
-                  Example: I need a door handle
-                  for my Samsung fridge.
+                  Example: I need a door
+                  handle for my Samsung
+                  fridge.
                 </AppText>
               </View>
-            </View>
+            </AppCard>
 
-            {/* PHOTO */}
+            {/* ==================================================
+                PHOTO OPTION
+            ================================================== */}
 
             <Pressable
-              onPress={handleTakePhoto}
               accessibilityRole="button"
               accessibilityLabel="Take a photo of the spare part"
-              style={({ pressed }) => [
+              onPress={
+                handleTakePhoto
+              }
+              style={({
+                pressed,
+              }) => [
                 styles.photoCard,
-                pressed &&
-                  styles.photoCardPressed,
+
+                pressed
+                  ? styles.photoCardPressed
+                  : null,
               ]}
             >
               <View
-                style={styles.photoIcon}
+                style={
+                  styles.photoIcon
+                }
               >
-                <Ionicons
-                  name="camera-outline"
-                  size={23}
-                  color={
-                    CustomerColors.primary
-                  }
+                <AppIcon
+                  name="camera"
+                  role="customer"
+                  size="md"
+                  state="active"
                 />
               </View>
 
               <View
-                style={styles.photoContent}
+                style={
+                  styles.photoContent
+                }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
-                  style={styles.photoTitle}
                 >
                   Prefer a photo?
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   numberOfLines={2}
                   style={
                     styles.photoDescription
                   }
                 >
-                  Take a photo and let Fixxam
-                  identify the part.
+                  Take a photo and let
+                  Fixxam help identify
+                  the part.
                 </AppText>
               </View>
 
-              <Ionicons
-                name="chevron-forward"
-                size={22}
-                color="#64748B"
+              <AppIcon
+                name="next"
+                role="customer"
+                size="sm"
+                state="muted"
               />
             </Pressable>
 
-            {/* INFO */}
+            {/* ==================================================
+                REASSURANCE
+            ================================================== */}
 
-            <View style={styles.infoCard}>
-              <View style={styles.infoIcon}>
-                <Ionicons
-                  name="shield-checkmark-outline"
-                  size={19}
-                  color="#24956A"
+            <View
+              style={
+                styles.infoCard
+              }
+            >
+              <View
+                style={
+                  styles.infoIcon
+                }
+              >
+                <AppIcon
+                  name="shield"
+                  role="customer"
+                  size="sm"
+                  state="success"
                 />
               </View>
 
               <View
-                style={styles.infoContent}
+                style={
+                  styles.infoContent
+                }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
-                  style={styles.infoTitle}
+                  style={
+                    styles.infoTitle
+                  }
                 >
                   Nothing will be ordered yet
                 </AppText>
 
                 <AppText
-                  numberOfLines={2}
-                  style={styles.infoText}
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.infoText
+                  }
                 >
-                  Fixxam will only find compatible
-                  spare parts. You choose what to
-                  buy.
+                  Fixxam will only find
+                  compatible spare parts.
+                  You decide what to buy.
                 </AppText>
               </View>
             </View>
           </ScrollView>
 
-          {/* ACTION */}
+          {/* ==================================================
+              ACTION
+          ================================================== */}
 
           <View
-            style={styles.bottomContainer}
-          >
-            <Pressable
-              onPress={handleFindParts}
-              disabled={!canContinue}
-              accessibilityRole="button"
-              accessibilityLabel="Find compatible spare parts"
-              accessibilityState={{
-                disabled: !canContinue,
-              }}
-              style={({ pressed }) => [
-                styles.findButton,
-                !canContinue &&
-                  styles.findButtonDisabled,
-                pressed &&
-                  canContinue &&
-                  styles.findButtonPressed,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.findButtonText
-                }
-              >
-                Find Compatible Parts
-              </AppText>
+            style={[
+              styles.bottomContainer,
 
-              <Ionicons
-                name="arrow-forward"
-                size={19}
-                color="#FFFFFF"
-              />
-            </Pressable>
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
+                    FixxamTokens
+                      .spacing.sm,
+                  ),
+              },
+            ]}
+          >
+            <AppButton
+              title="Find Compatible Parts"
+              role="customer"
+              disabled={
+                !canContinue
+              }
+              rightIconName="next"
+              onPress={
+                handleFindParts
+              }
+              style={
+                styles.findButton
+              }
+            />
           </View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F4F7FC",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  keyboard: {
-    flex: 1,
-  },
-
-  container: {
-    flex: 1,
-    backgroundColor: "#F4F7FC",
-  },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 2,
-    paddingBottom: 12,
-  },
-
-  /*
-   * HEADER
-   */
-
-  header: {
-    minHeight: 55,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 1,
-  },
-
-  backButtonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-
-  headerContent: {
-    flex: 1,
-    marginLeft: 9,
-  },
-
-  headerTitle: {
-    fontSize: 21,
-    lineHeight: 26,
-    color: "#0F172A",
-  },
-
-  headerSubtitle: {
-    marginTop: 1,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#64748B",
-  },
-
-  /*
-   * INTRO
-   */
-
-  introCard: {
-    minHeight: 91,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 19,
-    backgroundColor: "#EEF6FF",
-    borderWidth: 1,
-    borderColor: "#D8E8FA",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  introIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  introContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  introTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: "#0F172A",
-  },
-
-  introDescription: {
-    marginTop: 3,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: "#64748B",
-  },
-
-  /*
-   * DESCRIPTION
-   */
-
-  descriptionCard: {
-    marginTop: 15,
-    paddingHorizontal: 15,
-    paddingTop: 15,
-    paddingBottom: 13,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const styles =
+  StyleSheet.create({
+    keyboard: {
+      flex: 1,
     },
-    elevation: 1,
-  },
 
-  descriptionHeader: {
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    container: {
+      flex: 1,
 
-  descriptionTitle: {
-    flex: 1,
-    fontSize: 16,
-    lineHeight: 21,
-    color: "#0F172A",
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  characterCount: {
-    marginLeft: 8,
-    fontSize: 11,
-    color: "#A0AEC0",
-  },
+    scrollContent: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  textArea: {
-    height: 180,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    borderRadius: 17,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-  textAreaFocused: {
-    borderColor: CustomerColors.primary,
-    backgroundColor: "#FFFFFF",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  textInput: {
-    flex: 1,
-    padding: 0,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#0F172A",
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-  exampleRow: {
-    marginTop: 11,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+      flexDirection:
+        "row",
 
-  exampleText: {
-    flex: 1,
-    marginLeft: 7,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: "#64748B",
-  },
+      alignItems:
+        "center",
 
-  /*
-   * PHOTO
-   */
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
 
-  photoCard: {
-    minHeight: 82,
-    marginTop: 13,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    elevation: 1,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  photoCardPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.99 }],
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  photoIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: "#EEF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      flexShrink: 0,
 
-  photoContent: {
-    flex: 1,
-    marginLeft: 11,
-    paddingRight: 5,
-  },
+      alignItems:
+        "center",
 
-  photoTitle: {
-    fontSize: 14,
-    lineHeight: 19,
-    color: "#0F172A",
-  },
+      justifyContent:
+        "center",
 
-  photoDescription: {
-    marginTop: 2,
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#64748B",
-  },
+      borderWidth: 1,
 
-  /*
-   * INFO
-   */
+      borderColor:
+        Colors.border,
 
-  infoCard: {
-    marginTop: 12,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    borderRadius: 17,
-    backgroundColor: "#EFFAF5",
-    borderWidth: 1,
-    borderColor: "#D7F0E3",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  infoIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  infoContent: {
-    flex: 1,
-    marginLeft: 9,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  infoTitle: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    color: "#287A58",
-  },
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-  infoText: {
-    marginTop: 2,
-    fontSize: 10.5,
-    lineHeight: 15,
-    color: "#4C806B",
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  /*
-   * BOTTOM
-   */
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  bottomContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 7,
-    paddingBottom:
-      Platform.OS === "ios" ? 10 : 9,
-    backgroundColor: "#F4F7FC",
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  findButton: {
-    minHeight: 50,
-    borderRadius: 16,
-    backgroundColor:
-      CustomerColors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+    headerContent: {
+      flex: 1,
 
-  findButtonDisabled: {
-    backgroundColor: "#DDE5EF",
-  },
+      minWidth: 0,
 
-  findButtonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.985 }],
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  findButtonText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-  },
-});
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       INTRO
+    ======================================================== */
+
+    introCard: {
+      minHeight: 92,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    introIcon: {
+      width:
+        FixxamTokens.size.fab,
+
+      height:
+        FixxamTokens.size.fab,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    introContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    introDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       DESCRIPTION
+    ======================================================== */
+
+    descriptionCard: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    descriptionHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    descriptionTitle: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    characterCount: {
+      flexShrink: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       TEXT AREA
+    ======================================================== */
+
+    textArea: {
+      minHeight: 180,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    textAreaFocused: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    textInput: {
+      flex: 1,
+
+      minHeight: 154,
+
+      padding: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+
+      textAlignVertical:
+        "top",
+    },
+
+    /* ========================================================
+       EXAMPLE
+    ======================================================== */
+
+    exampleRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    exampleText: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    /* ========================================================
+       PHOTO
+    ======================================================== */
+
+    photoCard: {
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    photoCardPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    photoIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    photoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    photoDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoCard: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    infoTitle: {
+      color:
+        Colors.success,
+    },
+
+    infoText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       BOTTOM ACTION
+    ======================================================== */
+
+    bottomContainer: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    findButton: {
+      width: "100%",
+    },
+  });

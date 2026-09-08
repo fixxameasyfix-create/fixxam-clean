@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   StyleSheet,
   View,
@@ -12,25 +15,58 @@ import {
 import EmailOtpField from "@/components/auth/EmailOtpField";
 import PhoneOtpField from "@/components/auth/PhoneOtpField";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   email: string;
+
   emailOtp: string;
+
   phone: string;
+
   otp: string;
 
   emailVerified: boolean;
+
   phoneVerified: boolean;
 
-  setEmail: (value: string) => void;
-  setEmailOtp: (value: string) => void;
-  setPhone: (value: string) => void;
-  setOtp: (value: string) => void;
+  setEmail: (
+    value: string,
+  ) => void;
 
-  setEmailVerified: (value: boolean) => void;
-  setPhoneVerified: (value: boolean) => void;
+  setEmailOtp: (
+    value: string,
+  ) => void;
+
+  setPhone: (
+    value: string,
+  ) => void;
+
+  setOtp: (
+    value: string,
+  ) => void;
+
+  setEmailVerified: (
+    value: boolean,
+  ) => void;
+
+  setPhoneVerified: (
+    value: boolean,
+  ) => void;
 };
 
-export default function WorkerContactInfo({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerContactInfo({
   email,
   emailOtp,
   phone,
@@ -45,35 +81,63 @@ export default function WorkerContactInfo({
   setPhoneVerified,
 }: Props) {
   return (
-    <AppCard style={styles.card}>
+    <AppCard
+      role="worker"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
       {/* ==================================================
           HEADER
       ================================================== */}
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         How can we reach you?
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Add your contact details. Verify at
-        least one to continue.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Add your contact details. Verify at least one to continue.
       </AppText>
 
       {/* ==================================================
           EMAIL
       ================================================== */}
 
-      <View style={styles.emailSection}>
+      <View
+        style={
+          styles.emailSection
+        }
+      >
         <EmailOtpField
-          email={email}
-          otp={emailOtp}
-          onEmailChange={setEmail}
-          onOtpChange={setEmailOtp}
+          email={
+            email
+          }
+          otp={
+            emailOtp
+          }
+          onEmailChange={
+            setEmail
+          }
+          onOtpChange={
+            setEmailOtp
+          }
           variant="worker"
-          isVerified={emailVerified}
+          isVerified={
+            emailVerified
+          }
           onVerifiedChange={
             setEmailVerified
           }
@@ -84,14 +148,28 @@ export default function WorkerContactInfo({
           PHONE
       ================================================== */}
 
-      <View style={styles.phoneSection}>
+      <View
+        style={
+          styles.phoneSection
+        }
+      >
         <PhoneOtpField
-          phone={phone}
-          otp={otp}
-          onPhoneChange={setPhone}
-          onOtpChange={setOtp}
+          phone={
+            phone
+          }
+          otp={
+            otp
+          }
+          onPhoneChange={
+            setPhone
+          }
+          onOtpChange={
+            setOtp
+          }
           variant="worker"
-          isVerified={phoneVerified}
+          isVerified={
+            phoneVerified
+          }
           onVerifiedChange={
             setPhoneVerified
           }
@@ -102,50 +180,83 @@ export default function WorkerContactInfo({
           SECURITY HINT
       ================================================== */}
 
-      <AppText style={styles.hint}>
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.hint
+        }
+      >
         Your contact details are kept secure.
       </AppText>
     </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 50,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 18,
-  },
+export default memo(
+  WorkerContactInfo,
+);
 
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#0F172A",
-    marginBottom: 4,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-    marginBottom: 18,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      marginTop:
+        FixxamTokens.spacing.xxxl,
 
-  emailSection: {
-    width: "100%",
-    marginBottom: 20,
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  phoneSection: {
-    width: "100%",
-    marginBottom: 6,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  hint: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#64748B",
-    marginTop: 6,
-  },
-});
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    emailSection: {
+      width:
+        "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
+
+    phoneSection: {
+      width:
+        "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
+
+    hint: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

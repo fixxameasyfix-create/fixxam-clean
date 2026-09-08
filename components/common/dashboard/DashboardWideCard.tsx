@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,20 +8,43 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 type Props = {
   title: string;
+
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  /**
+   * Supports official Fixxam icon names.
+   * Legacy names can still pass through
+   * while existing screens are migrated.
+   */
+  icon:
+    | AppIconName
+    | (string & {});
+
   iconColor: string;
+
   iconBackground: string;
+
   onPress: () => void;
 };
 
-export default function DashboardWideCard({
+function DashboardWideCard({
   title,
   description,
   icon,
@@ -29,137 +54,197 @@ export default function DashboardWideCard({
 }: Props) {
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.pressed,
-      ]}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={
+        description || undefined
+      }
       onPress={onPress}
+      style={({
+        pressed,
+      }) => [
+        styles.card,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
-          styles.icon,
+          styles.iconContainer,
+
           {
             backgroundColor:
               iconBackground,
           },
         ]}
       >
-        <Ionicons
-          name={icon}
-          size={25}
+        <AppIcon
+          name={
+            icon as AppIconName
+          }
+          role="customer"
+          size="lg"
           color={iconColor}
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={2}
+          ellipsizeMode="tail"
           style={styles.title}
         >
           {title}
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           numberOfLines={2}
-          style={styles.description}
+          ellipsizeMode="tail"
+          style={
+            styles.description
+          }
         >
           {description}
         </AppText>
       </View>
 
-      <View style={styles.arrowContainer}>
-        <Ionicons
-          name="chevron-forward"
-          size={22}
-          color="#2563EB"
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.arrowContainer
+        }
+      >
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          color={
+            CustomerColors.primary
+          }
         />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    width: "100%",
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-    minHeight: 112,
+      minHeight: 112,
 
-    flexDirection: "row",
-    alignItems: "center",
+      flexDirection: "row",
 
-    backgroundColor: "#FFFFFF",
+      alignItems: "center",
 
-    borderRadius: 22,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-    marginTop: 2,
+      borderWidth: 1,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 4,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  pressed: {
-    opacity: 0.88,
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  icon: {
-    width: 58,
-    height: 58,
+    iconContainer: {
+      width: 58,
 
-    borderRadius: 17,
+      height: 58,
 
-    justifyContent: "center",
-    alignItems: "center",
+      flexShrink: 0,
 
-    flexShrink: 0,
-  },
+      alignItems: "center",
 
-  content: {
-    flex: 1,
+      justifyContent: "center",
 
-    marginLeft: 16,
-    marginRight: 10,
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
 
-    minWidth: 0,
-  },
+    content: {
+      flex: 1,
 
-  title: {
-    fontSize: 19,
-    lineHeight: 23,
+      minWidth: 0,
 
-    color: "#0F172A",
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
 
-  description: {
-    marginTop: 4,
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
 
-    fontSize: 14,
-    lineHeight: 19,
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-    color: "#64748B",
-  },
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
 
-  arrowContainer: {
-    width: 26,
+    arrowContainer: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    alignItems: "center",
-    justifyContent: "center",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    flexShrink: 0,
-  },
-});
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+    },
+  });
+
+export default memo(
+  DashboardWideCard,
+);

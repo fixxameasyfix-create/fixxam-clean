@@ -1,4 +1,8 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
   StyleSheet,
   TextInput,
@@ -9,126 +13,203 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   about: string;
-  setAbout: (value: string) => void;
+
+  setAbout: (
+    value: string,
+  ) => void;
 };
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
 
 const MAX_LENGTH = 100;
 
-export default function AboutYouSection({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AboutYouSection({
   about,
   setAbout,
 }: Props) {
-  const handleChange = (text: string) => {
-    if (text.length <= MAX_LENGTH) {
-      setAbout(text);
-    }
-  };
+  const handleChange =
+    useCallback(
+      (
+        text: string,
+      ) => {
+        if (
+          text.length <=
+          MAX_LENGTH
+        ) {
+          setAbout(text);
+        }
+      },
+      [setAbout],
+    );
 
   return (
-    <AppCard style={styles.card}>
+    <AppCard
+      role="worker"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         About you and your skills
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Tell customers briefly about yourself,
-        your experience and what you do best.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Tell customers briefly about yourself, your experience and what you do best.
       </AppText>
 
       <TextInput
-        value={about}
-        onChangeText={handleChange}
+        value={
+          about
+        }
+        onChangeText={
+          handleChange
+        }
         placeholder="Write about yourself and your skills..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={
+          Colors.textMuted
+        }
+        selectionColor={
+          WorkerColors.primary
+        }
         multiline
-        maxLength={MAX_LENGTH}
+        maxLength={
+          MAX_LENGTH
+        }
         textAlignVertical="top"
-        style={styles.input}
+        accessibilityLabel="About you and your skills"
+        style={
+          styles.input
+        }
       />
 
-      <AppText style={styles.counter}>
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.counter
+        }
+      >
         {about.length}/{MAX_LENGTH}
       </AppText>
     </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 0,
-    marginBottom: 10,
+export default memo(
+  AboutYouSection,
+);
 
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    borderRadius: 16,
+const styles =
+  StyleSheet.create({
+    card: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    elevation: 2,
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-  title: {
-    fontSize: 18,
-    lineHeight: 23,
+      color:
+        Colors.textPrimary,
+    },
 
-    color: "#111827",
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    marginBottom: 4,
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  subtitle: {
-    fontSize: 12,
-    lineHeight: 18,
+    input: {
+      minHeight: 92,
 
-    color: "#64748B",
+      borderWidth: 1,
 
-    marginBottom: 10,
-  },
+      borderColor:
+        Colors.border,
 
-  input: {
-    minHeight: 92,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
+      backgroundColor:
+        Colors.surface,
 
-    borderRadius: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 24,
+      paddingBottom:
+        FixxamTokens.spacing.xl,
 
-    fontSize: 13,
-    lineHeight: 19,
+      fontSize: 13,
 
-    color: "#111827",
-  },
+      lineHeight: 19,
 
-  counter: {
-    fontSize: 10,
+      color:
+        Colors.textPrimary,
+    },
 
-    color: "#94A3B8",
+    counter: {
+      marginTop: -20,
 
-    textAlign: "right",
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-    marginTop: -20,
-    marginRight: 10,
+      marginBottom:
+        FixxamTokens.spacing.xxs,
 
-    marginBottom: 2,
-  },
-});
+      textAlign:
+        "right",
+
+      color:
+        Colors.textMuted,
+    },
+  });

@@ -1,53 +1,131 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
 
-interface Props {
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   progress: number;
-}
+};
 
-export default function ProfileCompletionProgress({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProfileCompletionProgress({
   progress,
 }: Props) {
+  const safeProgress =
+    useMemo(() => {
+      if (
+        !Number.isFinite(
+          progress,
+        )
+      ) {
+        return 0;
+      }
+
+      return Math.min(
+        100,
+        Math.max(
+          0,
+          Math.round(
+            progress,
+          ),
+        ),
+      );
+    }, [progress]);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerContent
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Profile Completion
           </AppText>
 
           <AppText
-            style={styles.subtitle}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
           >
-            Complete your profile to
-            receive customer requests.
+            Complete your profile to receive customer requests.
           </AppText>
         </View>
 
-        <View style={styles.badge}>
+        <View
+          style={
+            styles.badge
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            color="#FF6B00"
+            style={
+              styles.badgeText
+            }
           >
-            {progress}%
+            {safeProgress}%
           </AppText>
         </View>
       </View>
 
-      <View style={styles.track}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{
+          min: 0,
+          max: 100,
+          now:
+            safeProgress,
+        }}
+        style={
+          styles.track
+        }
+      >
         <View
           style={[
             styles.fill,
             {
-              width: `${progress}%`,
+              width:
+                `${safeProgress}%`,
             },
           ]}
         />
@@ -56,46 +134,99 @@ export default function ProfileCompletionProgress({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
+export default memo(
+  ProfileCompletionProgress,
+);
 
-  header: {
-    flexDirection: "row",
-    justifyContent:
-      "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  title: {
-    fontSize: 15,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  subtitle: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
+    header: {
+      flexDirection:
+        "row",
 
-  badge: {
-    backgroundColor: "#FFF7ED",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
+      justifyContent:
+        "space-between",
 
-  track: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: "#E5E7EB",
-    overflow: "hidden",
-  },
+      alignItems:
+        "center",
 
-  fill: {
-    height: "100%",
-    backgroundColor: "#FF6B00",
-    borderRadius: 999,
-  },
-});
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    headerContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    badge: {
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    badgeText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    track: {
+      height: 6,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.border,
+    },
+
+    fill: {
+      height:
+        "100%",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+  });

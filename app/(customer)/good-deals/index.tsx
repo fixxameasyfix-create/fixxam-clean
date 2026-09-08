@@ -1,195 +1,260 @@
-import React from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
+
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type DealSectionId =
+  | "discounted-products"
+  | "discounted-services"
+  | "promotions"
+  | "limited-offers"
+  | "recommended-deals";
 
 type DealSection = {
-  id: string;
+  id: DealSectionId;
+
   title: string;
+
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-  iconBackground: string;
+
+  icon: AppIconName;
 };
+
+/* ============================================================
+   DEAL SECTIONS
+============================================================ */
 
 const DEAL_SECTIONS: DealSection[] = [
   {
     id: "discounted-products",
+
     title: "Discounted Products",
+
     description:
       "Shop products and spare parts at discounted prices.",
-    icon: "cart-outline",
-    iconColor: "#DB2777",
-    iconBackground: "#FDF2F8",
+
+    icon: "cart",
   },
+
   {
     id: "discounted-services",
+
     title: "Discounted Services",
+
     description:
       "Book quality services with special discounts.",
-    icon: "construct-outline",
-    iconColor: "#2563EB",
-    iconBackground: "#EFF6FF",
+
+    icon: "service",
   },
+
   {
     id: "promotions",
+
     title: "Promotions",
+
     description:
       "Discover current promotions and special offers.",
-    icon: "megaphone-outline",
-    iconColor: "#EA580C",
-    iconBackground: "#FFF7ED",
+
+    icon: "info",
   },
+
   {
     id: "limited-offers",
+
     title: "Limited Offers",
+
     description:
       "Grab special deals before they expire.",
-    icon: "time-outline",
-    iconColor: "#7C3AED",
-    iconBackground: "#F5F3FF",
+
+    icon: "clock",
   },
+
   {
     id: "recommended-deals",
+
     title: "Recommended Services",
+
     description:
       "Discover services selected for you today.",
-    icon: "star-outline",
-    iconColor: "#CA8A04",
-    iconBackground: "#FEFCE8",
+
+    icon: "star",
   },
 ];
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function GoodDealsScreen() {
-  const handleSectionPress = (
-    section: DealSection,
-  ) => {
-    /*
-     * -----------------------------------------
-     * DISCOUNTED PRODUCTS
-     * -----------------------------------------
-     */
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
 
-    if (
-      section.id ===
-      "discounted-products"
-    ) {
-      router.push(
-        "/(customer)/discounted-products",
-      );
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
 
-      return;
-    }
+  const handleSectionPress =
+    useCallback(
+      (
+        section: DealSection,
+      ) => {
+        /* ====================================================
+           DISCOUNTED PRODUCTS
+        ==================================================== */
 
-    /*
-     * -----------------------------------------
-     * PROMOTIONS
-     * -----------------------------------------
-     */
+        if (
+          section.id ===
+          "discounted-products"
+        ) {
+          router.push(
+            "/(customer)/discounted-products",
+          );
 
-    if (
-      section.id === "promotions"
-    ) {
-      router.push(
-        "/promotions",
-      );
+          return;
+        }
 
-      return;
-    }
+        /* ====================================================
+           PROMOTIONS
+        ==================================================== */
 
-    /*
-     * -----------------------------------------
-     * LIMITED-TIME OFFERS
-     * -----------------------------------------
-     *
-     * IMPORTANT:
-     * This must go directly to:
-     *
-     * app/
-     * └── (customer)/
-     *     └── good-deals/
-     *         └── limited-offer.tsx
-     *
-     * We do NOT send it through [section].tsx.
-     */
+        if (
+          section.id ===
+          "promotions"
+        ) {
+          router.push(
+            "/promotions",
+          );
 
-    if (
-      section.id ===
-      "limited-offers"
-    ) {
-      router.push(
-        "/(customer)/good-deals/limited-offer",
-      );
+          return;
+        }
 
-      return;
-    }
+        /* ====================================================
+           LIMITED OFFERS
+        ==================================================== */
 
-    if (
-  section.id ===
-  "recommended-deals"
-) {
-  router.push(
-    "/(customer)/good-deals/recommended-deals",
-  );
+        if (
+          section.id ===
+          "limited-offers"
+        ) {
+          router.push(
+            "/(customer)/good-deals/limited-offer",
+          );
 
-  return;
-}
+          return;
+        }
 
-    /*
-     * -----------------------------------------
-     * REMAINING DEAL SECTIONS
-     * -----------------------------------------
-     *
-     * Keep the existing dynamic route.
-     */
+        /* ====================================================
+           RECOMMENDED DEALS
+        ==================================================== */
 
-    router.push({
-      pathname:
-        "/(customer)/good-deals/[section]",
-      params: {
-        section: section.id,
+        if (
+          section.id ===
+          "recommended-deals"
+        ) {
+          router.push(
+            "/(customer)/good-deals/recommended-deals",
+          );
+
+          return;
+        }
+
+        /* ====================================================
+           REMAINING DYNAMIC SECTIONS
+        ==================================================== */
+
+        router.push({
+          pathname:
+            "/(customer)/good-deals/[section]",
+
+          params: {
+            section:
+              section.id,
+          },
+        });
       },
-    });
-  };
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
+    <AppScreen
+      role="customer"
+      style={styles.screen}
+    >
       <ScrollView
-        contentContainerStyle={
-          styles.content
-        }
         showsVerticalScrollIndicator={
           false
         }
+        contentContainerStyle={
+          styles.content
+        }
       >
-        {/* -------------------------------- */}
-        {/* HEADER */}
-        {/* -------------------------------- */}
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
-        <View style={styles.header}>
+        <View
+          style={styles.header}
+        >
           <Pressable
-            onPress={() =>
-              router.back()
+            onPress={
+              handleBack
             }
-            style={
-              styles.backButton
-            }
-            hitSlop={10}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              role="customer"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
@@ -198,28 +263,35 @@ export default function GoodDealsScreen() {
               styles.headerText
             }
           >
-            <Text
-              style={styles.title}
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.title
+              }
             >
               Today's Good Deals
-            </Text>
+            </AppText>
 
-            <Text
+            <AppText
+              variant="body"
+              tone="secondary"
               style={
                 styles.subtitle
               }
             >
-              Discover today's best offers
-              and discounts.
-            </Text>
+              Discover today's best offers and discounts.
+            </AppText>
           </View>
         </View>
 
-        {/* -------------------------------- */}
-        {/* DEAL SECTIONS */}
-        {/* -------------------------------- */}
+        {/* ==================================================
+            DEAL SECTIONS
+        ================================================== */}
 
-        <View style={styles.list}>
+        <View
+          style={styles.list}
+        >
           {DEAL_SECTIONS.map(
             (section) => (
               <Pressable
@@ -229,199 +301,288 @@ export default function GoodDealsScreen() {
                     section,
                   )
                 }
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${section.title}`}
+                accessibilityHint={`View ${section.title.toLowerCase()}`}
                 style={({
                   pressed,
                 }) => [
                   styles.card,
-                  pressed &&
-                    styles.pressed,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
                 ]}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  `Open ${section.title}`
-                }
-                accessibilityHint={
-                  `View ${section.title.toLowerCase()}`
-                }
               >
-                {/* Icon */}
+                {/* ICON */}
 
                 <View
-                  style={[
-                    styles.iconBox,
-                    {
-                      backgroundColor:
-                        section.iconBackground,
-                    },
-                  ]}
+                  style={
+                    styles.iconBox
+                  }
                 >
-                  <Ionicons
+                  <AppIcon
                     name={
                       section.icon
                     }
-                    size={30}
+                    role="customer"
+                    size="lg"
                     color={
-                      section.iconColor
+                      CustomerColors.primary
                     }
                   />
                 </View>
 
-                {/* Content */}
+                {/* CONTENT */}
 
                 <View
                   style={
                     styles.cardContent
                   }
                 >
-                  <Text
+                  <AppText
+                    variant="bodyLarge"
+                    weight="bold"
+                    numberOfLines={1}
                     style={
                       styles.cardTitle
                     }
                   >
                     {section.title}
-                  </Text>
+                  </AppText>
 
-                  <Text
+                  <AppText
+                    variant="body"
+                    tone="secondary"
+                    numberOfLines={2}
                     style={
                       styles.description
                     }
-                    numberOfLines={2}
                   >
-                    {
-                      section.description
-                    }
-                  </Text>
+                    {section.description}
+                  </AppText>
                 </View>
 
-                {/* Arrow */}
+                {/* ARROW */}
 
-                <Ionicons
-                  name="chevron-forward"
-                  size={22}
-                  color="#94A3B8"
+                <AppIcon
+                  name="next"
+                  role="customer"
+                  size="sm"
+                  state="muted"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </Pressable>
             ),
           )}
         </View>
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  content: {
-    padding: 20,
-    paddingTop: 54,
-    paddingBottom: 40,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
-
-  backButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+    screen: {
+      backgroundColor:
+        Colors.background,
     },
 
-    elevation: 3,
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  headerText: {
-    flex: 1,
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  title: {
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-
-  subtitle: {
-    marginTop: 5,
-    fontSize: 15,
-    lineHeight: 21,
-    color: "#64748B",
-  },
-
-  list: {
-    gap: 14,
-  },
-
-  card: {
-    minHeight: 108,
-    padding: 16,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    elevation: 3,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  pressed: {
-    opacity: 0.75,
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
+    header: {
+      flexDirection: "row",
 
-  iconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 15,
-  },
+      alignItems:
+        "flex-start",
 
-  cardContent: {
-    flex: 1,
-    paddingRight: 10,
-  },
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
 
-  cardTitle: {
-    fontSize: 18,
-    lineHeight: 23,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  description: {
-    marginTop: 5,
-    fontSize: 14,
-    lineHeight: 19,
-    color: "#64748B",
-  },
-});
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    headerText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
+
+    list: {
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       CARD
+    ======================================================== */
+
+    card: {
+      minHeight: 104,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconBox: {
+      width: 60,
+
+      height: 60,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    cardContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    cardTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 19,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

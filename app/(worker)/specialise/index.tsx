@@ -2,12 +2,11 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,11 +16,17 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 
 import * as Location from "expo-location";
+
+import {
+  onAuthStateChanged,
+} from "firebase/auth";
 
 import {
   doc,
@@ -33,9 +38,15 @@ import {
 } from "firebase/functions";
 
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  AppLoader,
+} from "@/components/common";
 
 import {
   auth,
@@ -53,30 +64,52 @@ import ServiceSelectModal, {
 
 import RequestConfirmationModal from "@/components/worker/specialise/RequestConfirmationModal";
 
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
+
 /* ==============================================================
    TYPES
 ============================================================== */
 
 type Coordinates = {
   latitude: number;
+
   longitude: number;
 };
 
+type FocusedField =
+  | "service"
+  | "location"
+  | "phone"
+  | null;
+
 type SendServiceRequestPayload = {
   service: string;
+
   location: string;
+
   phone: string;
+
   latitude: number;
+
   longitude: number;
 };
 
 type SendServiceRequestResponse = {
   success: boolean;
+
   sentCount: number;
+
   customers: Array<{
     id: string;
+
     distanceKm: number;
   }>;
+
   message: string;
 };
 
@@ -123,6 +156,15 @@ const SERVICES: ServiceOption[] = [
    HELPERS
 ============================================================== */
 
+function safeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
 function formatLocation(
   address: Location.LocationGeocodedAddress,
 ): string {
@@ -135,50 +177,96 @@ function formatLocation(
     (
       value,
     ): value is string =>
-      typeof value === "string" &&
-      value.trim().length > 0,
+      typeof value ===
+        "string" &&
+      value.trim().length >
+        0,
   );
 
   return Array.from(
-    new Set(parts),
+    new Set(
+      parts.map(
+        part =>
+          part.trim(),
+      ),
+    ),
   ).join(", ");
 }
 
 function normalizePhone(
   value: string,
 ): string {
-  return value
-    .replace(/[^\d+]/g, "")
-    .slice(0, 15);
+  const trimmed =
+    value.trim();
+
+  const hasLeadingPlus =
+    trimmed.startsWith(
+      "+",
+    );
+
+  const digits =
+    trimmed
+      .replace(/\D/g, "")
+      .slice(0, 15);
+
+  if (!digits) {
+    return hasLeadingPlus
+      ? "+"
+      : "";
+  }
+
+  return hasLeadingPlus
+    ? `+${digits}`
+    : digits;
+}
+
+function isValidPhone(
+  value: string,
+): boolean {
+  const digitCount =
+    value.replace(
+      /\D/g,
+      "",
+    ).length;
+
+  return (
+    digitCount >= 10 &&
+    digitCount <= 15
+  );
 }
 
 function buildWorkerName(
-  data: Record<string, unknown>,
-  authDisplayName?: string | null,
+  data: Record<
+    string,
+    unknown
+  >,
+  authDisplayName?:
+    | string
+    | null,
 ): string {
   const fullName =
-    typeof data.fullName === "string"
-      ? data.fullName.trim()
-      : "";
+    safeString(
+      data.fullName,
+    );
 
   if (fullName) {
     return fullName;
   }
 
   const firstName =
-    typeof data.firstName === "string"
-      ? data.firstName.trim()
-      : "";
+    safeString(
+      data.firstName,
+    );
 
   const otherName =
-    typeof data.otherName === "string"
-      ? data.otherName.trim()
-      : "";
+    safeString(
+      data.otherName,
+    );
 
   const surname =
-    typeof data.surname === "string"
-      ? data.surname.trim()
-      : "";
+    safeString(
+      data.surname,
+    );
 
   const combinedName = [
     firstName,
@@ -193,18 +281,31 @@ function buildWorkerName(
     return combinedName;
   }
 
-  if (
-    typeof authDisplayName === "string" &&
-    authDisplayName.trim()
-  ) {
-    return authDisplayName.trim();
-  }
+  return safeString(
+    authDisplayName,
+  );
+}
 
-  return "";
+function getProfilePhone(
+  data: Record<
+    string,
+    unknown
+  >,
+): string {
+  return (
+    safeString(
+      data.phoneNumber,
+    ) ||
+    safeString(
+      data.phone,
+    )
+  );
 }
 
 function isValidCoordinates(
-  coordinates: Coordinates | null,
+  coordinates:
+    | Coordinates
+    | null,
 ): coordinates is Coordinates {
   if (!coordinates) {
     return false;
@@ -217,37 +318,105 @@ function isValidCoordinates(
     Number.isFinite(
       coordinates.longitude,
     ) &&
-    coordinates.latitude >= -90 &&
-    coordinates.latitude <= 90 &&
-    coordinates.longitude >= -180 &&
-    coordinates.longitude <= 180
+    coordinates.latitude >=
+      -90 &&
+    coordinates.latitude <=
+      90 &&
+    coordinates.longitude >=
+      -180 &&
+    coordinates.longitude <=
+      180
   );
+}
+
+function showInfo(
+  title: string,
+  message?: string,
+) {
+  Toast.show({
+    type: "info",
+
+    text1: title,
+
+    text2: message,
+  });
+}
+
+function showError(
+  title: string,
+  message?: string,
+) {
+  Toast.show({
+    type: "error",
+
+    text1: title,
+
+    text2: message,
+  });
+}
+
+function showSuccess(
+  title: string,
+  message?: string,
+) {
+  Toast.show({
+    type: "success",
+
+    text1: title,
+
+    text2: message,
+  });
 }
 
 function getCallableErrorMessage(
   error: unknown,
 ): string {
   if (
-    error &&
-    typeof error === "object"
+    !error ||
+    typeof error !==
+      "object"
   ) {
-    const callableError =
-      error as {
-        code?: unknown;
-        message?: unknown;
-        details?: unknown;
-      };
-
-    if (
-      typeof callableError.message ===
-        "string" &&
-      callableError.message.trim()
-    ) {
-      return callableError.message;
-    }
+    return "Something went wrong while sending your request. Please try again.";
   }
 
-  return "Something went wrong while sending your request. Please try again.";
+  const callableError =
+    error as {
+      code?: unknown;
+    };
+
+  const code =
+    safeString(
+      callableError.code,
+    ).toLowerCase();
+
+  switch (code) {
+    case "functions/unauthenticated":
+    case "unauthenticated":
+      return "Please sign in again before sending your request.";
+
+    case "functions/permission-denied":
+    case "permission-denied":
+      return "You do not have permission to send this request.";
+
+    case "functions/invalid-argument":
+    case "invalid-argument":
+      return "Some request information is invalid. Please check the form and try again.";
+
+    case "functions/resource-exhausted":
+    case "resource-exhausted":
+      return "Too many requests have been sent. Please try again later.";
+
+    case "functions/unavailable":
+    case "unavailable":
+      return "The service is temporarily unavailable. Please try again.";
+
+    case "functions/deadline-exceeded":
+    case "deadline-exceeded":
+      return "The request took too long. Please check your connection and try again.";
+
+    default:
+      return "Something went wrong while sending your request. Please try again.";
+  }
 }
 
 /* ==============================================================
@@ -259,49 +428,93 @@ export default function SpecialiseYourMarketScreen() {
      FORM
   ============================================================ */
 
-  const [service, setService] =
+  const [
+    service,
+    setService,
+  ] =
     useState("");
 
-  const [location, setLocation] =
+  const [
+    location,
+    setLocation,
+  ] =
     useState("");
 
-  const [phone, setPhone] =
+  const [
+    phone,
+    setPhone,
+  ] =
     useState("");
 
-  const [coordinates, setCoordinates] =
-    useState<Coordinates | null>(
-      null,
-    );
+  const [
+    coordinates,
+    setCoordinates,
+  ] =
+    useState<
+      Coordinates | null
+    >(null);
 
   /* ============================================================
      WORKER PROFILE
   ============================================================ */
 
-  const [workerName, setWorkerName] =
+  const [
+    workerName,
+    setWorkerName,
+  ] =
     useState("");
 
-  const [workerLoading, setWorkerLoading] =
+  const [
+    workerLoading,
+    setWorkerLoading,
+  ] =
     useState(true);
 
   /* ============================================================
      UI STATE
   ============================================================ */
 
-  const [showServices, setShowServices] =
+  const [
+    showServices,
+    setShowServices,
+  ] =
     useState(false);
 
   const [
     showConfirmation,
     setShowConfirmation,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     locationLoading,
     setLocationLoading,
-  ] = useState(false);
-
-  const [sending, setSending] =
+  ] =
     useState(false);
+
+  const [
+    sending,
+    setSending,
+  ] =
+    useState(false);
+
+  const [
+    focusedField,
+    setFocusedField,
+  ] =
+    useState<FocusedField>(
+      null,
+    );
+
+  /* ============================================================
+     GUARDS
+  ============================================================ */
+
+  const locationLoadingRef =
+    useRef(false);
+
+  const sendingRef =
+    useRef(false);
 
   /* ============================================================
      SELECTED SERVICE
@@ -311,10 +524,13 @@ export default function SpecialiseYourMarketScreen() {
     useMemo(
       () =>
         SERVICES.find(
-          (item) =>
-            item.id === service,
+          item =>
+            item.id ===
+            service,
         ),
-      [service],
+      [
+        service,
+      ],
     );
 
   /* ============================================================
@@ -322,215 +538,245 @@ export default function SpecialiseYourMarketScreen() {
   ============================================================ */
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
+
+    let profileVersion = 0;
 
     let unsubscribePublicProfile:
       | (() => void)
       | undefined;
 
-    const loadWorkerProfile =
-      async () => {
-        try {
-          setWorkerLoading(true);
+    const unsubscribeAuth =
+      onAuthStateChanged(
+        auth,
+        currentUser => {
+          profileVersion +=
+            1;
 
-          await auth.authStateReady();
+          const currentVersion =
+            profileVersion;
 
-          const currentUser =
-            auth.currentUser;
-
-          if (!currentUser) {
-            throw new Error(
-              "No authenticated worker found.",
-            );
-          }
-
-          /* ==================================================
-             MAIN USER PROFILE
-          ================================================== */
-
-          const userSnapshot =
-            await getUser(
-              currentUser.uid,
-            );
-
-          if (
-            !userSnapshot.exists()
-          ) {
-            throw new Error(
-              "Worker profile does not exist.",
-            );
-          }
-
-          const userData =
-            userSnapshot.data() as Record<
-              string,
-              unknown
-            >;
-
-          /*
-           * Initial name fallback.
-           */
-
-          const initialWorkerName =
-            buildWorkerName(
-              userData,
-              currentUser.displayName,
-            );
-
-          /*
-           * Initial phone fallback.
-           */
-
-          const initialPhone =
-            typeof userData.phone ===
-            "string"
-              ? userData.phone.trim()
-              : "";
-
-          if (!mounted) {
-            return;
-          }
-
-          if (
-            initialWorkerName
-          ) {
-            setWorkerName(
-              initialWorkerName,
-            );
-          }
-
-          if (initialPhone) {
-            setPhone(
-              normalizePhone(
-                initialPhone,
-              ),
-            );
-          }
-
-          /* ==================================================
-             PUBLIC WORKER PROFILE REALTIME LISTENER
-          ================================================== */
-
-          const publicProfileRef =
-            doc(
-              db,
-              "workerPublicProfiles",
-              currentUser.uid,
-            );
+          unsubscribePublicProfile?.();
 
           unsubscribePublicProfile =
-            onSnapshot(
-              publicProfileRef,
-              (snapshot) => {
-                if (!mounted) {
-                  return;
-                }
+            undefined;
 
-                if (
-                  !snapshot.exists()
-                ) {
-                  return;
-                }
-
-                const publicData =
-                  snapshot.data() as Record<
-                    string,
-                    unknown
-                  >;
-
-                /* ============================================
-                   UPDATED NAME
-                ============================================ */
-
-                const updatedWorkerName =
-                  buildWorkerName(
-                    publicData,
-                    currentUser.displayName,
-                  );
-
-                if (
-                  updatedWorkerName
-                ) {
-                  setWorkerName(
-                    updatedWorkerName,
-                  );
-                }
-
-                /* ============================================
-                   UPDATED PHONE
-                ============================================ */
-
-                const publicPhone =
-                  typeof publicData.phoneNumber ===
-                  "string"
-                    ? publicData.phoneNumber.trim()
-                    : typeof publicData.phone ===
-                        "string"
-                      ? publicData.phone.trim()
-                      : "";
-
-                if (publicPhone) {
-                  setPhone(
-                    normalizePhone(
-                      publicPhone,
-                    ),
-                  );
-                }
-
-                if (__DEV__) {
-                  console.log(
-                    "FIXXAM_SPECIALISE_PROFILE_UPDATE:",
-                    {
-                      workerName:
-                        updatedWorkerName,
-                      phone:
-                        publicPhone,
-                    },
-                  );
-                }
-              },
-              (error) => {
-                console.error(
-                  "FIXXAM_PUBLIC_PROFILE_LISTENER_ERROR:",
-                  error,
-                );
-              },
-            );
-        } catch (error) {
-          console.error(
-            "FIXXAM_LOAD_WORKER_PROFILE_ERROR:",
-            error,
-          );
-
-          if (!mounted) {
+          if (!active) {
             return;
           }
 
-          setWorkerName("");
+          if (!currentUser) {
+            setWorkerName(
+              "",
+            );
 
-          Alert.alert(
-            "Profile Error",
-            "Unable to load your worker profile. Please try again.",
-          );
-        } finally {
-          if (mounted) {
+            setPhone(
+              "",
+            );
+
             setWorkerLoading(
               false,
             );
-          }
-        }
-      };
 
-    loadWorkerProfile();
+            showError(
+              "Sign in required",
+              "Please sign in again to continue.",
+            );
+
+            return;
+          }
+
+          setWorkerLoading(
+            true,
+          );
+
+          void (async () => {
+            try {
+              /* ==============================================
+                 MAIN USER PROFILE
+              ============================================== */
+
+              const userSnapshot =
+                await getUser(
+                  currentUser.uid,
+                );
+
+              if (
+                !active ||
+                currentVersion !==
+                  profileVersion
+              ) {
+                return;
+              }
+
+              if (
+                !userSnapshot.exists()
+              ) {
+                throw new Error(
+                  "WORKER_PROFILE_NOT_FOUND",
+                );
+              }
+
+              const userData =
+                userSnapshot.data() as Record<
+                  string,
+                  unknown
+                >;
+
+              const initialWorkerName =
+                buildWorkerName(
+                  userData,
+                  currentUser.displayName,
+                );
+
+              const initialPhone =
+                getProfilePhone(
+                  userData,
+                );
+
+              if (
+                initialWorkerName
+              ) {
+                setWorkerName(
+                  initialWorkerName,
+                );
+              }
+
+              if (
+                initialPhone
+              ) {
+                setPhone(
+                  normalizePhone(
+                    initialPhone,
+                  ),
+                );
+              }
+
+              /* ==============================================
+                 PUBLIC PROFILE LISTENER
+              ============================================== */
+
+              const publicProfileRef =
+                doc(
+                  db,
+                  "workerPublicProfiles",
+                  currentUser.uid,
+                );
+
+              unsubscribePublicProfile =
+                onSnapshot(
+                  publicProfileRef,
+                  snapshot => {
+                    if (
+                      !active ||
+                      currentVersion !==
+                        profileVersion ||
+                      !snapshot.exists()
+                    ) {
+                      return;
+                    }
+
+                    const publicData =
+                      snapshot.data() as Record<
+                        string,
+                        unknown
+                      >;
+
+                    const updatedWorkerName =
+                      buildWorkerName(
+                        publicData,
+                        currentUser.displayName,
+                      );
+
+                    const updatedPhone =
+                      getProfilePhone(
+                        publicData,
+                      );
+
+                    if (
+                      updatedWorkerName
+                    ) {
+                      setWorkerName(
+                        updatedWorkerName,
+                      );
+                    }
+
+                    if (
+                      updatedPhone
+                    ) {
+                      setPhone(
+                        normalizePhone(
+                          updatedPhone,
+                        ),
+                      );
+                    }
+
+                    if (__DEV__) {
+                      console.log(
+                        "FIXXAM_SPECIALISE_PROFILE_UPDATE:",
+                        {
+                          workerName:
+                            updatedWorkerName,
+
+                          phone:
+                            updatedPhone,
+                        },
+                      );
+                    }
+                  },
+                  listenerError => {
+                    console.error(
+                      "FIXXAM_PUBLIC_PROFILE_LISTENER_ERROR:",
+                      listenerError,
+                    );
+                  },
+                );
+            } catch (profileError) {
+              console.error(
+                "FIXXAM_LOAD_WORKER_PROFILE_ERROR:",
+                profileError,
+              );
+
+              if (
+                !active ||
+                currentVersion !==
+                  profileVersion
+              ) {
+                return;
+              }
+
+              setWorkerName(
+                "",
+              );
+
+              showError(
+                "Profile unavailable",
+                "Unable to load your worker profile. Please try again.",
+              );
+            } finally {
+              if (
+                active &&
+                currentVersion ===
+                  profileVersion
+              ) {
+                setWorkerLoading(
+                  false,
+                );
+              }
+            }
+          })();
+        },
+      );
 
     return () => {
-      mounted = false;
+      active = false;
 
-      if (
-        unsubscribePublicProfile
-      ) {
-        unsubscribePublicProfile();
-      }
+      profileVersion +=
+        1;
+
+      unsubscribePublicProfile?.();
+
+      unsubscribeAuth();
     };
   }, []);
 
@@ -539,163 +785,231 @@ export default function SpecialiseYourMarketScreen() {
   ============================================================ */
 
   const handleCurrentLocation =
-    useCallback(async () => {
-      if (locationLoading) {
-        return;
-      }
-
-      try {
-        setLocationLoading(true);
-
-        const permission =
-          await Location.getForegroundPermissionsAsync();
-
-        let status =
-          permission.status;
-
+    useCallback(
+      async () => {
         if (
-          status !==
-          Location.PermissionStatus.GRANTED
+          locationLoadingRef.current
         ) {
-          const requested =
-            await Location.requestForegroundPermissionsAsync();
-
-          status =
-            requested.status;
-        }
-
-        if (
-          status !==
-          Location.PermissionStatus.GRANTED
-        ) {
-          Alert.alert(
-            "Location Permission Required",
-            "Please allow Fixxam to access your location.",
-          );
-
           return;
         }
 
-        const enabled =
-          await Location.hasServicesEnabledAsync();
+        locationLoadingRef.current =
+          true;
 
-        if (!enabled) {
-          Alert.alert(
-            "Location Is Off",
-            "Please turn on your phone location and try again.",
-          );
-
-          return;
-        }
-
-        const position =
-          await Location.getCurrentPositionAsync(
-            {
-              accuracy:
-                Location.Accuracy.Balanced,
-            },
-          );
-
-        const {
-          latitude,
-          longitude,
-        } = position.coords;
-
-        if (
-          !Number.isFinite(
-            latitude,
-          ) ||
-          !Number.isFinite(
-            longitude,
-          )
-        ) {
-          throw new Error(
-            "Invalid coordinates received from device.",
-          );
-        }
-
-        setCoordinates({
-          latitude,
-          longitude,
-        });
-
-        let addresses: Location.LocationGeocodedAddress[] =
-          [];
+        setLocationLoading(
+          true,
+        );
 
         try {
-          addresses =
-            await Location.reverseGeocodeAsync(
+          const currentPermission =
+            await Location.getForegroundPermissionsAsync();
+
+          let permission =
+            currentPermission;
+
+          if (
+            permission.status !==
+              Location.PermissionStatus.GRANTED &&
+            permission.canAskAgain
+          ) {
+            permission =
+              await Location.requestForegroundPermissionsAsync();
+          }
+
+          if (
+            permission.status !==
+            Location.PermissionStatus.GRANTED
+          ) {
+            showInfo(
+              "Location permission required",
+              "Allow Fixxam to access your location before searching for nearby customers.",
+            );
+
+            return;
+          }
+
+          const servicesEnabled =
+            await Location.hasServicesEnabledAsync();
+
+          if (
+            !servicesEnabled
+          ) {
+            showInfo(
+              "Location is off",
+              "Turn on your phone location and try again.",
+            );
+
+            return;
+          }
+
+          const position =
+            await Location.getCurrentPositionAsync(
               {
-                latitude,
-                longitude,
+                accuracy:
+                  Location.Accuracy.Balanced,
               },
             );
-        } catch (geocodeError) {
-          console.warn(
-            "FIXXAM_REVERSE_GEOCODE_ERROR:",
-            geocodeError,
+
+          const {
+            latitude,
+            longitude,
+          } =
+            position.coords;
+
+          const nextCoordinates: Coordinates =
+            {
+              latitude,
+
+              longitude,
+            };
+
+          if (
+            !isValidCoordinates(
+              nextCoordinates,
+            )
+          ) {
+            throw new Error(
+              "INVALID_DEVICE_COORDINATES",
+            );
+          }
+
+          setCoordinates(
+            nextCoordinates,
+          );
+
+          try {
+            const addresses =
+              await Location.reverseGeocodeAsync(
+                nextCoordinates,
+              );
+
+            const address =
+              addresses[0];
+
+            if (!address) {
+              showInfo(
+                "GPS detected",
+                "Your location was detected, but the address could not be determined. Enter your service area manually.",
+              );
+
+              return;
+            }
+
+            const formatted =
+              formatLocation(
+                address,
+              );
+
+            if (!formatted) {
+              showInfo(
+                "GPS detected",
+                "Your location was detected, but the address could not be determined. Enter your service area manually.",
+              );
+
+              return;
+            }
+
+            setLocation(
+              formatted,
+            );
+          } catch (geocodeError) {
+            console.warn(
+              "FIXXAM_REVERSE_GEOCODE_ERROR:",
+              geocodeError,
+            );
+
+            showInfo(
+              "GPS detected",
+              "Your coordinates are ready. Enter your service area manually.",
+            );
+          }
+        } catch (locationError) {
+          console.error(
+            "FIXXAM_CURRENT_LOCATION_ERROR:",
+            locationError,
+          );
+
+          setCoordinates(
+            null,
+          );
+
+          showError(
+            "Unable to get location",
+            "Please check your location settings and try again.",
+          );
+        } finally {
+          locationLoadingRef.current =
+            false;
+
+          setLocationLoading(
+            false,
           );
         }
-
-        if (
-          addresses.length ===
-          0
-        ) {
-          Alert.alert(
-            "GPS Location Detected",
-            "Your GPS location was detected, but the address could not be determined. Please enter your service area manually.",
-          );
-
-          return;
-        }
-
-        const formatted =
-          formatLocation(
-            addresses[0],
-          );
-
-        if (!formatted) {
-          Alert.alert(
-            "GPS Location Detected",
-            "Your GPS location was detected, but the address could not be determined. Please enter your service area manually.",
-          );
-
-          return;
-        }
-
-        setLocation(
-          formatted,
-        );
-      } catch (error) {
-        console.error(
-          "FIXXAM_CURRENT_LOCATION_ERROR:",
-          error,
-        );
-
-        setCoordinates(null);
-
-        Alert.alert(
-          "Location Error",
-          "Unable to get your current location. Please try again.",
-        );
-      } finally {
-        setLocationLoading(
-          false,
-        );
-      }
-    }, [
-      locationLoading,
-    ]);
+      },
+      [],
+    );
 
   /* ============================================================
-     PHONE
+     FORM HANDLERS
   ============================================================ */
+
+  const handleServiceChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setService(
+          value,
+        );
+      },
+      [],
+    );
+
+  const handleLocationChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setLocation(
+          value,
+        );
+
+        /*
+         * Prevent stale GPS coordinates from
+         * being paired with a manually changed address.
+         */
+        setCoordinates(
+          null,
+        );
+      },
+      [],
+    );
 
   const handlePhoneChange =
     useCallback(
-      (value: string) => {
+      (
+        value: string,
+      ) => {
         setPhone(
-          normalizePhone(value),
+          normalizePhone(
+            value,
+          ),
+        );
+      },
+      [],
+    );
+
+  const handleSelectService =
+    useCallback(
+      (
+        item: ServiceOption,
+      ) => {
+        setService(
+          item.id,
+        );
+
+        setShowServices(
+          false,
         );
       },
       [],
@@ -717,37 +1031,41 @@ export default function SpecialiseYourMarketScreen() {
         phone.trim();
 
       if (!cleanService) {
-        Alert.alert(
-          "Service Required",
-          "Please enter or select your service.",
+        showInfo(
+          "Service required",
+          "Enter or select the service you provide.",
         );
 
         return;
       }
 
       if (!cleanLocation) {
-        Alert.alert(
-          "Location Required",
-          "Please enter your service area or use current location.",
+        showInfo(
+          "Location required",
+          "Enter your service area and use your current GPS location.",
         );
 
         return;
       }
 
       if (
-        cleanPhone.length < 10
+        !isValidPhone(
+          cleanPhone,
+        )
       ) {
-        Alert.alert(
-          "Invalid Phone Number",
-          "Please enter a valid phone number.",
+        showInfo(
+          "Invalid phone number",
+          "Enter a valid phone number.",
         );
 
         return;
       }
 
-      if (!workerName.trim()) {
-        Alert.alert(
-          "Profile Not Ready",
+      if (
+        !workerName.trim()
+      ) {
+        showError(
+          "Profile not ready",
           "We could not load your worker name. Please try again.",
         );
 
@@ -759,9 +1077,9 @@ export default function SpecialiseYourMarketScreen() {
           coordinates,
         )
       ) {
-        Alert.alert(
-          "Location Required",
-          "Please tap 'Use Current Location' so we can find customers near you.",
+        showInfo(
+          "GPS location required",
+          "Tap Use Current Location so Fixxam can find customers near you.",
         );
 
         return;
@@ -771,11 +1089,11 @@ export default function SpecialiseYourMarketScreen() {
         true,
       );
     }, [
-      service,
+      coordinates,
       location,
       phone,
+      service,
       workerName,
-      coordinates,
     ]);
 
   /* ============================================================
@@ -783,237 +1101,258 @@ export default function SpecialiseYourMarketScreen() {
   ============================================================ */
 
   const handleSendRequest =
-    useCallback(async () => {
-      if (sending) {
-        return;
-      }
-
-      const cleanService =
-        selectedService?.name ??
-        service.trim();
-
-      const cleanLocation =
-        location.trim();
-
-      const cleanPhone =
-        phone.trim();
-
-      const cleanWorkerName =
-        workerName.trim();
-
-      if (
-        !isValidCoordinates(
-          coordinates,
-        )
-      ) {
-        setShowConfirmation(
-          false,
-        );
-
-        Alert.alert(
-          "Location Required",
-          "Please use Current Location before sending the request.",
-        );
-
-        return;
-      }
-
-      if (
-        !cleanService ||
-        !cleanLocation ||
-        cleanPhone.length < 10 ||
-        !cleanWorkerName
-      ) {
-        setShowConfirmation(
-          false,
-        );
-
-        Alert.alert(
-          "Incomplete Request",
-          "Please check your service, location, phone number and worker profile.",
-        );
-
-        return;
-      }
-
-      try {
-        setSending(true);
-
-        await auth.authStateReady();
-
-        const currentUser =
-          auth.currentUser;
-
-        if (!currentUser) {
-          throw new Error(
-            "Worker is not authenticated.",
-          );
+    useCallback(
+      async () => {
+        if (
+          sendingRef.current
+        ) {
+          return;
         }
 
-        const sendRequest =
-          httpsCallable<
-            SendServiceRequestPayload,
-            SendServiceRequestResponse
-          >(
-            functions,
-            "sendServiceRequest",
-          );
+        const cleanService =
+          selectedService?.name ??
+          service.trim();
 
-        const payload: SendServiceRequestPayload =
-          {
-            service:
-              cleanService,
+        const cleanLocation =
+          location.trim();
 
-            location:
-              cleanLocation,
+        const cleanPhone =
+          phone.trim();
 
-            phone:
-              cleanPhone,
-
-            latitude:
-              coordinates.latitude,
-
-            longitude:
-              coordinates.longitude,
-          };
-
-        if (__DEV__) {
-          console.log(
-            "FIXXAM_SEND_SERVICE_REQUEST:",
-            {
-              ...payload,
-              workerId:
-                currentUser.uid,
-            },
-          );
-        }
-
-        const result =
-          await sendRequest(
-            payload,
-          );
-
-        const response =
-          result.data;
-
-        if (__DEV__) {
-          console.log(
-            "FIXXAM_SERVICE_REQUEST_RESPONSE:",
-            response,
-          );
-        }
+        const cleanWorkerName =
+          workerName.trim();
 
         if (
-          !response ||
-          !response.success ||
-          response.sentCount <= 0
+          !isValidCoordinates(
+            coordinates,
+          )
         ) {
           setShowConfirmation(
             false,
           );
 
-          Alert.alert(
-            "No Customers Found",
-            response?.message ||
-              "No customers with a valid location were found nearby.",
+          showInfo(
+            "GPS location required",
+            "Use Current Location before sending your request.",
           );
 
           return;
         }
 
-        setShowConfirmation(
-          false,
+        if (
+          !cleanService ||
+          !cleanLocation ||
+          !isValidPhone(
+            cleanPhone,
+          ) ||
+          !cleanWorkerName
+        ) {
+          setShowConfirmation(
+            false,
+          );
+
+          showInfo(
+            "Incomplete request",
+            "Check your service, location, phone number, and worker profile.",
+          );
+
+          return;
+        }
+
+        sendingRef.current =
+          true;
+
+        setSending(
+          true,
         );
 
-        Alert.alert(
-          "Request Sent",
-          `Your request has been sent to ${response.sentCount} customer${
-            response.sentCount ===
-            1
-              ? ""
-              : "s"
-          } nearby.`,
-          [
+        try {
+          const currentUser =
+            auth.currentUser;
+
+          if (!currentUser) {
+            throw {
+              code:
+                "functions/unauthenticated",
+            };
+          }
+
+          const sendRequest =
+            httpsCallable<
+              SendServiceRequestPayload,
+              SendServiceRequestResponse
+            >(
+              functions,
+              "sendServiceRequest",
+            );
+
+          const payload: SendServiceRequestPayload =
             {
-              text: "Done",
-              onPress: () =>
-                router.back(),
-            },
-          ],
-        );
-
-        if (__DEV__) {
-          console.log(
-            "FIXXAM_SERVICE_REQUEST_SENT:",
-            {
-              workerId:
-                currentUser.uid,
-
-              workerName:
-                cleanWorkerName,
-
               service:
                 cleanService,
 
               location:
                 cleanLocation,
 
+              phone:
+                cleanPhone,
+
               latitude:
                 coordinates.latitude,
 
               longitude:
                 coordinates.longitude,
+            };
 
-              sentCount:
-                response.sentCount,
+          if (__DEV__) {
+            console.log(
+              "FIXXAM_SEND_SERVICE_REQUEST:",
+              {
+                ...payload,
 
-              customers:
-                response.customers,
-            },
+                workerId:
+                  currentUser.uid,
+              },
+            );
+          }
+
+          const result =
+            await sendRequest(
+              payload,
+            );
+
+          const response =
+            result.data;
+
+          if (
+            !response ||
+            !response.success ||
+            response.sentCount <=
+              0
+          ) {
+            setShowConfirmation(
+              false,
+            );
+
+            showInfo(
+              "No customers found",
+              response?.message ||
+                "No nearby customers with a valid location were found.",
+            );
+
+            return;
+          }
+
+          setShowConfirmation(
+            false,
+          );
+
+          showSuccess(
+            "Request sent",
+            `Sent to ${response.sentCount} nearby customer${
+              response.sentCount ===
+              1
+                ? ""
+                : "s"
+            }.`,
+          );
+
+          if (__DEV__) {
+            console.log(
+              "FIXXAM_SERVICE_REQUEST_SENT:",
+              {
+                workerId:
+                  currentUser.uid,
+
+                workerName:
+                  cleanWorkerName,
+
+                service:
+                  cleanService,
+
+                location:
+                  cleanLocation,
+
+                latitude:
+                  coordinates.latitude,
+
+                longitude:
+                  coordinates.longitude,
+
+                sentCount:
+                  response.sentCount,
+
+                customers:
+                  response.customers,
+              },
+            );
+          }
+
+          router.back();
+        } catch (sendError) {
+          console.error(
+            "FIXXAM_SEND_REQUEST_ERROR:",
+            sendError,
+          );
+
+          setShowConfirmation(
+            false,
+          );
+
+          showError(
+            "Request failed",
+            getCallableErrorMessage(
+              sendError,
+            ),
+          );
+        } finally {
+          sendingRef.current =
+            false;
+
+          setSending(
+            false,
           );
         }
-      } catch (error) {
-        console.error(
-          "FIXXAM_SEND_REQUEST_ERROR:",
-          error,
-        );
+      },
+      [
+        coordinates,
+        location,
+        phone,
+        selectedService,
+        service,
+        workerName,
+      ],
+    );
 
-        const message =
-          getCallableErrorMessage(
-            error,
-          );
+  /* ============================================================
+     DERIVED
+  ============================================================ */
 
-        setShowConfirmation(
-          false,
-        );
+  const screenBusy =
+    workerLoading ||
+    locationLoading ||
+    sending;
 
-        Alert.alert(
-          "Request Failed",
-          message,
-        );
-      } finally {
-        setSending(false);
-      }
-    }, [
-      sending,
-      selectedService,
-      service,
-      location,
-      phone,
-      workerName,
+  const locationReady =
+    isValidCoordinates(
       coordinates,
-    ]);
+    );
 
   /* ============================================================
      RENDER
   ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+    >
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={
+          styles.flex
+        }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
             : undefined
         }
@@ -1031,24 +1370,34 @@ export default function SpecialiseYourMarketScreen() {
               HEADER
           ================================================== */}
 
-          <View style={styles.header}>
+          <View
+            style={
+              styles.header
+            }
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              hitSlop={10}
+              hitSlop={8}
               onPress={() =>
                 router.back()
               }
-              style={({ pressed }) => [
+              style={({
+                pressed,
+              }) => [
                 styles.backButton,
-                pressed &&
-                  styles.pressed,
+
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="arrow-back"
-                size={23}
-                color="#0F172A"
+              <AppIcon
+                name="back"
+                size="md"
+                color={
+                  Colors.textPrimary
+                }
               />
             </Pressable>
 
@@ -1058,7 +1407,9 @@ export default function SpecialiseYourMarketScreen() {
               }
             >
               <AppText
+                variant="heading2"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.title
                 }
@@ -1067,11 +1418,14 @@ export default function SpecialiseYourMarketScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={2}
                 style={
                   styles.subtitle
                 }
               >
-                Tell customers what you offer.
+                Tell nearby customers what service you offer.
               </AppText>
             </View>
           </View>
@@ -1086,7 +1440,8 @@ export default function SpecialiseYourMarketScreen() {
             }
           >
             <AppText
-              weight="bold"
+              variant="bodyMedium"
+              weight="medium"
               style={
                 styles.label
               }
@@ -1095,48 +1450,75 @@ export default function SpecialiseYourMarketScreen() {
             </AppText>
 
             <View
-              style={
-                styles.serviceInput
-              }
+              style={[
+                styles.inputContainer,
+
+                focusedField ===
+                "service"
+                  ? styles.inputContainerFocused
+                  : null,
+              ]}
             >
-              <Ionicons
-                name="briefcase-outline"
-                size={22}
-                color="#64748B"
+              <AppIcon
+                name="professional"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <TextInput
+                accessibilityLabel="Service"
                 value={
                   selectedService?.name ??
                   service
                 }
                 onChangeText={
-                  setService
+                  handleServiceChange
+                }
+                onFocus={() =>
+                  setFocusedField(
+                    "service",
+                  )
+                }
+                onBlur={() =>
+                  setFocusedField(
+                    null,
+                  )
                 }
                 placeholder="Enter service"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
                 autoCapitalize="words"
+                maxLength={80}
                 style={
-                  styles.serviceText
+                  styles.input
                 }
               />
 
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Select service"
+                hitSlop={4}
                 onPress={() =>
                   setShowServices(
                     true,
                   )
                 }
-                style={({ pressed }) => [
+                style={({
+                  pressed,
+                }) => [
                   styles.selectButton,
-                  pressed &&
-                    styles.selectPressed,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
                 ]}
               >
                 <AppText
-                  weight="bold"
+                  variant="caption"
+                  weight="medium"
                   style={
                     styles.selectText
                   }
@@ -1144,10 +1526,13 @@ export default function SpecialiseYourMarketScreen() {
                   Select
                 </AppText>
 
-                <Ionicons
-                  name="chevron-down"
-                  size={17}
-                  color="#FF6B00"
+                <AppIcon
+                  name="down"
+                  role="worker"
+                  size="xs"
+                  color={
+                    WorkerColors.primary
+                  }
                 />
               </Pressable>
             </View>
@@ -1163,7 +1548,8 @@ export default function SpecialiseYourMarketScreen() {
             }
           >
             <AppText
-              weight="bold"
+              variant="bodyMedium"
+              weight="medium"
               style={
                 styles.label
               }
@@ -1172,104 +1558,104 @@ export default function SpecialiseYourMarketScreen() {
             </AppText>
 
             <View
-              style={
-                styles.inputContainer
-              }
+              style={[
+                styles.inputContainer,
+
+                focusedField ===
+                "location"
+                  ? styles.inputContainerFocused
+                  : null,
+              ]}
             >
-              <Ionicons
-                name="location-outline"
-                size={22}
-                color="#64748B"
+              <AppIcon
+                name="location"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <TextInput
+                accessibilityLabel="Service area"
                 value={
                   location
                 }
-                onChangeText={(
-                  value,
-                ) => {
-                  setLocation(
-                    value,
-                  );
-
-                  /*
-                   * Clear old coordinates when
-                   * the location is manually changed.
-                   */
-                  setCoordinates(
+                onChangeText={
+                  handleLocationChange
+                }
+                onFocus={() =>
+                  setFocusedField(
+                    "location",
+                  )
+                }
+                onBlur={() =>
+                  setFocusedField(
                     null,
-                  );
-                }}
+                  )
+                }
                 placeholder="Enter your service area"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
                 autoCapitalize="words"
+                maxLength={120}
                 style={
                   styles.input
                 }
               />
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Use current location"
-              accessibilityState={{
-                busy:
-                  locationLoading,
-              }}
+            <AppButton
+              title={
+                locationLoading
+                  ? "Getting Location..."
+                  : "Use Current Location"
+              }
+              role="worker"
+              variant="ghost"
+              size="sm"
+              leftIconName="locate"
+              loading={
+                locationLoading
+              }
               disabled={
                 locationLoading
               }
-              onPress={
-                handleCurrentLocation
+              onPress={() =>
+                void handleCurrentLocation()
               }
-              style={({ pressed }) => [
-                styles.currentLocationButton,
-                pressed &&
-                  !locationLoading &&
-                  styles.locationPressed,
-                locationLoading &&
-                  styles.locationDisabled,
-              ]}
+              style={
+                styles.locationButton
+              }
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.locationHelp
+              }
             >
-              {locationLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FF6B00"
-                />
-              ) : (
-                <Ionicons
-                  name="navigate-outline"
-                  size={20}
-                  color="#FF6B00"
-                />
-              )}
+              GPS is required so Fixxam can find customers near you.
+            </AppText>
 
-              <AppText
-                weight="bold"
-                style={
-                  styles.currentLocationText
-                }
-              >
-                {locationLoading
-                  ? "Getting Location..."
-                  : "Use Current Location"}
-              </AppText>
-            </Pressable>
-
-            {coordinates && (
+            {locationReady ? (
               <View
                 style={
                   styles.locationReady
                 }
               >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={16}
-                  color="#16A34A"
+                <AppIcon
+                  name="success"
+                  size="xs"
+                  color={
+                    Colors.success
+                  }
                 />
 
                 <AppText
+                  variant="caption"
+                  weight="medium"
                   style={
                     styles.locationReadyText
                   }
@@ -1277,7 +1663,7 @@ export default function SpecialiseYourMarketScreen() {
                   Current location detected
                 </AppText>
               </View>
-            )}
+            ) : null}
           </View>
 
           {/* ==================================================
@@ -1290,7 +1676,8 @@ export default function SpecialiseYourMarketScreen() {
             }
           >
             <AppText
-              weight="bold"
+              variant="bodyMedium"
+              weight="medium"
               style={
                 styles.label
               }
@@ -1299,25 +1686,49 @@ export default function SpecialiseYourMarketScreen() {
             </AppText>
 
             <View
-              style={
-                styles.inputContainer
-              }
+              style={[
+                styles.inputContainer,
+
+                focusedField ===
+                "phone"
+                  ? styles.inputContainerFocused
+                  : null,
+              ]}
             >
-              <Ionicons
-                name="call-outline"
-                size={22}
-                color="#64748B"
+              <AppIcon
+                name="phone"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <TextInput
-                value={phone}
+                accessibilityLabel="Phone number"
+                value={
+                  phone
+                }
                 onChangeText={
                   handlePhoneChange
                 }
+                onFocus={() =>
+                  setFocusedField(
+                    "phone",
+                  )
+                }
+                onBlur={() =>
+                  setFocusedField(
+                    null,
+                  )
+                }
                 placeholder="080XXXXXXXX"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
                 keyboardType="phone-pad"
-                maxLength={15}
+                autoComplete="tel"
+                textContentType="telephoneNumber"
+                maxLength={16}
                 style={
                   styles.input
                 }
@@ -1329,67 +1740,33 @@ export default function SpecialiseYourMarketScreen() {
               CONTINUE
           ================================================== */}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Continue with service request"
-            accessibilityState={{
-              disabled:
-                sending ||
-                workerLoading ||
-                locationLoading,
-              busy: sending,
-            }}
-            disabled={
-              sending ||
-              workerLoading ||
-              locationLoading
-            }
-            onPress={
-              handleContinue
-            }
-            style={({ pressed }) => [
-              styles.saveButton,
-              pressed &&
-                !sending &&
-                !workerLoading &&
-                !locationLoading &&
-                styles.savePressed,
-              (sending ||
-                workerLoading ||
-                locationLoading) &&
-                styles.saveDisabled,
-            ]}
-          >
-            {workerLoading ||
-            sending ||
-            locationLoading ? (
-              <ActivityIndicator
-                size="small"
-                color="#FFFFFF"
-              />
-            ) : (
-              <Ionicons
-                name="arrow-forward-circle-outline"
-                size={23}
-                color="#FFFFFF"
-              />
-            )}
-
-            <AppText
-              weight="bold"
-              style={
-                styles.saveText
-              }
-            >
-              {workerLoading
+          <AppButton
+            title={
+              workerLoading
                 ? "Loading Profile..."
                 : locationLoading
                   ? "Getting Location..."
                   : sending
                     ? "Sending..."
-                    : "Continue"}
-            </AppText>
-          </Pressable>
+                    : "Continue"
+            }
+            role="worker"
+            variant="primary"
+            leftIconName="next"
+            loading={
+              workerLoading ||
+              sending
+            }
+            disabled={
+              screenBusy
+            }
+            onPress={
+              handleContinue
+            }
+            style={
+              styles.continueButton
+            }
+          />
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -1405,17 +1782,12 @@ export default function SpecialiseYourMarketScreen() {
           SERVICES
         }
         selectedId={
-          service
+          selectedService?.id ??
+          ""
         }
-        onSelect={(item) => {
-          setService(
-            item.id,
-          );
-
-          setShowServices(
-            false,
-          );
-        }}
+        onSelect={
+          handleSelectService
+        }
         onClose={() =>
           setShowServices(
             false,
@@ -1448,7 +1820,9 @@ export default function SpecialiseYourMarketScreen() {
           sending
         }
         onCancel={() => {
-          if (sending) {
+          if (
+            sendingRef.current
+          ) {
             return;
           }
 
@@ -1476,10 +1850,18 @@ const styles =
 
     container: {
       flexGrow: 1,
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 32,
-      backgroundColor: "#F8FAFC",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+
+      backgroundColor:
+        Colors.background,
     },
 
     /* ==========================================================
@@ -1487,47 +1869,65 @@ const styles =
     ========================================================== */
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 28,
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 11,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      shadowColor: "#000000",
-      shadowOpacity: 0.05,
-      shadowRadius: 7,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
+      flexShrink: 0,
 
-      elevation: 2,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
+
       minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 24,
-      lineHeight: 30,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      color: "#64748B",
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ==========================================================
@@ -1535,182 +1935,156 @@ const styles =
     ========================================================== */
 
     fieldSection: {
-      marginBottom: 24,
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
     label: {
-      fontSize: 15,
-      lineHeight: 20,
-      color: "#0F172A",
-      marginBottom: 9,
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    inputContainer: {
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    inputContainerFocused: {
+      borderColor:
+        WorkerColors.primary,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      color:
+        Colors.textPrimary,
+
+      fontSize:
+        Typography.fontSize.md,
     },
 
     /* ==========================================================
        SERVICE
     ========================================================== */
 
-    serviceInput: {
-      minHeight: 62,
-      borderRadius: 17,
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-      backgroundColor: "#FFFFFF",
-
-      flexDirection: "row",
-      alignItems: "center",
-
-      paddingLeft: 16,
-      paddingRight: 7,
-    },
-
-    serviceText: {
-      flex: 1,
-      marginLeft: 11,
-      color: "#0F172A",
-      fontSize: 15,
-      paddingVertical: 0,
-    },
-
     selectButton: {
-      minHeight: 48,
-      paddingHorizontal: 13,
-      borderRadius: 14,
-      backgroundColor: "#FFF7ED",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-      gap: 4,
-    },
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    selectPressed: {
-      opacity: 0.7,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     selectText: {
-      color: "#FF6B00",
-      fontSize: 13,
+      color:
+        WorkerColors.primary,
     },
 
     /* ==========================================================
-       INPUT
+       LOCATION
     ========================================================== */
 
-    inputContainer: {
-      minHeight: 62,
-      borderRadius: 17,
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-      backgroundColor: "#FFFFFF",
+    locationButton: {
+      alignSelf:
+        "flex-start",
 
-      flexDirection: "row",
-      alignItems: "center",
-
-      paddingHorizontal: 16,
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    input: {
-      flex: 1,
-      marginLeft: 11,
-      color: "#0F172A",
-      fontSize: 15,
-      minHeight: 60,
-      paddingVertical: 0,
-    },
+    locationHelp: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-    /* ==========================================================
-       CURRENT LOCATION
-    ========================================================== */
+      lineHeight: 18,
 
-    currentLocationButton: {
-      marginTop: 11,
-      alignSelf: "flex-start",
-      minHeight: 38,
-
-      paddingHorizontal: 4,
-
-      flexDirection: "row",
-      alignItems: "center",
-
-      gap: 7,
-    },
-
-    currentLocationText: {
-      color: "#FF6B00",
-      fontSize: 14,
-    },
-
-    locationPressed: {
-      opacity: 0.65,
-    },
-
-    locationDisabled: {
-      opacity: 0.55,
+      color:
+        Colors.textSecondary,
     },
 
     locationReady: {
-      marginTop: 5,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
 
-      gap: 5,
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     locationReadyText: {
-      color: "#16A34A",
-      fontSize: 11,
+      color:
+        Colors.success,
     },
 
     /* ==========================================================
        CONTINUE
     ========================================================== */
 
-    saveButton: {
-      minHeight: 58,
+    continueButton: {
+      width: "100%",
 
-      borderRadius: 18,
-
-      backgroundColor: "#FF6B00",
-
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-
-      gap: 9,
-
-      marginTop: 2,
-
-      shadowColor: "#FF6B00",
-      shadowOpacity: 0.18,
-      shadowRadius: 9,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 3,
-    },
-
-    savePressed: {
-      opacity: 0.82,
-
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
-    },
-
-    saveDisabled: {
-      opacity: 0.65,
-    },
-
-    saveText: {
-      color: "#FFFFFF",
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
@@ -1718,6 +2092,14 @@ const styles =
     ========================================================== */
 
     pressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
     },
   });

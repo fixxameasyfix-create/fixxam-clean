@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -19,30 +22,161 @@ import type {
 } from "@/services/fixxamAi";
 
 import {
-  CustomerColors,
+  Colors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   result: FixYourselfResult;
 }
 
-export default function ResultSummaryCard({
+type StatusTone =
+  | "success"
+  | "warning"
+  | "error";
+
+interface RowProps {
+  label: string;
+
+  value: string;
+
+  status?: StatusTone;
+
+  badge?: boolean;
+
+  isLast?: boolean;
+}
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function getConfidenceLabel(
+  value: unknown,
+): string {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed)
+  ) {
+    return "Unavailable";
+  }
+
+  const confidence =
+    Math.min(
+      100,
+      Math.max(
+        0,
+        Math.round(parsed),
+      ),
+    );
+
+  return `${confidence}%`;
+}
+
+function getStatusColors(
+  status: StatusTone,
+) {
+  switch (status) {
+    case "success":
+      return {
+        text:
+          Colors.success,
+
+        background:
+          Colors.successSoft,
+      };
+
+    case "warning":
+      return {
+        text:
+          Colors.warning,
+
+        background:
+          Colors.warningSoft,
+      };
+
+    case "error":
+      return {
+        text:
+          Colors.error,
+
+        background:
+          Colors.errorSoft,
+      };
+  }
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultSummaryCard({
   result,
 }: Props) {
+  const serviceName =
+    useMemo(
+      () =>
+        cleanString(
+          result.matchedService,
+        ) ||
+        "Not Identified",
+      [
+        result.matchedService,
+      ],
+    );
+
+  const confidence =
+    useMemo(
+      () =>
+        getConfidenceLabel(
+          result.confidence,
+        ),
+      [
+        result.confidence,
+      ],
+    );
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
           <MaterialCommunityIcons
             name="check-decagram"
             size={18}
-            color={CustomerColors.success}
+            color={
+              Colors.success
+            }
           />
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
           style={styles.title}
         >
@@ -50,118 +184,131 @@ export default function ResultSummaryCard({
         </AppText>
       </View>
 
-      <InfoRow
-        label="Service"
-        value={
-          result.matchedService ||
-          "Not Identified"
-        }
-      />
+      {/* ========================================================
+          SUMMARY
+      ======================================================== */}
 
-      <InfoRow
-        label="Confidence"
-        value={`${result.confidence}%`}
-      />
+      <View
+        style={styles.summary}
+      >
+        <InfoRow
+          label="Service"
+          value={
+            serviceName
+          }
+        />
 
-      <InfoRow
-        label="Professional"
-        value={
-          result.professionalRequired
-            ? "Required"
-            : "Not Required"
-        }
-        valueColor={
-          result.professionalRequired
-            ? CustomerColors.warning
-            : CustomerColors.success
-        }
-        badge
-      />
+        <InfoRow
+          label="Confidence"
+          value={
+            confidence
+          }
+        />
 
-      <InfoRow
-        label="Emergency"
-        value={
-          result.emergency
-            ? "Yes"
-            : "No"
-        }
-        valueColor={
-          result.emergency
-            ? CustomerColors.error
-            : CustomerColors.success
-        }
-        badge
-        isLast
-      />
+        <InfoRow
+          label="Professional"
+          value={
+            result.professionalRequired
+              ? "Required"
+              : "Not Required"
+          }
+          status={
+            result.professionalRequired
+              ? "warning"
+              : "success"
+          }
+          badge
+        />
+
+        <InfoRow
+          label="Emergency"
+          value={
+            result.emergency
+              ? "Yes"
+              : "No"
+          }
+          status={
+            result.emergency
+              ? "error"
+              : "success"
+          }
+          badge
+          isLast
+        />
+      </View>
     </AppCard>
   );
 }
 
-interface RowProps {
-  label: string;
-
-  value: string;
-
-  valueColor?: string;
-
-  badge?: boolean;
-
-  isLast?: boolean;
-}
+/* ==============================================================
+   INFO ROW
+============================================================== */
 
 function InfoRow({
   label,
   value,
-  valueColor = CustomerColors.primaryText,
+  status,
   badge = false,
   isLast = false,
 }: RowProps) {
-  const badgeBackground =
-    valueColor ===
-    CustomerColors.success
-      ? CustomerColors.successBackground
-      : valueColor ===
-          CustomerColors.warning
-        ? CustomerColors.professionalBackground
-        : CustomerColors.emergencyBackground;
+  const statusColors =
+    status
+      ? getStatusColors(
+          status,
+        )
+      : null;
 
   return (
     <View
       style={[
         styles.row,
-        isLast &&
-          styles.lastRow,
+
+        isLast
+          ? styles.lastRow
+          : null,
       ]}
     >
       <AppText
-        style={styles.label}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.label
+        }
       >
         {label}
       </AppText>
 
-      {badge ? (
+      {badge &&
+      statusColors ? (
         <View
           style={[
             styles.badge,
+
             {
               backgroundColor:
-                badgeBackground,
+                statusColors.background,
             },
           ]}
         >
           <AppText
-            size="xs"
+            variant="caption"
             weight="bold"
-            color={valueColor}
+            style={{
+              color:
+                statusColors.text,
+            }}
           >
             {value}
           </AppText>
         </View>
       ) : (
         <AppText
+          variant="body"
           weight="semibold"
-          style={styles.value}
-          color={valueColor}
+          numberOfLines={2}
+          style={
+            styles.value
+          }
         >
           {value}
         </AppText>
@@ -169,6 +316,10 @@ function InfoRow({
     </View>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
@@ -180,12 +331,14 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
       flexDirection: "row",
 
       alignItems: "center",
-
-      marginBottom: 4,
     },
 
     iconContainer: {
@@ -193,34 +346,69 @@ const styles =
 
       height: 34,
 
-      borderRadius: 17,
-
       alignItems: "center",
 
       justifyContent: "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        CustomerColors.successBackground,
+        Colors.successSoft,
     },
 
     title: {
-      marginLeft: 10,
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       SUMMARY
+    ======================================================== */
+
+    summary: {
+      overflow: "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     row: {
+      minHeight: 48,
+
       flexDirection: "row",
+
+      alignItems: "center",
 
       justifyContent:
         "space-between",
 
-      alignItems: "center",
+      gap:
+        FixxamTokens.spacing.md,
 
-      paddingVertical: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       borderBottomWidth: 1,
 
       borderBottomColor:
-        CustomerColors.border,
+        Colors.divider,
     },
 
     lastRow: {
@@ -228,21 +416,39 @@ const styles =
     },
 
     label: {
-      fontSize: 14,
-
-      color:
-        CustomerColors.textSecondary,
+      flexShrink: 0,
     },
 
     value: {
-      fontSize: 14,
+      flex: 1,
+
+      textAlign: "right",
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       BADGE
+    ======================================================== */
 
     badge: {
-      paddingHorizontal: 10,
+      flexShrink: 0,
 
-      paddingVertical: 4,
+      minHeight: 28,
 
-      borderRadius: 999,
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
   });
+
+export default memo(
+  ResultSummaryCard,
+);

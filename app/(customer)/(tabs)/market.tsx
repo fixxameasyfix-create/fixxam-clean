@@ -1,15 +1,21 @@
 import React, {
+  useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
   ScrollView,
   StyleSheet,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  Image,
+} from "expo-image";
+
+import {
+  router,
+} from "expo-router";
 
 import MarketHeader from "@/components/customer/market/MarketHeader";
 import SearchBar from "@/components/customer/market/SearchBar";
@@ -19,95 +25,256 @@ import PayAfterDelivery from "@/components/customer/market/PayAfterDelivery";
 
 import useMarket from "@/hooks/market/useMarket";
 
-export default function MarketScreen() {
-  const [search, setSearch] = useState("");
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-  const [category, setCategory] =
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MARKET_HOME_PRODUCT_LIMIT =
+  4;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value
+        .trim()
+        .toLowerCase()
+    : "";
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+export default function MarketScreen() {
+  const [
+    search,
+    setSearch,
+  ] =
+    useState("");
+
+  const [
+    category,
+    setCategory,
+  ] =
     useState("all");
 
   const {
     loading,
     products,
-  } = useMarket();
+  } =
+    useMarket();
 
   /* ==========================================================
      FILTER PRODUCTS
   ========================================================== */
 
-  const filteredProducts = useMemo(() => {
-    const query = search
-      .trim()
-      .toLowerCase();
+  const filteredProducts =
+    useMemo(() => {
+      const query =
+        normalizeText(
+          search,
+        );
 
-    return products.filter((product) => {
-      const matchesSearch =
-        !query ||
-        product.name
-          .toLowerCase()
-          .includes(query);
+      const selectedCategory =
+        normalizeText(
+          category,
+        );
 
-      const matchesCategory =
-        category === "all" ||
-        product.category
-          .toLowerCase() ===
-          category.toLowerCase();
+      return products.filter(
+        (product) => {
+          const productName =
+            normalizeText(
+              product.name,
+            );
 
-      return (
-        matchesSearch &&
-        matchesCategory
+          const productCategory =
+            normalizeText(
+              product.category,
+            );
+
+          const matchesSearch =
+            !query ||
+            productName.includes(
+              query,
+            );
+
+          const matchesCategory =
+            selectedCategory ===
+              "all" ||
+            productCategory ===
+              selectedCategory;
+
+          return (
+            matchesSearch &&
+            matchesCategory
+          );
+        },
       );
-    });
-  }, [
-    products,
-    search,
-    category,
-  ]);
+    }, [
+      products,
+      search,
+      category,
+    ]);
 
   /* ==========================================================
      MARKET HOME LIMIT
 
-     Only 4 products should appear on the
+     Only 4 products appear on the
      main Market screen.
-
-     The full product list remains available
-     through "See All".
   ========================================================== */
 
-  const marketProducts = useMemo(() => {
-    return filteredProducts.slice(0, 4);
-  }, [filteredProducts]);
+  const marketProducts =
+    useMemo(
+      () =>
+        filteredProducts.slice(
+          0,
+          MARKET_HOME_PRODUCT_LIMIT,
+        ),
+      [filteredProducts],
+    );
 
   /* ==========================================================
-     PRODUCT DATA
-
-     Convert Market products into the shape
-     expected by ProductGrid.
+     PRODUCT GRID DATA
   ========================================================== */
 
-  const productGridData = useMemo(() => {
-    return marketProducts.map(
-      (product) => ({
-        id: product.id,
-        workerId: product.workerId,
-        storeId: "",
-        name: product.name,
-        price: product.price,
-        thumbnail: product.thumbnail,
-        rating: product.rating ?? 0,
-        sold: product.sold ?? 0,
-      }),
+  const productGridData =
+    useMemo(
+      () =>
+        marketProducts.map(
+          (product) => ({
+            id:
+              product.id,
+
+            workerId:
+              product.workerId,
+
+            /*
+             * Preserve the existing
+             * ProductGrid data shape.
+             */
+            storeId:
+              "",
+
+            name:
+              product.name,
+
+            price:
+              product.price,
+
+            thumbnail:
+              product.thumbnail,
+
+            rating:
+              product.rating ??
+              0,
+
+            sold:
+              product.sold ??
+              0,
+          }),
+        ),
+      [marketProducts],
     );
-  }, [marketProducts]);
+
+  /* ==========================================================
+     SEE ALL
+  ========================================================== */
+
+  const handleSeeAll =
+    useCallback(() => {
+      /*
+       * Preserve existing route.
+       */
+      router.push({
+        pathname:
+          "/market/popular" as never,
+      });
+    }, []);
+
+  /* ==========================================================
+     PRODUCT
+  ========================================================== */
+
+  const handleProductPress =
+    useCallback(
+      (
+        id: string,
+      ) => {
+        if (
+          !id?.trim()
+        ) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/product/[id]",
+
+          params: {
+            id,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ==========================================================
+     BUY
+  ========================================================== */
+
+  const handleBuyPress =
+    useCallback(
+      (
+        product: {
+          id: string;
+        },
+      ) => {
+        if (
+          !product.id?.trim()
+        ) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/product/[id]",
+
+          params: {
+            id:
+              product.id,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <ScrollView
-      style={styles.container}
+      style={
+        styles.container
+      }
       contentContainerStyle={
         styles.content
       }
       showsVerticalScrollIndicator={
         false
       }
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {/* ======================================================
           MARKET HEADER
@@ -120,8 +287,12 @@ export default function MarketScreen() {
       ====================================================== */}
 
       <SearchBar
-        value={search}
-        onChangeText={setSearch}
+        value={
+          search
+        }
+        onChangeText={
+          setSearch
+        }
       />
 
       {/* ======================================================
@@ -129,55 +300,49 @@ export default function MarketScreen() {
       ====================================================== */}
 
       <CategoryTabs
-        selected={category}
-        onSelect={setCategory}
+        selected={
+          category
+        }
+        onSelect={
+          setCategory
+        }
       />
 
       {/* ======================================================
-          BANNER
+          MARKET BANNER
       ====================================================== */}
 
       <Image
         source={require("@/assets/images/construction-banner.jpg")}
-        resizeMode="cover"
-        style={styles.bannerImage}
+        style={
+          styles.bannerImage
+        }
+        contentFit="cover"
+        transition={150}
+        accessibilityLabel="Construction materials promotion"
       />
 
       {/* ======================================================
           POPULAR MATERIALS
-
-          IMPORTANT:
-          Only 4 products are displayed here.
       ====================================================== */}
 
       <ProductGrid
         title="Popular Materials"
-        loading={loading}
+        loading={
+          loading
+        }
         showSeeAll
-        products={productGridData}
-        onSeeAll={() =>
-          router.push({
-            pathname:
-              "/market/popular" as never,
-          })
+        products={
+          productGridData
         }
-        onProductPress={(id) =>
-          router.push({
-            pathname:
-              "/(customer)/product/[id]",
-            params: {
-              id,
-            },
-          })
+        onSeeAll={
+          handleSeeAll
         }
-        onBuyPress={(product) =>
-          router.push({
-            pathname:
-              "/(customer)/product/[id]",
-            params: {
-              id: product.id,
-            },
-          })
+        onProductPress={
+          handleProductPress
+        }
+        onBuyPress={
+          handleBuyPress
         }
       />
 
@@ -190,34 +355,50 @@ export default function MarketScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     SCREEN
-  ========================================================== */
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-    backgroundColor: "#F8FAFC",
-  },
+    container: {
+      flex: 1,
 
-  content: {
-    paddingBottom: 40,
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  /* ==========================================================
-     BANNER
-  ========================================================== */
+    content: {
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+    },
 
-  bannerImage: {
-    width: "90%",
+    /* ========================================================
+       BANNER
+    ======================================================== */
 
-    height: 180,
+    bannerImage: {
+      width: "auto",
 
-    marginTop: 1,
-    marginBottom: 15,
-    marginHorizontal: 16,
+      height: 180,
 
-    borderRadius: 11,
-  },
-});
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+  });

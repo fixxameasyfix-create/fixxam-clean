@@ -1,8 +1,13 @@
 import React, {
+  memo,
+  useCallback,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,11 +18,19 @@ import {
   router,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 
 import {
+  AppButton,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import deleteProduct from "@/services/products/deleteProduct";
 
@@ -26,11 +39,34 @@ import useWorkerProducts from "@/hooks/worker/useWorkerProducts";
 import ProductCard from "./ProductCard";
 
 import ProductPopupMenu from "../products/ProductPopupMenu";
+
 import ProductDeleteDialog from "../products/ProductDeleteDialog";
 
-import {
+import type {
   MenuAnchor,
 } from "../products/ProductPopupMenu/ProductPopupMenu.types";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type HomeProduct = {
+  id: string;
+
+  name: string;
+
+  category: string;
+
+  price: number;
+
+  discountPercent: number;
+
+  discountedPrice?: number;
+
+  thumbnail?: string;
+
+  stock: number;
+};
 
 /* ==============================================================
    HELPERS
@@ -42,7 +78,7 @@ function getSafeString(
 ): string {
   if (
     typeof value === "string" &&
-    value.trim().length > 0
+    value.trim()
   ) {
     return value.trim();
   }
@@ -65,7 +101,10 @@ function getSafeNumber(
   ) {
     const cleaned =
       value
-        .replace(/[₦,\s]/g, "")
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
         .trim();
 
     if (!cleaned) {
@@ -89,12 +128,133 @@ function getSafeNumber(
    COMPONENT
 ============================================================== */
 
-export default function MyProducts() {
+function MyProducts() {
   const {
     loading,
     products,
   } =
     useWorkerProducts();
+
+  /* ============================================================
+     NORMALIZE HOME PRODUCTS
+  ============================================================ */
+
+  const recentProducts =
+    useMemo<HomeProduct[]>(() => {
+      if (
+        !Array.isArray(
+          products,
+        )
+      ) {
+        return [];
+      }
+
+      const result: HomeProduct[] =
+        [];
+
+      for (
+        const product of products
+      ) {
+        if (
+          result.length >= 3
+        ) {
+          break;
+        }
+
+        /*
+         * Some current useWorkerProducts typings
+         * expose fewer fields than the runtime object.
+         */
+        const item =
+          product as unknown as Record<
+            string,
+            unknown
+          >;
+
+        const id =
+          getSafeString(
+            item.id,
+          );
+
+        if (!id) {
+          continue;
+        }
+
+        const name =
+          getSafeString(
+            item.name,
+            "Unnamed Product",
+          );
+
+        const category =
+          getSafeString(
+            item.category,
+            "Others",
+          );
+
+        const price =
+          Math.max(
+            0,
+            getSafeNumber(
+              item.price,
+            ),
+          );
+
+        const discountPercent =
+          Math.min(
+            99,
+            Math.max(
+              0,
+              getSafeNumber(
+                item.discountPercent,
+              ),
+            ),
+          );
+
+        const rawDiscountedPrice =
+          getSafeNumber(
+            item.discountedPrice,
+          );
+
+        const discountedPrice =
+          price > 0 &&
+          discountPercent > 0 &&
+          rawDiscountedPrice > 0 &&
+          rawDiscountedPrice < price
+            ? rawDiscountedPrice
+            : undefined;
+
+        const thumbnail =
+          getSafeString(
+            item.thumbnail,
+          ) || undefined;
+
+        const stock =
+          Math.max(
+            0,
+            Math.floor(
+              getSafeNumber(
+                item.stock,
+              ),
+            ),
+          );
+
+        result.push({
+          id,
+          name,
+          category,
+          price,
+          discountPercent,
+          discountedPrice,
+          thumbnail,
+          stock,
+        });
+      }
+
+      return result;
+    }, [
+      products,
+    ]);
 
   /* ============================================================
      MENU
@@ -103,21 +263,24 @@ export default function MyProducts() {
   const [
     menuVisible,
     setMenuVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     menuAnchor,
     setMenuAnchor,
-  ] = useState<MenuAnchor | null>(
-    null,
-  );
+  ] =
+    useState<MenuAnchor | null>(
+      null,
+    );
 
   const [
     selectedProduct,
     setSelectedProduct,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   /* ============================================================
      DELETE
@@ -126,25 +289,312 @@ export default function MyProducts() {
   const [
     showDeleteDialog,
     setShowDeleteDialog,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     deleting,
     setDeleting,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const deletingRef =
+    useRef(false);
 
   /* ============================================================
-     CLOSE MENU
+     NAVIGATION
   ============================================================ */
 
-  const closeMenu = () => {
-    if (deleting) {
-      return;
-    }
+  const handleViewAll =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products",
+      );
+    }, []);
 
-    setMenuVisible(false);
-    setMenuAnchor(null);
-  };
+  const handleAddProduct =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products/add",
+      );
+    }, []);
+
+  const handleProductPress =
+    useCallback(
+      (
+        productId: string,
+      ) => {
+        const id =
+          productId.trim();
+
+        if (!id) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(worker)/products/[id]",
+
+          params: {
+            id,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     MENU
+  ============================================================ */
+
+  const handleOpenMenu =
+    useCallback(
+      (
+        productId: string,
+        anchor: MenuAnchor,
+      ) => {
+        const id =
+          productId.trim();
+
+        if (
+          !id ||
+          deletingRef.current
+        ) {
+          return;
+        }
+
+        setSelectedProduct(
+          id,
+        );
+
+        setMenuAnchor(
+          anchor,
+        );
+
+        setMenuVisible(
+          true,
+        );
+      },
+      [],
+    );
+
+  const closeMenu =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      setMenuVisible(
+        false,
+      );
+
+      setMenuAnchor(
+        null,
+      );
+    }, []);
+
+  /* ============================================================
+     EDIT
+  ============================================================ */
+
+  const handleEdit =
+    useCallback(() => {
+      if (
+        !selectedProduct
+      ) {
+        return;
+      }
+
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      router.push({
+        pathname:
+          "/(worker)/products/edit/[id]",
+
+        params: {
+          id:
+            productId,
+        },
+      });
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     DUPLICATE
+  ============================================================ */
+
+  const handleDuplicate =
+    useCallback(() => {
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      if (!productId) {
+        return;
+      }
+
+      Toast.show({
+        type: "info",
+        text1:
+          "Duplicate unavailable",
+        text2:
+          "Product duplication is not available yet.",
+      });
+
+      setSelectedProduct(
+        null,
+      );
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     SHARE
+  ============================================================ */
+
+  const handleShare =
+    useCallback(() => {
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      if (!productId) {
+        return;
+      }
+
+      Toast.show({
+        type: "info",
+        text1:
+          "Share unavailable",
+        text2:
+          "Product sharing is not available yet.",
+      });
+
+      setSelectedProduct(
+        null,
+      );
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     DELETE
+  ============================================================ */
+
+  const handleOpenDelete =
+    useCallback(() => {
+      if (
+        !selectedProduct ||
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      closeMenu();
+
+      setShowDeleteDialog(
+        true,
+      );
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  const handleCancelDelete =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      setShowDeleteDialog(
+        false,
+      );
+    }, []);
+
+  const handleConfirmDelete =
+    useCallback(async () => {
+      if (
+        !selectedProduct ||
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      const productId =
+        selectedProduct;
+
+      deletingRef.current =
+        true;
+
+      setDeleting(
+        true,
+      );
+
+      try {
+        await deleteProduct(
+          productId,
+        );
+
+        setShowDeleteDialog(
+          false,
+        );
+
+        setMenuVisible(
+          false,
+        );
+
+        setMenuAnchor(
+          null,
+        );
+
+        setSelectedProduct(
+          null,
+        );
+
+        Toast.show({
+          type: "success",
+          text1:
+            "Product deleted",
+          text2:
+            "The product has been removed successfully.",
+        });
+      } catch (error) {
+        console.error(
+          "FIXXAM_PRODUCT_DELETE_ERROR:",
+          error,
+        );
+
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to delete product",
+          text2:
+            "Please check your connection and try again.",
+        });
+      } finally {
+        deletingRef.current =
+          false;
+
+        setDeleting(
+          false,
+        );
+      }
+    }, [
+      selectedProduct,
+    ]);
 
   /* ============================================================
      LOADING
@@ -163,6 +613,7 @@ export default function MyProducts() {
           }
         >
           <AppText
+            variant="heading2"
             weight="bold"
             style={
               styles.title
@@ -176,14 +627,26 @@ export default function MyProducts() {
           style={
             styles.loadingCard
           }
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading products"
         >
-          <Ionicons
-            name="cube-outline"
-            size={30}
-            color="#CBD5E1"
-          />
+          <View
+            style={
+              styles.loadingIcon
+            }
+          >
+            <ActivityIndicator
+              size="large"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.loadingText
             }
@@ -221,6 +684,7 @@ export default function MyProducts() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
               style={
                 styles.title
@@ -230,34 +694,39 @@ export default function MyProducts() {
             </AppText>
 
             {products.length >
-              0 && (
+            0 ? (
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.subtitle
                 }
               >
                 Manage your products
               </AppText>
-            )}
+            ) : null}
           </View>
 
           <Pressable
-            hitSlop={8}
+            hitSlop={6}
             accessibilityRole="button"
             accessibilityLabel="View all my products"
             accessibilityHint="Opens all products"
-            onPress={() =>
-              router.push(
-                "/(worker)/products",
-              )
+            onPress={
+              handleViewAll
             }
-            style={({ pressed }) => [
+            style={({
+              pressed,
+            }) => [
               styles.seeAllButton,
-              pressed &&
-                styles.pressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.seeAll
@@ -266,10 +735,13 @@ export default function MyProducts() {
               See All
             </AppText>
 
-            <Ionicons
-              name="chevron-forward"
-              size={15}
-              color="#FF6B00"
+            <AppIcon
+              name="next"
+              role="worker"
+              size="xs"
+              color={
+                WorkerColors.primary
+              }
             />
           </Pressable>
         </View>
@@ -290,15 +762,20 @@ export default function MyProducts() {
                 styles.emptyIcon
               }
             >
-              <Ionicons
-                name="cube-outline"
-                size={42}
-                color="#CBD5E1"
+              <AppIcon
+                name="package"
+                role="worker"
+                size="xl"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
 
             <AppText
+              variant="heading3"
               weight="bold"
+              center
               style={
                 styles.emptyTitle
               }
@@ -307,43 +784,31 @@ export default function MyProducts() {
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
                 styles.emptyDescription
               }
             >
-              Start selling by adding
-              your first product.
+              Start selling by adding your first product.
             </AppText>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add first product"
-              onPress={() =>
-                router.push(
-                  "/(worker)/products/add",
-                )
+            <View
+              style={
+                styles.emptyAction
               }
-              style={({ pressed }) => [
-                styles.emptyButton,
-                pressed &&
-                  styles.buttonPressed,
-              ]}
             >
-              <Ionicons
-                name="add"
-                size={18}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.emptyButtonText
+              <AppButton
+                title="Add First Product"
+                role="worker"
+                variant="primary"
+                leftIconName="add"
+                onPress={
+                  handleAddProduct
                 }
-              >
-                Add First Product
-              </AppText>
-            </Pressable>
+              />
+            </View>
           </View>
         ) : (
           /* ====================================================
@@ -357,198 +822,59 @@ export default function MyProducts() {
             }
             bounces
             decelerationRate="fast"
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={
               styles.productsContent
             }
           >
-            {products
-              .slice(0, 3)
-              .map(
-                (product) => {
-                  /*
-                   * useWorkerProducts currently exposes
-                   * product fields too narrowly in some
-                   * TypeScript paths.
-                   *
-                   * Normalize the runtime object here.
-                   */
-                  const item =
-                    product as unknown as Record<
-                      string,
-                      unknown
-                    >;
-
-                  /* ============================================
-                     ID
-                  ============================================ */
-
-                  const productId =
-                    getSafeString(
-                      item.id,
-                    );
-
-                  if (!productId) {
-                    return null;
+            {recentProducts.map(
+              product => (
+                <View
+                  key={
+                    product.id
                   }
-
-                  /* ============================================
-                     NAME
-                  ============================================ */
-
-                  const name =
-                    getSafeString(
-                      item.name,
-                      "Unnamed Product",
-                    );
-
-                  /* ============================================
-                     CATEGORY
-                  ============================================ */
-
-                  const category =
-                    getSafeString(
-                      item.category,
-                      "Others",
-                    );
-
-                  /* ============================================
-                     PRICE
-                  ============================================ */
-
-                  const price =
-                    Math.max(
-                      0,
-                      getSafeNumber(
-                        item.price,
-                      ),
-                    );
-
-                  /* ============================================
-                     DISCOUNT
-                  ============================================ */
-
-                  const rawDiscount =
-                    getSafeNumber(
-                      item.discountPercent,
-                    );
-
-                  const discountPercent =
-                    Math.min(
-                      99,
-                      Math.max(
-                        0,
-                        rawDiscount,
-                      ),
-                    );
-
-                  /* ============================================
-                     DISCOUNTED PRICE
-                  ============================================ */
-
-                  const rawDiscountedPrice =
-                    getSafeNumber(
-                      item.discountedPrice,
-                    );
-
-                  const discountedPrice =
-                    price > 0 &&
-                    discountPercent > 0 &&
-                    rawDiscountedPrice >
-                      0 &&
-                    rawDiscountedPrice <
-                      price
-                      ? rawDiscountedPrice
-                      : undefined;
-
-                  /* ============================================
-                     THUMBNAIL
-                  ============================================ */
-
-                  const thumbnail =
-                    getSafeString(
-                      item.thumbnail,
-                    ) ||
-                    undefined;
-
-                  /* ============================================
-                     STOCK
-                  ============================================ */
-
-                  const stock =
-                    Math.max(
-                      0,
-                      Math.floor(
-                        getSafeNumber(
-                          item.stock,
-                        ),
-                      ),
-                    );
-
-                  /* ============================================
-                     CARD
-                  ============================================ */
-
-                  return (
-                    <View
-                      key={
-                        productId
-                      }
-                      style={
-                        styles.cardWrapper
-                      }
-                    >
-                      <ProductCard
-                        title={
-                          name
-                        }
-                        category={
-                          category
-                        }
-                        price={
-                          price
-                        }
-                        discountPercent={
-                          discountPercent
-                        }
-                        discountedPrice={
-                          discountedPrice
-                        }
-                        thumbnail={
-                          thumbnail
-                        }
-                        stock={
-                          stock
-                        }
-                        onPress={() =>
-                          router.push({
-                            pathname:
-                              "/(worker)/products/[id]",
-                            params: {
-                              id:
-                                productId,
-                            },
-                          })
-                        }
-                        onMore={(
-                          anchor,
-                        ) => {
-                          setSelectedProduct(
-                            productId,
-                          );
-
-                          setMenuAnchor(
-                            anchor,
-                          );
-
-                          setMenuVisible(
-                            true,
-                          );
-                        }}
-                      />
-                    </View>
-                  );
-                },
-              )}
+                  style={
+                    styles.cardWrapper
+                  }
+                >
+                  <ProductCard
+                    width={156}
+                    title={
+                      product.name
+                    }
+                    category={
+                      product.category
+                    }
+                    price={
+                      product.price
+                    }
+                    discountPercent={
+                      product.discountPercent
+                    }
+                    discountedPrice={
+                      product.discountedPrice
+                    }
+                    thumbnail={
+                      product.thumbnail
+                    }
+                    stock={
+                      product.stock
+                    }
+                    onPress={() => {
+                      handleProductPress(
+                        product.id,
+                      );
+                    }}
+                    onMore={anchor => {
+                      handleOpenMenu(
+                        product.id,
+                        anchor,
+                      );
+                    }}
+                  />
+                </View>
+              ),
+            )}
 
             {/* ==================================================
                 ADD PRODUCT
@@ -557,15 +883,17 @@ export default function MyProducts() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Add new product"
-              onPress={() =>
-                router.push(
-                  "/(worker)/products/add",
-                )
+              onPress={
+                handleAddProduct
               }
-              style={({ pressed }) => [
+              style={({
+                pressed,
+              }) => [
                 styles.addCard,
-                pressed &&
-                  styles.addCardPressed,
+
+                pressed
+                  ? styles.addCardPressed
+                  : null,
               ]}
             >
               <View
@@ -573,15 +901,20 @@ export default function MyProducts() {
                   styles.addIcon
                 }
               >
-                <Ionicons
+                <AppIcon
                   name="add"
-                  size={28}
-                  color="#64748B"
+                  role="worker"
+                  size="md"
+                  color={
+                    WorkerColors.primary
+                  }
                 />
               </View>
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
+                center
                 style={
                   styles.addText
                 }
@@ -590,6 +923,9 @@ export default function MyProducts() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                center
                 style={
                   styles.addSubtext
                 }
@@ -615,84 +951,18 @@ export default function MyProducts() {
         onClose={
           closeMenu
         }
-        onEdit={() => {
-          if (
-            !selectedProduct
-          ) {
-            return;
-          }
-
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          router.push({
-            pathname:
-              "/(worker)/products/edit/[id]",
-            params: {
-              id:
-                productId,
-            },
-          });
-        }}
-        onDuplicate={() => {
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          if (!productId) {
-            return;
-          }
-
-          /*
-           * Keep existing duplicate
-           * behaviour.
-           *
-           * Connect duplicateProduct()
-           * here when the service is ready.
-           */
-          console.log(
-            "Duplicate product:",
-            productId,
-          );
-        }}
-        onShare={() => {
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          if (!productId) {
-            return;
-          }
-
-          /*
-           * Keep existing share
-           * behaviour.
-           *
-           * Connect native Share API
-           * here when required.
-           */
-          console.log(
-            "Share product:",
-            productId,
-          );
-        }}
-        onDelete={() => {
-          if (
-            !selectedProduct
-          ) {
-            return;
-          }
-
-          closeMenu();
-
-          setShowDeleteDialog(
-            true,
-          );
-        }}
+        onEdit={
+          handleEdit
+        }
+        onDuplicate={
+          handleDuplicate
+        }
+        onShare={
+          handleShare
+        }
+        onDelete={
+          handleOpenDelete
+        }
       />
 
       {/* ========================================================
@@ -706,62 +976,27 @@ export default function MyProducts() {
         loading={
           deleting
         }
-        onCancel={() => {
-          if (deleting) {
-            return;
-          }
-
-          setShowDeleteDialog(
-            false,
-          );
-        }}
-        onConfirm={async () => {
-          if (
-            !selectedProduct ||
-            deleting
-          ) {
-            return;
-          }
-
-          try {
-            setDeleting(
-              true,
-            );
-
-            await deleteProduct(
-              selectedProduct,
-            );
-
-            setShowDeleteDialog(
-              false,
-            );
-
-            setMenuVisible(
-              false,
-            );
-
-            setMenuAnchor(
-              null,
-            );
-
-            setSelectedProduct(
-              null,
-            );
-          } catch (error) {
-            console.error(
-              "FIXXAM_PRODUCT_DELETE_ERROR:",
-              error,
-            );
-          } finally {
-            setDeleting(
-              false,
-            );
-          }
-        }}
+        onCancel={
+          handleCancelDelete
+        }
+        onConfirm={
+          handleConfirmDelete
+        }
       />
     </>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MyProducts.displayName =
+  "MyProducts";
+
+export default memo(
+  MyProducts,
+);
 
 /* ==============================================================
    STYLES
@@ -774,8 +1009,7 @@ const styles =
     ========================================================== */
 
     container: {
-      marginTop: 24,
-      marginBottom: 40,
+      width: "100%",
     },
 
     /* ==========================================================
@@ -783,6 +1017,9 @@ const styles =
     ========================================================== */
 
     header: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
 
@@ -792,25 +1029,27 @@ const styles =
       justifyContent:
         "space-between",
 
-      marginBottom: 14,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     headerText: {
       flex: 1,
+
       minWidth: 0,
     },
 
     title: {
-      fontSize: 22,
-      lineHeight: 27,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      color: "#94A3B8",
-      fontSize: 11,
-      lineHeight: 15,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     /* ==========================================================
@@ -818,38 +1057,16 @@ const styles =
     ========================================================== */
 
     seeAllButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
-
-      alignItems:
-        "center",
-
-      gap: 2,
-
-      paddingVertical: 6,
-      paddingHorizontal: 4,
-    },
-
-    seeAll: {
-      color: "#FF6B00",
-      fontSize: 14,
-    },
-
-    pressed: {
-      opacity: 0.65,
-    },
-
-    /* ==========================================================
-       LOADING
-    ========================================================== */
-
-    loadingCard: {
-      height: 170,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        "#FFFFFF",
 
       alignItems:
         "center",
@@ -857,28 +1074,88 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#000000",
+      gap:
+        FixxamTokens.spacing.xs,
 
-      shadowOpacity: 0.05,
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-      shadowRadius: 10,
+    seeAll: {
+      color:
+        WorkerColors.primary,
+    },
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-      elevation: 3,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ==========================================================
+       LOADING
+    ========================================================== */
+
+    loadingCard: {
+      minHeight: 190,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     loadingText: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#64748B",
-
-      fontSize: 13,
+        Colors.textSecondary,
     },
 
     /* ==========================================================
@@ -886,11 +1163,11 @@ const styles =
     ========================================================== */
 
     productsContent: {
-      paddingLeft: 0,
+      paddingRight:
+        FixxamTokens.spacing.sm,
 
-      paddingRight: 8,
-
-      gap: 12,
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     cardWrapper: {
@@ -904,14 +1181,15 @@ const styles =
     ========================================================== */
 
     empty: {
-      backgroundColor:
-        "#FFFFFF",
+      width: "100%",
 
-      borderRadius: 22,
+      minHeight: 260,
 
-      paddingHorizontal: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-      paddingVertical: 32,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
       alignItems:
         "center",
@@ -919,103 +1197,67 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#000000",
+      borderWidth: 1,
 
-      shadowOpacity: 0.05,
+      borderColor:
+        Colors.border,
 
-      shadowRadius: 10,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+      backgroundColor:
+        Colors.surface,
 
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     emptyIcon: {
-      width: 78,
-      height: 78,
+      width:
+        FixxamTokens.size.avatarLg,
 
-      borderRadius: 24,
-
-      backgroundColor:
-        "#F8FAFC",
+      height:
+        FixxamTokens.size.avatarLg,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     emptyTitle: {
-      marginTop: 14,
-
-      fontSize: 20,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     emptyDescription: {
-      marginTop: 6,
+      maxWidth: 290,
 
-      color:
-        "#64748B",
-
-      textAlign:
-        "center",
-
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
-    },
 
-    /* ==========================================================
-       EMPTY BUTTON
-    ========================================================== */
-
-    emptyButton: {
-      marginTop: 18,
-
-      minHeight: 44,
-
-      paddingHorizontal: 18,
-
-      borderRadius: 14,
-
-      backgroundColor:
-        "#FF6B00",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap: 7,
-    },
-
-    emptyButtonText: {
       color:
-        "#FFFFFF",
-
-      fontSize: 13,
+        Colors.textSecondary,
     },
 
-    buttonPressed: {
-      opacity: 0.82,
+    emptyAction: {
+      width: "100%",
 
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
+      maxWidth: 240,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     /* ==========================================================
@@ -1025,14 +1267,18 @@ const styles =
     addCard: {
       width: 156,
 
-      height: 241,
+      minHeight: 241,
 
       flexShrink: 0,
 
-      borderRadius: 18,
+      padding:
+        FixxamTokens.spacing.md,
 
-      backgroundColor:
-        "#FFFFFF",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 1,
 
@@ -1040,57 +1286,62 @@ const styles =
         "dashed",
 
       borderColor:
-        "#CBD5E1",
+        WorkerColors.primary,
 
-      alignItems:
-        "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      justifyContent:
-        "center",
+      backgroundColor:
+        Colors.surface,
     },
 
     addCardPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     addIcon: {
-      width: 50,
+      width:
+        FixxamTokens.size.iconBox,
 
-      height: 50,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        "#F1F5F9",
+      height:
+        FixxamTokens.size.iconBox,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     addText: {
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       color:
-        "#334155",
-
-      fontSize: 13,
+        Colors.textPrimary,
     },
 
     addSubtext: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#94A3B8",
-
-      fontSize: 10,
+        Colors.textMuted,
     },
   });

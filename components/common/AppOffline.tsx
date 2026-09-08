@@ -1,45 +1,90 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppOfflineProps {
   onRetry: () => void;
-};
 
-export default function AppOffline({
+  role?: FixxamRole;
+
+  title?: string;
+
+  message?: string;
+
+  buttonText?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppOffline({
   onRetry,
-}: Props) {
+  role = "customer",
+
+  title = "No internet connection",
+
+  message =
+    "Check your connection and try again.",
+
+  buttonText = "Try Again",
+
+  style,
+}: AppOfflineProps) {
   return (
-    <View style={styles.container}>
+    <View
+      accessibilityRole="alert"
+      style={[
+        styles.container,
+        style,
+      ]}
+    >
       <View style={styles.iconBox}>
-        <MaterialCommunityIcons
+        <AppIcon
           name="wifi-off"
-          size={60}
-          color="#F59E0B"
+          role={role}
+          size="xl"
+          color={Colors.warning}
+          strokeWidth="medium"
         />
       </View>
 
       <AppText
-        weight="bold"
+        variant="heading3"
+        center
         style={styles.title}
       >
-        No Internet Connection
+        {title}
       </AppText>
 
-      <AppText style={styles.message}>
-        Please check your internet connection and try again.
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={styles.message}
+      >
+        {message}
       </AppText>
 
       <AppButton
-        title="Try Again"
+        title={buttonText}
+        role={role}
         onPress={onRetry}
+        leftIconName="refresh"
+        style={styles.button}
       />
     </View>
   );
@@ -49,47 +94,51 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
 
+    alignItems: "center",
     justifyContent: "center",
 
-    alignItems: "center",
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
 
-    paddingHorizontal: 24,
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
   },
 
   iconBox: {
-    width: 120,
-    height: 120,
-
-    borderRadius: 32,
-
-    backgroundColor: "#FFFBEB",
-
-    justifyContent: "center",
+    width: 72,
+    height: 72,
 
     alignItems: "center",
+    justifyContent: "center",
 
-    marginBottom: 24,
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.warningSoft,
   },
 
   title: {
-    fontSize: 22,
+    maxWidth: 320,
 
-    color: "#0F172A",
-
-    textAlign: "center",
+    marginTop:
+      FixxamTokens.spacing.lg,
   },
 
   message: {
-    marginTop: 10,
+    maxWidth: 340,
 
-    marginBottom: 28,
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
 
-    fontSize: 15,
+  button: {
+    width: "100%",
+    maxWidth: 280,
 
-    color: "#64748B",
-
-    textAlign: "center",
-
-    lineHeight: 24,
+    marginTop:
+      FixxamTokens.spacing.xxl,
   },
 });
+
+export default memo(AppOffline);

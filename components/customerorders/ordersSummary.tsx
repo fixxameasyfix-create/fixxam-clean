@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -8,53 +9,169 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import type {
-  OrderStatus,
-} from "./orders.types";
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 export type OrderCounts = {
   pending: number;
+
   active: number;
+
   completed: number;
+
   cancelled: number;
 };
 
 type Props = {
   counts: OrderCounts;
+
   authenticated: boolean;
+
   onManage: () => void;
 };
+
+type StatTone =
+  | "pending"
+  | "active"
+  | "completed"
+  | "cancelled";
+
+type StatProps = {
+  label: string;
+
+  value: number;
+
+  icon: AppIconName;
+
+  tone: StatTone;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function safeCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function OrderSummary({
   counts,
   authenticated,
   onManage,
 }: Props) {
+  const safeCounts =
+    useMemo(
+      () => ({
+        pending:
+          safeCount(
+            counts.pending,
+          ),
+
+        active:
+          safeCount(
+            counts.active,
+          ),
+
+        completed:
+          safeCount(
+            counts.completed,
+          ),
+
+        cancelled:
+          safeCount(
+            counts.cancelled,
+          ),
+      }),
+      [
+        counts.active,
+        counts.cancelled,
+        counts.completed,
+        counts.pending,
+      ],
+    );
+
   const total =
-    counts.pending +
-    counts.active +
-    counts.completed +
-    counts.cancelled;
+    useMemo(
+      () =>
+        safeCounts.pending +
+        safeCounts.active +
+        safeCounts.completed +
+        safeCounts.cancelled,
+      [
+        safeCounts,
+      ],
+    );
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <View>
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.heading
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Order Overview
           </AppText>
 
           <AppText
-            style={styles.subtitle}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
           >
             {total}{" "}
             {total === 1
@@ -65,151 +182,433 @@ function OrderSummary({
         </View>
 
         <Pressable
-          onPress={onManage}
-          disabled={!authenticated}
-          style={styles.manage}
+          accessibilityRole="button"
+          accessibilityLabel="Manage orders"
+          accessibilityHint="Opens your order management screen"
+          accessibilityState={{
+            disabled:
+              !authenticated,
+          }}
+          disabled={
+            !authenticated
+          }
+          hitSlop={8}
+          onPress={
+            onManage
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.manageButton,
+
+            !authenticated
+              ? styles.manageDisabled
+              : null,
+
+            pressed &&
+            authenticated
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="settings-outline"
-            size={16}
-            color={
+          <AppIcon
+            name="settings"
+            role="customer"
+            size="sm"
+            state={
               authenticated
-                ? "#2563EB"
-                : "#CBD5E1"
+                ? "active"
+                : "muted"
             }
           />
         </Pressable>
       </View>
 
-      <View style={styles.stats}>
+      {/* ========================================================
+          STATS
+      ======================================================== */}
+
+      <View
+        style={
+          styles.stats
+        }
+      >
         <Stat
           label="Pending"
-          value={counts.pending}
-          icon="time-outline"
-          color="#D97706"
+          value={
+            safeCounts.pending
+          }
+          icon="clock"
+          tone="pending"
         />
 
         <Stat
           label="Active"
-          value={counts.active}
-          icon="construct-outline"
-          color="#2563EB"
+          value={
+            safeCounts.active
+          }
+          icon="professional"
+          tone="active"
         />
 
         <Stat
-          label="Done"
-          value={counts.completed}
-          icon="checkmark-circle-outline"
-          color="#16A34A"
+          label="Completed"
+          value={
+            safeCounts.completed
+          }
+          icon="success"
+          tone="completed"
         />
 
         <Stat
           label="Cancelled"
-          value={counts.cancelled}
-          icon="close-circle-outline"
-          color="#DC2626"
+          value={
+            safeCounts.cancelled
+          }
+          icon="error"
+          tone="cancelled"
         />
       </View>
-    </View>
+    </AppCard>
   );
 }
 
-function Stat({
-  label,
-  value,
-  icon,
-  color,
-}: {
-  label: string;
-  value: number;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-}) {
-  return (
-    <View style={styles.stat}>
-      <Ionicons
-        name={icon}
-        size={16}
-        color={color}
-      />
+export default memo(
+  OrderSummary,
+);
 
-      <AppText
-        weight="bold"
-        style={[
-          styles.value,
-          { color },
-        ]}
-      >
-        {value}
-      </AppText>
+/* ==============================================================
+   STAT
+============================================================== */
 
-      <AppText
-        style={styles.label}
-      >
-        {label}
-      </AppText>
-    </View>
+const Stat =
+  memo(
+    function Stat({
+      label,
+      value,
+      icon,
+      tone,
+    }: StatProps) {
+      const appearance =
+        getStatAppearance(
+          tone,
+        );
+
+      return (
+        <View
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`${label}: ${value}`}
+          style={[
+            styles.stat,
+
+            {
+              backgroundColor:
+                appearance.backgroundColor,
+
+              borderColor:
+                appearance.borderColor,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statIcon,
+
+              {
+                backgroundColor:
+                  appearance.iconBackgroundColor,
+              },
+            ]}
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              state={
+                appearance.iconState
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.statContent
+            }
+          >
+            <AppText
+              variant="heading3"
+              weight="bold"
+              numberOfLines={1}
+              style={{
+                color:
+                  appearance.valueColor,
+              }}
+            >
+              {value}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+            >
+              {label}
+            </AppText>
+          </View>
+        </View>
+      );
+    },
   );
+
+Stat.displayName =
+  "OrderSummaryStat";
+
+/* ==============================================================
+   APPEARANCE
+============================================================== */
+
+function getStatAppearance(
+  tone: StatTone,
+) {
+  switch (tone) {
+    case "pending":
+      return {
+        backgroundColor:
+          Colors.warningSoft,
+
+        iconBackgroundColor:
+          Colors.warningSoft,
+
+        borderColor:
+          Colors.warning,
+
+        valueColor:
+          Colors.warning,
+
+        iconState:
+          "warning" as const,
+      };
+
+    case "active":
+      return {
+        backgroundColor:
+          CustomerColors.primarySoft,
+
+        iconBackgroundColor:
+          CustomerColors.primarySoft,
+
+        borderColor:
+          CustomerColors.primary,
+
+        valueColor:
+          CustomerColors.primary,
+
+        iconState:
+          "active" as const,
+      };
+
+    case "completed":
+      return {
+        backgroundColor:
+          Colors.successSoft,
+
+        iconBackgroundColor:
+          Colors.successSoft,
+
+        borderColor:
+          Colors.success,
+
+        valueColor:
+          Colors.success,
+
+        iconState:
+          "success" as const,
+      };
+
+    case "cancelled":
+    default:
+      return {
+        backgroundColor:
+          Colors.errorSoft,
+
+        iconBackgroundColor:
+          Colors.errorSoft,
+
+        borderColor:
+          Colors.error,
+
+        valueColor:
+          Colors.error,
+
+        iconState:
+          "error" as const,
+      };
+  }
 }
 
-export default memo(OrderSummary);
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
     card: {
-      marginTop: 9,
-      padding: 11,
-      borderRadius: 16,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.lg,
     },
 
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    heading: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     title: {
-      fontSize: 12.5,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 1,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    manage: {
-      width: 30,
-      height: 30,
-      borderRadius: 9,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+    manageButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
+
+    manageDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion.disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
+
+    /* ==========================================================
+       STATS
+    ========================================================== */
 
     stats: {
-      marginTop: 10,
-      flexDirection: "row",
-      justifyContent: "space-between",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     stat: {
+      flexGrow: 1,
+
+      flexBasis: "47%",
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size.cardMinHeight,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    statIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    statContent: {
       flex: 1,
-      alignItems: "center",
-    },
 
-    value: {
-      marginTop: 2,
-      fontSize: 14,
-    },
+      minWidth: 0,
 
-    label: {
-      marginTop: 1,
-      fontSize: 8,
-      color: "#64748B",
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
   });

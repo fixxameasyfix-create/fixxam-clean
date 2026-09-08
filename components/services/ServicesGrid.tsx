@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
 } from "react";
 
@@ -14,10 +15,6 @@ import {
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import type {
-  ComponentProps,
-} from "react";
-
 import {
   AppText,
 } from "@/components/ui";
@@ -26,23 +23,28 @@ import type {
   ServiceItem,
 } from "@/hooks/services/useServices";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 /* ==============================================================
    TYPES
 ============================================================== */
 
 type IconName =
-  ComponentProps<
-    typeof MaterialCommunityIcons
-  >["name"];
+  keyof typeof MaterialCommunityIcons.glyphMap;
 
 type ServiceWithCategory =
   ServiceItem & {
     categoryId?: string;
   };
 
-interface Props {
-  services: ServiceItem[];
-}
+type Props = {
+  services:
+    ServiceItem[];
+};
 
 /* ==============================================================
    CONSTANTS
@@ -50,12 +52,6 @@ interface Props {
 
 const DEFAULT_ICON: IconName =
   "tools";
-
-const DEFAULT_COLOR =
-  "#2563EB";
-
-const DEFAULT_BACKGROUND =
-  "#EFF6FF";
 
 /* ==============================================================
    HELPERS
@@ -66,7 +62,8 @@ function getSafeString(
   fallback = "",
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return fallback;
   }
@@ -74,14 +71,251 @@ function getSafeString(
   const trimmed =
     value.trim();
 
-  return trimmed || fallback;
+  return (
+    trimmed ||
+    fallback
+  );
 }
+
+function getSafeCount(
+  value: unknown,
+): number {
+  const parsed =
+    typeof value ===
+    "number"
+      ? value
+      : Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      parsed,
+    ),
+  );
+}
+
+function resolveServiceIcon(
+  value: unknown,
+): IconName {
+  const icon =
+    getSafeString(
+      value,
+    );
+
+  if (
+    icon &&
+    icon in
+      MaterialCommunityIcons.glyphMap
+  ) {
+    return icon as IconName;
+  }
+
+  return DEFAULT_ICON;
+}
+
+function resolveServiceColor(
+  value: unknown,
+): string {
+  return getSafeString(
+    value,
+    CustomerColors.primary,
+  );
+}
+
+function resolveServiceBackground(
+  value: unknown,
+): string {
+  return getSafeString(
+    value,
+    CustomerColors.primarySoft,
+  );
+}
+
+/* ==============================================================
+   SERVICE CARD
+============================================================== */
+
+const ServiceCard =
+  memo(
+    function ServiceCard({
+      service,
+      onPress,
+    }: {
+      service:
+        ServiceItem;
+
+      onPress:
+        (
+          service:
+            ServiceItem,
+        ) => void;
+    }) {
+      const serviceName =
+        getSafeString(
+          service.name,
+          "Service",
+        );
+
+      const iconName =
+        resolveServiceIcon(
+          service.icon,
+        );
+
+      const iconColor =
+        resolveServiceColor(
+          service.color,
+        );
+
+      const iconBackground =
+        resolveServiceBackground(
+          service.backgroundColor,
+        );
+
+      const bookingCount =
+        getSafeCount(
+          service.bookingCount,
+        );
+
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${serviceName}`}
+          accessibilityHint="Opens workers available for this service"
+          onPress={() =>
+            onPress(
+              service,
+            )
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.item,
+
+            pressed
+              ? styles.itemPressed
+              : null,
+          ]}
+        >
+          <View
+            style={
+              styles.card
+            }
+          >
+            {/* ==================================================
+                TOP
+            ================================================== */}
+
+            <View
+              style={
+                styles.cardTop
+              }
+            >
+              {/* ================================================
+                  SERVICE ICON
+              ================================================ */}
+
+              <View
+                style={[
+                  styles.iconBox,
+
+                  {
+                    backgroundColor:
+                      iconBackground,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    iconName
+                  }
+                  size={
+                    FixxamTokens.size.iconLg
+                  }
+                  color={
+                    iconColor
+                  }
+                />
+              </View>
+
+              {/* ================================================
+                  OPEN ICON
+              ================================================ */}
+
+              <View
+                style={
+                  styles.arrowBox
+                }
+              >
+                <MaterialCommunityIcons
+                  name="arrow-top-right"
+                  size={
+                    FixxamTokens.size.iconSm
+                  }
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+            </View>
+
+            {/* ==================================================
+                INFO
+            ================================================== */}
+
+            <View
+              style={
+                styles.info
+              }
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                style={
+                  styles.name
+                }
+              >
+                {serviceName}
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.bookings
+                }
+              >
+                {bookingCount}{" "}
+                {bookingCount ===
+                1
+                  ? "booking"
+                  : "bookings"}
+              </AppText>
+            </View>
+          </View>
+        </Pressable>
+      );
+    },
+  );
+
+ServiceCard.displayName =
+  "ServicesGridCard";
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function ServicesGrid({
+function ServicesGrid({
   services,
 }: Props) {
   /* ============================================================
@@ -91,7 +325,8 @@ export default function ServicesGrid({
   const handleServicePress =
     useCallback(
       (
-        service: ServiceItem,
+        service:
+          ServiceItem,
       ) => {
         /* ======================================================
            SERVICE ID
@@ -104,8 +339,7 @@ export default function ServicesGrid({
 
         if (!serviceId) {
           console.error(
-            "SERVICES_GRID_MISSING_SERVICE_ID",
-            service,
+            "FIXXAM_SERVICES_GRID_MISSING_SERVICE_ID",
           );
 
           return;
@@ -122,10 +356,9 @@ export default function ServicesGrid({
 
         if (!serviceName) {
           console.error(
-            "SERVICES_GRID_MISSING_SERVICE_NAME",
+            "FIXXAM_SERVICES_GRID_MISSING_SERVICE_NAME",
             {
               serviceId,
-              service,
             },
           );
 
@@ -137,9 +370,8 @@ export default function ServicesGrid({
         ====================================================== */
 
         const serviceIcon =
-          getSafeString(
+          resolveServiceIcon(
             service.icon,
-            DEFAULT_ICON,
           );
 
         /* ======================================================
@@ -147,9 +379,8 @@ export default function ServicesGrid({
         ====================================================== */
 
         const serviceColor =
-          getSafeString(
+          resolveServiceColor(
             service.color,
-            DEFAULT_COLOR,
           );
 
         /* ======================================================
@@ -157,13 +388,12 @@ export default function ServicesGrid({
         ====================================================== */
 
         const serviceBackgroundColor =
-          getSafeString(
+          resolveServiceBackground(
             service.backgroundColor,
-            DEFAULT_BACKGROUND,
           );
 
         /* ======================================================
-           CATEGORY ID
+           CATEGORY
         ====================================================== */
 
         const serviceWithCategory =
@@ -174,30 +404,24 @@ export default function ServicesGrid({
             serviceWithCategory.categoryId,
           );
 
-        /* ======================================================
-           DEBUG
-        ====================================================== */
-
-        console.log(
-          "OPEN_SERVICE_FROM_GRID",
-          {
-            serviceId,
-            serviceName,
-            serviceIcon,
-            serviceColor,
-            serviceBackgroundColor,
-            categoryId,
-          },
-        );
+        if (__DEV__) {
+          console.log(
+            "FIXXAM_OPEN_SERVICE_FROM_GRID:",
+            {
+              serviceId,
+              serviceName,
+              serviceIcon,
+              serviceColor,
+              serviceBackgroundColor,
+              categoryId,
+            },
+          );
+        }
 
         /* ======================================================
-           NAVIGATE TO WORKERS
-           
-           IMPORTANT:
-           Do NOT change this to "/services".
-           
-           This is the route that displays workers
-           for the selected service.
+           NAVIGATION
+
+           Existing route preserved.
         ====================================================== */
 
         router.push({
@@ -205,55 +429,48 @@ export default function ServicesGrid({
             "/(customer)/details/workers/[id]",
 
           params: {
-            /* --------------------------------------------------
-               Dynamic route parameter
+            /*
+             * Dynamic route:
+             * [id] = service ID
+             */
+            id:
+              serviceId,
 
-               [id] = service ID
-            -------------------------------------------------- */
-
-            id: serviceId,
-
-            /* --------------------------------------------------
-               Explicit service ID
-            -------------------------------------------------- */
-
+            /*
+             * Explicit service ID.
+             */
             serviceId,
 
-            /* --------------------------------------------------
-               Service name
-            -------------------------------------------------- */
-
+            /*
+             * Service name.
+             */
             serviceName,
 
-            /* --------------------------------------------------
-               Backward compatibility
-            -------------------------------------------------- */
-
+            /*
+             * Backward compatibility.
+             */
             service:
               serviceName,
 
-            /* --------------------------------------------------
-               Service icon
-            -------------------------------------------------- */
-
+            /*
+             * Exact validated
+             * MaterialCommunityIcons icon.
+             */
             serviceIcon,
 
-            /* --------------------------------------------------
-               Service icon color
-            -------------------------------------------------- */
-
+            /*
+             * Exact service color.
+             */
             serviceColor,
 
-            /* --------------------------------------------------
-               Service icon background
-            -------------------------------------------------- */
-
+            /*
+             * Exact service background.
+             */
             serviceBackgroundColor,
 
-            /* --------------------------------------------------
-               Category ID
-            -------------------------------------------------- */
-
+            /*
+             * Optional category ID.
+             */
             ...(categoryId
               ? {
                   categoryId,
@@ -266,12 +483,12 @@ export default function ServicesGrid({
     );
 
   /* ============================================================
-     EMPTY STATE
+     EMPTY
   ============================================================ */
 
   if (
-    !services ||
-    services.length === 0
+    services.length ===
+    0
   ) {
     return null;
   }
@@ -288,169 +505,37 @@ export default function ServicesGrid({
     >
       {services.map(
         (
-          item,
+          service,
+          index,
         ) => {
-          /* ====================================================
-             SERVICE ICON
-          ==================================================== */
-
-          const iconName =
+          const serviceId =
             getSafeString(
-              item.icon,
-              DEFAULT_ICON,
-            ) as IconName;
-
-          /* ====================================================
-             SERVICE COLOR
-          ==================================================== */
-
-          const iconColor =
-            getSafeString(
-              item.color,
-              DEFAULT_COLOR,
+              service.id,
             );
-
-          /* ====================================================
-             SERVICE BACKGROUND
-          ==================================================== */
-
-          const iconBackground =
-            getSafeString(
-              item.backgroundColor,
-              DEFAULT_BACKGROUND,
-            );
-
-          /* ====================================================
-             BOOKING COUNT
-          ==================================================== */
-
-          const bookingCount =
-            Number.isFinite(
-              Number(
-                item.bookingCount,
-              ),
-            )
-              ? Number(
-                  item.bookingCount,
-                )
-              : 0;
 
           return (
-            <Pressable
+            <ServiceCard
               key={
-                item.id
+                serviceId ||
+                `service-${index}`
               }
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.name}`}
-              accessibilityHint="Opens workers available for this service"
-              onPress={() =>
-                handleServicePress(
-                  item,
-                )
+              service={
+                service
               }
-              style={({
-                pressed,
-              }) => [
-                styles.item,
-
-                pressed &&
-                  styles.itemPressed,
-              ]}
-            >
-              <View
-                style={
-                  styles.card
-                }
-              >
-                {/* =================================================
-                    CARD TOP
-                ================================================= */}
-
-                <View
-                  style={
-                    styles.cardTop
-                  }
-                >
-                  {/* ===============================================
-                      SERVICE ICON
-                  =============================================== */}
-
-                  <View
-                    style={[
-                      styles.icon,
-                      {
-                        backgroundColor:
-                          iconBackground,
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={
-                        iconName
-                      }
-                      size={27}
-                      color={
-                        iconColor
-                      }
-                    />
-                  </View>
-
-                  {/* ===============================================
-                      ARROW
-                  =============================================== */}
-
-                  <View
-                    style={
-                      styles.arrow
-                    }
-                  >
-                    <MaterialCommunityIcons
-                      name="arrow-top-right"
-                      size={17}
-                      color="#2563EB"
-                    />
-                  </View>
-                </View>
-
-                {/* =================================================
-                    SERVICE INFORMATION
-                ================================================= */}
-
-                <View
-                  style={
-                    styles.info
-                  }
-                >
-                  <AppText
-                    weight="bold"
-                    numberOfLines={2}
-                    style={
-                      styles.name
-                    }
-                  >
-                    {item.name}
-                  </AppText>
-
-                  <AppText
-                    style={
-                      styles.bookings
-                    }
-                  >
-                    {bookingCount}{" "}
-                    {bookingCount ===
-                    1
-                      ? "booking"
-                      : "bookings"}
-                  </AppText>
-                </View>
-              </View>
-            </Pressable>
+              onPress={
+                handleServicePress
+              }
+            />
           );
         },
       )}
     </View>
   );
 }
+
+export default memo(
+  ServicesGrid,
+);
 
 /* ==============================================================
    STYLES
@@ -463,6 +548,8 @@ const styles =
     ========================================================== */
 
     grid: {
+      width: "100%",
+
       flexDirection:
         "row",
 
@@ -472,11 +559,12 @@ const styles =
       justifyContent:
         "space-between",
 
-      rowGap: 12,
+      rowGap:
+        FixxamTokens.spacing.md,
     },
 
     /* ==========================================================
-       PRESSABLE ITEM
+       ITEM
     ========================================================== */
 
     item: {
@@ -484,11 +572,15 @@ const styles =
     },
 
     itemPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
@@ -498,89 +590,90 @@ const styles =
     ========================================================== */
 
     card: {
+      width: "100%",
+
       minHeight: 172,
 
-      padding: 15,
-
-      borderRadius: 20,
-
-      backgroundColor:
-        "#FFFFFF",
+      padding:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      shadowColor:
-        "#0F172A",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowOpacity:
-        0.06,
+      backgroundColor:
+        Colors.surface,
 
-      shadowRadius:
-        9,
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     /* ==========================================================
-       CARD TOP
+       TOP
     ========================================================== */
 
     cardTop: {
       flexDirection:
         "row",
 
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
 
-      alignItems:
-        "center",
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
-       ICON
+       SERVICE ICON
     ========================================================== */
 
-    icon: {
-      width: 54,
+    iconBox: {
+      width:
+        FixxamTokens.size.iconBox,
 
-      height: 54,
+      height:
+        FixxamTokens.size.iconBox,
 
-      borderRadius: 16,
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     /* ==========================================================
        ARROW
     ========================================================== */
 
-    arrow: {
+    arrowBox: {
       width: 32,
 
       height: 32,
 
-      borderRadius: 10,
-
-      backgroundColor:
-        "#EFF6FF",
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     /* ==========================================================
@@ -588,32 +681,27 @@ const styles =
     ========================================================== */
 
     info: {
-      marginTop: 24,
-    },
+      flex: 1,
 
-    /* ==========================================================
-       SERVICE NAME
-    ========================================================== */
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      justifyContent:
+        "flex-end",
+    },
 
     name: {
-      fontSize: 16,
-
-      lineHeight: 22,
+      lineHeight: 21,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
-    /* ==========================================================
-       BOOKINGS
-    ========================================================== */
-
     bookings: {
-      marginTop: 7,
-
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       color:
-        "#64748B",
+        Colors.textSecondary,
     },
   });

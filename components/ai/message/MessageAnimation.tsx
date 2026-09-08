@@ -1,24 +1,50 @@
-import React from "react";
+import React, {
+  memo,
+  type PropsWithChildren,
+} from "react";
 
 import Animated, {
   FadeInUp,
+  useReducedMotion,
 } from "react-native-reanimated";
 
-interface Props {
-  children: React.ReactNode;
-}
+import {
+  FixxamTokens,
+} from "@/theme";
 
-export default function MessageAnimation({
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type Props =
+  PropsWithChildren;
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function MessageAnimation({
   children,
 }: Props) {
+  const reduceMotion =
+    useReducedMotion();
+
   return (
     <Animated.View
-      entering={FadeInUp
-        .duration(260)
-        .springify()
-        .damping(18)}
+      entering={
+        reduceMotion
+          ? undefined
+          : FadeInUp.duration(
+              FixxamTokens.motion
+                .normal,
+            )
+      }
     >
       {children}
     </Animated.View>
   );
 }
+
+export default memo(
+  MessageAnimation,
+);

@@ -1,79 +1,142 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
+import {
+  Image,
+} from "expo-image";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
 type Props = {
   workerName: string;
+
   workerPhoto?: string | null;
+
   workerCategory?: string | null;
 
   serviceName: string;
+
   serviceIcon?: string | null;
 
   description: string;
+
   photos: string[];
 
   address: string;
+
   hasCoordinates: boolean;
 
   urgent: boolean;
+
   date?: string | null;
+
   time?: string | null;
 
   onProfile: () => void;
+
   onMap: () => void;
 };
 
-function resolveIcon(
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function resolveServiceIcon(
   value?: string | null,
-): keyof typeof Ionicons.glyphMap {
-  if (!value?.trim()) {
-    return "construct-outline";
+): MaterialIconName {
+  const icon =
+    cleanText(
+      value,
+    ) as MaterialIconName;
+
+  if (
+    icon &&
+    icon in
+      MaterialCommunityIcons.glyphMap
+  ) {
+    return icon;
   }
 
-  const icon =
-    value.trim() as keyof typeof Ionicons.glyphMap;
-
-  return icon in Ionicons.glyphMap
-    ? icon
-    : "construct-outline";
+  return "tools";
 }
+
+/* ==============================================================
+   SECTION TITLE
+============================================================== */
 
 function SectionTitle({
   number,
   title,
 }: {
   number: string;
+
   title: string;
 }) {
   return (
-    <View style={styles.sectionTitle}>
-      <View style={styles.sectionNumber}>
+    <View
+      style={
+        styles.sectionTitle
+      }
+    >
+      <View
+        style={
+          styles.sectionNumber
+        }
+      >
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.sectionNumberText}
+          style={
+            styles.sectionNumberText
+          }
         >
           {number}
         </AppText>
       </View>
 
       <AppText
+        variant="bodyMedium"
         weight="bold"
-        style={styles.sectionText}
+        style={
+          styles.sectionText
+        }
       >
         {title}
       </AppText>
@@ -81,125 +144,314 @@ function SectionTitle({
   );
 }
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function CustomerOrderRequest({
   workerName,
   workerPhoto,
   workerCategory,
+
   serviceName,
   serviceIcon,
+
   description,
   photos,
+
   address,
   hasCoordinates,
+
   urgent,
   date,
   time,
+
   onProfile,
   onMap,
 }: Props) {
   let sectionNumber = 1;
 
+  const safeWorkerName =
+    cleanText(
+      workerName,
+    ) || "Worker";
+
+  const safeWorkerCategory =
+    cleanText(
+      workerCategory,
+    ) || "Service provider";
+
+  const safeWorkerPhoto =
+    cleanText(
+      workerPhoto,
+    );
+
+  const safeServiceName =
+    cleanText(
+      serviceName,
+    ) || "Service";
+
+  const safeServiceIcon =
+    resolveServiceIcon(
+      serviceIcon,
+    );
+
+  const safeDescription =
+    cleanText(
+      description,
+    ) ||
+    "No description provided.";
+
+  const safeAddress =
+    cleanText(
+      address,
+    ) ||
+    "Location unavailable";
+
+  const safeDate =
+    cleanText(
+      date,
+    );
+
+  const safeTime =
+    cleanText(
+      time,
+    );
+
+  const safePhotos =
+    useMemo(() => {
+      const seen =
+        new Set<string>();
+
+      return photos.reduce<
+        string[]
+      >(
+        (
+          items,
+          photo,
+        ) => {
+          const value =
+            cleanText(
+              photo,
+            );
+
+          if (
+            !value ||
+            seen.has(value)
+          ) {
+            return items;
+          }
+
+          seen.add(value);
+          items.push(value);
+
+          return items;
+        },
+        [],
+      );
+    }, [photos]);
+
   return (
     <View>
+      {/* ======================================================
+          WORKER
+      ====================================================== */}
+
       <SectionTitle
         number={`${sectionNumber++}`}
         title="Your worker"
       />
 
-      <View style={styles.workerCard}>
-        <View style={styles.avatar}>
-          {workerPhoto ? (
+      <View
+        style={
+          styles.workerCard
+        }
+      >
+        <View
+          style={styles.avatar}
+        >
+          {safeWorkerPhoto ? (
             <Image
-              source={{ uri: workerPhoto }}
-              style={styles.avatarImage}
+              source={{
+                uri:
+                  safeWorkerPhoto,
+              }}
+              style={
+                styles.avatarImage
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={150}
             />
           ) : (
-            <Ionicons
-              name="person"
-              size={27}
-              color="#94A3B8"
+            <AppIcon
+              name="profile"
+              size="lg"
+              color={
+                Colors.textMuted
+              }
             />
           )}
         </View>
 
-        <View style={styles.workerInfo}>
+        <View
+          style={
+            styles.workerInfo
+          }
+        >
           <AppText
+            variant="body"
             weight="bold"
             numberOfLines={1}
-            style={styles.workerName}
+            style={
+              styles.workerName
+            }
           >
-            {workerName}
+            {safeWorkerName}
           </AppText>
 
-          <AppText style={styles.workerCategory}>
-            {workerCategory || "Service provider"}
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.workerCategory
+            }
+          >
+            {safeWorkerCategory}
           </AppText>
         </View>
 
         <Pressable
           onPress={onProfile}
-          style={({ pressed }) => [
-            styles.profileButton,
-            pressed && styles.pressed,
+          accessibilityRole="button"
+          accessibilityLabel={`View ${safeWorkerName} profile`}
+          style={({
+            pressed,
+          }) => [
+            styles.actionButton,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="person-outline"
-            size={16}
-            color="#2563EB"
+          <AppIcon
+            name="profile"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
           />
         </Pressable>
       </View>
+
+      {/* ======================================================
+          SERVICE
+      ====================================================== */}
 
       <SectionTitle
         number={`${sectionNumber++}`}
         title="Service"
       />
 
-      <View style={styles.serviceCard}>
-      
-      <View style={styles.serviceIcon}>
-  <MaterialCommunityIcons
-    name={serviceIcon?.trim() as keyof typeof MaterialCommunityIcons.glyphMap}
-    size={22}
-    color="#2563EB"
-  />
-</View>
+      <View
+        style={
+          styles.serviceCard
+        }
+      >
+        <View
+          style={
+            styles.serviceIcon
+          }
+        >
+          <MaterialCommunityIcons
+            name={
+              safeServiceIcon
+            }
+            size={22}
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
 
-        <View style={styles.serviceInfo}>
-          <AppText style={styles.smallLabel}>
+        <View
+          style={
+            styles.serviceInfo
+          }
+        >
+          <AppText
+            variant="caption"
+            tone="muted"
+            weight="semibold"
+            style={
+              styles.smallLabel
+            }
+          >
             SERVICE
           </AppText>
 
           <AppText
+            variant="body"
             weight="bold"
-            style={styles.serviceName}
+            numberOfLines={2}
+            style={
+              styles.serviceName
+            }
           >
-            {serviceName}
+            {safeServiceName}
           </AppText>
         </View>
       </View>
+
+      {/* ======================================================
+          REQUEST
+      ====================================================== */}
 
       <SectionTitle
         number={`${sectionNumber++}`}
         title="Your request"
       />
 
-      <View style={styles.requestCard}>
-        <View style={styles.requestIcon}>
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={22}
-            color="#2563EB"
+      <View
+        style={
+          styles.requestCard
+        }
+      >
+        <View
+          style={
+            styles.requestIcon
+          }
+        >
+          <AppIcon
+            name="messages"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        <AppText style={styles.description}>
-          {description || "No description provided."}
+        <AppText
+          variant="body"
+          tone="secondary"
+          style={
+            styles.description
+          }
+        >
+          {safeDescription}
         </AppText>
       </View>
 
-      {photos.length > 0 && (
+      {/* ======================================================
+          PHOTOS
+      ====================================================== */}
+
+      {safePhotos.length >
+      0 ? (
         <>
           <SectionTitle
             number={`${sectionNumber++}`}
@@ -208,43 +460,88 @@ function CustomerOrderRequest({
 
           <ScrollView
             horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.photos}
+            showsHorizontalScrollIndicator={
+              false
+            }
+            contentContainerStyle={
+              styles.photos
+            }
           >
-            {photos.map((photo, index) => (
-              <Image
-                key={`${photo}-${index}`}
-                source={{ uri: photo }}
-                style={styles.photo}
-              />
-            ))}
+            {safePhotos.map(
+              (
+                photo,
+                index,
+              ) => (
+                <Image
+                  key={`${photo}-${index}`}
+                  source={{
+                    uri: photo,
+                  }}
+                  style={
+                    styles.photo
+                  }
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                />
+              ),
+            )}
           </ScrollView>
         </>
-      )}
+      ) : null}
+
+      {/* ======================================================
+          LOCATION
+      ====================================================== */}
 
       <SectionTitle
         number={`${sectionNumber++}`}
         title="Service location"
       />
 
-      <View style={styles.locationCard}>
-        <View style={styles.locationIcon}>
-          <Ionicons
-            name="location-outline"
-            size={23}
-            color="#2563EB"
+      <View
+        style={
+          styles.locationCard
+        }
+      >
+        <View
+          style={
+            styles.locationIcon
+          }
+        >
+          <AppIcon
+            name="location"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        <View style={styles.locationInfo}>
+        <View
+          style={
+            styles.locationInfo
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.locationTitle}
+            numberOfLines={2}
+            style={
+              styles.locationTitle
+            }
           >
-            {address}
+            {safeAddress}
           </AppText>
 
-          <AppText style={styles.address}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.address
+            }
+          >
             {hasCoordinates
               ? "Location coordinates available"
               : "Address only"}
@@ -253,47 +550,91 @@ function CustomerOrderRequest({
 
         <Pressable
           onPress={onMap}
-          style={({ pressed }) => [
-            styles.mapButton,
-            pressed && styles.pressed,
+          accessibilityRole="button"
+          accessibilityLabel="View service location"
+          style={({
+            pressed,
+          }) => [
+            styles.actionButton,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="map-outline"
-            size={16}
-            color="#2563EB"
+          <AppIcon
+            name="navigation"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
           />
         </Pressable>
       </View>
+
+      {/* ======================================================
+          WHEN
+      ====================================================== */}
 
       <SectionTitle
         number={`${sectionNumber}`}
         title="When"
       />
 
-      <View style={styles.timingCard}>
-        <View style={styles.timingIcon}>
-          <Ionicons
-            name="calendar-outline"
-            size={22}
-            color="#2563EB"
+      <View
+        style={
+          styles.timingCard
+        }
+      >
+        <View
+          style={
+            styles.timingIcon
+          }
+        >
+          <AppIcon
+            name="calendar"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        <View style={styles.timingInfo}>
+        <View
+          style={
+            styles.timingInfo
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.timingTitle}
+            style={[
+              styles.timingTitle,
+
+              urgent
+                ? styles.urgentText
+                : null,
+            ]}
           >
             {urgent
               ? "AS SOON AS POSSIBLE"
-              : date || "Scheduled service"}
+              : safeDate ||
+                "Scheduled service"}
           </AppText>
 
-          <AppText style={styles.timingSubtitle}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.timingSubtitle
+            }
+          >
             {urgent
               ? "The worker has been asked to respond as soon as possible."
-              : time || "Scheduled time unavailable"}
+              : safeTime ||
+                "Scheduled time unavailable"}
           </AppText>
         </View>
       </View>
@@ -301,248 +642,465 @@ function CustomerOrderRequest({
   );
 }
 
-export default memo(CustomerOrderRequest);
+export default memo(
+  CustomerOrderRequest,
+);
 
-const styles = StyleSheet.create({
-  sectionTitle: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 9,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  sectionNumber: {
-    width: 27,
-    height: 27,
-    borderRadius: 9,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 8,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SECTION
+    ======================================================== */
 
-  sectionNumberText: {
-    fontSize: 12,
-    color: "#2563EB",
-  },
+    sectionTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-  sectionText: {
-    fontSize: 15,
-    color: "#0F172A",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  workerCard: {
-    minHeight: 78,
-    padding: 11,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      flexDirection: "row",
 
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
+      alignItems: "center",
+    },
 
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
+    sectionNumber: {
+      width: 28,
 
-  workerInfo: {
-    flex: 1,
-    marginLeft: 11,
-  },
+      height: 28,
 
-  workerName: {
-    fontSize: 14,
-    color: "#0F172A",
-  },
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-  workerCategory: {
-    marginTop: 3,
-    fontSize: 10,
-    color: "#64748B",
-  },
+      alignItems: "center",
 
-  profileButton: {
-    width: 37,
-    height: 37,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      justifyContent:
+        "center",
 
-  serviceCard: {
-    minHeight: 70,
-    padding: 11,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
- serviceIcon: {
-  width: 40,
-  height: 40,
-  borderRadius: 12,
-  backgroundColor: "#EFF6FF",
-  alignItems: "center",
-  justifyContent: "center",
-},
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-  serviceInfo: {
-    flex: 1,
-    marginLeft: 11,
-  },
+    sectionNumberText: {
+      color:
+        CustomerColors.primary,
+    },
 
-  smallLabel: {
-    fontSize: 8,
-    letterSpacing: 1,
-    color: "#94A3B8",
-  },
+    sectionText: {
+      color:
+        Colors.textPrimary,
+    },
 
-  serviceName: {
-    marginTop: 3,
-    fontSize: 14,
-    color: "#0F172A",
-  },
+    /* ========================================================
+       SHARED CARD
+    ======================================================== */
 
-  requestCard: {
-    padding: 13,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+    workerCard: {
+      minHeight: 78,
 
-  requestIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      padding:
+        FixxamTokens.spacing.sm,
 
-  description: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color: "#334155",
-  },
+      flexDirection: "row",
 
-  photos: {
-    gap: 8,
-  },
+      alignItems: "center",
 
-  photo: {
-    width: 110,
-    height: 110,
-    borderRadius: 15,
-    backgroundColor: "#E2E8F0",
-  },
+      borderWidth: 1,
 
-  locationCard: {
-    minHeight: 76,
-    padding: 11,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderColor:
+        Colors.border,
 
-  locationIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  locationInfo: {
-    flex: 1,
-    marginLeft: 10,
-    marginRight: 8,
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  locationTitle: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#0F172A",
-  },
+    serviceCard: {
+      minHeight: 70,
 
-  address: {
-    marginTop: 3,
-    fontSize: 9.5,
-    color: "#64748B",
-  },
+      padding:
+        FixxamTokens.spacing.sm,
 
-  mapButton: {
-    width: 37,
-    height: 37,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      flexDirection: "row",
 
-  timingCard: {
-    minHeight: 72,
-    padding: 11,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      alignItems: "center",
 
-  timingIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderWidth: 1,
 
-  timingInfo: {
-    flex: 1,
-    marginLeft: 10,
-  },
+      borderColor:
+        Colors.border,
 
-  timingTitle: {
-    fontSize: 11.5,
-    color: "#0F172A",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  timingSubtitle: {
-    marginTop: 3,
-    fontSize: 9.5,
-    lineHeight: 15,
-    color: "#64748B",
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  pressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.97 }],
-  },
-});
+    requestCard: {
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    locationCard: {
+      minHeight: 76,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    timingCard: {
+      minHeight: 72,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       WORKER
+    ======================================================== */
+
+    avatar: {
+      width:
+        FixxamTokens.size
+          .avatarLg,
+
+      height:
+        FixxamTokens.size
+          .avatarLg,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      overflow: "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    avatarImage: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    workerInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    workerName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    workerCategory: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    actionButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       SERVICE
+    ======================================================== */
+
+    serviceIcon: {
+      width: 44,
+
+      height: 44,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    serviceInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    smallLabel: {
+      letterSpacing: 1,
+    },
+
+    serviceName: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       REQUEST
+    ======================================================== */
+
+    requestIcon: {
+      width: 44,
+
+      height: 44,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    description: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+    },
+
+    /* ========================================================
+       PHOTOS
+    ======================================================== */
+
+    photos: {
+      gap:
+        FixxamTokens.spacing.sm,
+
+      paddingRight:
+        FixxamTokens.spacing.md,
+    },
+
+    photo: {
+      width: 110,
+
+      height: 110,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       LOCATION
+    ======================================================== */
+
+    locationIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    locationInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    locationTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    address: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       TIMING
+    ======================================================== */
+
+    timingIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    timingInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    timingTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    urgentText: {
+      color:
+        Colors.warning,
+    },
+
+    timingSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

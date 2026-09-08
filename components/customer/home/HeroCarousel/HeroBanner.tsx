@@ -1,69 +1,181 @@
-import React from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  Image,
+} from "expo-image";
 
-import { HeroBannerItem } from "./HeroTypes";
+import {
+  router,
+} from "expo-router";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+import type {
+  HeroBannerItem,
+} from "./HeroTypes";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   item: HeroBannerItem;
 };
 
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const BANNER_ASPECT_RATIO = 0.42;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function HeroBanner({
   item,
 }: Props) {
-  const { width } = useWindowDimensions();
+  const {
+    width: screenWidth,
+  } = useWindowDimensions();
 
-  const bannerWidth = width - 32;
-  const bannerHeight = Math.round(
-    bannerWidth * 0.42,
-  );
+  /* ==========================================================
+     RESPONSIVE SIZE
+  ========================================================== */
+
+  const bannerWidth =
+    Math.max(
+      0,
+      screenWidth -
+        FixxamTokens.spacing.lg *
+          2,
+    );
+
+  const bannerHeight =
+    Math.round(
+      bannerWidth *
+        BANNER_ASPECT_RATIO,
+    );
+
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
+
+  const handlePress =
+    useCallback(() => {
+      /*
+       * Preserve the existing
+       * dynamic banner route.
+       */
+      router.push(
+        item.route as never,
+      );
+    }, [
+      item.route,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Pressable
-      onPress={() =>
-        router.push(item.route as never)
+      onPress={
+        handlePress
       }
-      style={({ pressed }) => [
-        styles.container,
-        {
-          width: bannerWidth,
-          height: bannerHeight,
-        },
-        pressed && styles.pressed,
-      ]}
       accessibilityRole="button"
       accessibilityLabel="Home banner"
+      accessibilityHint="Opens banner destination"
+      style={({
+        pressed,
+      }) => [
+        styles.container,
+
+        {
+          width:
+            bannerWidth,
+
+          height:
+            bannerHeight,
+        },
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
       <Image
-        source={item.image}
-        resizeMode="cover"
-        style={styles.image}
+        source={
+          item.image
+        }
+        style={
+          styles.image
+        }
+        contentFit="cover"
+        transition={150}
+        cachePolicy="memory-disk"
       />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 20,
-    overflow: "hidden",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    backgroundColor: "#F1F5F9",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       BANNER
+    ======================================================== */
 
-  image: {
-    width: "100%",
-    height: "100%",
-  },
+    container: {
+      overflow:
+        "hidden",
 
-  pressed: {
-    opacity: 0.92,
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       IMAGE
+    ======================================================== */
+
+    image: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

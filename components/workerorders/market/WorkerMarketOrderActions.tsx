@@ -1,13 +1,14 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -19,13 +20,19 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import Toast from "react-native-toast-message";
 
 import {
+  AppButton,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   auth,
@@ -38,8 +45,22 @@ import {
 
 type WorkerMarketOrderActionsProps = {
   orderId: string;
+
   status?: string;
 };
+
+type MarketOrderAction =
+  | "accept"
+  | "on-the-way"
+  | "complete";
+
+type ActionErrorCode =
+  | "ORDER_NOT_FOUND"
+  | "NOT_ASSIGNED_WORKER"
+  | "NOT_MARKET_ORDER"
+  | "ORDER_NOT_PENDING"
+  | "ORDER_NOT_ACCEPTED"
+  | "ORDER_NOT_IN_PROGRESS";
 
 /* ============================================================
    HELPERS
@@ -48,13 +69,9 @@ type WorkerMarketOrderActionsProps = {
 function normalizeStatus(
   value: unknown,
 ): string {
-  if (
-    typeof value !== "string"
-  ) {
-    return "";
-  }
-
-  return value
+  return String(
+    value ?? "",
+  )
     .trim()
     .toLowerCase()
     .replace(
@@ -66,13 +83,15 @@ function normalizeStatus(
 function isInProgressStatus(
   value: unknown,
 ): boolean {
-  const status =
-    normalizeStatus(value);
+  const normalized =
+    normalizeStatus(
+      value,
+    );
 
   return (
-    status ===
+    normalized ===
       "in-progress" ||
-    status ===
+    normalized ===
       "on-the-way"
   );
 }
@@ -80,13 +99,15 @@ function isInProgressStatus(
 function isCancelledStatus(
   value: unknown,
 ): boolean {
-  const status =
-    normalizeStatus(value);
+  const normalized =
+    normalizeStatus(
+      value,
+    );
 
   return (
-    status ===
+    normalized ===
       "cancelled" ||
-    status ===
+    normalized ===
       "canceled"
   );
 }
@@ -102,43 +123,91 @@ export default function WorkerMarketOrderActions({
   const [
     submitting,
     setSubmitting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     liveStatus,
     setLiveStatus,
-  ] = useState<string>(
-    normalizeStatus(status),
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [
     listening,
     setListening,
-  ] = useState(true);
+  ] =
+    useState(true);
+
+  const [
+    orderExists,
+    setOrderExists,
+  ] =
+    useState<boolean | null>(
+      null,
+    );
+
+  const [
+    listenerFailed,
+    setListenerFailed,
+  ] =
+    useState(false);
+
+  const actionInFlightRef =
+    useRef(false);
 
   /* ==========================================================
-     NORMALIZED ORDER ID
+     ORDER ID
   ========================================================== */
 
   const normalizedOrderId =
-    orderId.trim();
+    useMemo(
+      () =>
+        orderId.trim(),
+      [
+        orderId,
+      ],
+    );
 
   /* ==========================================================
      LIVE FIRESTORE STATUS
-     
-     IMPORTANT:
-     Do not rely only on the status prop.
-     Firestore is the source of truth.
   ========================================================== */
 
   useEffect(() => {
-    if (!normalizedOrderId) {
-      setLiveStatus("");
-      setListening(false);
+    if (
+      !normalizedOrderId
+    ) {
+      setLiveStatus(
+        null,
+      );
+
+      setOrderExists(
+        false,
+      );
+
+      setListenerFailed(
+        false,
+      );
+
+      setListening(
+        false,
+      );
+
       return;
     }
 
-    setListening(true);
+    setListening(
+      true,
+    );
+
+    setOrderExists(
+      null,
+    );
+
+    setListenerFailed(
+      false,
+    );
 
     const orderRef =
       doc(
@@ -150,50 +219,84 @@ export default function WorkerMarketOrderActions({
     const unsubscribe =
       onSnapshot(
         orderRef,
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setLiveStatus("");
-            setListening(false);
+
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
+            setLiveStatus(
+              null,
+            );
+
+            setOrderExists(
+              false,
+            );
+
+            setListenerFailed(
+              false,
+            );
+
+            setListening(
+              false,
+            );
+
             return;
           }
 
-          const data =
-            snapshot.data();
+          const nextStatus =
+            normalizeStatus(
+              snapshot.data()
+                .status,
+            );
 
           setLiveStatus(
-            normalizeStatus(
-              data.status,
-            ),
+            nextStatus,
           );
 
-          setListening(false);
+          setOrderExists(
+            true,
+          );
+
+          setListenerFailed(
+            false,
+          );
+
+          setListening(
+            false,
+          );
         },
-        (error) => {
+
+        listenerError => {
           console.error(
             "FIXXAM_WORKER_MARKET_ORDER_LISTENER_ERROR:",
-            error,
+            listenerError,
           );
 
           /*
-           * Keep the prop as a temporary fallback if
-           * Firestore listener has a problem.
+           * Only when the listener itself fails do we
+           * temporarily fall back to the status prop.
            */
           setLiveStatus(
-            normalizeStatus(
-              status,
-            ),
+            null,
           );
 
-          setListening(false);
+          setOrderExists(
+            null,
+          );
+
+          setListenerFailed(
+            true,
+          );
+
+          setListening(
+            false,
+          );
         },
       );
 
-    return () => {
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [
     normalizedOrderId,
-    status,
   ]);
 
   /* ==========================================================
@@ -201,8 +304,12 @@ export default function WorkerMarketOrderActions({
   ========================================================== */
 
   const effectiveStatus =
-    liveStatus ||
-    normalizeStatus(status);
+    listenerFailed
+      ? normalizeStatus(
+          status,
+        )
+      : liveStatus ??
+        "";
 
   const isPending =
     effectiveStatus ===
@@ -231,7 +338,7 @@ export default function WorkerMarketOrderActions({
     "expired";
 
   /* ==========================================================
-     COMMON VALIDATION
+     VALIDATION
   ========================================================== */
 
   const validateWorker =
@@ -242,8 +349,10 @@ export default function WorkerMarketOrderActions({
       if (!user) {
         Toast.show({
           type: "error",
+
           text1:
             "Authentication required",
+
           text2:
             "Please sign in again.",
         });
@@ -251,11 +360,15 @@ export default function WorkerMarketOrderActions({
         return null;
       }
 
-      if (!normalizedOrderId) {
+      if (
+        !normalizedOrderId
+      ) {
         Toast.show({
           type: "error",
+
           text1:
             "Invalid order",
+
           text2:
             "Order ID is missing.",
         });
@@ -264,233 +377,95 @@ export default function WorkerMarketOrderActions({
       }
 
       return {
-        user,
-        normalizedOrderId,
+        orderId:
+          normalizedOrderId,
+
+        workerId:
+          user.uid,
       };
     }, [
       normalizedOrderId,
     ]);
 
   /* ==========================================================
-     ACCEPT ORDER
+     RUN ACTION
+  ========================================================== */
+
+  const runAction =
+    useCallback(
+      async (
+        action: MarketOrderAction,
+      ) => {
+        if (
+          actionInFlightRef.current
+        ) {
+          return;
+        }
+
+        const validation =
+          validateWorker();
+
+        if (!validation) {
+          return;
+        }
+
+        actionInFlightRef.current =
+          true;
+
+        setSubmitting(
+          true,
+        );
+
+        try {
+          await updateMarketOrder(
+            validation.orderId,
+            validation.workerId,
+            action,
+          );
+
+          showActionSuccess(
+            action,
+          );
+        } catch (error) {
+          console.error(
+            `FIXXAM_WORKER_MARKET_ORDER_${action
+              .replace(
+                /-/g,
+                "_",
+              )
+              .toUpperCase()}_ERROR:`,
+            error,
+          );
+
+          handleActionError(
+            error,
+            action,
+          );
+        } finally {
+          actionInFlightRef.current =
+            false;
+
+          setSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        validateWorker,
+      ],
+    );
+
+  /* ==========================================================
+     ACCEPT
   ========================================================== */
 
   const handleAccept =
-    useCallback(async () => {
-      if (submitting) {
-        return;
-      }
-
-      const validation =
-        validateWorker();
-
-      if (!validation) {
-        return;
-      }
-
-      const {
-        user,
-        normalizedOrderId,
-      } = validation;
-
-      try {
-        setSubmitting(true);
-
-        const orderRef =
-          doc(
-            db,
-            "orders",
-            normalizedOrderId,
-          );
-
-        await runTransaction(
-          db,
-          async (
-            transaction,
-          ) => {
-            const snapshot =
-              await transaction.get(
-                orderRef,
-              );
-
-            if (
-              !snapshot.exists()
-            ) {
-              throw new Error(
-                "ORDER_NOT_FOUND",
-              );
-            }
-
-            const data =
-              snapshot.data();
-
-            /* ----------------------------------------------
-               WORKER OWNERSHIP
-            ---------------------------------------------- */
-
-            const workerId =
-              typeof data.workerId ===
-              "string"
-                ? data.workerId.trim()
-                : "";
-
-            if (
-              !workerId ||
-              workerId !==
-                user.uid
-            ) {
-              throw new Error(
-                "NOT_ASSIGNED_WORKER",
-              );
-            }
-
-            /* ----------------------------------------------
-               MARKET ORDER
-            ---------------------------------------------- */
-
-            const orderType =
-              normalizeStatus(
-                data.orderType,
-              );
-
-            const type =
-              normalizeStatus(
-                data.type,
-              );
-
-            if (
-              orderType !==
-                "market" &&
-              type !==
-                "market"
-            ) {
-              throw new Error(
-                "NOT_MARKET_ORDER",
-              );
-            }
-
-            /* ----------------------------------------------
-               CURRENT FIRESTORE STATUS
-               
-               This is the real source of truth.
-            ---------------------------------------------- */
-
-            const currentStatus =
-              normalizeStatus(
-                data.status,
-              );
-
-            if (
-              currentStatus !==
-              "pending"
-            ) {
-              throw new Error(
-                "ORDER_NOT_PENDING",
-              );
-            }
-
-            /* ----------------------------------------------
-               ACCEPT
-            ---------------------------------------------- */
-
-            transaction.update(
-              orderRef,
-              {
-                status:
-                  "accepted",
-
-                offerStatus:
-                  "accepted",
-
-                acceptedBy:
-                  user.uid,
-
-                acceptedAt:
-                  serverTimestamp(),
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-            );
-          },
-        );
-
-        Toast.show({
-          type: "success",
-          text1:
-            "Order accepted",
-          text2:
-            "The order is now ready for delivery.",
-        });
-      } catch (error) {
-        console.error(
-          "FIXXAM_WORKER_ACCEPT_MARKET_ORDER_ERROR:",
-          error,
-        );
-
-        const errorCode =
-          error instanceof Error
-            ? error.message
-            : "";
-
-        switch (
-          errorCode
-        ) {
-          case "ORDER_NOT_FOUND":
-            Toast.show({
-              type: "error",
-              text1:
-                "Order not found",
-              text2:
-                "This order may have been removed.",
-            });
-            break;
-
-          case "NOT_ASSIGNED_WORKER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Permission denied",
-              text2:
-                "You are not assigned to this order.",
-            });
-            break;
-
-          case "ORDER_NOT_PENDING":
-            Toast.show({
-              type: "info",
-              text1:
-                "Order already updated",
-              text2:
-                "The order has already been processed.",
-            });
-            break;
-
-          case "NOT_MARKET_ORDER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Invalid order",
-              text2:
-                "This is not a market order.",
-            });
-            break;
-
-          default:
-            Toast.show({
-              type: "error",
-              text1:
-                "Unable to accept order",
-              text2:
-                "Please check your connection and try again.",
-            });
-        }
-      } finally {
-        setSubmitting(false);
-      }
+    useCallback(() => {
+      void runAction(
+        "accept",
+      );
     }, [
-      submitting,
-      validateWorker,
+      runAction,
     ]);
 
   /* ==========================================================
@@ -498,444 +473,12 @@ export default function WorkerMarketOrderActions({
   ========================================================== */
 
   const handleOnTheWay =
-    useCallback(async () => {
-      if (submitting) {
-        return;
-      }
-
-      const validation =
-        validateWorker();
-
-      if (!validation) {
-        return;
-      }
-
-      const {
-        user,
-        normalizedOrderId,
-      } = validation;
-
-      try {
-        setSubmitting(true);
-
-        const orderRef =
-          doc(
-            db,
-            "orders",
-            normalizedOrderId,
-          );
-
-        await runTransaction(
-          db,
-          async (
-            transaction,
-          ) => {
-            const snapshot =
-              await transaction.get(
-                orderRef,
-              );
-
-            if (
-              !snapshot.exists()
-            ) {
-              throw new Error(
-                "ORDER_NOT_FOUND",
-              );
-            }
-
-            const data =
-              snapshot.data();
-
-            /* ----------------------------------------------
-               WORKER OWNERSHIP
-            ---------------------------------------------- */
-
-            const workerId =
-              typeof data.workerId ===
-              "string"
-                ? data.workerId.trim()
-                : "";
-
-            if (
-              !workerId ||
-              workerId !==
-                user.uid
-            ) {
-              throw new Error(
-                "NOT_ASSIGNED_WORKER",
-              );
-            }
-
-            /* ----------------------------------------------
-               MARKET ORDER
-            ---------------------------------------------- */
-
-            const orderType =
-              normalizeStatus(
-                data.orderType,
-              );
-
-            const type =
-              normalizeStatus(
-                data.type,
-              );
-
-            if (
-              orderType !==
-                "market" &&
-              type !==
-                "market"
-            ) {
-              throw new Error(
-                "NOT_MARKET_ORDER",
-              );
-            }
-
-            /* ----------------------------------------------
-               CURRENT STATUS
-            ---------------------------------------------- */
-
-            const currentStatus =
-              normalizeStatus(
-                data.status,
-              );
-
-            if (
-              currentStatus !==
-              "accepted"
-            ) {
-              throw new Error(
-                "ORDER_NOT_ACCEPTED",
-              );
-            }
-
-            /* ----------------------------------------------
-               ON THE WAY
-            ---------------------------------------------- */
-
-            transaction.update(
-              orderRef,
-              {
-                status:
-                  "in-progress",
-
-                offerStatus:
-                  "in-progress",
-
-                onTheWayBy:
-                  user.uid,
-
-                onTheWayAt:
-                  serverTimestamp(),
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-            );
-          },
-        );
-
-        Toast.show({
-          type: "success",
-          text1:
-            "Order is on the way",
-          text2:
-            "The customer can now track the order.",
-        });
-      } catch (error) {
-        console.error(
-          "FIXXAM_WORKER_ON_THE_WAY_MARKET_ORDER_ERROR:",
-          error,
-        );
-
-        const errorCode =
-          error instanceof Error
-            ? error.message
-            : "";
-
-        switch (
-          errorCode
-        ) {
-          case "ORDER_NOT_FOUND":
-            Toast.show({
-              type: "error",
-              text1:
-                "Order not found",
-              text2:
-                "This order may have been removed.",
-            });
-            break;
-
-          case "NOT_ASSIGNED_WORKER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Permission denied",
-              text2:
-                "You are not assigned to this order.",
-            });
-            break;
-
-          case "ORDER_NOT_ACCEPTED":
-            Toast.show({
-              type: "info",
-              text1:
-                "Order already updated",
-              text2:
-                "The order is no longer waiting for this action.",
-            });
-            break;
-
-          case "NOT_MARKET_ORDER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Invalid order",
-              text2:
-                "This is not a market order.",
-            });
-            break;
-
-          default:
-            Toast.show({
-              type: "error",
-              text1:
-                "Unable to update order",
-              text2:
-                "Please check your connection and try again.",
-            });
-        }
-      } finally {
-        setSubmitting(false);
-      }
+    useCallback(() => {
+      void runAction(
+        "on-the-way",
+      );
     }, [
-      submitting,
-      validateWorker,
-    ]);
-
-  /* ==========================================================
-     COMPLETE ORDER
-  ========================================================== */
-
-  const completeOrder =
-    useCallback(async () => {
-      if (submitting) {
-        return;
-      }
-
-      const validation =
-        validateWorker();
-
-      if (!validation) {
-        return;
-      }
-
-      const {
-        user,
-        normalizedOrderId,
-      } = validation;
-
-      try {
-        setSubmitting(true);
-
-        const orderRef =
-          doc(
-            db,
-            "orders",
-            normalizedOrderId,
-          );
-
-        await runTransaction(
-          db,
-          async (
-            transaction,
-          ) => {
-            const snapshot =
-              await transaction.get(
-                orderRef,
-              );
-
-            if (
-              !snapshot.exists()
-            ) {
-              throw new Error(
-                "ORDER_NOT_FOUND",
-              );
-            }
-
-            const data =
-              snapshot.data();
-
-            /* ----------------------------------------------
-               WORKER OWNERSHIP
-            ---------------------------------------------- */
-
-            const workerId =
-              typeof data.workerId ===
-              "string"
-                ? data.workerId.trim()
-                : "";
-
-            if (
-              !workerId ||
-              workerId !==
-                user.uid
-            ) {
-              throw new Error(
-                "NOT_ASSIGNED_WORKER",
-              );
-            }
-
-            /* ----------------------------------------------
-               MARKET ORDER
-            ---------------------------------------------- */
-
-            const orderType =
-              normalizeStatus(
-                data.orderType,
-              );
-
-            const type =
-              normalizeStatus(
-                data.type,
-              );
-
-            if (
-              orderType !==
-                "market" &&
-              type !==
-                "market"
-            ) {
-              throw new Error(
-                "NOT_MARKET_ORDER",
-              );
-            }
-
-            /* ----------------------------------------------
-               CURRENT STATUS
-            ---------------------------------------------- */
-
-            const currentStatus =
-              normalizeStatus(
-                data.status,
-              );
-
-            if (
-              currentStatus !==
-              "in-progress" &&
-              currentStatus !==
-              "on-the-way"
-            ) {
-              throw new Error(
-                "ORDER_NOT_IN_PROGRESS",
-              );
-            }
-
-            /* ----------------------------------------------
-               COMPLETE
-            ---------------------------------------------- */
-
-            transaction.update(
-              orderRef,
-              {
-                status:
-                  "completed",
-
-                offerStatus:
-                  "completed",
-
-                completedBy:
-                  user.uid,
-
-                completedAt:
-                  serverTimestamp(),
-
-                completionConfirmed:
-                  true,
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-            );
-          },
-        );
-
-        Toast.show({
-          type: "success",
-          text1:
-            "Order completed",
-          text2:
-            "The order has been marked as completed.",
-        });
-      } catch (error) {
-        console.error(
-          "FIXXAM_WORKER_COMPLETE_MARKET_ORDER_ERROR:",
-          error,
-        );
-
-        const errorCode =
-          error instanceof Error
-            ? error.message
-            : "";
-
-        switch (
-          errorCode
-        ) {
-          case "ORDER_NOT_FOUND":
-            Toast.show({
-              type: "error",
-              text1:
-                "Order not found",
-              text2:
-                "This order may have been removed.",
-            });
-            break;
-
-          case "NOT_ASSIGNED_WORKER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Permission denied",
-              text2:
-                "You are not assigned to this order.",
-            });
-            break;
-
-          case "ORDER_NOT_IN_PROGRESS":
-            Toast.show({
-              type: "info",
-              text1:
-                "Order already updated",
-              text2:
-                "This order is not currently on the way.",
-            });
-            break;
-
-          case "NOT_MARKET_ORDER":
-            Toast.show({
-              type: "error",
-              text1:
-                "Invalid order",
-              text2:
-                "This is not a market order.",
-            });
-            break;
-
-          default:
-            Toast.show({
-              type: "error",
-              text1:
-                "Unable to complete order",
-              text2:
-                "Please check your connection and try again.",
-            });
-        }
-      } finally {
-        setSubmitting(false);
-      }
-    }, [
-      submitting,
-      validateWorker,
+      runAction,
     ]);
 
   /* ==========================================================
@@ -944,40 +487,48 @@ export default function WorkerMarketOrderActions({
 
   const handleComplete =
     useCallback(() => {
-      if (submitting) {
+      if (
+        actionInFlightRef.current
+      ) {
         return;
       }
 
       Alert.alert(
         "Complete Order?",
-        "If you are sure this order is already settled, press Complete Order to finish this order.",
+
+        "Only complete this order after delivery and payment or order settlement have been properly handled.",
+
         [
           {
-            text: "Cancel",
-            style: "cancel",
+            text:
+              "Cancel",
+
+            style:
+              "cancel",
           },
+
           {
-            text: "Complete Order",
-            style: "destructive",
-            onPress: () => {
-              void completeOrder();
-            },
+            text:
+              "Complete Order",
+
+            onPress:
+              () => {
+                void runAction(
+                  "complete",
+                );
+              },
           },
         ],
       );
     }, [
-      completeOrder,
-      submitting,
+      runAction,
     ]);
 
   /* ==========================================================
-     LISTENER LOADING
+     LOADING
   ========================================================== */
 
-  if (
-    listening &&
-    !effectiveStatus
-  ) {
+  if (listening) {
     return (
       <View
         style={
@@ -991,10 +542,14 @@ export default function WorkerMarketOrderActions({
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              WorkerColors.primary
+            }
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -1007,11 +562,134 @@ export default function WorkerMarketOrderActions({
   }
 
   /* ==========================================================
-     COMPLETED / CANCELLED / EXPIRED
+     ORDER NOT FOUND
   ========================================================== */
 
   if (
-    isCompleted ||
+    orderExists === false
+  ) {
+    return (
+      <View
+        style={
+          styles.container
+        }
+      >
+        <View
+          style={[
+            styles.stateNotice,
+            styles.closedNotice,
+          ]}
+        >
+          <View
+            style={
+              styles.stateIcon
+            }
+          >
+            <AppIcon
+              name="error"
+              size="sm"
+              color={
+                Colors.error
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.stateContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={
+                styles.stateTitle
+              }
+            >
+              Order unavailable
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.stateText
+              }
+            >
+              This order may have been removed or is no longer available.
+            </AppText>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  /* ==========================================================
+     COMPLETED
+  ========================================================== */
+
+  if (isCompleted) {
+    return (
+      <View
+        style={
+          styles.container
+        }
+      >
+        <View
+          style={[
+            styles.stateNotice,
+            styles.completedNotice,
+          ]}
+        >
+          <View
+            style={
+              styles.stateIcon
+            }
+          >
+            <AppIcon
+              name="success"
+              size="md"
+              color={
+                Colors.success
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.stateContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={
+                styles.stateTitle
+              }
+            >
+              Order completed
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.stateText
+              }
+            >
+              This market order has been successfully completed.
+            </AppText>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  /* ==========================================================
+     CANCELLED / EXPIRED
+  ========================================================== */
+
+  if (
     isCancelled ||
     isExpired
   ) {
@@ -1023,64 +701,55 @@ export default function WorkerMarketOrderActions({
       >
         <View
           style={[
-            styles.finalNotice,
-            isCompleted &&
-              styles.completedNotice,
-            (isCancelled ||
-              isExpired) &&
-              styles.closedNotice,
+            styles.stateNotice,
+            styles.closedNotice,
           ]}
         >
           <View
             style={
-              styles.finalIcon
+              styles.stateIcon
             }
           >
-            <Ionicons
+            <AppIcon
               name={
-                isCompleted
-                  ? "checkmark-circle"
-                  : isCancelled
-                    ? "close-circle"
-                    : "hourglass"
+                isCancelled
+                  ? "error"
+                  : "clock"
               }
-              size={22}
+              size="md"
               color={
-                isCompleted
-                  ? "#15803D"
-                  : isCancelled
-                    ? "#B91C1C"
-                    : "#64748B"
+                isCancelled
+                  ? Colors.error
+                  : Colors.textSecondary
               }
             />
           </View>
 
           <View
             style={
-              styles.finalContent
+              styles.stateContent
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.finalTitle
+                styles.stateTitle
               }
             >
-              {isCompleted
-                ? "Order completed"
-                : isCancelled
-                  ? "Order cancelled"
-                  : "Order expired"}
+              {isCancelled
+                ? "Order cancelled"
+                : "Order expired"}
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.finalText
+                styles.stateText
               }
             >
-              {isCompleted
-                ? "This market order has been successfully completed."
-                : "No further action is available for this order."}
+              No further action is available for this order.
             </AppText>
           </View>
         </View>
@@ -1100,98 +769,74 @@ export default function WorkerMarketOrderActions({
         }
       >
         <View
-          style={
-            styles.notice
-          }
+          style={[
+            styles.stateNotice,
+            styles.pendingNotice,
+          ]}
         >
           <View
             style={
-              styles.noticeIcon
+              styles.stateIcon
             }
           >
-            <Ionicons
-              name="information-circle-outline"
-              size={18}
-              color="#D97706"
+            <AppIcon
+              name="info"
+              size="sm"
+              color={
+                Colors.warning
+              }
             />
           </View>
 
           <View
             style={
-              styles.noticeContent
+              styles.stateContent
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.noticeTitle
+                styles.stateTitle
               }
             >
               New market order
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.noticeText
+                styles.stateText
               }
             >
-              Review the products and
-              delivery information before
-              accepting this order.
+              Review the products and delivery information before accepting this order.
             </AppText>
           </View>
         </View>
 
-        <Pressable
+        <AppButton
+          title={
+            submitting
+              ? "ACCEPTING..."
+              : "ACCEPT ORDER"
+          }
+          role="worker"
+          variant="primary"
+          leftIconName="check"
+          loading={
+            submitting
+          }
           disabled={
             submitting
           }
           onPress={
             handleAccept
           }
-          style={({ pressed }) => [
-            styles.primaryButton,
-
-            pressed &&
-              !submitting &&
-              styles.pressed,
-
-            submitting &&
-              styles.disabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Accept market order"
-          accessibilityState={{
-            disabled:
-              submitting,
-            busy:
-              submitting,
-          }}
-        >
-          {submitting ? (
-            <ActivityIndicator
-              size="small"
-              color="#FFFFFF"
-            />
-          ) : (
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={22}
-              color="#FFFFFF"
-            />
-          )}
-
-          <AppText
-            weight="bold"
-            style={
-              styles.primaryButtonText
-            }
-          >
-            {submitting
-              ? "ACCEPTING..."
-              : "ACCEPT ORDER"}
-          </AppText>
-        </Pressable>
+          style={
+            styles.actionButton
+          }
+        />
       </View>
     );
   }
@@ -1208,98 +853,74 @@ export default function WorkerMarketOrderActions({
         }
       >
         <View
-          style={
-            styles.readyNotice
-          }
+          style={[
+            styles.stateNotice,
+            styles.acceptedNotice,
+          ]}
         >
           <View
             style={
-              styles.readyIcon
+              styles.stateIcon
             }
           >
-            <Ionicons
-              name="checkmark-circle"
-              size={21}
-              color="#15803D"
+            <AppIcon
+              name="success"
+              size="sm"
+              color={
+                Colors.success
+              }
             />
           </View>
 
           <View
             style={
-              styles.noticeContent
+              styles.stateContent
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.readyTitle
+                styles.stateTitle
               }
             >
               Order accepted
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.readyText
+                styles.stateText
               }
             >
-              You have accepted this order.
-              Start the delivery when you
-              are ready.
+              You have accepted this order. Start the delivery when you are ready.
             </AppText>
           </View>
         </View>
 
-        <Pressable
+        <AppButton
+          title={
+            submitting
+              ? "UPDATING..."
+              : "ON THE WAY"
+          }
+          role="worker"
+          variant="primary"
+          leftIconName="navigation"
+          loading={
+            submitting
+          }
           disabled={
             submitting
           }
           onPress={
             handleOnTheWay
           }
-          style={({ pressed }) => [
-            styles.primaryButton,
-
-            pressed &&
-              !submitting &&
-              styles.pressed,
-
-            submitting &&
-              styles.disabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Mark order as on the way"
-          accessibilityState={{
-            disabled:
-              submitting,
-            busy:
-              submitting,
-          }}
-        >
-          {submitting ? (
-            <ActivityIndicator
-              size="small"
-              color="#FFFFFF"
-            />
-          ) : (
-            <Ionicons
-              name="navigate-outline"
-              size={22}
-              color="#FFFFFF"
-            />
-          )}
-
-          <AppText
-            weight="bold"
-            style={
-              styles.primaryButtonText
-            }
-          >
-            {submitting
-              ? "UPDATING..."
-              : "ON THE WAY"}
-          </AppText>
-        </Pressable>
+          style={
+            styles.actionButton
+          }
+        />
       </View>
     );
   }
@@ -1315,44 +936,54 @@ export default function WorkerMarketOrderActions({
           styles.container
         }
       >
+        {/* ====================================================
+            DELIVERY STATUS
+        ==================================================== */}
+
         <View
-          style={
-            styles.deliveryNotice
-          }
+          style={[
+            styles.stateNotice,
+            styles.progressNotice,
+          ]}
         >
           <View
             style={
-              styles.deliveryIcon
+              styles.stateIcon
             }
           >
-            <Ionicons
-              name="navigate"
-              size={21}
-              color="#2563EB"
+            <AppIcon
+              name="navigation"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
             />
           </View>
 
           <View
             style={
-              styles.noticeContent
+              styles.stateContent
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.deliveryTitle
+                styles.stateTitle
               }
             >
               Order is on the way
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.deliveryText
+                styles.stateText
               }
             >
-              The customer can now track
-              this order.
+              The customer can now track this order.
             </AppText>
           </View>
         </View>
@@ -1362,46 +993,48 @@ export default function WorkerMarketOrderActions({
         ==================================================== */}
 
         <View
-          style={
-            styles.warning
-          }
+          style={[
+            styles.stateNotice,
+            styles.warningNotice,
+          ]}
         >
           <View
             style={
-              styles.warningIcon
+              styles.stateIcon
             }
           >
-            <Ionicons
-              name="warning-outline"
-              size={20}
-              color="#B45309"
+            <AppIcon
+              name="warning"
+              size="sm"
+              color={
+                Colors.warning
+              }
             />
           </View>
 
           <View
             style={
-              styles.warningContent
+              styles.stateContent
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.warningTitle
+                styles.stateTitle
               }
             >
               Before completing
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.warningText
+                styles.stateText
               }
             >
-              If you are sure this order has
-              already been delivered and the
-              payment/order settlement has
-              been properly handled, you can
-              complete the order.
+              Only complete the order after delivery and payment or order settlement have been properly handled.
             </AppText>
           </View>
         </View>
@@ -1410,62 +1043,34 @@ export default function WorkerMarketOrderActions({
             COMPLETE
         ==================================================== */}
 
-        <Pressable
+        <AppButton
+          title={
+            submitting
+              ? "COMPLETING..."
+              : "COMPLETE ORDER"
+          }
+          role="worker"
+          variant="primary"
+          leftIconName="success"
+          loading={
+            submitting
+          }
           disabled={
             submitting
           }
           onPress={
             handleComplete
           }
-          style={({ pressed }) => [
-            styles.completeButton,
-
-            pressed &&
-              !submitting &&
-              styles.pressed,
-
-            submitting &&
-              styles.disabled,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Complete order"
-          accessibilityState={{
-            disabled:
-              submitting,
-            busy:
-              submitting,
-          }}
-        >
-          {submitting ? (
-            <ActivityIndicator
-              size="small"
-              color="#FFFFFF"
-            />
-          ) : (
-            <Ionicons
-              name="checkmark-done-circle-outline"
-              size={22}
-              color="#FFFFFF"
-            />
-          )}
-
-          <AppText
-            weight="bold"
-            style={
-              styles.primaryButtonText
-            }
-          >
-            {submitting
-              ? "COMPLETING..."
-              : "COMPLETE ORDER"}
-          </AppText>
-        </Pressable>
+          style={
+            styles.actionButton
+          }
+        />
       </View>
     );
   }
 
   /* ==========================================================
-     UNKNOWN STATUS
+     UNKNOWN
   ========================================================== */
 
   return (
@@ -1479,23 +1084,394 @@ export default function WorkerMarketOrderActions({
           styles.unknownNotice
         }
       >
-        <Ionicons
-          name="alert-circle-outline"
-          size={20}
-          color="#64748B"
+        <AppIcon
+          name="info"
+          size="sm"
+          color={
+            Colors.textSecondary
+          }
         />
 
         <AppText
+          variant="body"
+          tone="secondary"
           style={
             styles.unknownText
           }
         >
-          This order is not available for
-          worker action.
+          This order is not available for worker action.
         </AppText>
       </View>
     </View>
   );
+}
+
+/* ============================================================
+   FIRESTORE TRANSACTION
+============================================================ */
+
+async function updateMarketOrder(
+  orderId: string,
+  workerId: string,
+  action: MarketOrderAction,
+): Promise<void> {
+  const orderRef =
+    doc(
+      db,
+      "orders",
+      orderId,
+    );
+
+  await runTransaction(
+    db,
+    async transaction => {
+      const snapshot =
+        await transaction.get(
+          orderRef,
+        );
+
+      if (
+        !snapshot.exists()
+      ) {
+        throw new Error(
+          "ORDER_NOT_FOUND",
+        );
+      }
+
+      const data =
+        snapshot.data();
+
+      /* ========================================================
+         WORKER OWNERSHIP
+      ======================================================== */
+
+      const assignedWorkerId =
+        typeof data.workerId ===
+        "string"
+          ? data.workerId.trim()
+          : "";
+
+      if (
+        !assignedWorkerId ||
+        assignedWorkerId !==
+          workerId
+      ) {
+        throw new Error(
+          "NOT_ASSIGNED_WORKER",
+        );
+      }
+
+      /* ========================================================
+         MARKET ORDER
+      ======================================================== */
+
+      const orderType =
+        normalizeStatus(
+          data.orderType,
+        );
+
+      const type =
+        normalizeStatus(
+          data.type,
+        );
+
+      if (
+        orderType !==
+          "market" &&
+        type !==
+          "market"
+      ) {
+        throw new Error(
+          "NOT_MARKET_ORDER",
+        );
+      }
+
+      /* ========================================================
+         CURRENT STATUS
+      ======================================================== */
+
+      const currentStatus =
+        normalizeStatus(
+          data.status,
+        );
+
+      /* ========================================================
+         ACCEPT
+      ======================================================== */
+
+      if (
+        action ===
+        "accept"
+      ) {
+        if (
+          currentStatus !==
+          "pending"
+        ) {
+          throw new Error(
+            "ORDER_NOT_PENDING",
+          );
+        }
+
+        transaction.update(
+          orderRef,
+          {
+            status:
+              "accepted",
+
+            offerStatus:
+              "accepted",
+
+            acceptedBy:
+              workerId,
+
+            acceptedAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+        );
+
+        return;
+      }
+
+      /* ========================================================
+         ON THE WAY
+      ======================================================== */
+
+      if (
+        action ===
+        "on-the-way"
+      ) {
+        if (
+          currentStatus !==
+          "accepted"
+        ) {
+          throw new Error(
+            "ORDER_NOT_ACCEPTED",
+          );
+        }
+
+        transaction.update(
+          orderRef,
+          {
+            status:
+              "in-progress",
+
+            offerStatus:
+              "in-progress",
+
+            onTheWayBy:
+              workerId,
+
+            onTheWayAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+        );
+
+        return;
+      }
+
+      /* ========================================================
+         COMPLETE
+      ======================================================== */
+
+      if (
+        currentStatus !==
+          "in-progress" &&
+        currentStatus !==
+          "on-the-way"
+      ) {
+        throw new Error(
+          "ORDER_NOT_IN_PROGRESS",
+        );
+      }
+
+      transaction.update(
+        orderRef,
+        {
+          status:
+            "completed",
+
+          offerStatus:
+            "completed",
+
+          completedBy:
+            workerId,
+
+          completedAt:
+            serverTimestamp(),
+
+          completionConfirmed:
+            true,
+
+          updatedAt:
+            serverTimestamp(),
+        },
+      );
+    },
+  );
+}
+
+/* ============================================================
+   SUCCESS
+============================================================ */
+
+function showActionSuccess(
+  action: MarketOrderAction,
+): void {
+  switch (action) {
+    case "accept":
+      Toast.show({
+        type: "success",
+
+        text1:
+          "Order accepted",
+
+        text2:
+          "The order is now ready for delivery.",
+      });
+
+      return;
+
+    case "on-the-way":
+      Toast.show({
+        type: "success",
+
+        text1:
+          "Order is on the way",
+
+        text2:
+          "The customer can now track the order.",
+      });
+
+      return;
+
+    case "complete":
+      Toast.show({
+        type: "success",
+
+        text1:
+          "Order completed",
+
+        text2:
+          "The order has been marked as completed.",
+      });
+  }
+}
+
+/* ============================================================
+   ERROR HANDLER
+============================================================ */
+
+function handleActionError(
+  error: unknown,
+  action: MarketOrderAction,
+): void {
+  const errorCode =
+    error instanceof Error
+      ? (error.message as ActionErrorCode)
+      : "";
+
+  switch (errorCode) {
+    case "ORDER_NOT_FOUND":
+      Toast.show({
+        type: "error",
+
+        text1:
+          "Order not found",
+
+        text2:
+          "This order may have been removed.",
+      });
+
+      return;
+
+    case "NOT_ASSIGNED_WORKER":
+      Toast.show({
+        type: "error",
+
+        text1:
+          "Permission denied",
+
+        text2:
+          "You are not assigned to this order.",
+      });
+
+      return;
+
+    case "NOT_MARKET_ORDER":
+      Toast.show({
+        type: "error",
+
+        text1:
+          "Invalid order",
+
+        text2:
+          "This is not a market order.",
+      });
+
+      return;
+
+    case "ORDER_NOT_PENDING":
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Order already updated",
+
+        text2:
+          "The order has already been processed.",
+      });
+
+      return;
+
+    case "ORDER_NOT_ACCEPTED":
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Order already updated",
+
+        text2:
+          "The order is no longer waiting for this action.",
+      });
+
+      return;
+
+    case "ORDER_NOT_IN_PROGRESS":
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Order already updated",
+
+        text2:
+          "This order is not currently on the way.",
+      });
+
+      return;
+
+    default:
+      Toast.show({
+        type: "error",
+
+        text1:
+          action ===
+          "accept"
+            ? "Unable to accept order"
+            : action ===
+                "complete"
+              ? "Unable to complete order"
+              : "Unable to update order",
+
+        text2:
+          "Please check your connection and try again.",
+      });
+  }
 }
 
 /* ============================================================
@@ -1505,7 +1481,10 @@ export default function WorkerMarketOrderActions({
 const styles =
   StyleSheet.create({
     container: {
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     /* ========================================================
@@ -1513,303 +1492,166 @@ const styles =
     ======================================================== */
 
     loadingNotice: {
-      minHeight: 48,
-      paddingHorizontal: 14,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
-      borderWidth: 1,
-      borderColor:
-        "#BFDBFE",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 9,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     loadingText: {
-      fontSize: 10,
-      color: "#475569",
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
-       PENDING NOTICE
+       STATE NOTICE
     ======================================================== */
 
-    notice: {
+    stateNotice: {
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
-      padding: 14,
-      marginBottom: 10,
-      borderRadius: 17,
-      backgroundColor:
-        "#FFF7E8",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    pendingNotice: {
       borderColor:
-        "#FDE68A",
-    },
+        Colors.warning,
 
-    noticeIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
       backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+        Colors.warningSoft,
     },
 
-    noticeContent: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
-
-    noticeTitle: {
-      fontSize: 12,
-      color: "#92400E",
-    },
-
-    noticeText: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#78716C",
-    },
-
-    /* ========================================================
-       ACCEPTED
-    ======================================================== */
-
-    readyNotice: {
-      flexDirection:
-        "row",
-      padding: 14,
-      marginBottom: 10,
-      borderRadius: 17,
-      backgroundColor:
-        "#ECFDF5",
-      borderWidth: 1,
+    acceptedNotice: {
       borderColor:
-        "#BBF7D0",
-    },
+        Colors.success,
 
-    readyIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
       backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+        Colors.successSoft,
     },
 
-    readyTitle: {
-      fontSize: 12,
-      color: "#166534",
-    },
-
-    readyText: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#64748B",
-    },
-
-    /* ========================================================
-       DELIVERY
-    ======================================================== */
-
-    deliveryNotice: {
-      flexDirection:
-        "row",
-      padding: 14,
-      marginBottom: 10,
-      borderRadius: 17,
-      backgroundColor:
-        "#EFF6FF",
-      borderWidth: 1,
+    progressNotice: {
       borderColor:
-        "#BFDBFE",
-    },
+        WorkerColors.primary,
 
-    deliveryIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
       backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+        WorkerColors.primarySoft,
     },
 
-    deliveryTitle: {
-      fontSize: 12,
-      color: "#1D4ED8",
-    },
-
-    deliveryText: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#64748B",
-    },
-
-    /* ========================================================
-       WARNING
-    ======================================================== */
-
-    warning: {
-      flexDirection:
-        "row",
-      padding: 14,
-      marginBottom: 10,
-      borderRadius: 17,
-      backgroundColor:
-        "#FFFBEB",
-      borderWidth: 1,
+    warningNotice: {
       borderColor:
-        "#FDE68A",
-    },
+        Colors.warning,
 
-    warningIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
       backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    warningContent: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
-
-    warningTitle: {
-      fontSize: 12,
-      color: "#92400E",
-    },
-
-    warningText: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#78716C",
-    },
-
-    /* ========================================================
-       PRIMARY BUTTON
-    ======================================================== */
-
-    primaryButton: {
-      minHeight: 55,
-      borderRadius: 17,
-      backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 8,
-    },
-
-    primaryButtonText: {
-      fontSize: 12,
-      color: "#FFFFFF",
-    },
-
-    /* ========================================================
-       COMPLETE BUTTON
-    ======================================================== */
-
-    completeButton: {
-      minHeight: 55,
-      borderRadius: 17,
-      backgroundColor:
-        "#16A34A",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 8,
-    },
-
-    /* ========================================================
-       FINAL
-    ======================================================== */
-
-    finalNotice: {
-      flexDirection:
-        "row",
-      padding: 14,
-      borderRadius: 17,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+        Colors.warningSoft,
     },
 
     completedNotice: {
-      backgroundColor:
-        "#ECFDF5",
       borderColor:
-        "#BBF7D0",
+        Colors.success,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     closedNotice: {
-      backgroundColor:
-        "#F8FAFC",
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    finalIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
-      backgroundColor:
-        "#FFFFFF",
+    stateIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    finalContent: {
+    stateContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
     },
 
-    finalTitle: {
-      fontSize: 12,
-      color: "#0F172A",
+    stateTitle: {
+      color:
+        Colors.textPrimary,
     },
 
-    finalText: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#64748B",
+    stateText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       ACTION
+    ======================================================== */
+
+    actionButton: {
+      width: "100%",
     },
 
     /* ========================================================
@@ -1817,42 +1659,39 @@ const styles =
     ======================================================== */
 
     unknownNotice: {
-      minHeight: 48,
-      paddingHorizontal: 14,
-      borderRadius: 14,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     unknownText: {
       flex: 1,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
-    },
 
-    /* ========================================================
-       INTERACTION
-    ======================================================== */
+      lineHeight: 18,
 
-    pressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.99,
-        },
-      ],
-    },
-
-    disabled: {
-      opacity: 0.6,
+      color:
+        Colors.textSecondary,
     },
   });

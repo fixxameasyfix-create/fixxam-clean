@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -11,11 +12,13 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -27,60 +30,84 @@ import {
   collection,
   getDocs,
   query,
-  QueryDocumentSnapshot,
   where,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
-import { AppText } from "@/components/ui";
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
 
 import {
-  CustomerColors,
-} from "@/theme/customerColors";
-
-import {
-  FixxamTokens,
-} from "@/theme/fixxamtokens";
+  db,
+} from "@/firebase/config";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Product = {
   id: string;
+
   name: string;
+
   price: number;
+
   thumbnail: string;
+
   rating?: number;
+
   sold?: number;
+
   stock: number;
-  status: "active" | "out_of_stock";
+
+  status:
+    | "active"
+    | "out_of_stock";
+
   workerId?: string;
+
   storeId?: string;
+
   serviceIds?: string[];
+
   serviceId?: string;
 
-  activeDeal?: ActiveProductDeal | null;
+  activeDeal?:
+    | ActiveProductDeal
+    | null;
 };
 
-/*
- * ============================================================
- * HELPERS
- * ============================================================
- */
+type LoadMode =
+  | "initial"
+  | "refresh"
+  | "retry";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
 
 function normalizeString(
   value: unknown,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
@@ -98,12 +125,22 @@ function normalizeNumber(
     return value;
   }
 
-  if (typeof value === "string") {
-    const parsed = Number(
-      value.replace(/,/g, ""),
-    );
+  if (
+    typeof value === "string"
+  ) {
+    const parsed =
+      Number(
+        value.replace(
+          /,/g,
+          "",
+        ),
+      );
 
-    if (Number.isFinite(parsed)) {
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
       return parsed;
     }
   }
@@ -114,7 +151,9 @@ function normalizeNumber(
 function normalizeStringArray(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(value)
+  ) {
     return [];
   }
 
@@ -122,10 +161,16 @@ function normalizeStringArray(
     new Set(
       value
         .filter(
-          (item): item is string =>
-            typeof item === "string",
+          (
+            item,
+          ): item is string =>
+            typeof item ===
+            "string",
         )
-        .map((item) => item.trim())
+        .map(
+          (item) =>
+            item.trim(),
+        )
         .filter(Boolean),
     ),
   );
@@ -134,8 +179,13 @@ function normalizeStringArray(
 function getProductStatus(
   value: unknown,
   stock: number,
-): "active" | "out_of_stock" {
-  if (value === "out_of_stock") {
+):
+  | "active"
+  | "out_of_stock" {
+  if (
+    value ===
+    "out_of_stock"
+  ) {
     return "out_of_stock";
   }
 
@@ -153,14 +203,22 @@ function getProductServiceIds(
     new Set(
       [
         product.serviceId,
-        ...(product.serviceIds ?? []),
+        ...(product.serviceIds ??
+          []),
       ]
         .filter(
-          (value): value is string =>
-            typeof value === "string" &&
-            value.trim().length > 0,
+          (
+            value,
+          ): value is string =>
+            typeof value ===
+              "string" &&
+            value.trim()
+              .length > 0,
         )
-        .map((value) => value.trim()),
+        .map(
+          (value) =>
+            value.trim(),
+        ),
     ),
   );
 }
@@ -172,30 +230,41 @@ function belongsToService(
   const normalizedServiceId =
     serviceId.trim();
 
-  if (!normalizedServiceId) {
+  if (
+    !normalizedServiceId
+  ) {
     return false;
   }
 
   return getProductServiceIds(
     product,
-  ).includes(normalizedServiceId);
-}
-
-function getProductImage(
-  data: Record<string, unknown>,
-): string {
-  return (
-    normalizeString(data.thumbnail) ||
-    normalizeString(data.imageUrl) ||
-    normalizeString(data.image)
+  ).includes(
+    normalizedServiceId,
   );
 }
 
-/*
- * ============================================================
- * SCREEN
- * ============================================================
- */
+function getProductImage(
+  data: Record<
+    string,
+    unknown
+  >,
+): string {
+  return (
+    normalizeString(
+      data.thumbnail,
+    ) ||
+    normalizeString(
+      data.imageUrl,
+    ) ||
+    normalizeString(
+      data.image,
+    )
+  );
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function ServiceMaterialsScreen() {
   const params =
@@ -205,391 +274,542 @@ export default function ServiceMaterialsScreen() {
     }>();
 
   const serviceId =
-    typeof params.serviceId === "string"
+    typeof params.serviceId ===
+      "string"
       ? params.serviceId.trim()
       : "";
 
   const serviceName =
-    typeof params.serviceName === "string" &&
+    typeof params.serviceName ===
+      "string" &&
     params.serviceName.trim()
       ? params.serviceName.trim()
       : "Service";
 
-  const [products, setProducts] =
+  const [
+    products,
+    setProducts,
+  ] =
     useState<Product[]>([]);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [refreshing, setRefreshing] =
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
     useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  /*
-   * ==========================================================
-   * LOAD PRODUCTS
-   * ==========================================================
-   */
+  const requestIdRef =
+    useRef(0);
+
+  /* ============================================================
+     LOAD PRODUCTS
+  ============================================================ */
 
   const loadProducts =
-    useCallback(async () => {
-      if (!serviceId) {
-        setProducts([]);
-
-        setError(
-          "Invalid service. Please go back and select a service again.",
-        );
-
-        setLoading(false);
-        setRefreshing(false);
-
-        return;
-      }
-
-      try {
-        setError(null);
-
-        /*
-         * ------------------------------------------------------
-         * PRODUCTS USING serviceIds
-         * ------------------------------------------------------
-         */
-
-        const serviceIdsQuery =
-          query(
-            collection(db, "products"),
-            where(
-              "serviceIds",
-              "array-contains",
-              serviceId,
-            ),
-          );
-
-        /*
-         * ------------------------------------------------------
-         * PRODUCTS USING serviceId
-         * ------------------------------------------------------
-         */
-
-        const serviceIdQuery =
-          query(
-            collection(db, "products"),
-            where(
-              "serviceId",
-              "==",
-              serviceId,
-            ),
-          );
-
-        const [
-          serviceIdsSnapshot,
-          serviceIdSnapshot,
-        ] = await Promise.all([
-          getDocs(serviceIdsQuery),
-          getDocs(serviceIdQuery),
-        ]);
-
-        /*
-         * ------------------------------------------------------
-         * REMOVE DUPLICATE PRODUCTS
-         * ------------------------------------------------------
-         */
-
-        const documents =
-          new Map<
-            string,
-            QueryDocumentSnapshot
-          >();
-
-        serviceIdsSnapshot.docs.forEach(
-          (document) => {
-            documents.set(
-              document.id,
-              document,
-            );
-          },
-        );
-
-        serviceIdSnapshot.docs.forEach(
-          (document) => {
-            documents.set(
-              document.id,
-              document,
-            );
-          },
-        );
-
-        /*
-         * ------------------------------------------------------
-         * NORMALIZE PRODUCTS
-         * ------------------------------------------------------
-         */
-
-        const result =
-          Array.from(
-            documents.values(),
-          ).reduce<Product[]>(
-            (items, productDoc) => {
-              const data =
-                productDoc.data();
-
-              const name =
-                normalizeString(
-                  data.name,
-                );
-
-              if (!name) {
-                return items;
-              }
-
-              const price =
-                normalizeNumber(
-                  data.price,
-                  0,
-                );
-
-              if (
-                !Number.isFinite(price) ||
-                price < 0
-              ) {
-                return items;
-              }
-
-              const stock =
-                Math.max(
-                  0,
-                  Math.floor(
-                    normalizeNumber(
-                      data.stock,
-                      0,
-                    ),
-                  ),
-                );
-
-              const status =
-                getProductStatus(
-                  data.status,
-                  stock,
-                );
-
-              if (
-                status !== "active"
-              ) {
-                return items;
-              }
-
-              const serviceIds =
-                normalizeStringArray(
-                  data.serviceIds,
-                );
-
-              const product: Product =
-                {
-                  id: productDoc.id,
-
-                  name,
-
-                  price,
-
-                  thumbnail:
-                    getProductImage(
-                      data,
-                    ),
-
-                  rating:
-                    normalizeNumber(
-                      data.rating,
-                      0,
-                    ),
-
-                  sold:
-                    normalizeNumber(
-                      data.sold,
-                      0,
-                    ),
-
-                  stock,
-
-                  status,
-
-                  workerId:
-                    normalizeString(
-                      data.workerId,
-                    ) || undefined,
-
-                  storeId:
-                    normalizeString(
-                      data.storeId,
-                    ) || undefined,
-
-                  serviceId:
-                    normalizeString(
-                      data.serviceId,
-                    ) || undefined,
-
-                  serviceIds,
-                };
-
-              /*
-               * Make sure the product actually
-               * belongs to this service.
-               */
-
-              if (
-                !belongsToService(
-                  product,
-                  serviceId,
-                )
-              ) {
-                return items;
-              }
-
-              items.push(product);
-
-              return items;
-            },
-            [],
-          );
-
-        /*
-         * ------------------------------------------------------
-         * SORT PRODUCTS
-         * ------------------------------------------------------
-         */
-
-        result.sort(
-          (a, b) =>
-            a.name.localeCompare(
-              b.name,
-              undefined,
-              {
-                sensitivity: "base",
-              },
-            ),
-        );
-
-        /*
-         * ------------------------------------------------------
-         * LOAD ACTIVE DEALS
-         * ------------------------------------------------------
-         */
-
-        const productIds =
-          result
-            .map(
-              (product) =>
-                product.id.trim(),
-            )
-            .filter(Boolean);
-
-        let dealsByProductId =
-          new Map<
-            string,
-            ActiveProductDeal
-          >();
+    useCallback(
+      async (
+        mode: LoadMode =
+          "initial",
+      ) => {
+        const requestId =
+          ++requestIdRef.current;
 
         if (
-          productIds.length > 0
+          !serviceId
         ) {
-          dealsByProductId =
-            await getActiveProductDeals(
-              productIds,
-            );
-        }
+          setProducts([]);
 
-        /*
-         * ------------------------------------------------------
-         * MERGE DEALS
-         * ------------------------------------------------------
-         *
-         * Deal exists:
-         *   activeDeal = deal
-         *
-         * No deal:
-         *   activeDeal = null
-         *
-         * ProductGridCard handles the UI:
-         *   Deal
-         *   No Deal
-         * ------------------------------------------------------
-         */
-
-        const productsWithDeals =
-          result.map(
-            (product) => ({
-              ...product,
-
-              activeDeal:
-                dealsByProductId.get(
-                  product.id,
-                ) ?? null,
-            }),
+          setError(
+            "Invalid service. Please go back and select a service again.",
           );
 
-        setProducts(
-          productsWithDeals,
-        );
-      } catch (loadError) {
-        console.error(
-          "FIND MATERIALS ERROR:",
-          loadError,
-        );
+          setLoading(false);
+          setRefreshing(
+            false,
+          );
 
-        setProducts([]);
+          return;
+        }
 
-        setError(
-          "Unable to load materials for this service. Please try again.",
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }, [serviceId]);
+        if (
+          mode === "initial"
+        ) {
+          setLoading(true);
+        }
 
-  /*
-   * ==========================================================
-   * INITIAL LOAD
-   * ==========================================================
-   */
+        if (
+          mode === "refresh"
+        ) {
+          setRefreshing(
+            true,
+          );
+        }
+
+        if (
+          mode !== "refresh"
+        ) {
+          setError(null);
+        }
+
+        try {
+          /* ==================================================
+             FIRESTORE QUERIES
+          ================================================== */
+
+          const serviceIdsQuery =
+            query(
+              collection(
+                db,
+                "products",
+              ),
+              where(
+                "serviceIds",
+                "array-contains",
+                serviceId,
+              ),
+            );
+
+          const serviceIdQuery =
+            query(
+              collection(
+                db,
+                "products",
+              ),
+              where(
+                "serviceId",
+                "==",
+                serviceId,
+              ),
+            );
+
+          const [
+            serviceIdsSnapshot,
+            serviceIdSnapshot,
+          ] =
+            await Promise.all(
+              [
+                getDocs(
+                  serviceIdsQuery,
+                ),
+                getDocs(
+                  serviceIdQuery,
+                ),
+              ],
+            );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          /* ==================================================
+             REMOVE DUPLICATES
+          ================================================== */
+
+          const documents =
+            new Map<
+              string,
+              QueryDocumentSnapshot
+            >();
+
+          serviceIdsSnapshot.docs.forEach(
+            (
+              document,
+            ) => {
+              documents.set(
+                document.id,
+                document,
+              );
+            },
+          );
+
+          serviceIdSnapshot.docs.forEach(
+            (
+              document,
+            ) => {
+              documents.set(
+                document.id,
+                document,
+              );
+            },
+          );
+
+          /* ==================================================
+             NORMALIZE
+          ================================================== */
+
+          const result =
+            Array.from(
+              documents.values(),
+            ).reduce<
+              Product[]
+            >(
+              (
+                items,
+                productDoc,
+              ) => {
+                const data =
+                  productDoc.data();
+
+                const name =
+                  normalizeString(
+                    data.name,
+                  );
+
+                if (!name) {
+                  return items;
+                }
+
+                const price =
+                  normalizeNumber(
+                    data.price,
+                    0,
+                  );
+
+                if (
+                  price < 0
+                ) {
+                  return items;
+                }
+
+                const stock =
+                  Math.max(
+                    0,
+                    Math.floor(
+                      normalizeNumber(
+                        data.stock,
+                        0,
+                      ),
+                    ),
+                  );
+
+                const status =
+                  getProductStatus(
+                    data.status,
+                    stock,
+                  );
+
+                if (
+                  status !==
+                  "active"
+                ) {
+                  return items;
+                }
+
+                const product: Product =
+                  {
+                    id:
+                      productDoc.id,
+
+                    name,
+
+                    price,
+
+                    thumbnail:
+                      getProductImage(
+                        data,
+                      ),
+
+                    rating:
+                      normalizeNumber(
+                        data.rating,
+                        0,
+                      ),
+
+                    sold:
+                      normalizeNumber(
+                        data.sold,
+                        0,
+                      ),
+
+                    stock,
+
+                    status,
+
+                    workerId:
+                      normalizeString(
+                        data.workerId,
+                      ) ||
+                      undefined,
+
+                    storeId:
+                      normalizeString(
+                        data.storeId,
+                      ) ||
+                      undefined,
+
+                    serviceId:
+                      normalizeString(
+                        data.serviceId,
+                      ) ||
+                      undefined,
+
+                    serviceIds:
+                      normalizeStringArray(
+                        data.serviceIds,
+                      ),
+
+                    activeDeal:
+                      null,
+                  };
+
+                if (
+                  !belongsToService(
+                    product,
+                    serviceId,
+                  )
+                ) {
+                  return items;
+                }
+
+                items.push(
+                  product,
+                );
+
+                return items;
+              },
+              [],
+            );
+
+          result.sort(
+            (
+              a,
+              b,
+            ) =>
+              a.name.localeCompare(
+                b.name,
+                undefined,
+                {
+                  sensitivity:
+                    "base",
+                },
+              ),
+          );
+
+          /* ==================================================
+             DEALS
+          ================================================== */
+
+          const productIds =
+            result
+              .map(
+                (
+                  product,
+                ) =>
+                  product.id.trim(),
+              )
+              .filter(
+                Boolean,
+              );
+
+          let productsWithDeals =
+            result;
+
+          if (
+            productIds.length >
+            0
+          ) {
+            try {
+              const dealsByProductId =
+                await getActiveProductDeals(
+                  productIds,
+                );
+
+              if (
+                requestId !==
+                requestIdRef.current
+              ) {
+                return;
+              }
+
+              productsWithDeals =
+                result.map(
+                  (
+                    product,
+                  ) => ({
+                    ...product,
+
+                    activeDeal:
+                      dealsByProductId.get(
+                        product.id,
+                      ) ??
+                      null,
+                  }),
+                );
+            } catch (
+              dealError
+            ) {
+              console.error(
+                "SERVICE_MATERIALS_DEAL_LOAD_ERROR:",
+                dealError,
+              );
+
+              /*
+               * Deals are optional.
+               * Products must remain usable.
+               */
+              productsWithDeals =
+                result.map(
+                  (
+                    product,
+                  ) => ({
+                    ...product,
+
+                    activeDeal:
+                      null,
+                  }),
+                );
+            }
+          }
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          setProducts(
+            productsWithDeals,
+          );
+
+          setError(null);
+        } catch (
+          loadError
+        ) {
+          console.error(
+            "SERVICE_MATERIALS_LOAD_ERROR:",
+            loadError,
+          );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          if (
+            mode === "refresh" &&
+            products.length >
+              0
+          ) {
+            Toast.show({
+              type: "error",
+              text1:
+                "Unable to refresh materials",
+              text2:
+                "Please try again.",
+            });
+
+            return;
+          }
+
+          setProducts([]);
+
+          setError(
+            "Unable to load materials for this service. Please try again.",
+          );
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setLoading(false);
+
+            setRefreshing(
+              false,
+            );
+          }
+        }
+      },
+      [
+        products.length,
+        serviceId,
+      ],
+    );
+
+  /* ============================================================
+     INITIAL LOAD
+  ============================================================ */
 
   useEffect(() => {
-    void loadProducts();
-  }, [loadProducts]);
+    void loadProducts(
+      "initial",
+    );
 
-  /*
-   * ==========================================================
-   * REFRESH
-   * ==========================================================
-   */
+    return () => {
+      requestIdRef.current +=
+        1;
+    };
+  }, [
+    loadProducts,
+  ]);
+
+  /* ============================================================
+     REFRESH
+  ============================================================ */
 
   const handleRefresh =
     useCallback(() => {
-      if (refreshing) {
+      if (
+        refreshing ||
+        loading
+      ) {
         return;
       }
 
-      setRefreshing(true);
-
-      void loadProducts();
+      void loadProducts(
+        "refresh",
+      );
     }, [
       loadProducts,
+      loading,
       refreshing,
     ]);
 
-  /*
-   * ==========================================================
-   * PRODUCT DETAILS
-   * ==========================================================
-   */
+  /* ============================================================
+     RETRY
+  ============================================================ */
+
+  const handleRetry =
+    useCallback(() => {
+      void loadProducts(
+        "retry",
+      );
+    }, [
+      loadProducts,
+    ]);
+
+  /* ============================================================
+     PRODUCT DETAILS
+  ============================================================ */
 
   const handleProductPress =
     useCallback(
-      (product: Product) => {
+      (
+        product: Product,
+      ) => {
         router.push({
           pathname:
             "/(customer)/product/[id]",
+
           params: {
             id: product.id,
           },
@@ -598,11 +818,9 @@ export default function ServiceMaterialsScreen() {
       [],
     );
 
-  /*
-   * ==========================================================
-   * HEADER BANNER
-   * ==========================================================
-   */
+  /* ============================================================
+     HEADER BANNER
+  ============================================================ */
 
   const listHeader =
     useMemo(
@@ -632,6 +850,7 @@ export default function ServiceMaterialsScreen() {
             }
           >
             <AppText
+              variant="heading3"
               weight="bold"
               style={
                 styles.serviceBannerTitle
@@ -641,10 +860,12 @@ export default function ServiceMaterialsScreen() {
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              numberOfLines={2}
               style={
                 styles.serviceBannerDescription
               }
-              numberOfLines={2}
             >
               Materials available for{" "}
               {serviceName}.
@@ -652,21 +873,82 @@ export default function ServiceMaterialsScreen() {
           </View>
         </View>
       ),
-      [serviceName],
+      [
+        serviceName,
+      ],
     );
 
-  /*
-   * ==========================================================
-   * LOADING
-   * ==========================================================
-   */
+  /* ============================================================
+     RENDER PRODUCT
+  ============================================================ */
+
+  const renderProduct =
+    useCallback<
+      ListRenderItem<Product>
+    >(
+      ({
+        item,
+      }) => (
+        <View
+          style={
+            styles.gridItem
+          }
+        >
+          <ProductGridCard
+            id={item.id}
+            name={item.name}
+            price={item.price}
+            image={
+              item.thumbnail
+            }
+            activeDeal={
+              item.activeDeal ??
+              null
+            }
+            onPress={() =>
+              handleProductPress(
+                item,
+              )
+            }
+            onBuy={() =>
+              handleProductPress(
+                item,
+              )
+            }
+          />
+        </View>
+      ),
+      [
+        handleProductPress,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: Product,
+      ) => item.id,
+      [],
+    );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (loading) {
     return (
       <SafeAreaView
-        style={styles.container}
+        style={
+          styles.container
+        }
+        edges={[
+          "top",
+          "bottom",
+        ]}
       >
         <View
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading materials"
           style={
             styles.loadingContainer
           }
@@ -693,6 +975,8 @@ export default function ServiceMaterialsScreen() {
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -704,61 +988,81 @@ export default function ServiceMaterialsScreen() {
     );
   }
 
-  /*
-   * ==========================================================
-   * MAIN SCREEN
-   * ==========================================================
-   */
+  /* ============================================================
+     MAIN
+  ============================================================ */
 
   return (
     <SafeAreaView
-      style={styles.container}
-      edges={["top", "bottom"]}
+      style={
+        styles.container
+      }
+      edges={[
+        "top",
+        "bottom",
+      ]}
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <Pressable
-          style={
-            styles.backButton
-          }
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={6}
           onPress={() =>
             router.back()
           }
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={23}
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
             color={
-              CustomerColors.textPrimary
+              Colors.textPrimary
             }
           />
         </Pressable>
 
         <View
-          style={styles.headerText}
+          style={
+            styles.headerText
+          }
         >
           <AppText
+            variant="heading2"
             weight="bold"
             numberOfLines={1}
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             {serviceName}
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             numberOfLines={1}
-            style={styles.subtitle}
+            style={
+              styles.subtitle
+            }
           >
-            Materials available for
-            this service
+            Materials available for this service
           </AppText>
         </View>
       </View>
@@ -774,62 +1078,84 @@ export default function ServiceMaterialsScreen() {
           }
         >
           <View
-            style={styles.errorIcon}
+            style={
+              styles.errorIcon
+            }
           >
-            <Ionicons
-              name="alert-circle-outline"
-              size={42}
-              color={
-                CustomerColors.error
-              }
+            <AppIcon
+              name="error"
+              role="customer"
+              size="xl"
+              state="error"
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.errorTitle}
+            center
+            style={
+              styles.errorTitle
+            }
           >
             Something went wrong
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
-            style={styles.errorText}
+            style={
+              styles.errorText
+            }
           >
             {error}
           </AppText>
 
           <Pressable
-            onPress={() =>
-              void loadProducts()
-            }
-            style={
-              styles.retryButton
-            }
             accessibilityRole="button"
             accessibilityLabel="Refresh materials"
+            onPress={
+              handleRetry
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.retryButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
+            <AppIcon
               name="refresh"
-              size={18}
+              role="customer"
+              size="xs"
               color={
-                CustomerColors.white
+                Colors.textInverse
               }
             />
 
             <AppText
+              variant="bodyMedium"
               weight="bold"
-              style={styles.retryText}
+              style={
+                styles.actionText
+              }
             >
-              REFRESH
+              Refresh
             </AppText>
           </Pressable>
         </View>
       ) : (
         <FlatList
           data={products}
-          keyExtractor={(item) =>
-            item.id
+          keyExtractor={
+            keyExtractor
+          }
+          renderItem={
+            renderProduct
           }
           numColumns={2}
           columnWrapperStyle={
@@ -851,33 +1177,6 @@ export default function ServiceMaterialsScreen() {
           ListHeaderComponent={
             listHeader
           }
-          renderItem={({ item }) => (
-            <View
-              style={styles.gridItem}
-            >
-              <ProductGridCard
-                id={item.id}
-                name={item.name}
-                price={item.price}
-                image={
-                  item.thumbnail
-                }
-                activeDeal={
-                  item.activeDeal ?? null
-                }
-                onPress={() =>
-                  handleProductPress(
-                    item,
-                  )
-                }
-                onBuy={() =>
-                  handleProductPress(
-                    item,
-                  )
-                }
-              />
-            </View>
-          )}
           ListEmptyComponent={
             <View
               style={
@@ -885,19 +1184,23 @@ export default function ServiceMaterialsScreen() {
               }
             >
               <View
-                style={styles.emptyIcon}
+                style={
+                  styles.emptyIcon
+                }
               >
                 <MaterialCommunityIcons
                   name="cube-off-outline"
                   size={52}
                   color={
-                    CustomerColors.textSecondary
+                    Colors.textMuted
                   }
                 />
               </View>
 
               <AppText
+                variant="heading3"
                 weight="bold"
+                center
                 style={
                   styles.emptyTitle
                 }
@@ -906,319 +1209,447 @@ export default function ServiceMaterialsScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                tone="secondary"
                 center
                 style={
                   styles.emptyText
                 }
               >
-                There are currently no
-                materials available
-                for {serviceName}.
+                There are currently no materials available for{" "}
+                {serviceName}.
               </AppText>
 
               <Pressable
-                onPress={() =>
-                  void loadProducts()
+                accessibilityRole="button"
+                accessibilityLabel="Refresh materials"
+                onPress={
+                  handleRetry
                 }
                 style={({
                   pressed,
                 }) => [
                   styles.emptyButton,
-                  pressed &&
-                    styles.emptyButtonPressed,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
                 ]}
-                accessibilityRole="button"
-                accessibilityLabel="Refresh materials"
               >
-                <Ionicons
+                <AppIcon
                   name="refresh"
-                  size={18}
+                  role="customer"
+                  size="xs"
                   color={
-                    CustomerColors.white
+                    Colors.textInverse
                   }
                 />
 
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
                   style={
-                    styles.emptyButtonText
+                    styles.actionText
                   }
                 >
-                  REFRESH
+                  Refresh
                 </AppText>
               </Pressable>
             </View>
           }
+          initialNumToRender={6}
+          maxToRenderPerBatch={8}
+          windowSize={7}
         />
       )}
     </SafeAreaView>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
       flex: 1,
+
       backgroundColor:
-        CustomerColors.background,
+        Colors.background,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
-      minHeight: 76,
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection: "row",
+
       alignItems: "center",
+
       paddingHorizontal:
         FixxamTokens.spacing.lg,
-      paddingTop: 8,
-      paddingBottom: 10,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     backButton: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      backgroundColor:
-        CustomerColors.white,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
+
       justifyContent: "center",
+
       borderWidth: 1,
+
       borderColor:
-        CustomerColors.border,
-      shadowColor:
-        CustomerColors.shadow,
-      shadowOpacity: 0.07,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      marginHorizontal:
+
+      minWidth: 0,
+
+      marginLeft:
         FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 21,
-      lineHeight: 26,
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 13,
-      lineHeight: 19,
-      color:
-        CustomerColors.textSecondary,
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
+    /* ========================================================
+       SERVICE BANNER
+    ======================================================== */
+
     serviceBanner: {
-      minHeight: 118,
+      minHeight: 110,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
       marginBottom:
         FixxamTokens.spacing.lg,
+
       padding:
         FixxamTokens.spacing.lg,
-      borderRadius:
-        FixxamTokens.radius.xl,
-      backgroundColor: "#F1F7FF",
+
       borderWidth: 1,
-      borderColor: "#D5E6FA",
-      flexDirection: "row",
-      alignItems: "center",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     serviceBannerIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
-      backgroundColor: "#EAF2FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width: 60,
+
+      height: 60,
+
       flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     serviceBannerContent: {
       flex: 1,
+
+      minWidth: 0,
+
       marginLeft:
         FixxamTokens.spacing.md,
     },
 
     serviceBannerTitle: {
-      fontSize: 20,
-      lineHeight: 26,
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     serviceBannerDescription: {
-      marginTop: 4,
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 20,
-      color:
-        CustomerColors.textSecondary,
     },
 
+    /* ========================================================
+       LIST
+    ======================================================== */
+
     listContent: {
+      flexGrow: 1,
+
       paddingHorizontal:
         FixxamTokens.spacing.lg,
-      paddingBottom: 36,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
     columnWrapper: {
-      justifyContent: "space-between",
+      gap:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     gridItem: {
-      width: "48.4%",
+      flex: 1,
+
+      minWidth: 0,
     },
 
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
     emptyContainer: {
-      flex: 1,
+      minHeight: 380,
+
       alignItems: "center",
+
       justifyContent: "center",
-      paddingHorizontal: 28,
-      paddingTop: 90,
-      paddingBottom: 50,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
     },
 
     emptyIcon: {
-      width: 104,
-      height: 104,
-      borderRadius: 32,
-      backgroundColor: "#F1F5F9",
+      width: 92,
+
+      height: 92,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 22,
-      fontSize: 22,
-      lineHeight: 28,
-      textAlign: "center",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 9,
       maxWidth: 330,
-      fontSize: 14,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 22,
-      color:
-        CustomerColors.textSecondary,
     },
 
     emptyButton: {
-      minHeight: 50,
-      marginTop: 24,
-      paddingHorizontal: 26,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.button,
+
       backgroundColor:
         CustomerColors.primary,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
     },
 
-    emptyButtonPressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
-    },
-
-    emptyButtonText: {
-      fontSize: 13,
-      color:
-        CustomerColors.white,
-    },
+    /* ========================================================
+       ERROR
+    ======================================================== */
 
     errorContainer: {
       flex: 1,
+
       alignItems: "center",
+
       justifyContent: "center",
-      paddingHorizontal: 28,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
     },
 
     errorIcon: {
       width: 88,
+
       height: 88,
-      borderRadius: 28,
-      backgroundColor:
-        CustomerColors.emergencyBackground,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorTitle: {
-      marginTop: 18,
-      fontSize: 20,
+      marginTop:
+        FixxamTokens.spacing.lg,
+
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     errorText: {
-      marginTop: 8,
-      fontSize: 14,
+      maxWidth: 330,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 21,
-      color:
-        CustomerColors.textSecondary,
     },
 
     retryButton: {
-      minHeight: 50,
-      marginTop: 22,
-      paddingHorizontal: 25,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.button,
+
       backgroundColor:
         CustomerColors.primary,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
     },
 
-    retryText: {
-      fontSize: 13,
+    actionText: {
       color:
-        CustomerColors.white,
+        Colors.textInverse,
     },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     loadingContainer: {
       flex: 1,
+
       alignItems: "center",
+
       justifyContent: "center",
     },
 
     loadingIcon: {
       width: 76,
+
       height: 76,
-      marginBottom: 18,
-      borderRadius: 24,
-      backgroundColor: "#EAF2FF",
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     loadingText: {
-      marginTop: 10,
-      fontSize: 13,
-      color:
-        CustomerColors.textSecondary,
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

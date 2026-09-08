@@ -2,33 +2,181 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  useLocalSearchParams,
+} from "expo-router";
 
-import { useLocalSearchParams } from "expo-router";
+import Toast from "react-native-toast-message";
+
+import {
+  AppScreen,
+} from "@/components/ui";
+
+import type {
+  WorkerCardData,
+} from "@/components/customer/worker/types";
 
 import {
   getPublicWorkers,
 } from "@/firebase/queries/workerPublicProfiles";
 
-import { workerMapper } from "@/firebase/mappers/workerMapper";
+import {
+  workerMapper,
+} from "@/firebase/mappers/workerMapper";
 
-import { calculateDistance } from "@/utils/location/calculateDistance";
+import {
+  calculateDistance,
+} from "@/utils/location/calculateDistance";
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
-
-import type {
-  WorkerCardData,
-} from "@/components/customer/worker/types";
 
 import NearbyWorkersHeader from "./NearbyWorkersHeader";
 import NearbyWorkersList from "./NearbyWorkersList";
 import NearbyWorkersLoading from "./NearbyWorkersLoading";
 import NearbyWorkersEmpty from "./NearbyWorkersEmpty";
 
-const DISCOUNTED_WORKER_LIMIT = 5;
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const DISCOUNTED_WORKER_LIMIT =
+  5;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function parseCoordinate(
+  value: unknown,
+  min: number,
+  max: number,
+): number | null {
+  if (
+    typeof value !== "string"
+  ) {
+    return null;
+  }
+
+  const parsed =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed < min ||
+    parsed > max
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+/* ==============================================================
+   VALID COORDINATES
+
+   Returns a fully narrowed coordinate object.
+   This prevents number | null from reaching
+   calculateDistance().
+============================================================== */
+
+function getValidCoordinates(
+  latitude: unknown,
+  longitude: unknown,
+): Coordinates | null {
+  if (
+    typeof latitude !==
+      "number" ||
+    typeof longitude !==
+      "number" ||
+    !Number.isFinite(
+      latitude,
+    ) ||
+    !Number.isFinite(
+      longitude,
+    ) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
+}
+
+function workerOffersService(
+  worker: WorkerCardData,
+  serviceId: string,
+): boolean {
+  if (
+    !serviceId
+  ) {
+    return true;
+  }
+
+  if (
+    Array.isArray(
+      worker.serviceIds,
+    ) &&
+    worker.serviceIds.includes(
+      serviceId,
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    Array.isArray(
+      worker.services,
+    ) &&
+    worker.services.some(
+      (
+        service,
+      ) =>
+        cleanString(
+          service.id,
+        ) ===
+        serviceId,
+    )
+  );
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function NearbyWorkersScreen() {
   const params =
@@ -36,17 +184,15 @@ export default function NearbyWorkersScreen() {
       source?: string;
 
       latitude?: string;
+
       longitude?: string;
+
       limit?: string;
 
-      /**
-       * Service context
-       *
-       * These are passed when customer opens
-       * Nearby Workers from a specific service.
-       */
       serviceId?: string;
+
       serviceName?: string;
+
       categoryId?: string;
     }>();
 
@@ -54,166 +200,303 @@ export default function NearbyWorkersScreen() {
     params.source ===
     "discounted-services";
 
-  /*
-   * ------------------------------------------------
-   * SERVICE CONTEXT
-   * ------------------------------------------------
-   *
-   * This is the important fix.
-   *
-   * When customer comes from:
-   *
-   * Category
-   *   ↓
-   * Subcategory
-   *   ↓
-   * Service
-   *   ↓
-   * Find Workers Nearby
-   *
-   * we keep the selected service here.
-   */
+  /* ============================================================
+     SERVICE CONTEXT
+  ============================================================ */
+
   const selectedServiceId =
-    typeof params.serviceId === "string"
-      ? params.serviceId.trim()
-      : "";
+    cleanString(
+      params.serviceId,
+    );
 
   const selectedServiceName =
-    typeof params.serviceName === "string"
-      ? params.serviceName.trim()
-      : "";
+    cleanString(
+      params.serviceName,
+    );
 
   const selectedCategoryId =
-    typeof params.categoryId === "string"
-      ? params.categoryId.trim()
-      : "";
+    cleanString(
+      params.categoryId,
+    );
 
-  const [workers, setWorkers] =
-    useState<WorkerCardData[]>([]);
+  /* ============================================================
+     STATE
+  ============================================================ */
 
-  const [search, setSearch] =
+  const [
+    workers,
+    setWorkers,
+  ] =
+    useState<
+      WorkerCardData[]
+    >([]);
+
+  const [
+    search,
+    setSearch,
+  ] =
     useState("");
+
+  const [
+    workersLoading,
+    setWorkersLoading,
+  ] =
+    useState(
+      true,
+    );
+
+  const [
+    workersError,
+    setWorkersError,
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
+
+  const requestIdRef =
+    useRef(
+      0,
+    );
+
+  /* ============================================================
+     CUSTOMER LOCATION
+  ============================================================ */
 
   const {
     location,
-    loading,
-    error,
-    refresh,
-  } = useCurrentLocation();
+    loading:
+      locationLoading,
+    error:
+      locationError,
+    refresh:
+      refreshLocation,
+  } =
+    useCurrentLocation();
 
-  /*
-   * ------------------------------------------------
-   * CUSTOMER LOCATION
-   * ------------------------------------------------
-   */
+  /* ============================================================
+     RESOLVED CUSTOMER LOCATION
+
+     Always returns either:
+
+     {
+       latitude: number,
+       longitude: number
+     }
+
+     or null.
+  ============================================================ */
+
   const customerLocation =
-    useMemo(() => {
-      if (
-        isDiscountedServices &&
-        params.latitude &&
-        params.longitude
-      ) {
-        const latitude =
-          Number(params.latitude);
-
-        const longitude =
-          Number(params.longitude);
+    useMemo<
+      Coordinates | null
+    >(
+      () => {
+        /* ======================================================
+           DISCOUNTED FLOW ROUTE COORDINATES
+        ====================================================== */
 
         if (
-          Number.isFinite(latitude) &&
-          Number.isFinite(longitude)
+          isDiscountedServices
         ) {
-          return {
-            latitude,
-            longitude,
-          };
+          const latitude =
+            parseCoordinate(
+              params.latitude,
+              -90,
+              90,
+            );
+
+          const longitude =
+            parseCoordinate(
+              params.longitude,
+              -180,
+              180,
+            );
+
+          if (
+            latitude !==
+              null &&
+            longitude !==
+              null
+          ) {
+            return {
+              latitude,
+              longitude,
+            };
+          }
         }
-      }
 
-      return location;
-    }, [
-      isDiscountedServices,
-      params.latitude,
-      params.longitude,
-      location,
-    ]);
+        /* ======================================================
+           DEVICE LOCATION
+        ====================================================== */
 
-  /*
-   * ------------------------------------------------
-   * LOAD PUBLIC WORKERS
-   * ------------------------------------------------
-   */
+        if (
+          !location
+        ) {
+          return null;
+        }
+
+        return getValidCoordinates(
+          location.latitude,
+          location.longitude,
+        );
+      },
+      [
+        isDiscountedServices,
+        location,
+        params.latitude,
+        params.longitude,
+      ],
+    );
+
+  /* ============================================================
+     LOAD WORKERS
+  ============================================================ */
+
   const loadWorkers =
     useCallback(async () => {
-      if (!customerLocation) {
+      const requestId =
+        ++requestIdRef.current;
+
+      if (
+        !customerLocation
+      ) {
+        if (
+          requestId ===
+          requestIdRef.current
+        ) {
+          setWorkersLoading(
+            false,
+          );
+        }
+
         return;
       }
 
       try {
+        setWorkersLoading(
+          true,
+        );
+
+        setWorkersError(
+          null,
+        );
+
         const snapshot =
           await getPublicWorkers();
 
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
         const mapped =
           snapshot.docs
-            .map(workerMapper)
-            .map((worker) => {
-              const latitude =
-                worker.workerProfile
-                  ?.latitude;
+            .map(
+              workerMapper,
+            )
 
-              const longitude =
-                worker.workerProfile
-                  ?.longitude;
+            /* ================================================
+               SERVICE MATCH
+            ================================================ */
 
-              if (
-                typeof latitude !==
-                  "number" ||
-                typeof longitude !==
-                  "number" ||
-                !Number.isFinite(
-                  latitude,
-                ) ||
-                !Number.isFinite(
-                  longitude,
-                )
-              ) {
-                return {
-                  ...worker,
-                  distance:
-                    undefined,
-                };
-              }
-
-              return {
-                ...worker,
-
-                distance:
-                  calculateDistance(
-                    customerLocation.latitude,
-                    customerLocation.longitude,
-                    latitude,
-                    longitude,
-                  ),
-              };
-            })
             .filter(
-              (worker) =>
-                Number.isFinite(
-                  worker.distance ??
-                    NaN,
+              (
+                worker,
+              ) =>
+                workerOffersService(
+                  worker,
+                  selectedServiceId,
                 ),
             )
+
+            /* ================================================
+               DISTANCE
+            ================================================ */
+
+            .map(
+              (
+                worker,
+              ) => {
+                const workerCoordinates =
+                  getValidCoordinates(
+                    worker
+                      .workerProfile
+                      ?.latitude,
+
+                    worker
+                      .workerProfile
+                      ?.longitude,
+                  );
+
+                if (
+                  !workerCoordinates
+                ) {
+                  return {
+                    ...worker,
+
+                    distance:
+                      undefined,
+                  };
+                }
+
+                return {
+                  ...worker,
+
+                  distance:
+                    calculateDistance(
+                      customerLocation
+                        .latitude,
+
+                      customerLocation
+                        .longitude,
+
+                      workerCoordinates
+                        .latitude,
+
+                      workerCoordinates
+                        .longitude,
+                    ),
+                };
+              },
+            )
+
+            /* ================================================
+               ONLY WORKERS WITH VALID DISTANCE
+            ================================================ */
+
+            .filter(
+              (
+                worker,
+              ): worker is WorkerCardData & {
+                distance: number;
+              } =>
+                typeof worker
+                  .distance ===
+                  "number" &&
+                Number.isFinite(
+                  worker.distance,
+                ) &&
+                worker.distance >=
+                  0,
+            )
+
+            /* ================================================
+               NEAREST FIRST
+            ================================================ */
+
             .sort(
-              (a, b) =>
-                (a.distance ?? 0) -
-                (b.distance ?? 0),
+              (
+                a,
+                b,
+              ) =>
+                a.distance -
+                b.distance,
             );
 
-        /*
-         * Discounted Services:
-         *
-         * Only show the closest 5 workers.
-         */
         const visibleWorkers =
           isDiscountedServices
             ? mapped.slice(
@@ -222,31 +505,119 @@ export default function NearbyWorkersScreen() {
               )
             : mapped;
 
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
         setWorkers(
           visibleWorkers,
         );
-      } catch (err) {
+      } catch (
+        err
+      ) {
         console.error(
           "Failed to load public nearby workers:",
           err,
         );
 
-        setWorkers([]);
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
+        setWorkersError(
+          "Unable to load nearby workers. Please try again.",
+        );
+
+        /*
+         * Keep any existing workers instead of
+         * replacing the screen with an empty list.
+         */
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Unable to load workers",
+
+          text2:
+            "Please check your connection and try again.",
+        });
+      } finally {
+        if (
+          requestId ===
+          requestIdRef.current
+        ) {
+          setWorkersLoading(
+            false,
+          );
+        }
       }
     }, [
       customerLocation,
       isDiscountedServices,
+      selectedServiceId,
     ]);
+
+  /* ============================================================
+     LOAD
+  ============================================================ */
 
   useEffect(() => {
     void loadWorkers();
-  }, [loadWorkers]);
 
-  /*
-   * ------------------------------------------------
-   * SEARCH
-   * ------------------------------------------------
-   */
+    return () => {
+      /*
+       * Invalidate any request still running.
+       */
+      requestIdRef.current +=
+        1;
+    };
+  }, [
+    loadWorkers,
+  ]);
+
+  /* ============================================================
+     REFRESH
+  ============================================================ */
+
+  const handleRefresh =
+    useCallback(async () => {
+      /*
+       * Discounted flow already received its
+       * customer coordinates from route params.
+       */
+      if (
+        !isDiscountedServices
+      ) {
+        try {
+          await refreshLocation();
+        } catch (
+          err
+        ) {
+          console.error(
+            "Failed to refresh customer location:",
+            err,
+          );
+        }
+      }
+
+      await loadWorkers();
+    }, [
+      isDiscountedServices,
+      loadWorkers,
+      refreshLocation,
+    ]);
+
+  /* ============================================================
+     SEARCH
+  ============================================================ */
+
   const filteredWorkers =
     useMemo(() => {
       const query =
@@ -254,110 +625,162 @@ export default function NearbyWorkersScreen() {
           .trim()
           .toLowerCase();
 
-      if (!query) {
+      if (
+        !query
+      ) {
         return workers;
       }
 
       return workers.filter(
-        (worker) => {
+        (
+          worker,
+        ) => {
           const name =
-            `${worker.firstName ?? ""} ${
-              worker.surname ?? ""
-            }`
-              .trim()
+            [
+              cleanString(
+                worker.fullName,
+              ),
+
+              cleanString(
+                worker.firstName,
+              ),
+
+              cleanString(
+                worker.surname,
+              ),
+            ]
+              .join(" ")
               .toLowerCase();
 
           const category =
-            (
-              worker.category ??
-              ""
+            cleanString(
+              worker.category,
             ).toLowerCase();
 
           const subcategory =
-            (
-              worker.subcategory ??
-              ""
+            cleanString(
+              worker.subcategory,
             ).toLowerCase();
 
-          /*
-           * services is:
-           *
-           * {
-           *   id?: string;
-           *   name: string;
-           * }[]
-           */
           const services =
             Array.isArray(
               worker.services,
             )
               ? worker.services
                   .map(
-                    (service) =>
-                      service.name,
+                    (
+                      service,
+                    ) =>
+                      cleanString(
+                        service.name,
+                      ),
+                  )
+                  .filter(
+                    Boolean,
                   )
                   .join(" ")
                   .toLowerCase()
               : "";
 
           return (
-            name.includes(query) ||
-            category.includes(query) ||
+            name.includes(
+              query,
+            ) ||
+            category.includes(
+              query,
+            ) ||
             subcategory.includes(
               query,
             ) ||
-            services.includes(query)
+            services.includes(
+              query,
+            )
           );
         },
       );
     }, [
-      workers,
       search,
+      workers,
     ]);
 
-  /*
-   * ------------------------------------------------
-   * LOADING
-   * ------------------------------------------------
-   */
+  /* ============================================================
+     INITIAL LOADING
+  ============================================================ */
+
+  const initialLoading =
+    (
+      !customerLocation &&
+      locationLoading &&
+      !isDiscountedServices
+    ) ||
+    (
+      workersLoading &&
+      workers.length ===
+        0
+    );
+
   if (
-    loading &&
-    !isDiscountedServices
+    initialLoading
   ) {
     return (
       <NearbyWorkersLoading />
     );
   }
 
-  /*
-   * ------------------------------------------------
-   * LOCATION ERROR
-   * ------------------------------------------------
-   */
+  /* ============================================================
+     LOCATION ERROR
+  ============================================================ */
+
   if (
-    error &&
+    locationError &&
     !customerLocation
   ) {
     return (
       <NearbyWorkersEmpty
-        message={error}
+        message={
+          locationError
+        }
       />
     );
   }
 
-  /*
-   * ------------------------------------------------
-   * UI
-   * ------------------------------------------------
-   */
+  /* ============================================================
+     WORKERS ERROR
+  ============================================================ */
+
+  if (
+    workersError &&
+    workers.length ===
+      0
+  ) {
+    return (
+      <NearbyWorkersEmpty
+        message={
+          workersError
+        }
+      />
+    );
+  }
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <SafeAreaView
-      style={{ flex: 1 }}
-      edges={["top"]}
+    <AppScreen
+      role="customer"
+      padded={false}
+      edges={[
+        "top",
+      ]}
     >
       <NearbyWorkersHeader
-        search={search}
-        onSearch={setSearch}
+        search={
+          search
+        }
+        onSearch={
+          setSearch
+        }
         title={
           isDiscountedServices
             ? "5 Workers Near You"
@@ -374,9 +797,13 @@ export default function NearbyWorkersScreen() {
       0 ? (
         <NearbyWorkersEmpty
           message={
-            isDiscountedServices
-              ? "No workers were found near your location."
-              : undefined
+            search.trim()
+              ? "No workers match your search."
+              : selectedServiceName
+                ? `No nearby workers are currently available for ${selectedServiceName}.`
+                : isDiscountedServices
+                  ? "No workers were found near your location."
+                  : undefined
           }
         />
       ) : (
@@ -384,26 +811,32 @@ export default function NearbyWorkersScreen() {
           workers={
             filteredWorkers
           }
-          refreshing={loading}
-          onRefresh={refresh}
+          refreshing={
+            workersLoading ||
+            (
+              !isDiscountedServices &&
+              locationLoading
+            )
+          }
+          onRefresh={
+            handleRefresh
+          }
 
-          /*
-           * IMPORTANT:
-           * Pass selected service to the list.
-           */
+          /* ================================================
+             SERVICE CONTEXT — PRESERVED
+          ================================================ */
+
           serviceId={
             selectedServiceId
           }
-
           serviceName={
             selectedServiceName
           }
-
           categoryId={
             selectedCategoryId
           }
         />
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }

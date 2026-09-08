@@ -1,7 +1,9 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,12 +11,23 @@ import {
 } from "react-native";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import {
-  Ionicons,
-} from "@expo/vector-icons";
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   images: string[];
@@ -28,112 +41,149 @@ type Props = {
   maxImages?: number;
 };
 
-export default function WorkerWorkGallery({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerWorkGallery({
   images,
   onAdd,
   onRemove,
   maxImages = 6,
 }: Props) {
+  const safeMaxImages =
+    Number.isFinite(maxImages) &&
+    maxImages > 0
+      ? Math.floor(maxImages)
+      : 6;
+
   const canAdd =
-    images.length < maxImages;
+    images.length <
+    safeMaxImages;
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* =====================================================
           HEADER
       ===================================================== */}
 
-      <View style={styles.header}>
-        <View>
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerContent
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Your Work Gallery
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Show customers examples of your work.
           </AppText>
         </View>
 
-        <AppText style={styles.count}>
-          {images.length}/{maxImages}
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.count
+          }
+        >
+          {images.length}/{safeMaxImages}
         </AppText>
       </View>
 
       {/* =====================================================
-          HORIZONTAL GALLERY
+          GALLERY
       ===================================================== */}
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.gallery
         }
       >
-        {/* ADD BUTTON */}
-
-        {canAdd && (
+        {canAdd ? (
           <Pressable
-            onPress={onAdd}
-            style={styles.addCard}
             accessibilityRole="button"
             accessibilityLabel="Add work photo"
+            onPress={
+              onAdd
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.addCard,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
             <View
               style={
                 styles.addIconContainer
               }
             >
-              <Ionicons
+              <AppIcon
                 name="add"
-                size={28}
-                color="#FF6B00"
+                role="worker"
+                size="md"
+                state="active"
               />
             </View>
 
             <AppText
-              style={styles.addText}
+              variant="caption"
+              weight="bold"
+              style={
+                styles.addText
+              }
             >
               Add Photo
             </AppText>
           </Pressable>
-        )}
-
-        {/* WORK IMAGES */}
+        ) : null}
 
         {images.map(
-          (uri, index) => (
-            <View
+          (
+            uri,
+            index,
+          ) => (
+            <WorkImage
               key={`${uri}-${index}`}
-              style={styles.imageCard}
-            >
-              <Image
-                source={{
-                  uri,
-                }}
-                style={styles.image}
-              />
-
-              <Pressable
-                onPress={() =>
-                  onRemove(index)
-                }
-                style={
-                  styles.removeButton
-                }
-                accessibilityRole="button"
-                accessibilityLabel={`Remove work photo ${index + 1}`}
-              >
-                <Ionicons
-                  name="close"
-                  size={15}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-            </View>
+              uri={
+                uri
+              }
+              index={
+                index
+              }
+              onRemove={
+                onRemove
+              }
+            />
           ),
         )}
       </ScrollView>
@@ -141,135 +191,286 @@ export default function WorkerWorkGallery({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 10,
-    marginHorizontal: 12,
+export default memo(
+  WorkerWorkGallery,
+);
 
-    padding: 12,
+/* ============================================================
+   WORK IMAGE
+============================================================ */
 
-    backgroundColor: "#FFFFFF",
+const WorkImage = memo(
+  function WorkImage({
+    uri,
+    index,
+    onRemove,
+  }: {
+    uri: string;
+    index: number;
+    onRemove: (
+      index: number,
+    ) => void;
+  }) {
+    const handleRemove =
+      useCallback(() => {
+        onRemove(index);
+      }, [
+        index,
+        onRemove,
+      ]);
 
-    borderRadius: 16,
+    return (
+      <View
+        style={
+          styles.imageCard
+        }
+      >
+        <Image
+          source={{
+            uri,
+          }}
+          contentFit="cover"
+          transition={150}
+          accessibilityLabel={`Work photo ${index + 1}`}
+          style={
+            styles.image
+          }
+        />
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove work photo ${index + 1}`}
+          hitSlop={8}
+          onPress={
+            handleRemove
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.removeButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="close"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
+        </Pressable>
+      </View>
+    );
   },
+);
 
-  header: {
-    flexDirection: "row",
+WorkImage.displayName =
+  "WorkerWorkImage";
 
-    alignItems: "flex-start",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    justifyContent:
-      "space-between",
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    marginBottom: 10,
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.md,
 
-  title: {
-    fontSize: 16,
+      padding:
+        FixxamTokens.spacing.md,
 
-    color: "#111827",
+      backgroundColor:
+        Colors.surface,
 
-    marginBottom: 3,
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  subtitle: {
-    fontSize: 11,
+      borderWidth: 1,
 
-    color: "#64748B",
-  },
+      borderColor:
+        Colors.border,
+    },
 
-  count: {
-    fontSize: 11,
+    header: {
+      flexDirection:
+        "row",
 
-    color: "#64748B",
+      alignItems:
+        "flex-start",
 
-    fontWeight: "700",
-  },
+      justifyContent:
+        "space-between",
 
-  gallery: {
-    flexDirection: "row",
+      gap:
+        FixxamTokens.spacing.sm,
 
-    alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-    gap: 10,
+    headerContent: {
+      flex: 1,
 
-    paddingRight: 4,
-  },
+      minWidth: 0,
+    },
 
-  addCard: {
-    width: 105,
-    height: 115,
+    title: {
+      color:
+        Colors.textPrimary,
 
-    borderRadius: 12,
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+    },
 
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: "#FF6B00",
+    subtitle: {
+      color:
+        Colors.textSecondary,
+    },
 
-    backgroundColor: "#FFF7ED",
+    count: {
+      flexShrink: 0,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  addIconContainer: {
-    width: 44,
-    height: 44,
+    gallery: {
+      flexDirection:
+        "row",
 
-    borderRadius: 22,
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
+      gap:
+        FixxamTokens.spacing.sm,
 
-    alignItems: "center",
-    justifyContent: "center",
+      paddingRight:
+        FixxamTokens.spacing.xs,
+    },
 
-    marginBottom: 6,
-  },
+    addCard: {
+      width: 105,
 
-  addText: {
-    fontSize: 11,
+      height: 115,
 
-    color: "#FF6B00",
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    fontWeight: "700",
-  },
+      borderWidth: 1.5,
 
-  imageCard: {
-    width: 105,
-    height: 115,
+      borderStyle:
+        "dashed",
 
-    borderRadius: 12,
+      borderColor:
+        WorkerColors.primary,
 
-    overflow: "hidden",
+      backgroundColor:
+        WorkerColors.primarySoft,
 
-    backgroundColor: "#F1F5F9",
+      alignItems:
+        "center",
 
-    position: "relative",
-  },
+      justifyContent:
+        "center",
+    },
 
-  image: {
-    width: "100%",
-    height: "100%",
-  },
+    addIconContainer: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  removeButton: {
-    position: "absolute",
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-    top: 6,
-    right: 6,
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-    width: 26,
-    height: 26,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    borderRadius: 13,
+      backgroundColor:
+        Colors.surface,
 
-    backgroundColor:
-      "rgba(0,0,0,0.65)",
+      alignItems:
+        "center",
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+      justifyContent:
+        "center",
+    },
+
+    addText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    imageCard: {
+      width: 105,
+
+      height: 115,
+
+      position:
+        "relative",
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    image: {
+      width:
+        "100%",
+
+      height:
+        "100%",
+    },
+
+   removeButton: {
+  position: "absolute",
+
+  top:
+    FixxamTokens.spacing.xs,
+
+  right:
+    FixxamTokens.spacing.xs,
+
+  width: 30,
+
+  height: 30,
+
+  borderRadius:
+    FixxamTokens.radius.full,
+
+  backgroundColor:
+    "rgba(15, 23, 42, 0.72)",
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+},
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
+  });

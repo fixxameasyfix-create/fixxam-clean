@@ -1,15 +1,21 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
 import {
-  WorkerBadges,
-  WorkerFooter,
-  WorkerHeader,
-  WorkerLocation,
-} from "./";
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+import WorkerBadges from "./WorkerBadges";
+import WorkerFooter from "./WorkerFooter";
+import WorkerHeader from "./WorkerHeader";
+import WorkerLocation from "./WorkerLocation";
 
 import type {
   WorkerCardData,
@@ -17,68 +23,82 @@ import type {
 
 type Props = {
   worker: WorkerCardData;
+
   onProfilePress: () => void;
+
   onBookPress: () => void;
 };
 
-export default function WorkerCard({
+function WorkerCard({
   worker,
   onProfilePress,
   onBookPress,
 }: Props) {
+  const hourlyRate =
+    Number.isFinite(
+      worker.workerProfile.hourlyRate,
+    ) &&
+    worker.workerProfile.hourlyRate > 0
+      ? worker.workerProfile.hourlyRate
+      : undefined;
+
   return (
     <View style={styles.card}>
-
       {/* NAME + PHOTO */}
+
       <WorkerHeader
         worker={worker}
         onProfilePress={onProfilePress}
       />
 
       {/* LOCATION — KAR A TAƁA */}
+
       <WorkerLocation
         worker={worker}
       />
 
-      {/* JOBS / AVAILABLE / REVIEWS */}
+      {/* JOBS / AVAILABILITY / REVIEWS */}
+
       <WorkerBadges
         worker={worker}
       />
 
       {/* HOURLY RATE */}
+
       <WorkerFooter
-        hourlyRate={
-          Number(
-            worker.workerProfile?.hourlyRate ?? 0,
-          )
-        }
+        hourlyRate={hourlyRate}
         onBook={onBookPress}
       />
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    marginHorizontal:
+      FixxamTokens.spacing.lg,
 
-    padding: 18,
-    marginHorizontal: 16,
-    marginVertical: 8,
+    marginVertical:
+      FixxamTokens.spacing.sm,
+
+    padding:
+      FixxamTokens.spacing.lg,
 
     borderWidth: 1,
-    borderColor: "#E2E8F0",
 
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    borderColor:
+      Colors.border,
 
-    elevation: 3,
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.surface,
+
+    ...FixxamTokens.shadow.card,
   },
 });
+
+export default memo(
+  WorkerCard,
+);

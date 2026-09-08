@@ -1,18 +1,32 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-type Product = {
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Product = {
   name: string;
 
   category: string;
@@ -27,109 +41,247 @@ type Product = {
 
   featured?: boolean;
 
-  condition?: "new" | "used";
-
+  condition?:
+    | "new"
+    | "used";
 };
 
 type Props = {
-
   product: Product;
-
 };
 
-function InfoRow({
-
-  icon,
-
-  label,
-
-  value,
-
-}: {
-
-  icon: keyof typeof Ionicons.glyphMap;
+type InfoRowProps = {
+  icon: AppIconName;
 
   label: string;
 
   value: string;
+};
 
-}) {
+/* ============================================================
+   HELPERS
+============================================================ */
 
+function getSafeNumber(
+  value: unknown,
+): number {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(value)
+  ) {
+    return Math.max(
+      0,
+      value,
+    );
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const parsed =
+      Number(
+        value
+          .replace(
+            /[₦,\s]/g,
+            "",
+          )
+          .trim(),
+      );
+
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
+      return Math.max(
+        0,
+        parsed,
+      );
+    }
+  }
+
+  return 0;
+}
+
+function formatMoney(
+  value: unknown,
+): string {
+  const amount =
+    getSafeNumber(
+      value,
+    );
+
+  return `₦${amount.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+function formatCondition(
+  value:
+    | "new"
+    | "used"
+    | undefined,
+): string {
+  return value === "used"
+    ? "Used"
+    : "New";
+}
+
+/* ============================================================
+   INFO ROW
+============================================================ */
+
+function InfoRow({
+  icon,
+  label,
+  value,
+}: InfoRowProps) {
   return (
-
-    <View style={styles.row}>
-
-      <View style={styles.left}>
-
-        <Ionicons
-          name={icon}
-          size={18}
-          color="#64748B"
-        />
+    <View
+      style={
+        styles.row
+      }
+    >
+      <View
+        style={
+          styles.left
+        }
+      >
+        <View
+          style={
+            styles.rowIcon
+          }
+        >
+          <AppIcon
+            name={
+              icon
+            }
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
+          />
+        </View>
 
         <AppText
-          style={styles.label}
+          variant="body"
+          tone="secondary"
+          style={
+            styles.label
+          }
         >
           {label}
         </AppText>
-
       </View>
 
       <AppText
+        variant="bodyMedium"
         weight="bold"
-        style={styles.value}
+        numberOfLines={1}
+        style={
+          styles.value
+        }
       >
         {value}
       </AppText>
-
     </View>
-
   );
-
 }
 
-export default function ProductInfoCard({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProductInfoCard({
   product,
-
 }: Props) {
+  const name =
+    product.name?.trim() ||
+    "Unnamed Product";
+
+  const category =
+    product.category?.trim() ||
+    "Others";
+
+  const description =
+    product.description?.trim() ||
+    "No description provided.";
+
+  const stock =
+    Math.floor(
+      getSafeNumber(
+        product.stock,
+      ),
+    );
 
   return (
-
-    <View style={styles.card}>
+    <View
+      style={
+        styles.card
+      }
+    >
+      {/* ======================================================
+          MAIN INFO
+      ====================================================== */}
 
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.name}
+        style={
+          styles.name
+        }
       >
-        {product.name}
+        {name}
       </AppText>
 
       <AppText
-        style={styles.category}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.category
+        }
       >
-        {product.category}
+        {category}
       </AppText>
 
       <AppText
+        variant="heading1"
         weight="bold"
-        style={styles.price}
+        style={
+          styles.price
+        }
       >
-        ₦{Number(
+        {formatMoney(
           product.price,
-        ).toLocaleString()}
+        )}
       </AppText>
 
-      <View style={styles.divider} />
+      <View
+        style={
+          styles.divider
+        }
+      />
+
+      {/* ======================================================
+          DETAILS
+      ====================================================== */}
 
       <InfoRow
-        icon="cube-outline"
+        icon="package"
         label="Stock"
-        value={`${product.stock}`}
+        value={String(
+          stock,
+        )}
       />
 
       <InfoRow
-        icon="car-outline"
+        icon="delivery"
         label="Delivery"
         value={
           product.delivery
@@ -139,16 +291,17 @@ export default function ProductInfoCard({
       />
 
       <InfoRow
-        icon="pricetag-outline"
+        icon="refresh"
         label="Condition"
         value={
-          product.condition ??
-          "New"
+          formatCondition(
+            product.condition,
+          )
         }
       />
 
       <InfoRow
-        icon="star-outline"
+        icon="star"
         label="Featured"
         value={
           product.featured
@@ -157,143 +310,206 @@ export default function ProductInfoCard({
         }
       />
 
-      <View style={styles.divider} />
+      <View
+        style={
+          styles.divider
+        }
+      />
+
+      {/* ======================================================
+          DESCRIPTION
+      ====================================================== */}
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.descriptionTitle}
+        style={
+          styles.descriptionTitle
+        }
       >
         Description
       </AppText>
 
       <AppText
-        style={styles.description}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.description
+        }
       >
-        {product.description ||
-          "No description provided."}
+        {description}
       </AppText>
-
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductInfoCard =
+  memo(
+    ProductInfoCard,
   );
 
-}
+MemoizedProductInfoCard.displayName =
+  "ProductInfoCard";
+
+export default MemoizedProductInfoCard;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     card: {
+      width: "100%",
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      borderRadius: 24,
-
-      padding: 20,
-
-      shadowColor: "#000",
-
-      shadowOpacity: 0.05,
-
-      shadowRadius: 10,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 4,
-
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       MAIN INFO
+    ======================================================== */
+
     name: {
-
-      fontSize: 24,
-
-      color: "#0F172A",
-
+      color:
+        Colors.textPrimary,
     },
 
     category: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      marginTop: 4,
-
-      color: "#64748B",
-
-      fontSize: 15,
-
+      color:
+        Colors.textSecondary,
     },
 
     price: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-      marginTop: 18,
-
-      fontSize: 32,
-
-      color: "#FF6B00",
-
+      color:
+        WorkerColors.primary,
     },
 
     divider: {
-
       height: 1,
 
+      marginVertical:
+        FixxamTokens.spacing.lg,
+
       backgroundColor:
-        "#F1F5F9",
-
-      marginVertical: 18,
-
+        Colors.divider,
     },
 
-    row: {
+    /* ========================================================
+       INFO ROW
+    ======================================================== */
 
-      flexDirection: "row",
+    row: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
 
-      alignItems: "center",
-
-      marginBottom: 16,
-
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     left: {
+      flex: 1,
 
-      flexDirection: "row",
+      minWidth: 0,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
 
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    rowIcon: {
+      width: 36,
+
+      height: 36,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     label: {
+      flex: 1,
 
-      marginLeft: 10,
-
-      color: "#64748B",
-
+      color:
+        Colors.textSecondary,
     },
 
     value: {
+      flexShrink: 1,
 
-      color: "#0F172A",
+      textAlign:
+        "right",
 
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       DESCRIPTION
+    ======================================================== */
+
     descriptionTitle: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 17,
-
-      marginBottom: 10,
-
+      color:
+        Colors.textPrimary,
     },
 
     description: {
-
-      color: "#475569",
-
       lineHeight: 22,
 
+      color:
+        Colors.textSecondary,
     },
-
-});
+  });

@@ -1,42 +1,46 @@
+import { FixxamTokens } from "./fixxamtokens";
+
 export const FIXXAM = {
   // Heights
-  INPUT_HEIGHT: 48,
-  BUTTON_HEIGHT: 48,
-  CARD_HEIGHT: 72,
+  INPUT_HEIGHT: FixxamTokens.size.inputHeight,
+  BUTTON_HEIGHT: FixxamTokens.size.buttonHeight,
+  CARD_HEIGHT: FixxamTokens.size.cardMinHeight,
 
   // Icons
-  ICON_SIZE_SM: 16,
-  ICON_SIZE_MD: 20,
-  ICON_SIZE_LG: 24,
-  ICON_SIZE_XL: 30,
+  ICON_SIZE_SM: FixxamTokens.size.iconXs,
+  ICON_SIZE_MD: FixxamTokens.size.iconSm,
+  ICON_SIZE_LG: FixxamTokens.size.iconMd,
+  ICON_SIZE_XL: FixxamTokens.size.iconXl,
 
   // Typography
-  BODY_SIZE: 15,
-  CAPTION_SIZE: 13,
-  SMALL_SIZE: 11,
+  BODY_SIZE: FixxamTokens.font.body,
+  CAPTION_SIZE: FixxamTokens.font.caption,
+  SMALL_SIZE: FixxamTokens.font.small,
 
-  FONT_LG: 16,
+  FONT_LG: FixxamTokens.font.body,
 
-  TITLE_SIZE: 24,
-  HEADING_SIZE: 20,
-  DISPLAY_SIZE: 30,
+  TITLE_SIZE: FixxamTokens.font.title,
+  HEADING_SIZE: FixxamTokens.font.heading,
+  DISPLAY_SIZE: FixxamTokens.font.display,
 
   // Radius
-  BORDER_RADIUS_SM: 8,
-  BORDER_RADIUS_MD: 14,
-  BORDER_RADIUS_LG: 18,
-  BORDER_RADIUS_XL: 20,
-  BORDER_RADIUS_FULL: 999,
+  BORDER_RADIUS_SM: FixxamTokens.radius.sm,
+  BORDER_RADIUS_MD: FixxamTokens.radius.md,
+  BORDER_RADIUS_LG: FixxamTokens.radius.lg,
+  BORDER_RADIUS_XL: FixxamTokens.radius.xl,
+  BORDER_RADIUS_FULL: FixxamTokens.radius.full,
 
   // Animation
-  ANIMATION_FAST: 180,
-  ANIMATION_NORMAL: 250,
-  ANIMATION_SLOW: 350,
+  ANIMATION_FAST: FixxamTokens.motion.fast,
+  ANIMATION_NORMAL: FixxamTokens.motion.normal,
+  ANIMATION_SLOW: FixxamTokens.motion.slow,
 
   // Opacity
-  DISABLED_OPACITY: 0.6,
-  PRESSED_OPACITY: 0.9,
+  DISABLED_OPACITY: FixxamTokens.motion.disabledOpacity,
+  PRESSED_OPACITY: FixxamTokens.motion.pressedOpacity,
 
   // OTP
-  OTP_BOX_SIZE: 48,
+  OTP_BOX_SIZE: FixxamTokens.size.otpBox,
 } as const;
+
+export default FIXXAM;

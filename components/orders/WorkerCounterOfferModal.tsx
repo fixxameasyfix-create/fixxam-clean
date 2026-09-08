@@ -1,17 +1,33 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -23,265 +39,431 @@ type Props = {
   customerOfferAmount?: number | null;
 
   amount: string;
+
   message: string;
 
   submitting?: boolean;
 
-  onAmountChange: (value: string) => void;
-  onMessageChange: (value: string) => void;
+  onAmountChange: (
+    value: string,
+  ) => void;
+
+  onMessageChange: (
+    value: string,
+  ) => void;
 
   onClose: () => void;
+
   onSubmit: () => void;
 };
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_MESSAGE_LENGTH = 300;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function formatAmount(
+  value?: number | null,
+): string {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return "—";
+  }
+
+  return `₦${value.toLocaleString(
+    "en-NG",
+  )}`;
+}
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
-const WorkerCounterOfferModal = memo(
-  function WorkerCounterOfferModal({
-    visible,
-    customerOfferAmount,
-    amount,
-    message,
-    submitting = false,
-    onAmountChange,
-    onMessageChange,
-    onClose,
-    onSubmit,
-  }: Props) {
-    const formattedCustomerOffer =
-      typeof customerOfferAmount ===
-        "number" &&
-      Number.isFinite(
-        customerOfferAmount,
-      ) &&
-      customerOfferAmount > 0
-        ? `₦${customerOfferAmount.toLocaleString(
-            "en-NG",
-          )}`
-        : "—";
+const WorkerCounterOfferModal =
+  memo(
+    function WorkerCounterOfferModal({
+      visible,
+      customerOfferAmount,
+      amount,
+      message,
+      submitting = false,
+      onAmountChange,
+      onMessageChange,
+      onClose,
+      onSubmit,
+    }: Props) {
+      const insets =
+        useSafeAreaInsets();
 
-    return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="slide"
-        onRequestClose={onClose}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.counterModal}>
-            {/* ==================================================
-                HANDLE
-            ================================================== */}
+      const formattedCustomerOffer =
+        formatAmount(
+          customerOfferAmount,
+        );
 
-            <View style={styles.modalHandle} />
+      const characterCount =
+        Math.min(
+          message.length,
+          MAX_MESSAGE_LENGTH,
+        );
 
-            {/* ==================================================
-                HEADER
-            ================================================== */}
+      return (
+        <Modal
+          visible={visible}
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={
+            submitting
+              ? undefined
+              : onClose
+          }
+        >
+          <KeyboardAvoidingView
+            style={
+              styles.modalOverlay
+            }
+            behavior={
+              Platform.OS === "ios"
+                ? "padding"
+                : undefined
+            }
+          >
+            <View
+              accessibilityViewIsModal
+              style={[
+                styles.counterModal,
+                {
+                  paddingBottom:
+                    Math.max(
+                      insets.bottom,
+                      FixxamTokens
+                        .spacing.lg,
+                    ),
+                },
+              ]}
+            >
+              {/* ==================================================
+                  HANDLE
+              ================================================== */}
 
-            <View style={styles.modalHeader}>
               <View
                 style={
-                  styles.modalHeaderIcon
+                  styles.modalHandle
+                }
+              />
+
+              {/* ==================================================
+                  HEADER
+              ================================================== */}
+
+              <View
+                style={
+                  styles.modalHeader
                 }
               >
-                <Ionicons
-                  name="swap-horizontal-outline"
-                  size={23}
-                  color="#2563EB"
+                <View
+                  style={
+                    styles.modalHeaderIcon
+                  }
+                >
+                  <AppIcon
+                    name="refresh"
+                    role="worker"
+                    size="md"
+                    color={
+                      WorkerColors.primary
+                    }
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.modalHeaderContent
+                  }
+                >
+                  <AppText
+                    variant="bodyLarge"
+                    weight="bold"
+                    style={
+                      styles.modalTitle
+                    }
+                  >
+                    Send Counter Offer
+                  </AppText>
+
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={
+                      styles.modalSubtitle
+                    }
+                  >
+                    Send a new price to the customer.
+                  </AppText>
+                </View>
+              </View>
+
+              {/* ==================================================
+                  CUSTOMER OFFER
+              ================================================== */}
+
+              <View
+                style={
+                  styles.customerOfferReference
+                }
+              >
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                  weight="semibold"
+                  style={
+                    styles.referenceLabel
+                  }
+                >
+                  CUSTOMER OFFER
+                </AppText>
+
+                <AppText
+                  variant="heading2"
+                  weight="bold"
+                  style={
+                    styles.referenceAmount
+                  }
+                >
+                  {formattedCustomerOffer}
+                </AppText>
+              </View>
+
+              {/* ==================================================
+                  AMOUNT LABEL
+              ================================================== */}
+
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.inputLabel
+                }
+              >
+                YOUR NEW OFFER
+              </AppText>
+
+              {/* ==================================================
+                  AMOUNT INPUT
+              ================================================== */}
+
+              <View
+                style={
+                  styles.amountInputContainer
+                }
+              >
+                <AppText
+                  variant="bodyLarge"
+                  weight="bold"
+                  style={
+                    styles.currencySymbol
+                  }
+                >
+                  ₦
+                </AppText>
+
+                <TextInput
+                  value={amount}
+                  onChangeText={
+                    onAmountChange
+                  }
+                  placeholder="Enter amount"
+                  placeholderTextColor={
+                    Colors.textMuted
+                  }
+                  keyboardType="decimal-pad"
+                  editable={
+                    !submitting
+                  }
+                  maxLength={12}
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  accessibilityLabel="New counter offer amount"
+                  style={
+                    styles.amountInput
+                  }
                 />
               </View>
 
+              {/* ==================================================
+                  MESSAGE LABEL
+              ================================================== */}
+
               <View
                 style={
-                  styles.modalHeaderContent
+                  styles.messageLabelRow
                 }
               >
                 <AppText
+                  variant="caption"
                   weight="bold"
-                  style={styles.modalTitle}
+                  style={
+                    styles.messageLabel
+                  }
                 >
-                  Send Counter Offer
+                  MESSAGE
                 </AppText>
 
                 <AppText
-                  style={styles.modalSubtitle}
+                  variant="caption"
+                  tone="muted"
                 >
-                  Send a new price to the
-                  customer.
+                  {characterCount}/
+                  {MAX_MESSAGE_LENGTH}
                 </AppText>
               </View>
-            </View>
 
-            {/* ==================================================
-                CUSTOMER OFFER
-            ================================================== */}
-
-            <View
-              style={
-                styles.customerOfferReference
-              }
-            >
-              <AppText
-                style={styles.referenceLabel}
-              >
-                CUSTOMER OFFER
-              </AppText>
-
-              <AppText
-                weight="bold"
-                style={styles.referenceAmount}
-              >
-                {formattedCustomerOffer}
-              </AppText>
-            </View>
-
-            {/* ==================================================
-                AMOUNT LABEL
-            ================================================== */}
-
-            <AppText
-              weight="bold"
-              style={styles.inputLabel}
-            >
-              YOUR NEW OFFER
-            </AppText>
-
-            {/* ==================================================
-                AMOUNT INPUT
-            ================================================== */}
-
-            <View
-              style={
-                styles.amountInputContainer
-              }
-            >
-              <AppText
-                weight="bold"
-                style={styles.currencySymbol}
-              >
-                ₦
-              </AppText>
+              {/* ==================================================
+                  MESSAGE INPUT
+              ================================================== */}
 
               <TextInput
-                value={amount}
-                onChangeText={onAmountChange}
-                placeholder="Enter amount"
-                placeholderTextColor="#94A3B8"
-                keyboardType="decimal-pad"
-                editable={!submitting}
-                maxLength={12}
-                autoCorrect={false}
-                style={styles.amountInput}
+                value={message}
+                onChangeText={
+                  onMessageChange
+                }
+                placeholder="Explain your new offer..."
+                placeholderTextColor={
+                  Colors.textMuted
+                }
+                multiline
+                textAlignVertical="top"
+                editable={
+                  !submitting
+                }
+                maxLength={
+                  MAX_MESSAGE_LENGTH
+                }
+                autoCorrect
+                accessibilityLabel="Counter offer message"
+                style={
+                  styles.messageInput
+                }
               />
-            </View>
 
-            {/* ==================================================
-                MESSAGE LABEL
-            ================================================== */}
+              {/* ==================================================
+                  ACTIONS
+              ================================================== */}
 
-            <AppText
-              weight="bold"
-              style={styles.inputLabel}
-            >
-              MESSAGE
-            </AppText>
-
-            {/* ==================================================
-                MESSAGE INPUT
-            ================================================== */}
-
-            <TextInput
-              value={message}
-              onChangeText={onMessageChange}
-              placeholder="Explain your new offer..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              textAlignVertical="top"
-              editable={!submitting}
-              maxLength={300}
-              autoCorrect
-              style={styles.messageInput}
-            />
-
-            <AppText
-              style={styles.characterCount}
-            >
-              {message.length}/300
-            </AppText>
-
-            {/* ==================================================
-                ACTIONS
-            ================================================== */}
-
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={onClose}
-                disabled={submitting}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel counter offer"
-                style={({ pressed }) => [
-                  styles.modalCancelButton,
-                  submitting &&
-                    styles.disabledButton,
-                  pressed &&
-                    !submitting &&
-                    styles.buttonPressed,
-                ]}
+              <View
+                style={
+                  styles.modalActions
+                }
               >
-                <AppText
-                  weight="bold"
-                  style={styles.modalCancelText}
+                <Pressable
+                  onPress={onClose}
+                  disabled={
+                    submitting
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel counter offer"
+                  accessibilityState={{
+                    disabled:
+                      submitting,
+                  }}
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.modalCancelButton,
+
+                    submitting
+                      ? styles.disabledButton
+                      : null,
+
+                    pressed &&
+                    !submitting
+                      ? styles.buttonPressed
+                      : null,
+                  ]}
                 >
-                  CANCEL
-                </AppText>
-              </Pressable>
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    style={
+                      styles.modalCancelText
+                    }
+                  >
+                    CANCEL
+                  </AppText>
+                </Pressable>
 
-              <Pressable
-                onPress={onSubmit}
-                disabled={submitting}
-                accessibilityRole="button"
-                accessibilityLabel="Send counter offer"
-                style={({ pressed }) => [
-                  styles.modalSendButton,
-                  submitting &&
-                    styles.disabledButton,
-                  pressed &&
-                    !submitting &&
-                    styles.buttonPressed,
-                ]}
-              >
-                {submitting ? (
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="send-outline"
-                      size={17}
-                      color="#FFFFFF"
+                <Pressable
+                  onPress={onSubmit}
+                  disabled={
+                    submitting
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Send counter offer"
+                  accessibilityState={{
+                    disabled:
+                      submitting,
+                    busy:
+                      submitting,
+                  }}
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.modalSendButton,
+
+                    submitting
+                      ? styles.disabledButton
+                      : null,
+
+                    pressed &&
+                    !submitting
+                      ? styles.buttonPressed
+                      : null,
+                  ]}
+                >
+                  {submitting ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        Colors.textInverse
+                      }
                     />
+                  ) : (
+                    <>
+                      <AppIcon
+                        name="next"
+                        size="xs"
+                        color={
+                          Colors.textInverse
+                        }
+                      />
 
-                    <AppText
-                      weight="bold"
-                      style={styles.modalSendText}
-                    >
-                      SEND OFFER
-                    </AppText>
-                  </>
-                )}
-              </Pressable>
+                      <AppText
+                        variant="caption"
+                        weight="bold"
+                        style={
+                          styles.modalSendText
+                        }
+                      >
+                        SEND OFFER
+                      </AppText>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
-    );
-  },
-);
+          </KeyboardAvoidingView>
+        </Modal>
+      );
+    },
+  );
 
 WorkerCounterOfferModal.displayName =
   "WorkerCounterOfferModal";
@@ -292,214 +474,363 @@ export default WorkerCounterOfferModal;
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     OVERLAY
-  ========================================================== */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
-  modalOverlay: {
-    flex: 1,
-    backgroundColor:
-      "rgba(15, 23, 42, 0.45)",
-    justifyContent: "flex-end",
-  },
+    modalOverlay: {
+      flex: 1,
 
-  /* ==========================================================
-     MODAL
-  ========================================================== */
+      justifyContent:
+        "flex-end",
 
-  counterModal: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 28,
-  },
+      backgroundColor:
+        Colors.overlayMedium,
+    },
 
-  modalHandle: {
-    alignSelf: "center",
-    width: 42,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: "#CBD5E1",
-    marginBottom: 18,
-  },
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
-  /* ==========================================================
-     HEADER
-  ========================================================== */
+    counterModal: {
+      width: "100%",
 
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  modalHeaderIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  modalHeaderContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
 
-  modalTitle: {
-    fontSize: 17,
-    color: "#0F172A",
-  },
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
 
-  modalSubtitle: {
-    marginTop: 3,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#64748B",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  /* ==========================================================
-     CUSTOMER OFFER
-  ========================================================== */
+      ...FixxamTokens.shadow.card,
+    },
 
-  customerOfferReference: {
-    marginTop: 18,
-    padding: 13,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-  },
+    modalHandle: {
+      width: 42,
 
-  referenceLabel: {
-    fontSize: 8,
-    letterSpacing: 1,
-    color: "#94A3B8",
-  },
+      height: 4,
 
-  referenceAmount: {
-    marginTop: 4,
-    fontSize: 18,
-    color: "#2563EB",
-  },
+      alignSelf: "center",
 
-  /* ==========================================================
-     INPUTS
-  ========================================================== */
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  inputLabel: {
-    marginTop: 17,
-    marginBottom: 7,
-    fontSize: 9,
-    letterSpacing: 0.8,
-    color: "#64748B",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  amountInputContainer: {
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-  },
+      backgroundColor:
+        Colors.disabled,
+    },
 
-  currencySymbol: {
-    fontSize: 18,
-    color: "#2563EB",
-    marginRight: 7,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  amountInput: {
-    flex: 1,
-    height: "100%",
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#0F172A",
-  },
+    modalHeader: {
+      flexDirection: "row",
 
-  messageInput: {
-    minHeight: 92,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#0F172A",
-  },
+      alignItems: "center",
+    },
 
-  characterCount: {
-    alignSelf: "flex-end",
-    marginTop: 4,
-    fontSize: 8.5,
-    color: "#94A3B8",
-  },
+    modalHeaderIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-  /* ==========================================================
-     ACTIONS
-  ========================================================== */
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-  modalActions: {
-    marginTop: 20,
-    flexDirection: "row",
-    gap: 9,
-  },
+      flexShrink: 0,
 
-  modalCancelButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      alignItems: "center",
 
-  modalCancelText: {
-    fontSize: 9.5,
-    color: "#475569",
-  },
+      justifyContent: "center",
 
-  modalSendButton: {
-    flex: 1.4,
-    height: 48,
-    borderRadius: 13,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  modalSendText: {
-    fontSize: 9.5,
-    color: "#FFFFFF",
-  },
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
 
-  /* ==========================================================
-     STATES
-  ========================================================== */
+    modalHeaderContent: {
+      flex: 1,
 
-  disabledButton: {
-    opacity: 0.45,
-  },
+      minWidth: 0,
 
-  buttonPressed: {
-    opacity: 0.9,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-});
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    modalTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    modalSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+    },
+
+    /* ========================================================
+       CUSTOMER OFFER
+    ======================================================== */
+
+    customerOfferReference: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    referenceLabel: {
+      letterSpacing: 1,
+    },
+
+    referenceAmount: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       INPUTS
+    ======================================================== */
+
+    inputLabel: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      letterSpacing: 0.8,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    amountInputContainer: {
+      height:
+        FixxamTokens.size
+          .inputHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    currencySymbol: {
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    amountInput: {
+      flex: 1,
+
+      height: "100%",
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      fontWeight: "700",
+
+      color:
+        Colors.textPrimary,
+    },
+
+    messageLabelRow: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "space-between",
+    },
+
+    messageLabel: {
+      letterSpacing: 0.8,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    messageInput: {
+      minHeight: 96,
+
+      maxHeight: 150,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
+      backgroundColor:
+        Colors.background,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
+
+    modalActions: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      flexDirection: "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalCancelButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalCancelText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    modalSendButton: {
+      flex: 1.4,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    modalSendText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabledButton: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    buttonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

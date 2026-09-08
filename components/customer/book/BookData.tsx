@@ -1,23 +1,57 @@
-import { router } from "expo-router";
+import type {
+  ComponentProps,
+} from "react";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-type BookCardItem = {
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
+export type BookCardItem = {
   title: string;
+
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  icon: MaterialIconName;
+
   iconColor: string;
+
   iconBackground: string;
+
   onPress: () => void;
 };
 
+/* ==============================================================
+   BOOK CARDS
+============================================================== */
+
 export const bookCards: BookCardItem[] = [
   {
-    title: "Find Worker Nearby",
-    description: "Find trusted workers near you.",
-    icon: "location-outline",
-    iconColor: "#2563EB",
-    iconBackground: "#EFF6FF",
+    title:
+      "Find Worker Nearby",
+
+    description:
+      "Find trusted workers near you.",
+
+    icon:
+      "map-marker-radius-outline",
+
+    iconColor:
+      "#2563EB",
+
+    iconBackground:
+      "#EFF6FF",
+
     onPress: () =>
       router.push(
         "/(customer)/nearby-workers",
@@ -25,11 +59,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Choose Your Services",
-    description: "Browse services and choose what you need.",
-    icon: "grid-outline",
-    iconColor: "#16A34A",
-    iconBackground: "#ECFDF5",
+    title:
+      "Choose Your Services",
+
+    description:
+      "Browse services and choose what you need.",
+
+    icon:
+      "view-grid-outline",
+
+    iconColor:
+      "#16A34A",
+
+    iconBackground:
+      "#ECFDF5",
+
     onPress: () =>
       router.push(
         "/(customer)/details/categories",
@@ -37,11 +81,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Help Me Fix",
-    description: "Book a professional to fix it for you.",
-    icon: "headset-outline",
-    iconColor: "#EA580C",
-    iconBackground: "#FFF7ED",
+    title:
+      "Help Me Fix",
+
+    description:
+      "Book a professional to fix it for you.",
+
+    icon:
+      "headset",
+
+    iconColor:
+      "#EA580C",
+
+    iconBackground:
+      "#FFF7ED",
+
     onPress: () =>
       router.push(
         "/(customer)/ai",
@@ -49,11 +103,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Fix Yourself",
-    description: "Get guidance to fix it yourself.",
-    icon: "construct-outline",
-    iconColor: "#9333EA",
-    iconBackground: "#F3E8FF",
+    title:
+      "Fix Yourself",
+
+    description:
+      "Get guidance to fix it yourself.",
+
+    icon:
+      "hammer-wrench",
+
+    iconColor:
+      "#9333EA",
+
+    iconBackground:
+      "#F3E8FF",
+
     onPress: () =>
       router.push(
         "/(customer)/fix-yourself",
@@ -61,11 +125,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Buy Your Spare Parts",
-    description: "Find and buy quality spare parts.",
-    icon: "cart-outline",
-    iconColor: "#EC4899",
-    iconBackground: "#FDF2F8",
+    title:
+      "Buy Your Spare Parts",
+
+    description:
+      "Find and buy quality spare parts.",
+
+    icon:
+      "cart-outline",
+
+    iconColor:
+      "#EC4899",
+
+    iconBackground:
+      "#FDF2F8",
+
     onPress: () =>
       router.push(
         "/(customer)/buy-spare-parts/buy-spare-part",
@@ -73,11 +147,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Find Materials",
-    description: "Get the right materials for your service.",
-    icon: "cube-outline",
-    iconColor: "#0891B2",
-    iconBackground: "#ECFEFF",
+    title:
+      "Find Materials",
+
+    description:
+      "Get the right materials for your service.",
+
+    icon:
+      "cube-outline",
+
+    iconColor:
+      "#0891B2",
+
+    iconBackground:
+      "#ECFEFF",
+
     onPress: () =>
       router.push(
         "/(customer)/find-materials/services",
@@ -85,11 +169,21 @@ export const bookCards: BookCardItem[] = [
   },
 
   {
-    title: "Get Worker By Call",
-    description: "Call a nearby worker and get help fast.",
-    icon: "call-outline",
-    iconColor: "#DC2626",
-    iconBackground: "#FEF2F2",
+    title:
+      "Get Worker By Call",
+
+    description:
+      "Call a nearby worker and get help fast.",
+
+    icon:
+      "phone-outline",
+
+    iconColor:
+      "#DC2626",
+
+    iconBackground:
+      "#FEF2F2",
+
     onPress: () =>
       router.push(
         "/(customer)/contact-worker/contact",

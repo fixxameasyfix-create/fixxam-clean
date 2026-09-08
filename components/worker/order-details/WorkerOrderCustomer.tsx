@@ -1,30 +1,91 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   name: string;
+
   photo?: string;
+
   phone?: string;
+
   rating?: number;
+
   verified?: boolean;
 
   onCall?: () => void;
+
   onMessage?: () => void;
 };
 
-export default function WorkerOrderCustomer({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafeText(
+  value: unknown,
+  fallback = "",
+): string {
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  return fallback;
+}
+
+function getSafeRating(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerOrderCustomer({
   name,
   photo,
   phone,
@@ -33,207 +94,449 @@ export default function WorkerOrderCustomer({
   onCall,
   onMessage,
 }: Props) {
-  const safeRating = Number.isFinite(
-    rating,
-  )
-    ? Math.max(0, rating)
-    : 0;
-
   const displayName =
-    name.trim() || "Customer";
+    useMemo(
+      () =>
+        getSafeText(
+          name,
+          "Customer",
+        ),
+      [name],
+    );
+
+  const displayPhoto =
+    useMemo(
+      () =>
+        getSafeText(
+          photo,
+        ),
+      [photo],
+    );
+
+  const displayPhone =
+    useMemo(
+      () =>
+        getSafeText(
+          phone,
+        ),
+      [phone],
+    );
+
+  const safeRating =
+    useMemo(
+      () =>
+        getSafeRating(
+          rating,
+        ),
+      [rating],
+    );
+
+  const hasActions =
+    Boolean(
+      onCall ||
+        onMessage,
+    );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
-        {photo ? (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          CUSTOMER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.row
+        }
+      >
+        {displayPhoto ? (
           <Image
             source={{
-              uri: photo,
+              uri:
+                displayPhoto,
             }}
-            style={styles.avatar}
+            style={
+              styles.avatar
+            }
+            contentFit="cover"
+            transition={150}
+            recyclingKey={
+              displayPhoto
+            }
+            accessibilityLabel={`${displayName} profile photo`}
           />
         ) : (
-          <View style={styles.placeholder}>
-            <Ionicons
-              name="person"
-              size={28}
-              color="#FF6B00"
+          <View
+            style={
+              styles.placeholder
+            }
+          >
+            <AppIcon
+              name="profile"
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
+              }
             />
           </View>
         )}
 
-        <View style={styles.info}>
-          <View style={styles.nameRow}>
+        {/* ====================================================
+            INFO
+        ==================================================== */}
+
+        <View
+          style={
+            styles.info
+          }
+        >
+          <View
+            style={
+              styles.nameRow
+            }
+          >
             <AppText
+              variant="heading3"
               weight="bold"
               numberOfLines={1}
-              style={styles.name}
+              style={
+                styles.name
+              }
             >
               {displayName}
             </AppText>
 
-            {verified && (
-              <Ionicons
-                name="checkmark-circle"
-                size={18}
-                color="#16A34A"
+            {verified ? (
+              <AppIcon
+                name="verified"
+                size="sm"
+                color={
+                  Colors.success
+                }
               />
-            )}
+            ) : null}
           </View>
 
-          {phone ? (
+          {displayPhone ? (
             <AppText
+              variant="caption"
+              tone="secondary"
               numberOfLines={1}
-              style={styles.phone}
+              style={
+                styles.phone
+              }
             >
-              {phone}
+              {displayPhone}
             </AppText>
           ) : null}
 
-          <View style={styles.ratingRow}>
-            <Ionicons
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <AppIcon
               name="star"
-              size={16}
-              color="#F59E0B"
+              size="xs"
+              color={
+                Colors.warning
+              }
             />
 
             <AppText
-              style={styles.rating}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.rating
+              }
             >
-              {safeRating.toFixed(1)}
+              {safeRating.toFixed(
+                1,
+              )}
             </AppText>
           </View>
         </View>
       </View>
 
-      {(onCall || onMessage) && (
-        <View style={styles.actions}>
-          {onCall && (
+      {/* ======================================================
+          ACTIONS
+      ====================================================== */}
+
+      {hasActions ? (
+        <View
+          style={
+            styles.actions
+          }
+        >
+          {onCall ? (
             <Pressable
-              onPress={onCall}
+              onPress={
+                onCall
+              }
               accessibilityRole="button"
               accessibilityLabel={`Call ${displayName}`}
-              hitSlop={8}
-              style={({ pressed }) => [
+              hitSlop={6}
+              style={({
+                pressed,
+              }) => [
                 styles.actionButton,
-                pressed &&
-                  styles.actionPressed,
+
+                pressed
+                  ? styles.actionPressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="call-outline"
-                size={22}
-                color="#FF6B00"
+              <AppIcon
+                name="phone"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
               />
             </Pressable>
-          )}
+          ) : null}
 
-          {onMessage && (
+          {onMessage ? (
             <Pressable
-              onPress={onMessage}
+              onPress={
+                onMessage
+              }
               accessibilityRole="button"
               accessibilityLabel={`Message ${displayName}`}
-              hitSlop={8}
-              style={({ pressed }) => [
+              hitSlop={6}
+              style={({
+                pressed,
+              }) => [
                 styles.actionButton,
-                pressed &&
-                  styles.actionPressed,
+
+                pressed
+                  ? styles.actionPressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="chatbubble-outline"
-                size={22}
-                color="#FF6B00"
+              <AppIcon
+                name="messages"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
               />
             </Pressable>
-          )}
+          ) : null}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 18,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+WorkerOrderCustomer.displayName =
+  "WorkerOrderCustomer";
 
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#F1F5F9",
-  },
+export default memo(
+  WorkerOrderCustomer,
+);
 
-  placeholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  info: {
-    flex: 1,
-    marginLeft: 14,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  name: {
-    flexShrink: 1,
-    fontSize: 18,
-    color: "#0F172A",
-  },
+      padding:
+        FixxamTokens.spacing.lg,
 
-  phone: {
-    marginTop: 4,
-    color: "#64748B",
-    fontSize: 13,
-  },
+      borderWidth: 1,
 
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
+      borderColor:
+        Colors.border,
 
-  rating: {
-    marginLeft: 4,
-    color: "#64748B",
-    fontSize: 13,
-  },
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 18,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  actionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 12,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  actionPressed: {
-    opacity: 0.65,
-  },
-});
+    /* ========================================================
+       CUSTOMER
+    ======================================================== */
+
+    row: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    avatar: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    placeholder: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    nameRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    name: {
+      flexShrink: 1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    phone: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    ratingRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    rating: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
+
+    actions: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      justifyContent:
+        "flex-end",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    actionButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    actionPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

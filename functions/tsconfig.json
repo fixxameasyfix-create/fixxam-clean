@@ -3,21 +3,18 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-
-    "lib": ["ES2022"],
-
+    "lib": [
+      "ES2022"
+    ],
     "rootDir": "src",
     "outDir": "lib",
-
+    "noEmit": false,
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-
     "resolveJsonModule": true,
     "skipLibCheck": true,
-
     "sourceMap": true,
-
     "forceConsistentCasingInFileNames": true
   },
   "include": [
@@ -26,5 +23,6 @@
   "exclude": [
     "node_modules",
     "lib"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

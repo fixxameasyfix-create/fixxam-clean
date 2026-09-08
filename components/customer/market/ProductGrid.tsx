@@ -1,18 +1,32 @@
 import React, {
+  memo,
+  useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
@@ -40,11 +54,12 @@ export type MarketProduct = {
   sold?: number;
 };
 
-type ProductWithDeal = MarketProduct & {
-  activeDeal:
-    | ActiveProductDeal
-    | null;
-};
+type ProductWithDeal =
+  MarketProduct & {
+    activeDeal:
+      | ActiveProductDeal
+      | null;
+  };
 
 type Props = {
   title?: string;
@@ -67,75 +82,104 @@ type Props = {
 };
 
 /* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function ProductGrid({
+function ProductGrid({
   title = "Popular Materials",
-
   products,
-
   loading = false,
-
   showSeeAll = true,
-
   onSeeAll,
-
   onProductPress,
-
   onBuyPress,
 }: Props) {
   const [
-    productsWithDeals,
-    setProductsWithDeals,
-  ] = useState<ProductWithDeal[]>(
-    [],
-  );
+    dealsByProductId,
+    setDealsByProductId,
+  ] =
+    useState<
+      Map<
+        string,
+        ActiveProductDeal
+      >
+    >(
+      new Map(),
+    );
 
   const [
     dealsLoading,
     setDealsLoading,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ============================================================
      LOAD ACTIVE DEALS
   ============================================================ */
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled =
+      false;
 
-    const loadDeals = async () => {
-      if (products.length === 0) {
-        setProductsWithDeals([]);
-        setDealsLoading(false);
-        return;
-      }
-
-      try {
-        setDealsLoading(true);
-
-        const productIds =
+    const productIds =
+      Array.from(
+        new Set(
           products
             .map(
               (product) =>
-                product.id,
+                cleanString(
+                  product.id,
+                ),
             )
-            .filter(Boolean);
+            .filter(Boolean),
+        ),
+      );
 
-        if (productIds.length === 0) {
-          setProductsWithDeals(
-            products.map(
-              (product) => ({
-                ...product,
-                activeDeal: null,
-              }),
-            ),
-          );
+    /*
+     * Clear old deal state immediately so
+     * deals from a previous product list
+     * cannot appear on the new list.
+     */
+    setDealsByProductId(
+      new Map(),
+    );
 
-          return;
-        }
+    if (
+      productIds.length === 0
+    ) {
+      setDealsLoading(
+        false,
+      );
 
-        const dealsByProductId =
+      return () => {
+        cancelled =
+          true;
+      };
+    }
+
+    async function loadDeals() {
+      try {
+        setDealsLoading(
+          true,
+        );
+
+        const result =
           await getActiveProductDeals(
             productIds,
           );
@@ -144,69 +188,120 @@ export default function ProductGrid({
           return;
         }
 
-        const mergedProducts =
-          products.map(
-            (product) => ({
-              ...product,
-
-              activeDeal:
-                dealsByProductId.get(
-                  product.id,
-                ) ?? null,
-            }),
-          );
-
-        setProductsWithDeals(
-          mergedProducts,
+        setDealsByProductId(
+          result,
         );
       } catch (error) {
         console.error(
-          "PRODUCT GRID DEAL LOAD ERROR:",
+          "PRODUCT_GRID_DEAL_LOAD_ERROR:",
           error,
         );
 
+        /*
+         * Deals are optional.
+         * Products remain fully usable.
+         */
         if (!cancelled) {
-          /*
-           * Products must continue
-           * working even if deal
-           * loading fails.
-           */
-          setProductsWithDeals(
-            products.map(
-              (product) => ({
-                ...product,
-                activeDeal: null,
-              }),
-            ),
+          setDealsByProductId(
+            new Map(),
           );
         }
       } finally {
         if (!cancelled) {
-          setDealsLoading(false);
+          setDealsLoading(
+            false,
+          );
         }
       }
-    };
+    }
 
     void loadDeals();
 
     return () => {
-      cancelled = true;
+      cancelled =
+        true;
     };
-  }, [products]);
+  }, [
+    products,
+  ]);
 
   /* ============================================================
-     DISPLAY DATA
+     DISPLAY PRODUCTS
   ============================================================ */
 
   const displayProducts =
-    productsWithDeals.length > 0
-      ? productsWithDeals
-      : products.map(
+    useMemo<
+      ProductWithDeal[]
+    >(
+      () =>
+        products.map(
           (product) => ({
             ...product,
-            activeDeal: null,
+
+            activeDeal:
+              dealsByProductId.get(
+                product.id,
+              ) ?? null,
           }),
-        );
+        ),
+      [
+        dealsByProductId,
+        products,
+      ],
+    );
+
+  /* ============================================================
+     RENDER PRODUCT
+  ============================================================ */
+
+  const renderProduct =
+    useCallback<
+      ListRenderItem<ProductWithDeal>
+    >(
+      ({
+        item,
+      }) => (
+        <View
+          style={
+            styles.cardWrapper
+          }
+        >
+          <ProductGridCard
+            id={item.id}
+            name={item.name}
+            price={item.price}
+            image={
+              item.thumbnail
+            }
+            activeDeal={
+              item.activeDeal
+            }
+            onPress={() =>
+              onProductPress(
+                item.id,
+              )
+            }
+            onBuy={() =>
+              onBuyPress(
+                item,
+              )
+            }
+          />
+        </View>
+      ),
+      [
+        onBuyPress,
+        onProductPress,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: ProductWithDeal,
+      ) => item.id,
+      [],
+    );
 
   /* ============================================================
      LOADING
@@ -215,11 +310,22 @@ export default function ProductGrid({
   if (loading) {
     return (
       <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="Loading products"
         style={
           styles.loading
         }
       >
+        <ActivityIndicator
+          size="large"
+          color={
+            CustomerColors.primary
+          }
+        />
+
         <AppText
+          variant="body"
+          tone="secondary"
           style={
             styles.loadingText
           }
@@ -250,7 +356,9 @@ export default function ProductGrid({
         }
       >
         <AppText
+          variant="heading3"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.title
           }
@@ -258,14 +366,27 @@ export default function ProductGrid({
           {title}
         </AppText>
 
-        {showSeeAll && (
+        {showSeeAll &&
+        onSeeAll ? (
           <Pressable
-            onPress={onSeeAll}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel={`See all ${title}`}
+            hitSlop={8}
+            onPress={
+              onSeeAll
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.seeAllButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.seeAll
@@ -273,8 +394,15 @@ export default function ProductGrid({
             >
               See All
             </AppText>
+
+            <AppIcon
+              name="next"
+              role="customer"
+              size="xs"
+              state="active"
+            />
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -288,8 +416,23 @@ export default function ProductGrid({
             styles.empty
           }
         >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              role="customer"
+              size="xl"
+              state="muted"
+            />
+          </View>
+
           <AppText
+            variant="bodyLarge"
             weight="bold"
+            center
             style={
               styles.emptyTitle
             }
@@ -298,13 +441,14 @@ export default function ProductGrid({
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.emptyText
             }
           >
-            Products added by
-            workers will appear
-            here.
+            Products added by workers will appear here.
           </AppText>
         </View>
       ) : (
@@ -312,85 +456,52 @@ export default function ProductGrid({
           data={
             displayProducts
           }
-          keyExtractor={(
-            item,
-          ) => item.id}
+          keyExtractor={
+            keyExtractor
+          }
+          renderItem={
+            renderProduct
+          }
           numColumns={2}
           scrollEnabled={false}
-          columnWrapperStyle={
-            styles.row
-          }
           showsVerticalScrollIndicator={
             false
           }
-          renderItem={({
-            item,
-          }) => (
-            <View
-              style={
-                styles.cardWrapper
-              }
-            >
-              <ProductGridCard
-                id={
-                  item.id
-                }
-
-                name={
-                  item.name
-                }
-
-                price={
-                  item.price
-                }
-
-                image={
-                  item.thumbnail
-                }
-
-                activeDeal={
-                  item.activeDeal
-                }
-
-                onPress={() =>
-                  onProductPress(
-                    item.id,
-                  )
-                }
-
-                onBuy={() =>
-                  onBuyPress(
-                    item,
-                  )
-                }
-              />
-            </View>
-          )}
+          columnWrapperStyle={
+            styles.row
+          }
         />
       )}
 
       {/* ======================================================
-          DEAL LOADING
-          Small indicator only while deals are loading.
+          DEAL REFRESH
       ====================================================== */}
 
       {dealsLoading &&
-        displayProducts.length >
-          0 && (
-          <View
-            style={
-              styles.dealLoading
+      displayProducts.length >
+        0 ? (
+        <View
+          accessibilityRole="progressbar"
+          accessibilityLabel="Updating product deals"
+          style={
+            styles.dealLoading
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
             }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
           >
-            <AppText
-              style={
-                styles.dealLoadingText
-              }
-            >
-              Updating deals...
-            </AppText>
-          </View>
-        )}
+            Updating deals...
+          </AppText>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -401,144 +512,213 @@ export default function ProductGrid({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       CONTAINER
-    ========================================================== */
-
     container: {
-      marginHorizontal: 16,
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-      marginBottom: 25,
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
       flexDirection:
         "row",
 
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      flex: 1,
+
+      minWidth: 0,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexDirection:
+        "row",
 
       alignItems:
         "center",
 
-      marginBottom: 12,
-    },
+      justifyContent:
+        "center",
 
-    title: {
-      fontSize: 22,
-
-      color:
-        "#0F172A",
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     seeAll: {
-      fontSize: 15,
-
       color:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        GRID
-    ========================================================== */
+    ======================================================== */
 
     row: {
       justifyContent:
         "space-between",
 
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     cardWrapper: {
       width: "48.2%",
     },
 
-    /* ==========================================================
-       LOADING
-    ========================================================== */
+    /* ========================================================
+       MAIN LOADING
+    ======================================================== */
 
     loading: {
       minHeight: 220,
 
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
 
-      alignItems:
-        "center",
-
-      marginHorizontal: 16,
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
     },
 
     loadingText: {
-      fontSize: 13,
-
-      color:
-        "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
-    /* ==========================================================
+    /* ========================================================
        DEAL LOADING
-    ========================================================== */
+    ======================================================== */
 
     dealLoading: {
+      minHeight: 28,
+
+      flexDirection:
+        "row",
+
       alignItems:
         "center",
 
-      paddingTop: 4,
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
     },
 
-    dealLoadingText: {
-      fontSize: 10,
-
-      color:
-        "#94A3B8",
-    },
-
-    /* ==========================================================
+    /* ========================================================
        EMPTY
-    ========================================================== */
+    ======================================================== */
 
     empty: {
-      backgroundColor:
-        "#FFFFFF",
+      minHeight: 220,
 
-      borderRadius: 18,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
       borderWidth: 1,
 
       borderColor:
-        "#EEF2F7",
+        Colors.border,
 
-      paddingVertical: 35,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      paddingHorizontal: 20,
+      backgroundColor:
+        Colors.surface,
+    },
+
+    emptyIcon: {
+      width: 72,
+
+      height: 72,
 
       alignItems:
         "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      fontSize: 16,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 7,
+      maxWidth: 280,
 
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      lineHeight: 19,
+      lineHeight: 20,
+    },
 
-      color:
-        "#64748B",
+    /* ========================================================
+       PRESSED
+    ======================================================== */
 
-      textAlign:
-        "center",
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });
+
+export default memo(
+  ProductGrid,
+);

@@ -1,15 +1,31 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
-import { AiMessage as AiMessageType } from "../types";
+import type {
+  AiMessage as AiMessageType,
+} from "../types";
+
 import AssistantBubble from "./AssistantBubble";
 import UserBubble from "./UserBubble";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 interface AiMessageProps {
   message: AiMessageType;
-  onCopy?: (text: string) => void;
+
+  onCopy?: (
+    text: string,
+  ) => void;
 }
 
-export default function AiMessage({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function AiMessage({
   message,
   onCopy,
 }: AiMessageProps) {
@@ -33,3 +49,7 @@ export default function AiMessage({
       return null;
   }
 }
+
+export default memo(
+  AiMessage,
+);

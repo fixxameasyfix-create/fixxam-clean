@@ -1,54 +1,87 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppSuccessProps {
   title?: string;
-  message?: string;
-  buttonText?: string;
-  onPress?: () => void;
-};
 
-export default function AppSuccess({
+  message?: string;
+
+  buttonText?: string;
+
+  onPress?: () => void;
+
+  role?: FixxamRole;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppSuccess({
   title = "Success",
   message = "Your request was completed successfully.",
   buttonText = "Continue",
   onPress,
-}: Props) {
+  role = "customer",
+  style,
+}: AppSuccessProps) {
   return (
-    <View style={styles.container}>
+    <View
+      accessibilityRole="alert"
+      style={[
+        styles.container,
+        style,
+      ]}
+    >
       <View style={styles.iconBox}>
-        <MaterialCommunityIcons
-          name="check-circle"
-          size={60}
-          color="#22C55E"
+        <AppIcon
+          name="success"
+          role={role}
+          size="xl"
+          state="success"
+          strokeWidth="medium"
         />
       </View>
 
       <AppText
-        weight="bold"
+        variant="heading3"
+        center
         style={styles.title}
       >
         {title}
       </AppText>
 
-      <AppText style={styles.message}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={styles.message}
+      >
         {message}
       </AppText>
 
-      {onPress && (
+      {onPress ? (
         <AppButton
           title={buttonText}
+          role={role}
           onPress={onPress}
+          style={styles.button}
         />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -56,33 +89,52 @@ export default function AppSuccess({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
+
     alignItems: "center",
-    paddingHorizontal: 24,
+    justifyContent: "center",
+
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
+
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
   },
 
   iconBox: {
-    width: 120,
-    height: 120,
-    borderRadius: 32,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
+    width: 72,
+    height: 72,
+
     alignItems: "center",
-    marginBottom: 24,
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.successSoft,
   },
 
   title: {
-    fontSize: 22,
-    color: "#0F172A",
-    textAlign: "center",
+    maxWidth: 320,
+
+    marginTop:
+      FixxamTokens.spacing.lg,
   },
 
   message: {
-    marginTop: 10,
-    marginBottom: 28,
-    fontSize: 15,
-    color: "#64748B",
-    lineHeight: 24,
-    textAlign: "center",
+    maxWidth: 340,
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
+
+  button: {
+    width: "100%",
+    maxWidth: 280,
+
+    marginTop:
+      FixxamTokens.spacing.xxl,
   },
 });
+
+export default memo(AppSuccess);

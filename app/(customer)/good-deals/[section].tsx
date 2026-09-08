@@ -1,14 +1,15 @@
-import React, { useCallback, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useState,
+} from "react";
 
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
-
-import { Ionicons } from "@expo/vector-icons";
 
 import {
   useLocalSearchParams,
@@ -17,692 +18,1008 @@ import {
 
 import * as Location from "expo-location";
 
+import Toast from "react-native-toast-message";
+
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type DealSection =
+  | "discounted-services"
+  | "limited-offers";
+
+/* ============================================================
+   BACK BUTTON
+============================================================ */
+
+type BackButtonProps = {
+  onPress: () => void;
+};
+
+const BackButton = memo(
+  function BackButton({
+    onPress,
+  }: BackButtonProps) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.backButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="back"
+          role="customer"
+          size="md"
+          color={
+            Colors.textPrimary
+          }
+        />
+      </Pressable>
+    );
+  },
+);
+
+/* ============================================================
+   MAIN SCREEN
+============================================================ */
+
 export default function GoodDealSectionScreen() {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const { section } = useLocalSearchParams<{
-    section?: string;
-  }>();
+  const { section } =
+    useLocalSearchParams<{
+      section?: string;
+    }>();
 
-  const [loading, setLoading] = useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const [error, setError] = useState<string | null>(
-    null,
-  );
+  /* ==========================================================
+     SECTION
+  ========================================================== */
 
   const isDiscountedServices =
-    section === "discounted-services";
+    section ===
+    "discounted-services";
 
   const isLimitedOffers =
-    section === "limited-offers";
+    section ===
+    "limited-offers";
 
-  /*
-   * Only these sections are currently supported
-   * by this dynamic route.
-   */
   const isValidSection =
     isDiscountedServices ||
     isLimitedOffers;
 
-  /*
-   * --------------------------------
-   * FIND NEARBY WORKERS
-   * --------------------------------
-   */
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
 
-  const handleClaim = useCallback(async () => {
-    if (loading) {
-      return;
-    }
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, [router]);
 
-    setError(null);
-    setLoading(true);
+  /* ==========================================================
+     FIND NEARBY WORKERS
+  ========================================================== */
 
-    try {
-      const permission =
-        await Location.requestForegroundPermissionsAsync();
-
-      if (permission.status !== "granted") {
-        setError(
-          "Location permission is required to find workers near you.",
-        );
-
+  const handleClaim =
+    useCallback(async () => {
+      if (loading) {
         return;
       }
 
-      const currentLocation =
-        await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+      setLoading(true);
+
+      try {
+        const permission =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (
+          permission.status !==
+          "granted"
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Location permission required",
+
+            text2:
+              "Allow location access to find workers near you.",
+          });
+
+          return;
+        }
+
+        const currentLocation =
+          await Location.getCurrentPositionAsync(
+            {
+              accuracy:
+                Location.Accuracy
+                  .Balanced,
+            },
+          );
+
+        const {
+          latitude,
+          longitude,
+        } =
+          currentLocation.coords;
+
+        if (
+          !Number.isFinite(
+            latitude,
+          ) ||
+          !Number.isFinite(
+            longitude,
+          )
+        ) {
+          throw new Error(
+            "Invalid location coordinates.",
+          );
+        }
+
+        router.push({
+          pathname:
+            "/nearby-workers",
+
+          params: {
+            source:
+              "discounted-services",
+
+            latitude:
+              String(latitude),
+
+            longitude:
+              String(longitude),
+
+            limit: "5",
+          },
         });
+      } catch (claimError) {
+        console.error(
+          "Nearby worker search failed:",
+          claimError,
+        );
 
-      const {
-        latitude,
-        longitude,
-      } = currentLocation.coords;
+        Toast.show({
+          type: "error",
 
-      router.push({
-        pathname: "/nearby-workers",
-        params: {
-          source: "discounted-services",
-          latitude: String(latitude),
-          longitude: String(longitude),
-          limit: "5",
-        },
-      });
-    } catch (claimError) {
-      console.error(
-        "Nearby worker search failed:",
-        claimError,
-      );
+          text1:
+            "Unable to get location",
 
-      setError(
-        "Unable to get your location. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [loading, router]);
+          text2:
+            "Please check your location settings and try again.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    }, [
+      loading,
+      router,
+    ]);
 
-  /*
-   * --------------------------------
-   * INVALID SECTION
-   * --------------------------------
-   */
+  /* ==========================================================
+     INVALID SECTION
+  ========================================================== */
 
   if (!isValidSection) {
     return (
-      <View style={styles.center}>
-        <Ionicons
-          name="alert-circle-outline"
-          size={44}
-          color="#94A3B8"
-        />
-
-        <Text style={styles.errorTitle}>
-          Deal not found
-        </Text>
-
-        <Text style={styles.errorText}>
-          This deal section is not available.
-        </Text>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          onPress={() => router.back()}
-          style={styles.backButtonLarge}
+      <AppScreen
+        role="customer"
+        style={styles.screen}
+      >
+        <View
+          style={
+            styles.stateContainer
+          }
         >
-          <Text style={styles.backButtonText}>
-            GO BACK
-          </Text>
-        </Pressable>
-      </View>
+          <View
+            style={
+              styles.stateIconBox
+            }
+          >
+            <AppIcon
+              name="warning"
+              size="xl"
+              color={
+                Colors.warning
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
+            style={
+              styles.stateTitle
+            }
+          >
+            Deal not found
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.stateText
+            }
+          >
+            This deal section is not available.
+          </AppText>
+
+          <AppButton
+            title="GO BACK"
+            role="customer"
+            variant="primary"
+            onPress={
+              handleBack
+            }
+            style={
+              styles.stateButton
+            }
+          />
+        </View>
+      </AppScreen>
     );
   }
 
-  /*
-   * --------------------------------
-   * LIMITED-TIME OFFERS
-   * --------------------------------
-   */
+  /* ==========================================================
+     LIMITED-TIME OFFERS
+  ========================================================== */
 
   if (isLimitedOffers) {
     return (
-      <View style={styles.emptyContainer}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={10}
-          onPress={() => router.back()}
-          style={styles.emptyTopBackButton}
+      <AppScreen
+        role="customer"
+        style={styles.screen}
+      >
+        <View
+          style={
+            styles.pageContainer
+          }
         >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#0F172A"
+          <BackButton
+            onPress={
+              handleBack
+            }
           />
-        </Pressable>
 
-        <View style={styles.emptyContent}>
-          <View style={styles.emptyIconBox}>
-            <Ionicons
-              name="time-outline"
-              size={56}
-              color="#7C3AED"
+          <View
+            style={
+              styles.emptyContent
+            }
+          >
+            <View
+              style={
+                styles.emptyIconBox
+              }
+            >
+              <AppIcon
+                name="clock"
+                role="customer"
+                size="xl"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+
+            <AppText
+              variant="heading2"
+              weight="bold"
+              center
+              style={
+                styles.emptyTitle
+              }
+            >
+              No Limited-Time Offers
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.emptyText
+              }
+            >
+              There are no active limited-time offers available right now.
+            </AppText>
+
+            <AppButton
+              title="GO BACK"
+              role="customer"
+              variant="primary"
+              onPress={
+                handleBack
+              }
+              style={
+                styles.emptyButton
+              }
             />
           </View>
-
-          <Text style={styles.emptyTitle}>
-            No Limited-Time Offers
-          </Text>
-
-          <Text style={styles.emptyText}>
-            There are no active limited-time
-            offers available right now.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() => router.back()}
-            style={({ pressed }) => [
-              styles.emptyBackButton,
-              pressed &&
-                styles.emptyBackButtonPressed,
-            ]}
-          >
-            <Text style={styles.emptyBackButtonText}>
-              GO BACK
-            </Text>
-          </Pressable>
         </View>
-      </View>
+      </AppScreen>
     );
   }
 
-  /*
-   * --------------------------------
-   * DISCOUNTED SERVICES
-   * --------------------------------
-   */
+  /* ==========================================================
+     DISCOUNTED SERVICES
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
+    <AppScreen
+      role="customer"
+      style={styles.screen}
+    >
+      <View
+        style={
+          styles.pageContainer
+        }
+      >
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={10}
-          onPress={() => router.back()}
-          style={styles.backButton}
+        <View
+          style={styles.header}
         >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#0F172A"
-          />
-        </Pressable>
-
-        <View style={styles.headerText}>
-          <Text style={styles.title}>
-            Get a Discount from a Nearby Worker
-          </Text>
-
-          <Text style={styles.subtitle}>
-            Find nearby workers who may offer you
-            a special discount.
-          </Text>
-        </View>
-      </View>
-
-      {/* MAIN OFFER CARD */}
-
-      <View style={styles.offerCard}>
-        {/* Icon */}
-
-        <View style={styles.iconContainer}>
-          <Ionicons
-            name="pricetag-outline"
-            size={36}
-            color="#2563EB"
-          />
-        </View>
-
-        {/* Title */}
-
-        <Text style={styles.offerTitle}>
-          You May Get a Special Discount
-        </Text>
-
-        {/* Description */}
-
-        <Text style={styles.offerDescription}>
-          Claim now to find workers near you who
-          may offer you a better price for their
-          services.
-        </Text>
-
-        {/* Location */}
-
-        <View style={styles.locationBox}>
-          <Ionicons
-            name="location-outline"
-            size={21}
-            color="#2563EB"
+          <BackButton
+            onPress={
+              handleBack
+            }
           />
 
-          <Text style={styles.locationText}>
-            We'll use your location to find
-            workers near you.
-          </Text>
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
+              Get a Discount from a Nearby Worker
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              Find nearby workers who may offer you a special discount.
+            </AppText>
+          </View>
         </View>
 
-        {/* Info */}
+        {/* ==================================================
+            OFFER CARD
+        ================================================== */}
 
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="people-outline"
-            size={21}
-            color="#64748B"
-          />
+        <AppCard
+          role="customer"
+          style={
+            styles.offerCard
+          }
+        >
+          {/* ICON */}
 
-          <Text style={styles.infoText}>
-            We'll show you the 5 closest workers
-            so you can choose the one that's
-            right for you.
-          </Text>
-        </View>
+          <View
+            style={
+              styles.iconContainer
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="xl"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
 
-        {/* Error */}
+          {/* TITLE */}
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={20}
-              color="#DC2626"
+          <AppText
+            variant="heading2"
+            weight="bold"
+            style={
+              styles.offerTitle
+            }
+          >
+            You May Get a Special Discount
+          </AppText>
+
+          {/* DESCRIPTION */}
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.offerDescription
+            }
+          >
+            Claim now to find workers near you who may offer you a better price for their services.
+          </AppText>
+
+          {/* LOCATION */}
+
+          <View
+            style={
+              styles.locationBox
+            }
+          >
+            <AppIcon
+              name="location"
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
             />
 
-            <Text style={styles.errorMessage}>
-              {error}
-            </Text>
+            <AppText
+              variant="body"
+              weight="semibold"
+              style={
+                styles.locationText
+              }
+            >
+              We'll use your location to find workers near you.
+            </AppText>
           </View>
-        ) : null}
 
-        {/* Claim */}
+          {/* WORKERS INFO */}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Find nearby workers"
-          disabled={loading}
-          onPress={handleClaim}
-          style={({ pressed }) => [
-            styles.claimButton,
-            pressed &&
-              !loading &&
-              styles.claimButtonPressed,
-            loading &&
-              styles.claimButtonDisabled,
-          ]}
-        >
-          {loading ? (
-            <>
-              <ActivityIndicator
-                size="small"
-                color="#FFFFFF"
-              />
+          <View
+            style={
+              styles.infoBox
+            }
+          >
+            <AppIcon
+              name="users"
+              size="sm"
+              color={
+                Colors.textSecondary
+              }
+            />
 
-              <Text style={styles.claimText}>
-                GETTING LOCATION...
-              </Text>
-            </>
-          ) : (
-            <>
-              <Ionicons
-                name="location-outline"
-                size={21}
-                color="#FFFFFF"
-              />
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.infoText
+              }
+            >
+              We'll show you the 5 closest workers so you can choose the one that's right for you.
+            </AppText>
+          </View>
 
-              <Text style={styles.claimText}>
-                FIND NEARBY WORKERS
-              </Text>
-            </>
-          )}
-        </Pressable>
+          {/* CLAIM */}
+
+          <Pressable
+            onPress={
+              handleClaim
+            }
+            disabled={
+              loading
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Find nearby workers"
+            accessibilityState={{
+              busy:
+                loading,
+
+              disabled:
+                loading,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.claimButton,
+
+              pressed &&
+              !loading
+                ? styles.pressed
+                : null,
+
+              loading
+                ? styles.claimButtonDisabled
+                : null,
+            ]}
+          >
+            {loading ? (
+              <>
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  style={
+                    styles.claimText
+                  }
+                >
+                  GETTING LOCATION...
+                </AppText>
+              </>
+            ) : (
+              <>
+                <AppIcon
+                  name="location"
+                  role="customer"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  style={
+                    styles.claimText
+                  }
+                >
+                  FIND NEARBY WORKERS
+                </AppText>
+              </>
+            )}
+          </Pressable>
+        </AppCard>
       </View>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  /*
-   * --------------------------------
-   * MAIN
-   * --------------------------------
-   */
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 20,
-    paddingTop: 54,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  /*
-   * --------------------------------
-   * HEADER
-   * --------------------------------
-   */
-
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 28,
-  },
-
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+    screen: {
+      backgroundColor:
+        Colors.background,
     },
 
-    elevation: 3,
-  },
+    pageContainer: {
+      flex: 1,
 
-  headerText: {
-    flex: 1,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  title: {
-    fontSize: 27,
-    lineHeight: 34,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  subtitle: {
-    marginTop: 6,
-    fontSize: 16,
-    lineHeight: 23,
-    color: "#64748B",
-  },
-
-  /*
-   * --------------------------------
-   * OFFER CARD
-   * --------------------------------
-   */
-
-  offerCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 5,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    elevation: 4,
-  },
+    /* ========================================================
+       BACK BUTTON
+    ======================================================== */
 
-  iconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  offerTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  offerDescription: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 24,
-    color: "#64748B",
-  },
+      flexShrink: 0,
 
-  /*
-   * --------------------------------
-   * LOCATION
-   * --------------------------------
-   */
+      alignItems: "center",
 
-  locationBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 20,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-  },
+      justifyContent:
+        "center",
 
-  locationText: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "600",
-    color: "#2563EB",
-  },
+      borderWidth: 1,
 
-  /*
-   * --------------------------------
-   * INFO
-   * --------------------------------
-   */
+      borderColor:
+        Colors.border,
 
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  infoText: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#64748B",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  /*
-   * --------------------------------
-   * ERROR
-   * --------------------------------
-   */
-
-  errorBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#FEF2F2",
-  },
-
-  errorMessage: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#B91C1C",
-  },
-
-  /*
-   * --------------------------------
-   * CLAIM BUTTON
-   * --------------------------------
-   */
-
-  claimButton: {
-    minHeight: 54,
-    borderRadius: 16,
-    marginTop: 22,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-  },
-
-  claimButtonPressed: {
-    opacity: 0.82,
-  },
-
-  claimButtonDisabled: {
-    opacity: 0.65,
-  },
-
-  claimText: {
-    marginLeft: 9,
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.4,
-  },
-
-  /*
-   * --------------------------------
-   * LIMITED OFFERS
-   * --------------------------------
-   */
-
-  emptyContainer: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
-
-  emptyTopBackButton: {
-    position: "absolute",
-    top: 54,
-    left: 20,
-    zIndex: 10,
-
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-
-    backgroundColor: "#FFFFFF",
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 3,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  emptyContent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-  },
+    header: {
+      flexDirection: "row",
 
-  emptyIconBox: {
-    width: 96,
-    height: 96,
-    borderRadius: 30,
-    backgroundColor: "#F5F3FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      alignItems:
+        "flex-start",
 
-  emptyTitle: {
-    marginTop: 20,
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: "800",
-    color: "#0F172A",
-    textAlign: "center",
-  },
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
 
-  emptyText: {
-    marginTop: 9,
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#64748B",
-    textAlign: "center",
-    maxWidth: 330,
-  },
+    headerText: {
+      flex: 1,
 
-  emptyBackButton: {
-    minHeight: 50,
-    marginTop: 24,
-    paddingHorizontal: 26,
-    borderRadius: 15,
-    backgroundColor: "#2563EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      minWidth: 0,
 
-  emptyBackButtonPressed: {
-    opacity: 0.8,
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  emptyBackButtonText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    letterSpacing: 0.3,
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  /*
-   * --------------------------------
-   * INVALID ROUTE
-   * --------------------------------
-   */
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#F8FAFC",
-  },
+      lineHeight: 23,
 
-  errorTitle: {
-    marginTop: 12,
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  errorText: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-    textAlign: "center",
-  },
+    /* ========================================================
+       OFFER CARD
+    ======================================================== */
 
-  backButtonLarge: {
-    marginTop: 20,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#2563EB",
-  },
+    offerCard: {
+      padding:
+        FixxamTokens.spacing.xl,
 
-  backButtonText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    iconContainer: {
+      width: 72,
+
+      height: 72,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    offerTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    offerDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 24,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       LOCATION
+    ======================================================== */
+
+    locationBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    locationText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoBox: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    infoText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CLAIM
+    ======================================================== */
+
+    claimButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    claimButtonDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    claimText: {
+      color:
+        Colors.textInverse,
+
+      letterSpacing: 0.3,
+    },
+
+    /* ========================================================
+       LIMITED OFFERS
+    ======================================================== */
+
+    emptyContent: {
+      flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+    },
+
+    emptyIconBox: {
+      width: 96,
+
+      height: 96,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    emptyText: {
+      maxWidth: 330,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 23,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    emptyButton: {
+      minWidth: 150,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
+
+    /* ========================================================
+       INVALID SECTION
+    ======================================================== */
+
+    stateContainer: {
+      flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+    },
+
+    stateIconBox: {
+      width: 88,
+
+      height: 88,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    stateTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    stateText: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    stateButton: {
+      minWidth: 150,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

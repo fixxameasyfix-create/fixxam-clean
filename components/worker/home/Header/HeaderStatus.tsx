@@ -1,74 +1,194 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   available?: boolean;
+
   rating?: number;
+
   location?: string;
 };
 
 type StatusChipProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
+  icon: AppIconName;
+
+  iconColor: string;
+
+  iconBackground: string;
+
   label: string;
 };
 
-function StatusChip({
-  icon,
-  color,
-  label,
-}: StatusChipProps) {
-  return (
-    <View style={styles.chip}>
-      <Ionicons
-        name={icon}
-        size={14}
-        color={color}
-      />
+/* ============================================================
+   STATUS CHIP
+============================================================ */
 
-      <AppText
-        weight="bold"
-        style={styles.label}
-        numberOfLines={1}
-      >
-        {label}
-      </AppText>
-    </View>
+const StatusChip =
+  memo(
+    function StatusChip({
+      icon,
+      iconColor,
+      iconBackground,
+      label,
+    }: StatusChipProps) {
+      return (
+        <View
+          style={
+            styles.chip
+          }
+        >
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                backgroundColor:
+                  iconBackground,
+              },
+            ]}
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              size="xs"
+              color={
+                iconColor
+              }
+            />
+          </View>
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={
+              styles.label
+            }
+          >
+            {label}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
 
-export default function HeaderStatus({
+StatusChip.displayName =
+  "HeaderStatusChip";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function HeaderStatus({
   available = true,
   rating = 0,
-  location = "Kano",
+  location = "",
 }: Props) {
+  /* ==========================================================
+     RATING
+  ========================================================== */
+
   const safeRating =
-    Number.isFinite(Number(rating))
-      ? Math.min(
-          5,
-          Math.max(0, Number(rating)),
+    useMemo(() => {
+      if (
+        typeof rating !==
+          "number" ||
+        !Number.isFinite(
+          rating,
         )
-      : 0;
+      ) {
+        return 0;
+      }
+
+      return Math.min(
+        5,
+        Math.max(
+          0,
+          rating,
+        ),
+      );
+    }, [
+      rating,
+    ]);
+
+  /* ==========================================================
+     LOCATION
+  ========================================================== */
 
   const safeLocation =
-    typeof location === "string" &&
-    location.trim()
-      ? location.trim()
-      : "Kano";
+    useMemo(() => {
+      if (
+        typeof location !==
+        "string"
+      ) {
+        return "Location unavailable";
+      }
+
+      return (
+        location.trim() ||
+        "Location unavailable"
+      );
+    }, [
+      location,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          AVAILABILITY
+      ====================================================== */}
+
       <StatusChip
-        icon="ellipse"
-        color="#22C55E"
+        icon={
+          available
+            ? "success"
+            : "wifi-off"
+        }
+        iconColor={
+          available
+            ? Colors.success
+            : Colors.textMuted
+        }
+        iconBackground={
+          available
+            ? Colors.successSoft
+            : Colors.disabledBackground
+        }
         label={
           available
             ? "Available"
@@ -76,67 +196,138 @@ export default function HeaderStatus({
         }
       />
 
+      {/* ======================================================
+          RATING
+      ====================================================== */}
+
       <StatusChip
         icon="star"
-        color="#F59E0B"
-        label={safeRating.toFixed(1)}
+        iconColor={
+          Colors.warning
+        }
+        iconBackground={
+          Colors.warningSoft
+        }
+        label={
+          safeRating.toFixed(
+            1,
+          )
+        }
       />
+
+      {/* ======================================================
+          LOCATION
+      ====================================================== */}
 
       <StatusChip
         icon="location"
-        color="#3B82F6"
-        label={safeLocation}
+        iconColor={
+          WorkerColors.primary
+        }
+        iconBackground={
+          WorkerColors.primarySoft
+        }
+        label={
+          safeLocation
+        }
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
+/* ============================================================
+   MEMO
+============================================================ */
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+HeaderStatus.displayName =
+  "HeaderStatus";
 
-    gap: 7,
+export default memo(
+  HeaderStatus,
+);
 
-    marginTop: 8,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  chip: {
-    height: 36,
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 11,
+      alignItems:
+        "center",
 
-    borderRadius: 18,
+      justifyContent:
+        "center",
 
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: {
-      width: 0,
-      height: 1,
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       CHIP
+    ======================================================== */
 
-  label: {
-    marginLeft: 4,
+    chip: {
+      minWidth: 0,
 
-    fontSize: 11,
-    lineHeight: 14,
+      minHeight: 36,
 
-    color: "#0F172A",
-  },
-});
+      paddingLeft:
+        FixxamTokens.spacing.xs,
+
+      paddingRight:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    iconContainer: {
+      width: 24,
+
+      height: 24,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    label: {
+      flexShrink: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+  });

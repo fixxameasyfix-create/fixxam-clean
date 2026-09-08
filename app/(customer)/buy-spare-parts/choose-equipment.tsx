@@ -1,49 +1,87 @@
 import React, {
+  memo,
   useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
+  FlatList,
+  Platform,
   Pressable,
-  SafeAreaView,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
-import { CustomerColors } from "@/theme/customerColors";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 type Equipment = {
   id: string;
+
   label: string;
+
   description: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+
+  icon: MaterialIconName;
+
+  /*
+   * Equipment-specific illustration colors
+   * are intentionally preserved.
+   *
+   * Interactive controls still use the
+   * Customer role color.
+   */
   iconColor: string;
+
   iconBackground: string;
 };
 
-/*
- * ============================================================
- * EQUIPMENT CATALOG
- * ============================================================
- */
+type EquipmentCardProps = {
+  item: Equipment;
+
+  onPress: (
+    equipment: Equipment,
+  ) => void;
+};
+
+/* ==============================================================
+   EQUIPMENT CATALOG
+============================================================== */
 
 const EQUIPMENT: Equipment[] = [
-  // HOME & COOLING
+  /* ============================================================
+     HOME & COOLING
+  ============================================================ */
+
   {
     id: "ac",
     label: "Air Conditioner",
@@ -101,7 +139,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#E6F8FC",
   },
 
-  // KITCHEN
+  /* ============================================================
+     KITCHEN
+  ============================================================ */
+
   {
     id: "microwave",
     label: "Microwave",
@@ -191,7 +232,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#E5F5FF",
   },
 
-  // LAUNDRY
+  /* ============================================================
+     LAUNDRY
+  ============================================================ */
+
   {
     id: "washing-machine",
     label: "Washing Machine",
@@ -217,7 +261,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#FCEBF5",
   },
 
-  // POWER
+  /* ============================================================
+     POWER
+  ============================================================ */
+
   {
     id: "generator",
     label: "Generator",
@@ -283,7 +330,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#F1E9FF",
   },
 
-  // ELECTRICAL
+  /* ============================================================
+     ELECTRICAL
+  ============================================================ */
+
   {
     id: "electrical",
     label: "Electrical",
@@ -357,7 +407,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#EAF1FF",
   },
 
-  // WATER & PLUMBING
+  /* ============================================================
+     WATER & PLUMBING
+  ============================================================ */
+
   {
     id: "water-pump",
     label: "Water Pump",
@@ -431,7 +484,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#EEF2F6",
   },
 
-  // WORKSHOP
+  /* ============================================================
+     WORKSHOP
+  ============================================================ */
+
   {
     id: "drilling-machine",
     label: "Drilling Machine",
@@ -481,7 +537,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#F1E9FF",
   },
 
-  // AUTOMOTIVE
+  /* ============================================================
+     AUTOMOTIVE
+  ============================================================ */
+
   {
     id: "car",
     label: "Car",
@@ -539,7 +598,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#E4F7FB",
   },
 
-  // ELECTRONICS
+  /* ============================================================
+     ELECTRONICS
+  ============================================================ */
+
   {
     id: "tv",
     label: "Television",
@@ -605,7 +667,10 @@ const EQUIPMENT: Equipment[] = [
     iconBackground: "#E7F9F2",
   },
 
-  // OTHER
+  /* ============================================================
+     OTHER
+  ============================================================ */
+
   {
     id: "automatic-gate",
     label: "Automatic Gate",
@@ -640,193 +705,334 @@ const EQUIPMENT: Equipment[] = [
   },
 ];
 
-/*
- * ============================================================
- * SCREEN
- * ============================================================
- */
+/* ==============================================================
+   CONSTANTS
+============================================================== */
 
-export default function ChooseEquipmentScreen() {
-  const [search, setSearch] = useState("");
+const POPULAR_COUNT = 12;
 
-  /*
-   * ----------------------------------------------------------
-   * POPULAR EQUIPMENT
-   * ----------------------------------------------------------
-   */
-
-  const popularEquipment = useMemo(
-    () => EQUIPMENT.slice(0, 12),
-    [],
+const POPULAR_EQUIPMENT =
+  EQUIPMENT.slice(
+    0,
+    POPULAR_COUNT,
   );
 
-  /*
-   * ----------------------------------------------------------
-   * SEARCH
-   * ----------------------------------------------------------
-   */
+const OTHER_EQUIPMENT =
+  EQUIPMENT.slice(
+    POPULAR_COUNT,
+  );
 
-  const filteredEquipment = useMemo(() => {
-    const value = search.trim().toLowerCase();
+/* ==============================================================
+   EQUIPMENT CARD
+============================================================== */
 
-    if (!value) {
-      return EQUIPMENT;
-    }
-
-    return EQUIPMENT.filter((item) => {
-      return (
-        item.label.toLowerCase().includes(value) ||
-        item.description.toLowerCase().includes(value)
-      );
-    });
-  }, [search]);
-
-  /*
-   * ----------------------------------------------------------
-   * SELECT EQUIPMENT
-   * ----------------------------------------------------------
-   */
-
-  const handleSelectEquipment = useCallback(
-    (equipment: Equipment) => {
-      if (equipment.id === "other") {
-        router.push(
-          "/(customer)/buy-spare-parts/describe-part",
+const EquipmentCard =
+  memo(function EquipmentCard({
+    item,
+    onPress,
+  }: EquipmentCardProps) {
+    const handlePress =
+      useCallback(() => {
+        onPress(
+          item,
         );
+      }, [
+        item,
+        onPress,
+      ]);
 
-        return;
-      }
-
-      router.push({
-        pathname:
-          "/(customer)/buy-spare-parts/select-brand",
-        params: {
-          equipment: equipment.id,
-          equipmentLabel: equipment.label,
-        },
-      });
-    },
-    [],
-  );
-
-  /*
-   * ----------------------------------------------------------
-   * UNKNOWN EQUIPMENT
-   * ----------------------------------------------------------
-   */
-
-  const handleUnknownEquipment = useCallback(() => {
-    router.push(
-      "/(customer)/buy-spare-parts/describe-part",
-    );
-  }, []);
-
-  /*
-   * ----------------------------------------------------------
-   * EQUIPMENT CARD
-   * ----------------------------------------------------------
-   */
-
-  const renderEquipmentCard = useCallback(
-    (item: Equipment) => (
+    return (
       <Pressable
-        key={item.id}
-        onPress={() => handleSelectEquipment(item)}
         accessibilityRole="button"
         accessibilityLabel={`Choose ${item.label}`}
-        style={({ pressed }) => [
+        onPress={
+          handlePress
+        }
+        style={({
+          pressed,
+        }) => [
           styles.equipmentCard,
-          pressed && styles.cardPressed,
+
+          pressed
+            ? styles.cardPressed
+            : null,
         ]}
       >
+        {/* ====================================================
+            EQUIPMENT ICON
+        ==================================================== */}
+
         <View
           style={[
             styles.equipmentIcon,
+
             {
-              backgroundColor: item.iconBackground,
+              backgroundColor:
+                item.iconBackground,
             },
           ]}
         >
+          {/* MaterialCommunityIcons intentionally preserved */}
           <MaterialCommunityIcons
-            name={item.icon}
-            size={28}
-            color={item.iconColor}
+            name={
+              item.icon
+            }
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            color={
+              item.iconColor
+            }
           />
         </View>
 
-        <View style={styles.equipmentContent}>
+        {/* ====================================================
+            CONTENT
+        ==================================================== */}
+
+        <View
+          style={
+            styles.equipmentContent
+          }
+        >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.equipmentTitle}
             numberOfLines={1}
           >
             {item.label}
           </AppText>
 
           <AppText
-            style={styles.equipmentDescription}
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
+            style={
+              styles.equipmentDescription
+            }
           >
             {item.description}
           </AppText>
         </View>
 
-        <Ionicons
-          name="chevron-forward"
-          size={21}
-          color={CustomerColors.textSecondary}
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="muted"
         />
       </Pressable>
-    ),
-    [handleSelectEquipment],
-  );
+    );
+  });
 
-  /*
-   * ==========================================================
-   * RENDER
-   * ==========================================================
-   */
+/* ==============================================================
+   SCREEN
+============================================================== */
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.content}
-        >
+export default function ChooseEquipmentScreen() {
+  const [
+    search,
+    setSearch,
+  ] =
+    useState("");
+
+  /* ============================================================
+     SEARCH
+  ============================================================ */
+
+  const cleanSearch =
+    search.trim();
+
+  const hasSearch =
+    cleanSearch.length >
+    0;
+
+  const filteredEquipment =
+    useMemo(() => {
+      if (!hasSearch) {
+        return [];
+      }
+
+      const query =
+        cleanSearch.toLocaleLowerCase();
+
+      return EQUIPMENT.filter(
+        (item) =>
+          item.label
+            .toLocaleLowerCase()
+            .includes(
+              query,
+            ) ||
+          item.description
+            .toLocaleLowerCase()
+            .includes(
+              query,
+            ),
+      );
+    }, [
+      cleanSearch,
+      hasSearch,
+    ]);
+
+  /* ============================================================
+     LIST DATA
+  ============================================================ */
+
+  const listData =
+    useMemo(
+      () =>
+        hasSearch
+          ? filteredEquipment
+          : OTHER_EQUIPMENT,
+      [
+        filteredEquipment,
+        hasSearch,
+      ],
+    );
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/buy-spare-parts/spare-products",
+      );
+    }, []);
+
+  /* ============================================================
+     SELECT EQUIPMENT
+  ============================================================ */
+
+  const handleSelectEquipment =
+    useCallback(
+      (
+        equipment:
+          Equipment,
+      ) => {
+        if (
+          equipment.id ===
+          "other"
+        ) {
+          router.push(
+            "/(customer)/buy-spare-parts/describe-part",
+          );
+
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/buy-spare-parts/select-brand",
+
+          params: {
+            equipment:
+              equipment.id,
+
+            equipmentLabel:
+              equipment.label,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     UNKNOWN
+  ============================================================ */
+
+  const handleUnknownEquipment =
+    useCallback(() => {
+      router.push(
+        "/(customer)/buy-spare-parts/describe-part",
+      );
+    }, []);
+
+  /* ============================================================
+     CLEAR SEARCH
+  ============================================================ */
+
+  const handleClearSearch =
+    useCallback(() => {
+      setSearch(
+        "",
+      );
+    }, []);
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
+
+  const listHeader =
+    useMemo(
+      () => (
+        <>
           {/* ==================================================
               HEADER
           ================================================== */}
 
-          <View style={styles.header}>
+          <View
+            style={
+              styles.header
+            }
+          >
             <Pressable
-              onPress={() => router.back()}
-              hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              style={({ pressed }) => [
+              hitSlop={8}
+              onPress={
+                handleBack
+              }
+              style={({
+                pressed,
+              }) => [
                 styles.backButton,
-                pressed && styles.backButtonPressed,
+
+                pressed
+                  ? styles.backButtonPressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="arrow-back"
-                size={22}
-                color={CustomerColors.textPrimary}
+              <AppIcon
+                name="back"
+                role="customer"
+                size="sm"
+                state="default"
               />
             </Pressable>
 
-            <View style={styles.headerContent}>
+            <View
+              style={
+                styles.headerContent
+              }
+            >
               <AppText
+                variant="heading1"
                 weight="bold"
-                style={styles.headerTitle}
+                numberOfLines={1}
               >
                 Choose Your Equipment
               </AppText>
 
-              <AppText style={styles.headerSubtitle}>
-                What do you need a spare part for?
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.headerSubtitle
+                }
+              >
+                What do you need a
+                spare part for?
               </AppText>
             </View>
           </View>
@@ -835,38 +1041,64 @@ export default function ChooseEquipmentScreen() {
               SEARCH
           ================================================== */}
 
-          <View style={styles.searchBox}>
-            <Ionicons
-              name="search-outline"
-              size={21}
-              color={CustomerColors.textSecondary}
+          <View
+            style={
+              styles.searchBox
+            }
+          >
+            <AppIcon
+              name="search"
+              role="customer"
+              size="sm"
+              state="muted"
             />
 
             <TextInput
-              value={search}
-              onChangeText={setSearch}
+              value={
+                search
+              }
+              onChangeText={
+                setSearch
+              }
               placeholder="Search equipment..."
               placeholderTextColor={
-                CustomerColors.textSecondary
+                Colors.textMuted
               }
-              style={styles.searchInput}
+              selectionColor={
+                CustomerColors.primary
+              }
+              style={
+                styles.searchInput
+              }
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
               accessibilityLabel="Search equipment"
             />
 
-            {search.length > 0 ? (
+            {hasSearch ? (
               <Pressable
-                onPress={() => setSearch("")}
-                hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
+                hitSlop={8}
+                onPress={
+                  handleClearSearch
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.searchAction,
+
+                  pressed
+                    ? styles.searchActionPressed
+                    : null,
+                ]}
               >
-                <Ionicons
-                  name="close-circle"
-                  size={19}
-                  color={CustomerColors.textSecondary}
+                <AppIcon
+                  name="close"
+                  role="customer"
+                  size="xs"
+                  state="muted"
                 />
               </Pressable>
             ) : null}
@@ -876,524 +1108,992 @@ export default function ChooseEquipmentScreen() {
               HELP
           ================================================== */}
 
-          <View style={styles.helpCard}>
-            <View style={styles.helpIcon}>
+          <AppCard
+            role="customer"
+            variant="accent"
+            style={
+              styles.helpCard
+            }
+          >
+            <View
+              style={
+                styles.helpIcon
+              }
+            >
+              {/* MaterialCommunityIcons intentionally preserved */}
               <MaterialCommunityIcons
                 name="lightbulb-on-outline"
-                size={27}
-                color="#1459C7"
+                size={
+                  FixxamTokens.size
+                    .iconLg
+                }
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
-            <View style={styles.helpContent}>
+            <View
+              style={
+                styles.helpContent
+              }
+            >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
-                style={styles.helpTitle}
               >
                 Not sure what to choose?
               </AppText>
 
-              <AppText style={styles.helpText}>
-                Choose the equipment you want to repair.
-                We'll help you find the right part.
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.helpText
+                }
+              >
+                Choose the equipment
+                you want to repair.
+                We'll help you find
+                the right part.
               </AppText>
             </View>
-          </View>
+          </AppCard>
 
           {/* ==================================================
-              POPULAR EQUIPMENT
+              POPULAR
           ================================================== */}
 
-          {!search.trim() ? (
+          {!hasSearch ? (
             <>
-              <View style={styles.sectionHeader}>
-                <View>
+              <View
+                style={
+                  styles.sectionHeader
+                }
+              >
+                <View
+                  style={
+                    styles.sectionContent
+                  }
+                >
                   <AppText
+                    variant="heading3"
                     weight="bold"
-                    style={styles.sectionTitle}
                   >
                     Popular equipment
                   </AppText>
 
-                  <AppText style={styles.sectionSubtitle}>
-                    Commonly searched on Fixxam
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={
+                      styles.sectionSubtitle
+                    }
+                  >
+                    Commonly searched
+                    on Fixxam
                   </AppText>
                 </View>
 
-                <View style={styles.countBadge}>
+                <View
+                  style={
+                    styles.countBadge
+                  }
+                >
                   <AppText
+                    variant="caption"
                     weight="bold"
-                    style={styles.countText}
+                    style={
+                      styles.countText
+                    }
                   >
-                    {EQUIPMENT.length}
+                    {
+                      EQUIPMENT.length
+                    }
                   </AppText>
                 </View>
               </View>
 
-              <View style={styles.list}>
-                {popularEquipment.map(
-                  renderEquipmentCard,
+              <View
+                style={
+                  styles.popularList
+                }
+              >
+                {POPULAR_EQUIPMENT.map(
+                  (
+                    item,
+                  ) => (
+                    <EquipmentCard
+                      key={
+                        item.id
+                      }
+                      item={
+                        item
+                      }
+                      onPress={
+                        handleSelectEquipment
+                      }
+                    />
+                  ),
                 )}
               </View>
 
-              <View style={styles.allEquipmentHeader}>
+              <View
+                style={
+                  styles.allEquipmentHeader
+                }
+              >
                 <AppText
+                  variant="heading3"
                   weight="bold"
-                  style={styles.sectionTitle}
                 >
                   All equipment
                 </AppText>
 
-                <AppText style={styles.sectionSubtitle}>
-                  Find more equipment below
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.sectionSubtitle
+                  }
+                >
+                  Find more equipment
+                  below
                 </AppText>
               </View>
             </>
           ) : (
-            <View style={styles.searchResultsHeader}>
+            <View
+              style={
+                styles.searchResultsHeader
+              }
+            >
               <AppText
+                variant="heading3"
                 weight="bold"
-                style={styles.sectionTitle}
               >
                 Search results
               </AppText>
 
-              <AppText style={styles.sectionSubtitle}>
-                {filteredEquipment.length} equipment found
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.sectionSubtitle
+                }
+              >
+                {
+                  filteredEquipment.length
+                }{" "}
+                equipment found
               </AppText>
             </View>
           )}
+        </>
+      ),
+      [
+        filteredEquipment.length,
+        handleBack,
+        handleClearSearch,
+        handleSelectEquipment,
+        hasSearch,
+        search,
+      ],
+    );
 
-          {/* ==================================================
-              ALL / SEARCH RESULTS
-          ================================================== */}
+  /* ============================================================
+     EMPTY
+  ============================================================ */
 
-          <View style={styles.list}>
-            {(search.trim()
-              ? filteredEquipment
-              : EQUIPMENT.slice(12)
-            ).map(renderEquipmentCard)}
-          </View>
+  const emptyComponent =
+    useMemo(
+      () => {
+        if (
+          !hasSearch
+        ) {
+          return null;
+        }
 
-          {/* ==================================================
-              EMPTY SEARCH
-          ================================================== */}
-
-          {filteredEquipment.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons
-                  name="search-outline"
-                  size={27}
-                  color={CustomerColors.textSecondary}
-                />
-              </View>
-
-              <AppText
-                weight="bold"
-                style={styles.emptyTitle}
-              >
-                Equipment not found
-              </AppText>
-
-              <AppText
-                center
-                style={styles.emptyText}
-              >
-                You don't need to know the exact name.
-                Try describing the part instead.
-              </AppText>
-
-              <Pressable
-                onPress={handleUnknownEquipment}
-                style={styles.describeButton}
-                accessibilityRole="button"
-                accessibilityLabel="Describe your spare part"
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={18}
-                  color={CustomerColors.background}
-                />
-
-                <AppText
-                  weight="bold"
-                  style={styles.describeButtonText}
-                >
-                  Describe Your Part
-                </AppText>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* ==================================================
-              UNKNOWN EQUIPMENT
-          ================================================== */}
-
-          <Pressable
-            onPress={handleUnknownEquipment}
-            style={({ pressed }) => [
-              styles.bottomHelp,
-              pressed && styles.bottomHelpPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="I don't know my equipment"
+        return (
+          <View
+            style={
+              styles.emptyState
+            }
           >
-            <View style={styles.bottomHelpIcon}>
-              <Ionicons
-                name="help-outline"
-                size={20}
-                color="#E87920"
+            <View
+              style={
+                styles.emptyIcon
+              }
+            >
+              <AppIcon
+                name="search"
+                role="customer"
+                size="lg"
+                state="muted"
               />
             </View>
 
-            <View style={styles.bottomHelpContent}>
-              <AppText
-                weight="bold"
-                style={styles.bottomHelpTitle}
-              >
-                I don't know my equipment
-              </AppText>
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.emptyTitle
+              }
+            >
+              Equipment not found
+            </AppText>
 
-              <AppText style={styles.bottomHelpText}>
-                That's okay. Describe the part or take
-                a photo instead.
-              </AppText>
-            </View>
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.emptyText
+              }
+            >
+              You don't need to
+              know the exact name.
+              Try describing the
+              part instead.
+            </AppText>
 
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={CustomerColors.textSecondary}
+            <AppButton
+              title="Describe Your Part"
+              role="customer"
+              leftIconName="file"
+              onPress={
+                handleUnknownEquipment
+              }
+              style={
+                styles.describeButton
+              }
             />
-          </Pressable>
-        </ScrollView>
-      </View>
-    </SafeAreaView>
+          </View>
+        );
+      },
+      [
+        handleUnknownEquipment,
+        hasSearch,
+      ],
+    );
+
+  /* ============================================================
+     FOOTER
+  ============================================================ */
+
+  const listFooter =
+    useMemo(
+      () => (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="I don't know my equipment"
+          onPress={
+            handleUnknownEquipment
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.bottomHelp,
+
+            pressed
+              ? styles.bottomHelpPressed
+              : null,
+          ]}
+        >
+          <View
+            style={
+              styles.bottomHelpIcon
+            }
+          >
+            <AppIcon
+              name="help"
+              role="customer"
+              size="sm"
+              state="active"
+            />
+          </View>
+
+          <View
+            style={
+              styles.bottomHelpContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+            >
+              I don't know my equipment
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.bottomHelpText
+              }
+            >
+              That's okay. Describe
+              the part or take a
+              photo instead.
+            </AppText>
+          </View>
+
+          <AppIcon
+            name="next"
+            role="customer"
+            size="sm"
+            state="muted"
+          />
+        </Pressable>
+      ),
+      [
+        handleUnknownEquipment,
+      ],
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
+  return (
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
+      <FlatList
+        data={
+          listData
+        }
+        keyExtractor={(
+          item,
+        ) =>
+          item.id
+        }
+        renderItem={({
+          item,
+        }) => (
+          <EquipmentCard
+            item={
+              item
+            }
+            onPress={
+              handleSelectEquipment
+            }
+          />
+        )}
+        ItemSeparatorComponent={
+          EquipmentSeparator
+        }
+        ListHeaderComponent={
+          listHeader
+        }
+        ListEmptyComponent={
+          emptyComponent
+        }
+        ListFooterComponent={
+          listFooter
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews={
+          Platform.OS ===
+          "android"
+        }
+        contentContainerStyle={
+          styles.content
+        }
+        style={
+          styles.screen
+        }
+      />
+    </AppScreen>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   SEPARATOR
+============================================================== */
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F6F8FC",
-  },
+function EquipmentSeparator() {
+  return (
+    <View
+      style={
+        styles.separator
+      }
+    />
+  );
+}
 
-  container: {
-    flex: 1,
-    backgroundColor: "#F6F8FC",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 34,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  header: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    screen: {
+      flex: 1,
 
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: CustomerColors.background,
-    borderWidth: 1,
-    borderColor: CustomerColors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      backgroundColor:
+        Colors.background,
     },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
 
-  backButtonPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.97 }],
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  headerContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  headerTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    color: CustomerColors.textPrimary,
-  },
-
-  headerSubtitle: {
-    marginTop: 2,
-    fontSize: 12.5,
-    lineHeight: 18,
-    color: CustomerColors.textSecondary,
-  },
-
-  searchBox: {
-    height: 52,
-    marginTop: 7,
-    paddingHorizontal: 14,
-    borderRadius: 17,
-    backgroundColor: CustomerColors.background,
-    borderWidth: 1,
-    borderColor: CustomerColors.border,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  searchInput: {
-    flex: 1,
-    height: "100%",
-    marginLeft: 9,
-    paddingVertical: 0,
-    fontSize: 14,
-    color: CustomerColors.textPrimary,
-  },
-
-  helpCard: {
-    minHeight: 96,
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 21,
-    backgroundColor: "#EEF5FF",
-    borderWidth: 1,
-    borderColor: "#D8E7FA",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  helpIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  helpContent: {
-    flex: 1,
-    marginLeft: 13,
-  },
-
-  helpTitle: {
-    fontSize: 14.5,
-    lineHeight: 19,
-    color: CustomerColors.textPrimary,
-  },
-
-  helpText: {
-    marginTop: 3,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: CustomerColors.textSecondary,
-  },
-
-  sectionHeader: {
-    marginTop: 22,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  allEquipmentHeader: {
-    marginTop: 24,
-    marginBottom: 10,
-  },
-
-  searchResultsHeader: {
-    marginTop: 22,
-    marginBottom: 10,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    lineHeight: 23,
-    color: CustomerColors.textPrimary,
-  },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontSize: 11.5,
-    color: CustomerColors.textSecondary,
-  },
-
-  countBadge: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 8,
-    borderRadius: 17,
-    backgroundColor: "#EAF2FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  countText: {
-    fontSize: 12,
-    color: "#1459C7",
-  },
-
-  list: {
-    gap: 10,
-  },
-
-  equipmentCard: {
-    minHeight: 82,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderRadius: 20,
-    backgroundColor: CustomerColors.background,
-    borderWidth: 1,
-    borderColor: CustomerColors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#0F172A",
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
-    shadowOpacity: 0.045,
-    shadowRadius: 8,
-    elevation: 1,
-  },
 
-  cardPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.985 }],
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  equipmentIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(15, 23, 42, 0.04)",
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-  equipmentContent: {
-    flex: 1,
-    marginLeft: 13,
-    paddingRight: 8,
-  },
+      flexDirection:
+        "row",
 
-  equipmentTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    color: CustomerColors.textPrimary,
-  },
+      alignItems:
+        "center",
 
-  equipmentDescription: {
-    marginTop: 3,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: CustomerColors.textSecondary,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
 
-  emptyState: {
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    alignItems: "center",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  emptyIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: "#EEF2F7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  emptyTitle: {
-    marginTop: 10,
-    fontSize: 15,
-    color: CustomerColors.textPrimary,
-  },
+      flexShrink: 0,
 
-  emptyText: {
-    maxWidth: 290,
-    marginTop: 4,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color: CustomerColors.textSecondary,
-  },
+      alignItems:
+        "center",
 
-  describeButton: {
-    minHeight: 44,
-    marginTop: 14,
-    paddingHorizontal: 15,
-    borderRadius: 14,
-    backgroundColor: CustomerColors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+      justifyContent:
+        "center",
 
-  describeButtonText: {
-    fontSize: 11.5,
-    color: CustomerColors.background,
-  },
+      borderWidth: 1,
 
-  bottomHelp: {
-    minHeight: 75,
-    marginTop: 15,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 19,
-    backgroundColor: "#FFF8EF",
-    borderWidth: 1,
-    borderColor: "#F7E5CC",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      borderColor:
+        Colors.border,
 
-  bottomHelpPressed: {
-    opacity: 0.8,
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  bottomHelpIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  bottomHelpContent: {
-    flex: 1,
-    marginLeft: 11,
-    paddingRight: 6,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  bottomHelpTitle: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: CustomerColors.textPrimary,
-  },
+    backButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  bottomHelpText: {
-    marginTop: 2,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: CustomerColors.textSecondary,
-  },
-});
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    headerContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       SEARCH
+    ======================================================== */
+
+    searchBox: {
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    searchInput: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      paddingHorizontal: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    searchAction: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+    },
+
+    searchActionPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    /* ========================================================
+       HELP
+    ======================================================== */
+
+    helpCard: {
+      minHeight: 96,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    helpIcon: {
+      width:
+        FixxamTokens.size.fab,
+
+      height:
+        FixxamTokens.size.fab,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    helpContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    helpText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       SECTION
+    ======================================================== */
+
+    sectionHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    sectionContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    sectionSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    allEquipmentHeader: {
+      marginTop:
+        FixxamTokens.spacing.xxl,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    searchResultsHeader: {
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    countBadge: {
+      minWidth: 34,
+
+      height: 34,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    countText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       POPULAR
+    ======================================================== */
+
+    popularList: {
+      width: "100%",
+    },
+
+    /* ========================================================
+       EQUIPMENT
+    ======================================================== */
+
+    equipmentCard: {
+      width: "100%",
+
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    cardPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    equipmentIcon: {
+      width:
+        FixxamTokens.size.fab,
+
+      height:
+        FixxamTokens.size.fab,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    equipmentContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    equipmentDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    separator: {
+      height:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    emptyState: {
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.fabLarge,
+
+      height:
+        FixxamTokens.size.fabLarge,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    emptyText: {
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    describeButton: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    /* ========================================================
+       BOTTOM HELP
+    ======================================================== */
+
+    bottomHelp: {
+      width: "100%",
+
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    bottomHelpPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    bottomHelpIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    bottomHelpContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    bottomHelpText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+  });

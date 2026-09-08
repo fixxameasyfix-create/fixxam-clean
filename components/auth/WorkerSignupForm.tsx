@@ -1,9 +1,9 @@
 import React, {
+  useCallback,
   useEffect,
 } from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -44,19 +44,22 @@ import useWorkerWorkGallery from "@/hooks/worker/useWorkerWorkGallery";
 
 import useCompleteWorkerRegistration from "@/hooks/worker/useCompleteWorkerRegistration";
 
-export default function WorkerSignupForm() {
-  /* ============================================================
-     STEP
-  ============================================================ */
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
+const FIRST_STEP = 1;
+const CONTACT_STEP = 2;
+const SERVICE_STEP = 3;
+const PROFILE_STEP = 4;
+const REVIEW_STEP = 5;
+
+export default function WorkerSignupForm() {
   const {
     step,
     setStep,
   } = useWorkerSteps();
-
-  /* ============================================================
-     FORM STATE
-  ============================================================ */
 
   const {
     firstName,
@@ -125,10 +128,6 @@ export default function WorkerSignupForm() {
     loading,
   } = useWorkerFormState();
 
-  /* ============================================================
-     EXISTING PROFILE
-  ============================================================ */
-
   const {
     isLoggedIn,
   } = useWorkerProfilePrefill({
@@ -140,10 +139,6 @@ export default function WorkerSignupForm() {
     setEmailVerified,
     setPhoneVerified,
   });
-
-  /* ============================================================
-     DRAFT
-  ============================================================ */
 
   const draft = useWorkerDraft({
     step,
@@ -207,10 +202,6 @@ export default function WorkerSignupForm() {
     setAcceptedTerms,
   });
 
-  /* ============================================================
-     WORK GALLERY
-  ============================================================ */
-
   const {
     addWorkPhoto,
     removeWorkPhoto,
@@ -219,231 +210,282 @@ export default function WorkerSignupForm() {
     setWorkGallery,
   });
 
-  /* ============================================================
-     REGISTRATION
-  ============================================================ */
-
   const {
     loading: registrationLoading,
     completeRegistration,
   } =
     useCompleteWorkerRegistration();
 
-  /* ============================================================
-     NEXT STEP
-  ============================================================ */
+  const nextStep =
+    useCallback(() => {
+      if (
+        !isLoggedIn &&
+        step === FIRST_STEP
+      ) {
+        const valid =
+          validateStepOne({
+            firstName,
+            surname,
+          });
 
-  const nextStep = () => {
-    /* ----------------------------------------------------------
-       STEP 1
-    ---------------------------------------------------------- */
+        if (!valid) {
+          return;
+        }
+      }
 
-    if (!isLoggedIn && step === 1) {
-      const valid =
-        validateStepOne({
-          firstName,
-          surname,
-        });
+      if (
+        !isLoggedIn &&
+        step === CONTACT_STEP
+      ) {
+        const valid =
+          validateStepTwo({
+            email,
+            phone,
+            emailVerified,
+            phoneVerified,
+          });
 
-      if (!valid) {
+        if (!valid) {
+          return;
+        }
+      }
+
+      if (
+        step === SERVICE_STEP
+      ) {
+        const valid =
+          validateStepThree({
+            category,
+            subcategory,
+            selectedServices,
+            experience,
+            state,
+            lga,
+          });
+
+        if (!valid) {
+          return;
+        }
+      }
+
+      setStep((previous) =>
+        Math.min(
+          previous + 1,
+          REVIEW_STEP,
+        ),
+      );
+    }, [
+      category,
+      email,
+      emailVerified,
+      experience,
+      firstName,
+      isLoggedIn,
+      lga,
+      phone,
+      phoneVerified,
+      selectedServices,
+      setStep,
+      state,
+      step,
+      subcategory,
+      surname,
+    ]);
+
+  const prevStep =
+    useCallback(() => {
+      if (
+        step <= FIRST_STEP
+      ) {
         return;
       }
-    }
 
-    /* ----------------------------------------------------------
-       STEP 2
-    ---------------------------------------------------------- */
-
-    if (!isLoggedIn && step === 2) {
-      const valid =
-        validateStepTwo({
-          email,
-          phone,
-          emailVerified,
-          phoneVerified,
-        });
-
-      if (!valid) {
-        return;
-      }
-    }
-
-    /* ----------------------------------------------------------
-       STEP 3
-    ---------------------------------------------------------- */
-
-    if (step === 3) {
-      const valid =
-        validateStepThree({
-          category,
-          subcategory,
-          selectedServices,
-          experience,
-          state,
-          lga,
-        });
-
-      if (!valid) {
-        return;
-      }
-    }
-
-    /* ----------------------------------------------------------
-       STEP 4
-       PHOTO + ABOUT + GALLERY ARE OPTIONAL
-    ---------------------------------------------------------- */
-
-    setStep((previous) =>
-      Math.min(
-        previous + 1,
-        5,
-      ),
-    );
-  };
-
-  /* ============================================================
-     PREVIOUS STEP
-  ============================================================ */
-
-  const prevStep = () => {
-    if (step <= 1) {
-      return;
-    }
-
-    setStep((previous) =>
-      Math.max(
-        previous - 1,
-        1,
-      ),
-    );
-  };
-
-  /* ============================================================
-     PROFILE PHOTO
-  ============================================================ */
+      setStep((previous) =>
+        Math.max(
+          previous - 1,
+          FIRST_STEP,
+        ),
+      );
+    }, [
+      setStep,
+      step,
+    ]);
 
   const handleCapturePhoto =
-    async () => {
+    useCallback(async () => {
       const uri =
         await captureWorkerPhoto();
 
       if (uri) {
         setPhoto(uri);
       }
-    };
+    }, [setPhoto]);
 
   const handleUploadPhoto =
-    async () => {
+    useCallback(async () => {
       const uri =
         await uploadWorkerPhoto();
 
       if (uri) {
         setPhoto(uri);
       }
-    };
+    }, [setPhoto]);
 
-  /* ============================================================
-     LOGGED-IN WORKER
-  ============================================================ */
+  const handleToggleTerms =
+    useCallback(() => {
+      setAcceptedTerms(
+        (current) => !current,
+      );
+    }, [setAcceptedTerms]);
 
+  const handleLogin =
+    useCallback(() => {
+      router.replace(
+        "/(auth)/login",
+      );
+    }, []);
+
+  const handleCompleteRegistration =
+    useCallback(() => {
+      void completeRegistration({
+        firstName,
+        surname,
+        otherName,
+
+        email,
+        phone,
+
+        emailVerified,
+        phoneVerified,
+
+        password,
+        confirmPassword,
+
+        category,
+        subcategory,
+        selectedServices,
+
+        experience,
+
+        state,
+        lga,
+
+        photo,
+
+        about,
+
+        workGallery,
+
+        acceptedTerms,
+
+        isLoggedIn,
+      });
+    }, [
+      about,
+      acceptedTerms,
+      category,
+      completeRegistration,
+      confirmPassword,
+      email,
+      emailVerified,
+      experience,
+      firstName,
+      isLoggedIn,
+      lga,
+      otherName,
+      password,
+      phone,
+      phoneVerified,
+      photo,
+      selectedServices,
+      state,
+      subcategory,
+      surname,
+      workGallery,
+    ]);
+
+  /*
+   * Existing users already have
+   * identity/contact information,
+   * so start from service details.
+   */
   useEffect(() => {
     if (
       isLoggedIn &&
-      step < 3
+      step < SERVICE_STEP
     ) {
-      setStep(3);
+      setStep(
+        SERVICE_STEP,
+      );
     }
   }, [
     isLoggedIn,
-    step,
     setStep,
+    step,
   ]);
 
-  /* ============================================================
-     UI
-  ============================================================ */
+  const busy =
+    loading ||
+    registrationLoading;
 
   return (
     <View style={styles.container}>
-
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
-
-      {step === 1 && (
+      {step === FIRST_STEP ? (
         <AuthHeader
           title="Join as a Worker"
           subtitle="Offer services and earn money with Fixxam."
-          icon="construct"
-          variant="worker"
+          icon="professional"
+          role="worker"
         />
-      )}
-
-      {/* ======================================================
-          STEP 1
-      ====================================================== */}
+      ) : null}
 
       {!isLoggedIn &&
-        step === 1 && (
-          <WorkerStepOne
-            firstName={firstName}
-            surname={surname}
-            otherName={otherName}
-            setFirstName={
-              setFirstName
-            }
-            setSurname={
-              setSurname
-            }
-            setOtherName={
-              setOtherName
-            }
-          />
-        )}
-
-      {/* ======================================================
-          STEP 2
-      ====================================================== */}
+      step === FIRST_STEP ? (
+        <WorkerStepOne
+          firstName={firstName}
+          surname={surname}
+          otherName={otherName}
+          setFirstName={
+            setFirstName
+          }
+          setSurname={
+            setSurname
+          }
+          setOtherName={
+            setOtherName
+          }
+        />
+      ) : null}
 
       {!isLoggedIn &&
-        step === 2 && (
-          <WorkerStepTwo
-            email={email}
-            emailOtp={emailOtp}
-            phone={phone}
-            otp={otp}
-            emailVerified={
-              emailVerified
-            }
-            phoneVerified={
-              phoneVerified
-            }
-            setEmail={
-              setEmail
-            }
-            setEmailOtp={
-              setEmailOtp
-            }
-            setPhone={
-              setPhone
-            }
-            setOtp={
-              setOtp
-            }
-            setEmailVerified={
-              setEmailVerified
-            }
-            setPhoneVerified={
-              setPhoneVerified
-            }
-          />
-        )}
+      step === CONTACT_STEP ? (
+        <WorkerStepTwo
+          email={email}
+          emailOtp={emailOtp}
+          phone={phone}
+          otp={otp}
+          emailVerified={
+            emailVerified
+          }
+          phoneVerified={
+            phoneVerified
+          }
+          setEmail={setEmail}
+          setEmailOtp={
+            setEmailOtp
+          }
+          setPhone={setPhone}
+          setOtp={setOtp}
+          setEmailVerified={
+            setEmailVerified
+          }
+          setPhoneVerified={
+            setPhoneVerified
+          }
+        />
+      ) : null}
 
-      {/* ======================================================
-          STEP 3
-      ====================================================== */}
-
-      {step === 3 && (
+      {step === SERVICE_STEP ? (
         <WorkerStepThree
           category={category}
           subcategory={
@@ -469,21 +511,12 @@ export default function WorkerSignupForm() {
           setExperience={
             setExperience
           }
-          setState={
-            setState
-          }
-          setLga={
-            setLga
-          }
+          setState={setState}
+          setLga={setLga}
         />
-      )}
+      ) : null}
 
-      {/* ======================================================
-          STEP 4
-          PROFILE + ABOUT + WORK GALLERY
-      ====================================================== */}
-
-      {step === 4 && (
+      {step === PROFILE_STEP ? (
         <WorkerStepFour
           photo={photo}
           onUploadPhoto={
@@ -504,175 +537,95 @@ export default function WorkerSignupForm() {
             removeWorkPhoto
           }
         />
-      )}
+      ) : null}
 
-      {/* ======================================================
-          STEP 5
-      ====================================================== */}
+      {step === REVIEW_STEP ? (
+        <WorkerReview
+          photo={photo}
+          firstName={firstName}
+          surname={surname}
+          otherName={otherName}
+          email={email}
+          phone={phone}
+          category={category}
+          subcategory={
+            subcategory
+          }
+          selectedServices={
+            selectedServices
+          }
+          experience={
+            experience
+          }
+          about={about}
+          workGallery={
+            workGallery
+          }
+          state={state}
+          lga={lga}
+          isLoggedIn={
+            isLoggedIn
+          }
+          password={password}
+          confirmPassword={
+            confirmPassword
+          }
+          acceptedTerms={
+            acceptedTerms
+          }
+          onToggleTerms={
+            handleToggleTerms
+          }
+          setPassword={
+            setPassword
+          }
+          setConfirmPassword={
+            setConfirmPassword
+          }
+        />
+      ) : null}
 
-{step === 5 && (
-  <WorkerReview
-    photo={photo}
-
-    firstName={firstName}
-    surname={surname}
-    otherName={otherName}
-
-    email={email}
-    phone={phone}
-
-    category={category}
-    subcategory={subcategory}
-
-    selectedServices={
-      selectedServices
-    }
-
-    experience={experience}
-
-    about={about}
-
-    workGallery={
-      workGallery
-    }
-
-    state={state}
-    lga={lga}
-
-    isLoggedIn={
-      isLoggedIn
-    }
-
-    password={
-      password
-    }
-
-    confirmPassword={
-      confirmPassword
-    }
-
-    acceptedTerms={
-      acceptedTerms
-    }
-
-    onToggleTerms={() =>
-      setAcceptedTerms(
-        !acceptedTerms,
-      )
-    }
-
-    setPassword={
-      setPassword
-    }
-
-    setConfirmPassword={
-      setConfirmPassword
-    }
-  />
-)}
-
-      {/* ======================================================
-          NAVIGATION
-      ====================================================== */}
-
-      <View
-        style={
-          styles.navigation
-        }
-      >
+      <View style={styles.navigation}>
         <WorkerNavigation
           step={step}
-          loading={
-            loading ||
-            registrationLoading
-          }
-          onNext={
-            nextStep
-          }
-          onBack={
-            prevStep
-          }
-          onComplete={() =>
-            completeRegistration({
-              firstName,
-              surname,
-              otherName,
-
-              email,
-              phone,
-
-              emailVerified,
-              phoneVerified,
-
-              password,
-              confirmPassword,
-
-              category,
-              subcategory,
-              selectedServices,
-
-              experience,
-
-              state,
-              lga,
-
-              photo,
-
-              about,
-
-              workGallery,
-
-              acceptedTerms,
-
-              isLoggedIn,
-            })
+          loading={busy}
+          onNext={nextStep}
+          onBack={prevStep}
+          onComplete={
+            handleCompleteRegistration
           }
         />
       </View>
 
-      {/* ======================================================
-          LOGIN
-      ====================================================== */}
-
-      <View
-        style={
-          styles.loginContainer
-        }
-      >
-        <AppText
+      {!isLoggedIn ? (
+        <View
           style={
-            styles.loginText
+            styles.loginContainer
           }
-        >
-          Already have an account?
-        </AppText>
-
-        <Pressable
-          onPress={() =>
-            router.replace(
-              "/(auth)/login",
-            )
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Login"
         >
           <AppText
-            color="#FF6B00"
-            weight="bold"
+            variant="caption"
+            tone="secondary"
+          >
+            Already have an account?
+          </AppText>
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            role="worker"
+            tone="primary"
+            accessibilityRole="link"
+            accessibilityLabel="Login"
+            onPress={handleLogin}
           >
             Login
           </AppText>
-        </Pressable>
-      </View>
-
-      {/* ======================================================
-          DRAFT MODAL
-      ====================================================== */}
+        </View>
+      ) : null}
 
       <FixxamResponseModal
-        visible={
-          draft.visible
-        }
+        visible={draft.visible}
         variant="worker"
         title="Continue Registration"
         message="We found an unfinished registration. Would you like to continue where you stopped?"
@@ -689,47 +642,38 @@ export default function WorkerSignupForm() {
   );
 }
 
-/* ==============================================================
-   STYLES
-============================================================== */
-
 const styles =
   StyleSheet.create({
     container: {
       flex: 1,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.background,
 
-      paddingBottom: 16,
+      paddingBottom:
+        FixxamTokens.spacing.lg,
     },
 
     navigation: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
     },
 
     loginContainer: {
-      flexDirection:
-        "row",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
 
-      justifyContent:
-        "center",
+      gap:
+        FixxamTokens.spacing.xs,
 
-      alignItems:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      gap: 4,
-
-      marginTop: 12,
-
-      marginBottom: 8,
-    },
-
-    loginText: {
-      fontSize: 12,
-
-      color: "#64748B",
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
   });

@@ -1,18 +1,20 @@
 import React, {
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
   collection,
@@ -23,8 +25,16 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   auth,
@@ -59,47 +69,113 @@ type ChatArrowState =
 
 type MessageData = {
   senderId?: unknown;
+
   senderRole?: unknown;
+
   text?: unknown;
 };
 
 type StatusConfig = {
   label: string;
 
-  background: {
-    backgroundColor: string;
-  };
+  backgroundColor: string;
 
-  dot: {
-    backgroundColor: string;
-  };
-
-  text: {
-    color: string;
-  };
+  color: string;
 };
 
 /* ==============================================================
-   HELPERS
+   CONSTANTS
+============================================================== */
+
+const PRODUCT_IMAGE_SIZE =
+  68;
+
+const CUSTOMER_IMAGE_SIZE =
+  24;
+
+/* ==============================================================
+   STRING
 ============================================================== */
 
 function getString(
   value: unknown,
 ): string {
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     return value.trim();
   }
 
   if (
-    typeof value === "number" &&
+    typeof value ===
+      "number" &&
     Number.isFinite(value)
   ) {
-    return String(value);
+    return String(
+      value,
+    );
   }
 
   return "";
+}
+
+/* ==============================================================
+   NUMBER
+============================================================== */
+
+function getOptionalNumber(
+  value: unknown,
+): number | undefined {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value ===
+      "string"
+  ) {
+    const cleaned =
+      value
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
+        .trim();
+
+    if (!cleaned) {
+      return undefined;
+    }
+
+    const parsed =
+      Number(
+        cleaned,
+      );
+
+    return Number.isFinite(
+      parsed,
+    )
+      ? parsed
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function getSafeNumber(
+  value: unknown,
+  fallback = 0,
+): number {
+  return (
+    getOptionalNumber(
+      value,
+    ) ??
+    fallback
+  );
 }
 
 /* ==============================================================
@@ -107,16 +183,25 @@ function getString(
 ============================================================== */
 
 function formatMoney(
-  value: number,
+  value: unknown,
 ): string {
-  if (
-    !Number.isFinite(value)
-  ) {
-    return "₦0";
-  }
+  const parsed =
+    getSafeNumber(
+      value,
+    );
 
-  return `₦${value.toLocaleString(
+  const safeValue =
+    Math.max(
+      0,
+      parsed,
+    );
+
+  return `₦${safeValue.toLocaleString(
     "en-NG",
+    {
+      maximumFractionDigits:
+        2,
+    },
   )}`;
 }
 
@@ -128,7 +213,8 @@ function getAddressText(
   value: unknown,
 ): string {
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     return (
       value.trim() ||
@@ -138,12 +224,15 @@ function getAddressText(
 
   if (
     value &&
-    typeof value === "object"
+    typeof value ===
+      "object"
   ) {
     const location =
       value as {
         address?: unknown;
+
         formattedAddress?: unknown;
+
         name?: unknown;
       };
 
@@ -161,7 +250,9 @@ function getAddressText(
         location.formattedAddress,
       );
 
-    if (formattedAddress) {
+    if (
+      formattedAddress
+    ) {
       return formattedAddress;
     }
 
@@ -196,9 +287,14 @@ function formatDate(
   return date.toLocaleDateString(
     "en-NG",
     {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
+      day:
+        "2-digit",
+
+      month:
+        "short",
+
+      year:
+        "numeric",
     },
   );
 }
@@ -211,7 +307,8 @@ function getDateText(
   }
 
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     const text =
       value.trim();
@@ -221,7 +318,9 @@ function getDateText(
     }
 
     const parsed =
-      new Date(text);
+      new Date(
+        text,
+      );
 
     if (
       !Number.isNaN(
@@ -237,16 +336,20 @@ function getDateText(
   }
 
   if (
-    typeof value === "number" &&
+    typeof value ===
+      "number" &&
     Number.isFinite(value)
   ) {
     return formatDate(
-      new Date(value),
+      new Date(
+        value,
+      ),
     );
   }
 
   if (
-    value instanceof Date
+    value instanceof
+    Date
   ) {
     return formatDate(
       value,
@@ -254,12 +357,14 @@ function getDateText(
   }
 
   if (
-    typeof value === "object" &&
+    typeof value ===
+      "object" &&
     value !== null
   ) {
     const timestamp =
       value as {
         toDate?: unknown;
+
         seconds?: unknown;
       };
 
@@ -268,13 +373,10 @@ function getDateText(
       "function"
     ) {
       try {
-        const date =
+        return formatDate(
           (
             timestamp.toDate as () => Date
-          )();
-
-        return formatDate(
-          date,
+          )(),
         );
       } catch {
         return "Date unavailable";
@@ -290,7 +392,8 @@ function getDateText(
     ) {
       return formatDate(
         new Date(
-          timestamp.seconds * 1000,
+          timestamp.seconds *
+            1000,
         ),
       );
     }
@@ -304,13 +407,17 @@ function getDateText(
 ============================================================== */
 
 function normalizeStatus(
-  status: unknown,
+  value: unknown,
 ): string {
   return String(
-    status ?? "",
+    value ?? "",
   )
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(
+      /[_\s]+/g,
+      "-",
+    );
 }
 
 /* ==============================================================
@@ -322,7 +429,9 @@ function resolveMessageState(
   currentUserId: string,
 ): ChatArrowState {
   const text =
-    getString(data.text);
+    getString(
+      data.text,
+    );
 
   if (!text) {
     return "empty";
@@ -347,20 +456,24 @@ function resolveMessageState(
     ).toLowerCase();
 
   if (
-    senderRole === "customer" ||
-    senderRole === "client"
+    senderRole ===
+      "customer" ||
+    senderRole ===
+      "client"
   ) {
     return "customer";
   }
 
   if (
-    senderRole === "seller"
+    senderRole ===
+    "seller"
   ) {
     return "seller";
   }
 
   if (
-    senderRole === "worker"
+    senderRole ===
+    "worker"
   ) {
     return "worker";
   }
@@ -384,76 +497,82 @@ function getStatusConfig(
   status: unknown,
 ): StatusConfig {
   switch (
-    normalizeStatus(status)
+    normalizeStatus(
+      status,
+    )
   ) {
     case "accepted":
       return {
-        label: "ACCEPTED",
-        background:
-          styles.statusAccepted,
-        dot:
-          styles.dotAccepted,
-        text:
-          styles.textAccepted,
+        label:
+          "ACCEPTED",
+
+        backgroundColor:
+          Colors.infoSoft,
+
+        color:
+          Colors.info,
       };
 
     case "in-progress":
-    case "in_progress":
-    case "in progress":
       return {
-        label: "ON THE WAY",
-        background:
-          styles.statusOnTheWay,
-        dot:
-          styles.dotOnTheWay,
-        text:
-          styles.textOnTheWay,
+        label:
+          "ON THE WAY",
+
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
       };
 
     case "completed":
       return {
-        label: "COMPLETED",
-        background:
-          styles.statusCompleted,
-        dot:
-          styles.dotCompleted,
-        text:
-          styles.textCompleted,
+        label:
+          "COMPLETED",
+
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
       };
 
     case "cancelled":
     case "canceled":
       return {
-        label: "CANCELLED",
-        background:
-          styles.statusCancelled,
-        dot:
-          styles.dotCancelled,
-        text:
-          styles.textCancelled,
+        label:
+          "CANCELLED",
+
+        backgroundColor:
+          Colors.errorSoft,
+
+        color:
+          Colors.error,
       };
 
     case "expired":
       return {
-        label: "EXPIRED",
-        background:
-          styles.statusExpired,
-        dot:
-          styles.dotExpired,
-        text:
-          styles.textExpired,
+        label:
+          "EXPIRED",
+
+        backgroundColor:
+          Colors.disabledBackground,
+
+        color:
+          Colors.textSecondary,
       };
 
     case "pending":
     default:
       return {
-        label: "PENDING",
-        background:
-          styles.statusPending,
-        dot:
-          styles.dotPending,
-        text:
-          styles.textPending,
+        label:
+          "PENDING",
+
+        backgroundColor:
+          Colors.warningSoft,
+
+        color:
+          Colors.warning,
       };
   }
 }
@@ -462,44 +581,58 @@ function getStatusConfig(
    STATUS BADGE
 ============================================================== */
 
-const StatusBadge = memo(
-  function StatusBadge({
-    status,
-  }: {
-    status: unknown;
-  }) {
-    const config =
-      getStatusConfig(
-        status,
-      );
+const StatusBadge =
+  memo(
+    function StatusBadge({
+      status,
+    }: {
+      status: unknown;
+    }) {
+      const config =
+        getStatusConfig(
+          status,
+        );
 
-    return (
-      <View
-        style={[
-          styles.statusBadge,
-          config.background,
-        ]}
-      >
+      return (
         <View
           style={[
-            styles.statusDot,
-            config.dot,
-          ]}
-        />
+            styles.statusBadge,
 
-        <AppText
-          weight="bold"
-          style={[
-            styles.statusText,
-            config.text,
+            {
+              backgroundColor:
+                config.backgroundColor,
+            },
           ]}
         >
-          {config.label}
-        </AppText>
-      </View>
-    );
-  },
-);
+          <View
+            style={[
+              styles.statusDot,
+
+              {
+                backgroundColor:
+                  config.color,
+              },
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={[
+              styles.statusText,
+
+              {
+                color:
+                  config.color,
+              },
+            ]}
+          >
+            {config.label}
+          </AppText>
+        </View>
+      );
+    },
+  );
 
 StatusBadge.displayName =
   "WorkerMarketOrderStatusBadge";
@@ -508,112 +641,112 @@ StatusBadge.displayName =
    CHAT ARROW
 ============================================================== */
 
-const ChatArrow = memo(
-  function ChatArrow({
-    state,
-    onPress,
-    orderId,
-  }: {
-    state: ChatArrowState;
-    onPress: () => void;
-    orderId: string;
-  }) {
-    if (
-      state === "customer"
-    ) {
+const ChatArrow =
+  memo(
+    function ChatArrow({
+      state,
+      onPress,
+      orderId,
+    }: {
+      state: ChatArrowState;
+
+      onPress: () => void;
+
+      orderId: string;
+    }) {
+      const isCustomer =
+        state ===
+        "customer";
+
+      const isOutgoing =
+        state ===
+          "worker" ||
+        state ===
+          "seller";
+
+      if (
+        isCustomer ||
+        isOutgoing
+      ) {
+        const backgroundColor =
+          isCustomer
+            ? CustomerColors.primary
+            : WorkerColors.primary;
+
+        return (
+          <Pressable
+            onPress={event => {
+              event.stopPropagation();
+
+              onPress();
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isCustomer
+                ? `Open chat for order ${orderId}. Customer sent the latest message.`
+                : `Open chat for order ${orderId}. You sent the latest message.`
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.chatArrowButton,
+
+              {
+                backgroundColor,
+              },
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name={
+                isCustomer
+                  ? "down"
+                  : "arrow-up"
+              }
+              size="sm"
+              color={
+                Colors.textInverse
+              }
+            />
+          </Pressable>
+        );
+      }
+
       return (
         <Pressable
-          onPress={onPress}
+          onPress={event => {
+            event.stopPropagation();
+
+            onPress();
+          }}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel={`Open chat for order ${orderId}. Customer sent the latest message.`}
-          style={({ pressed }) => [
-            styles.chatArrowButton,
-            styles.chatArrowCustomer,
-            pressed &&
-              styles.chatArrowPressed,
+          accessibilityLabel={`Open order ${orderId}. No chat messages yet.`}
+          style={({
+            pressed,
+          }) => [
+            styles.arrowButton,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="arrow-down"
-            size={21}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            size="sm"
+            color={
+              Colors.textSecondary
+            }
           />
         </Pressable>
       );
-    }
-
-    if (
-      state === "worker"
-    ) {
-      return (
-        <Pressable
-          onPress={onPress}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`Open chat for order ${orderId}. You sent the latest message.`}
-          style={({ pressed }) => [
-            styles.chatArrowButton,
-            styles.chatArrowWorker,
-            pressed &&
-              styles.chatArrowPressed,
-          ]}
-        >
-          <Ionicons
-            name="arrow-up"
-            size={21}
-            color="#FFFFFF"
-          />
-        </Pressable>
-      );
-    }
-
-    if (
-      state === "seller"
-    ) {
-      return (
-        <Pressable
-          onPress={onPress}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={`Open chat for order ${orderId}. Seller sent the latest message.`}
-          style={({ pressed }) => [
-            styles.chatArrowButton,
-            styles.chatArrowSeller,
-            pressed &&
-              styles.chatArrowPressed,
-          ]}
-        >
-          <Ionicons
-            name="arrow-down"
-            size={21}
-            color="#FFFFFF"
-          />
-        </Pressable>
-      );
-    }
-
-    return (
-      <Pressable
-        onPress={onPress}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`Open chat for order ${orderId}. No messages yet.`}
-        style={({ pressed }) => [
-          styles.arrowButton,
-          pressed &&
-            styles.arrowPressed,
-        ]}
-      >
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color="#64748B"
-        />
-      </Pressable>
-    );
-  },
-);
+    },
+  );
 
 ChatArrow.displayName =
   "WorkerMarketOrderChatArrow";
@@ -636,7 +769,7 @@ function WorkerMarketOrderCard({
     );
 
   /* ============================================================
-     DISPLAY VALUES
+     DISPLAY
   ============================================================ */
 
   const orderId =
@@ -645,7 +778,9 @@ function WorkerMarketOrderCard({
         getString(
           order.id,
         ),
-      [order.id],
+      [
+        order.id,
+      ],
     );
 
   const productName =
@@ -688,7 +823,9 @@ function WorkerMarketOrderCard({
           order.customerName,
         ) ||
         "Customer",
-      [order.customerName],
+      [
+        order.customerName,
+      ],
     );
 
   const customerPhoto =
@@ -701,8 +838,8 @@ function WorkerMarketOrderCard({
           order.customerPhoto,
         ),
       [
-        order.customerPhotoURL,
         order.customerPhoto,
+        order.customerPhotoURL,
       ],
     );
 
@@ -751,28 +888,28 @@ function WorkerMarketOrderCard({
       return;
     }
 
-    const messagesRef =
-      collection(
-        db,
-        "marketChats",
-        orderId,
-        "messages",
-      );
-
     const messagesQuery =
       query(
-        messagesRef,
+        collection(
+          db,
+          "marketChats",
+          orderId,
+          "messages",
+        ),
+
         orderBy(
           "createdAt",
           "desc",
         ),
+
         limit(1),
       );
 
     const unsubscribe =
       onSnapshot(
         messagesQuery,
-        (snapshot) => {
+
+        snapshot => {
           if (
             snapshot.empty
           ) {
@@ -783,20 +920,25 @@ function WorkerMarketOrderCard({
             return;
           }
 
-          const latest =
-            snapshot.docs[0];
-
           const message =
-            latest.data() as MessageData;
+            snapshot.docs[0].data() as MessageData;
 
-          setChatArrowState(
+          const nextState =
             resolveMessageState(
               message,
               workerId,
-            ),
+            );
+
+          setChatArrowState(
+            current =>
+              current ===
+              nextState
+                ? current
+                : nextState,
           );
         },
-        (listenerError) => {
+
+        listenerError => {
           console.error(
             "FIXXAM_MARKET_CHAT_LISTENER_ERROR:",
             listenerError,
@@ -809,7 +951,9 @@ function WorkerMarketOrderCard({
       );
 
     return unsubscribe;
-  }, [orderId]);
+  }, [
+    orderId,
+  ]);
 
   /* ============================================================
      ITEM COUNT
@@ -817,16 +961,21 @@ function WorkerMarketOrderCard({
 
   const itemCount =
     useMemo(() => {
+      const explicitCount =
+        getOptionalNumber(
+          order.itemCount,
+        );
+
       if (
-        typeof order.itemCount ===
-          "number" &&
-        Number.isFinite(
-          order.itemCount,
-        ) &&
-        order.itemCount > 0
+        explicitCount !==
+          undefined &&
+        explicitCount > 0
       ) {
-        return Math.floor(
-          order.itemCount,
+        return Math.max(
+          1,
+          Math.floor(
+            explicitCount,
+          ),
         );
       }
 
@@ -842,18 +991,29 @@ function WorkerMarketOrderCard({
             (
               total,
               product,
-            ) =>
-              total +
-              Math.max(
-                1,
-                Math.floor(
-                  product.quantity,
-                ),
-              ),
+            ) => {
+              const quantity =
+                Math.max(
+                  1,
+                  Math.floor(
+                    getSafeNumber(
+                      product.quantity,
+                      1,
+                    ),
+                  ),
+                );
+
+              return (
+                total +
+                quantity
+              );
+            },
             0,
           );
 
-        if (count > 0) {
+        if (
+          count > 0
+        ) {
           return count;
         }
       }
@@ -870,86 +1030,99 @@ function WorkerMarketOrderCard({
 
   const total =
     useMemo(() => {
-      if (
-        typeof order.total ===
-          "number" &&
-        Number.isFinite(
-          order.total,
-        )
-      ) {
-        return order.total;
-      }
+      const directValues = [
+        order.total,
+        order.totalAmount,
+        order.amount,
+      ];
 
-      if (
-        typeof order.totalAmount ===
-          "number" &&
-        Number.isFinite(
-          order.totalAmount,
-        )
+      for (
+        const value of
+        directValues
       ) {
-        return order.totalAmount;
-      }
+        const parsed =
+          getOptionalNumber(
+            value,
+          );
 
-      if (
-        typeof order.amount ===
-          "number" &&
-        Number.isFinite(
-          order.amount,
-        )
-      ) {
-        return order.amount;
+        if (
+          parsed !==
+          undefined
+        ) {
+          return Math.max(
+            0,
+            parsed,
+          );
+        }
       }
 
       if (
         Array.isArray(
           order.products,
-        )
+        ) &&
+        order.products.length >
+          0
       ) {
         const calculated =
           order.products.reduce(
             (
               sum,
               product,
-            ) =>
-              sum +
-              product.price *
+            ) => {
+              const price =
+                Math.max(
+                  0,
+                  getSafeNumber(
+                    product.price,
+                  ),
+                );
+
+              const quantity =
                 Math.max(
                   1,
-                  product.quantity,
-                ),
+                  Math.floor(
+                    getSafeNumber(
+                      product.quantity,
+                      1,
+                    ),
+                  ),
+                );
+
+              return (
+                sum +
+                price *
+                  quantity
+              );
+            },
             0,
           );
 
         if (
           Number.isFinite(
             calculated,
-          )
+          ) &&
+          calculated > 0
         ) {
           return calculated;
         }
       }
 
-      if (
-        typeof order.offerAmount ===
-          "number" &&
-        Number.isFinite(
+      return Math.max(
+        0,
+        getSafeNumber(
           order.offerAmount,
-        )
-      ) {
-        return order.offerAmount;
-      }
-
-      return 0;
+        ),
+      );
     }, [
+      order.amount,
+      order.offerAmount,
+      order.products,
       order.total,
       order.totalAmount,
-      order.amount,
-      order.products,
-      order.offerAmount,
     ]);
 
   /* ============================================================
-     STATUS
+     STATUS / OFFER
   ============================================================ */
 
   const status =
@@ -958,45 +1131,70 @@ function WorkerMarketOrderCard({
     );
 
   const isPending =
-    status === "pending";
+    status ===
+    "pending";
 
-  /* ============================================================
-     OFFER
-  ============================================================ */
+  const offerAmount =
+    getOptionalNumber(
+      order.offerAmount,
+    );
 
   const hasOffer =
     normalizeStatus(
       order.offerStatus,
-    ) === "sent" &&
-    typeof order.offerAmount ===
-      "number" &&
-    Number.isFinite(
-      order.offerAmount,
-    );
+    ) ===
+      "sent" &&
+    offerAmount !==
+      undefined;
 
   /* ============================================================
      HANDLERS
   ============================================================ */
 
   const handlePress =
-    () => {
+    useCallback(() => {
       if (!orderId) {
         return;
       }
 
-      onPress(order);
-    };
+      onPress(
+        order,
+      );
+    }, [
+      onPress,
+      order,
+      orderId,
+    ]);
 
   const handleChatPress =
-    () => {
+    useCallback(() => {
       if (!orderId) {
         return;
       }
 
-      if (onChatPress) {
-        onChatPress(order);
+      if (
+        onChatPress
+      ) {
+        onChatPress(
+          order,
+        );
+
+        return;
       }
-    };
+
+      /*
+       * Avoid a dead nested button when
+       * no dedicated chat callback exists.
+       */
+      onPress(
+        order,
+      );
+    }, [
+      onChatPress,
+      onPress,
+      order,
+      orderId,
+    ]);
 
   /* ============================================================
      RENDER
@@ -1009,10 +1207,14 @@ function WorkerMarketOrderCard({
       }
       accessibilityRole="button"
       accessibilityLabel={`View market order ${orderId || "unknown"}`}
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.card,
-        pressed &&
-          styles.cardPressed,
+
+        pressed
+          ? styles.cardPressed
+          : null,
       ]}
     >
       {/* ======================================================
@@ -1036,6 +1238,8 @@ function WorkerMarketOrderCard({
           }
         >
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.orderNumber
@@ -1046,10 +1250,12 @@ function WorkerMarketOrderCard({
               : "#—"}
           </AppText>
 
-          <Ionicons
-            name="ellipsis-vertical"
-            size={16}
-            color="#0F172A"
+          <AppIcon
+            name="more"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
           />
         </View>
       </View>
@@ -1066,12 +1272,18 @@ function WorkerMarketOrderCard({
         {productImage ? (
           <Image
             source={{
-              uri: productImage,
+              uri:
+                productImage,
             }}
+            contentFit="cover"
+            transition={150}
+            recyclingKey={
+              productImage
+            }
+            accessibilityLabel={`${productName} product image`}
             style={
               styles.productImage
             }
-            resizeMode="cover"
           />
         ) : (
           <View
@@ -1079,10 +1291,13 @@ function WorkerMarketOrderCard({
               styles.productPlaceholder
             }
           >
-            <Ionicons
-              name="cube-outline"
-              size={25}
-              color="#2563EB"
+            <AppIcon
+              name="package"
+              role="worker"
+              size="md"
+              color={
+                WorkerColors.primary
+              }
             />
           </View>
         )}
@@ -1093,6 +1308,7 @@ function WorkerMarketOrderCard({
           }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
             style={
@@ -1103,6 +1319,8 @@ function WorkerMarketOrderCard({
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.customerLabel
@@ -1119,12 +1337,18 @@ function WorkerMarketOrderCard({
             {customerPhoto ? (
               <Image
                 source={{
-                  uri: customerPhoto,
+                  uri:
+                    customerPhoto,
                 }}
+                contentFit="cover"
+                transition={150}
+                recyclingKey={
+                  customerPhoto
+                }
+                accessibilityLabel={`${customerName} profile photo`}
                 style={
                   styles.customerPhoto
                 }
-                resizeMode="cover"
               />
             ) : (
               <View
@@ -1132,15 +1356,18 @@ function WorkerMarketOrderCard({
                   styles.customerPlaceholder
                 }
               >
-                <Ionicons
-                  name="person"
-                  size={12}
-                  color="#94A3B8"
+                <AppIcon
+                  name="profile"
+                  size="xs"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </View>
             )}
 
             <AppText
+              variant="caption"
               weight="bold"
               numberOfLines={1}
               style={
@@ -1156,13 +1383,16 @@ function WorkerMarketOrderCard({
               styles.itemBadge
             }
           >
-            <Ionicons
-              name="bag-handle-outline"
-              size={12}
-              color="#475569"
+            <AppIcon
+              name="cart"
+              size="xs"
+              color={
+                Colors.textSecondary
+              }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.itemText
@@ -1203,13 +1433,17 @@ function WorkerMarketOrderCard({
             styles.metaItem
           }
         >
-          <Ionicons
-            name="location-outline"
-            size={16}
-            color="#64748B"
+          <AppIcon
+            name="location"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             ellipsizeMode="tail"
             style={
@@ -1231,13 +1465,17 @@ function WorkerMarketOrderCard({
             styles.metaDate
           }
         >
-          <Ionicons
-            name="calendar-outline"
-            size={15}
-            color="#64748B"
+          <AppIcon
+            name="calendar"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.dateText
@@ -1252,7 +1490,7 @@ function WorkerMarketOrderCard({
           PENDING
       ====================================================== */}
 
-      {isPending && (
+      {isPending ? (
         <View
           style={
             styles.pendingNotice
@@ -1268,14 +1506,17 @@ function WorkerMarketOrderCard({
                 styles.pendingIcon
               }
             >
-              <Ionicons
-                name="time-outline"
-                size={16}
-                color="#D97706"
+              <AppIcon
+                name="clock"
+                size="xs"
+                color={
+                  Colors.warning
+                }
               />
             </View>
 
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.pendingTitle
@@ -1286,6 +1527,8 @@ function WorkerMarketOrderCard({
           </View>
 
           <AppText
+            variant="caption"
+            weight="bold"
             style={
               styles.pendingAction
             }
@@ -1293,13 +1536,13 @@ function WorkerMarketOrderCard({
             Review & respond
           </AppText>
         </View>
-      )}
+      ) : null}
 
       {/* ======================================================
           OFFER
       ====================================================== */}
 
-      {hasOffer && (
+      {hasOffer ? (
         <View
           style={
             styles.offerNotice
@@ -1310,13 +1553,16 @@ function WorkerMarketOrderCard({
               styles.offerLeft
             }
           >
-            <Ionicons
-              name="cash-outline"
-              size={16}
-              color="#15803D"
+            <AppIcon
+              name="payment"
+              size="xs"
+              color={
+                Colors.success
+              }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.offerTitle
@@ -1327,17 +1573,18 @@ function WorkerMarketOrderCard({
           </View>
 
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.offerAmount
             }
           >
             {formatMoney(
-              order.offerAmount as number,
+              offerAmount,
             )}
           </AppText>
         </View>
-      )}
+      ) : null}
 
       {/* ======================================================
           FOOTER
@@ -1354,6 +1601,8 @@ function WorkerMarketOrderCard({
           }
         >
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.requestedLabel
             }
@@ -1362,6 +1611,7 @@ function WorkerMarketOrderCard({
           </AppText>
 
           <AppText
+            variant="caption"
             weight="bold"
             numberOfLines={1}
             style={
@@ -1373,28 +1623,38 @@ function WorkerMarketOrderCard({
         </View>
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
           numberOfLines={1}
           style={
             styles.total
           }
         >
-          {formatMoney(total)}
+          {formatMoney(
+            total,
+          )}
         </AppText>
 
         <Pressable
-          onPress={
-            handlePress
-          }
+          onPress={event => {
+            event.stopPropagation();
+
+            handlePress();
+          }}
           accessibilityRole="button"
           accessibilityLabel={`View order ${orderId || "unknown"}`}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.viewButton,
-            pressed &&
-              styles.viewButtonPressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.viewButtonText
@@ -1403,16 +1663,23 @@ function WorkerMarketOrderCard({
             VIEW ORDER
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={17}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </Pressable>
       </View>
     </Pressable>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
 
 WorkerMarketOrderCard.displayName =
   "WorkerMarketOrderCard";
@@ -1427,507 +1694,690 @@ export default memo(
 
 const styles =
   StyleSheet.create({
+    /* ==========================================================
+       CARD
+    ========================================================== */
+
     card: {
       width: "100%",
-      paddingHorizontal: 10,
-      paddingTop: 10,
-      paddingBottom: 10,
-      borderRadius: 18,
-      backgroundColor: "#FFFFFF",
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
 
-      shadowColor: "#0F172A",
-      shadowOpacity: 0.045,
-      shadowRadius: 6,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      borderColor:
+        Colors.border,
 
-      elevation: 2,
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     cardPressed: {
-      opacity: 0.97,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.995,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
     header: {
-      minHeight: 23,
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        28,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     statusBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
+      minHeight:
+        26,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     statusDot: {
       width: 6,
+
       height: 6,
-      borderRadius: 3,
-      marginRight: 5,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusText: {
-      fontSize: 7.5,
-      lineHeight: 10,
+      lineHeight:
+        14,
     },
 
     orderNumberRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
+      flexShrink: 1,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     orderNumber: {
-      maxWidth: 130,
-      fontSize: 8,
-      color: "#64748B",
+      flexShrink: 1,
+
+      maxWidth:
+        130,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ==========================================================
+       PRODUCT
+    ========================================================== */
+
     productRow: {
-      marginTop: 9,
-      paddingRight: 4,
-      minHeight: 78,
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        78,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     productImage: {
-      width: 68,
-      height: 68,
-      borderRadius: 14,
+      width:
+        PRODUCT_IMAGE_SIZE,
+
+      height:
+        PRODUCT_IMAGE_SIZE,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     productPlaceholder: {
-      width: 68,
-      height: 68,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width:
+        PRODUCT_IMAGE_SIZE,
+
+      height:
+        PRODUCT_IMAGE_SIZE,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     productInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
-      marginRight: 8,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     productName: {
-      fontSize: 14,
-      lineHeight: 17,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     customerLabel: {
-      marginTop: 2,
-      fontSize: 8.5,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     customerRow: {
-      marginTop: 3,
-      flexDirection: "row",
-      alignItems: "center",
       minWidth: 0,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     customerPhoto: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
+      width:
+        CUSTOMER_IMAGE_SIZE,
+
+      height:
+        CUSTOMER_IMAGE_SIZE,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     customerPlaceholder: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor:
-        "#E2E8F0",
-      alignItems: "center",
+      width:
+        CUSTOMER_IMAGE_SIZE,
+
+      height:
+        CUSTOMER_IMAGE_SIZE,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     customerName: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 6,
-      fontSize: 9.5,
-      color: "#334155",
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     itemBadge: {
       alignSelf:
         "flex-start",
-      marginTop: 4,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      borderRadius: 7,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
-        "#F1F5F9",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
+        Colors.disabledBackground,
     },
 
     itemText: {
-      fontSize: 8,
-      color: "#475569",
+      color:
+        Colors.textSecondary,
     },
+
+    /* ==========================================================
+       CHAT
+    ========================================================== */
 
     arrowButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-    },
 
-    arrowPressed: {
-      opacity: 0.75,
-      transform: [
-        {
-          scale: 0.94,
-        },
-      ],
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.background,
     },
 
     chatArrowButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
 
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.12,
-      shadowRadius: 5,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
-    chatArrowCustomer: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    chatArrowWorker: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    chatArrowSeller: {
-      backgroundColor:
-        "#7C3AED",
-    },
-
-    chatArrowPressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.94,
-        },
-      ],
-    },
+    /* ==========================================================
+       META
+    ========================================================== */
 
     metaRow: {
-      minHeight: 32,
-      marginTop: 9,
-      paddingVertical: 6,
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderTopWidth: 1,
+
       borderBottomWidth: 1,
+
       borderColor:
-        "#F1F5F9",
-      flexDirection: "row",
-      alignItems: "center",
+        Colors.divider,
     },
 
     metaItem: {
       flex: 1,
+
       minWidth: 0,
-      flexDirection: "row",
-      alignItems: "center",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     metaText: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 5,
-      fontSize: 8.5,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     metaDivider: {
       width: 1,
-      height: 17,
-      marginHorizontal: 7,
+
+      height: 18,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     metaDate: {
-      maxWidth: 105,
-      flexDirection: "row",
-      alignItems: "center",
+      maxWidth:
+        120,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     dateText: {
-      marginLeft: 4,
-      fontSize: 8.5,
-      color: "#64748B",
+      flexShrink: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ==========================================================
+       PENDING
+    ========================================================== */
+
     pendingNotice: {
-      minHeight: 38,
-      marginTop: 8,
-      paddingHorizontal: 9,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor:
-        "#FFF7E8",
-      borderWidth: 1,
-      borderColor:
-        "#FDE68A",
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.warning,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     pendingLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
+      flex: 1,
+
       minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     pendingIcon: {
-      width: 25,
-      height: 25,
-      borderRadius: 8,
-      alignItems: "center",
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
-        "#FFF1C7",
+        Colors.surface,
     },
 
     pendingTitle: {
-      fontSize: 8,
-      color: "#D97706",
+      flexShrink: 1,
+
+      color:
+        Colors.warning,
     },
 
     pendingAction: {
-      marginLeft: 8,
-      fontSize: 8.5,
-      color: "#92400E",
+      flexShrink: 0,
+
+      color:
+        Colors.warning,
     },
 
+    /* ==========================================================
+       OFFER
+    ========================================================== */
+
     offerNotice: {
-      minHeight: 38,
-      marginTop: 8,
-      paddingHorizontal: 9,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor:
-        "#F0FDF4",
-      borderWidth: 1,
-      borderColor:
-        "#BBF7D0",
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     offerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
+      flex: 1,
+
       minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     offerTitle: {
-      fontSize: 8,
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
     offerAmount: {
-      fontSize: 9,
-      color: "#15803D",
+      flexShrink: 0,
+
+      color:
+        Colors.success,
     },
 
+    /* ==========================================================
+       FOOTER
+    ========================================================== */
+
     footer: {
-      marginTop: 8,
-      paddingTop: 1,
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     requestedContainer: {
       flex: 1,
+
       minWidth: 0,
     },
 
     requestedLabel: {
-      fontSize: 7.5,
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     requestedDate: {
-      marginTop: 1,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     total: {
-      maxWidth: 115,
-      marginHorizontal: 9,
-      fontSize: 14,
-      color: "#0F172A",
+      flexShrink: 1,
+
+      maxWidth:
+        120,
+
+      color:
+        Colors.textPrimary,
     },
 
     viewButton: {
-      minHeight: 35,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      gap: 5,
-    },
 
-    viewButtonPressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.97,
-        },
-      ],
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     viewButtonText: {
-      fontSize: 8,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
-    statusPending: {
-      backgroundColor:
-        "#FFF7E8",
-    },
+    /* ==========================================================
+       STATES
+    ========================================================== */
 
-    dotPending: {
-      backgroundColor:
-        "#F59E0B",
-    },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    textPending: {
-      color: "#D97706",
-    },
-
-    statusAccepted: {
-      backgroundColor:
-        "#EFF6FF",
-    },
-
-    dotAccepted: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    textAccepted: {
-      color: "#1D4ED8",
-    },
-
-    statusOnTheWay: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotOnTheWay: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textOnTheWay: {
-      color: "#15803D",
-    },
-
-    statusCompleted: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textCompleted: {
-      color: "#15803D",
-    },
-
-    statusCancelled: {
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor:
-        "#DC2626",
-    },
-
-    textCancelled: {
-      color: "#B91C1C",
-    },
-
-    statusExpired: {
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor:
-        "#64748B",
-    },
-
-    textExpired: {
-      color: "#475569",
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

@@ -12,10 +12,19 @@ import {
 } from "react-native";
 
 import DateTimePicker, {
-  DateTimePickerEvent,
+  type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -52,69 +61,134 @@ function RequestTiming({
   scheduledDate,
   onScheduledDateChange,
 }: Props) {
-  const [showDatePicker, setShowDatePicker] =
+  const [
+    showDatePicker,
+    setShowDatePicker,
+  ] =
     useState(false);
 
-  const [showTimePicker, setShowTimePicker] =
+  const [
+    showTimePicker,
+    setShowTimePicker,
+  ] =
     useState(false);
 
   /* ============================================================
-     DEFAULT DATE
+     DEFAULT FUTURE DATE
   ============================================================ */
 
-  const defaultScheduleDate = useMemo(() => {
-    if (scheduledDate) {
-      return scheduledDate;
-    }
+  const defaultScheduleDate =
+    useMemo(() => {
+      if (
+        scheduledDate
+      ) {
+        return scheduledDate;
+      }
 
-    const date = new Date();
+      const nextDate =
+        new Date();
 
-    date.setDate(
-      date.getDate() + 1,
-    );
+      nextDate.setDate(
+        nextDate.getDate() +
+          1,
+      );
 
-    date.setHours(
-      9,
-      0,
-      0,
-      0,
-    );
+      nextDate.setHours(
+        9,
+        0,
+        0,
+        0,
+      );
 
-    return date;
-  }, [scheduledDate]);
+      return nextDate;
+    }, [
+      scheduledDate,
+    ]);
 
   /* ============================================================
-     SELECT ASAP
+     DISPLAY DATE
+  ============================================================ */
+
+  const displayDate =
+    scheduledDate ??
+    defaultScheduleDate;
+
+  const formattedDate =
+    useMemo(
+      () =>
+        displayDate.toLocaleDateString(
+          "en-US",
+          {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          },
+        ),
+      [
+        displayDate,
+      ],
+    );
+
+  const formattedTime =
+    useMemo(
+      () =>
+        displayDate.toLocaleTimeString(
+          "en-US",
+          {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          },
+        ),
+      [
+        displayDate,
+      ],
+    );
+
+  /* ============================================================
+     ASAP
   ============================================================ */
 
   const handleAsapPress =
     useCallback(() => {
-      if (disabled) {
+      if (
+        disabled
+      ) {
         return;
       }
 
-      onChange("asap");
+      setShowDatePicker(
+        false,
+      );
+
+      setShowTimePicker(
+        false,
+      );
+
+      onChange(
+        "asap",
+      );
     }, [
       disabled,
       onChange,
     ]);
 
   /* ============================================================
-     SELECT SCHEDULE
+     SCHEDULE
   ============================================================ */
 
   const handleSchedulePress =
     useCallback(() => {
-      if (disabled) {
+      if (
+        disabled
+      ) {
         return;
       }
 
-      onChange("schedule");
+      onChange(
+        "schedule",
+      );
 
-      /*
-       * If there is no date yet, create
-       * a sensible default future date.
-       */
       if (
         !scheduledDate &&
         onScheduledDateChange
@@ -124,16 +198,19 @@ function RequestTiming({
         );
       }
 
-      /*
-       * Open date picker first.
-       */
-      setShowDatePicker(true);
+      setShowTimePicker(
+        false,
+      );
+
+      setShowDatePicker(
+        true,
+      );
     }, [
+      defaultScheduleDate,
       disabled,
       onChange,
-      scheduledDate,
       onScheduledDateChange,
-      defaultScheduleDate,
+      scheduledDate,
     ]);
 
   /* ============================================================
@@ -143,32 +220,30 @@ function RequestTiming({
   const handleDateChange =
     useCallback(
       (
-        event: DateTimePickerEvent,
+        event:
+          DateTimePickerEvent,
         selectedDate?: Date,
       ) => {
-        setShowDatePicker(false);
+        setShowDatePicker(
+          false,
+        );
 
         if (
           event.type ===
-          "dismissed"
+            "dismissed" ||
+          !selectedDate
         ) {
           return;
         }
 
-        if (!selectedDate) {
-          return;
-        }
-
-        /*
-         * Preserve the currently selected
-         * time when changing only the date.
-         */
         const current =
           scheduledDate ??
           defaultScheduleDate;
 
         const nextDate =
-          new Date(selectedDate);
+          new Date(
+            selectedDate,
+          );
 
         nextDate.setHours(
           current.getHours(),
@@ -181,18 +256,19 @@ function RequestTiming({
           nextDate,
         );
 
-        /*
-         * After selecting date,
-         * open time picker.
-         */
-        setTimeout(() => {
-          setShowTimePicker(true);
-        }, 120);
+        setTimeout(
+          () => {
+            setShowTimePicker(
+              true,
+            );
+          },
+          FixxamTokens.motion.fast,
+        );
       },
       [
-        scheduledDate,
         defaultScheduleDate,
         onScheduledDateChange,
+        scheduledDate,
       ],
     );
 
@@ -203,19 +279,19 @@ function RequestTiming({
   const handleTimeChange =
     useCallback(
       (
-        event: DateTimePickerEvent,
+        event:
+          DateTimePickerEvent,
         selectedTime?: Date,
       ) => {
-        setShowTimePicker(false);
+        setShowTimePicker(
+          false,
+        );
 
         if (
           event.type ===
-          "dismissed"
+            "dismissed" ||
+          !selectedTime
         ) {
-          return;
-        }
-
-        if (!selectedTime) {
           return;
         }
 
@@ -224,7 +300,9 @@ function RequestTiming({
           defaultScheduleDate;
 
         const nextDate =
-          new Date(current);
+          new Date(
+            current,
+          );
 
         nextDate.setHours(
           selectedTime.getHours(),
@@ -238,38 +316,10 @@ function RequestTiming({
         );
       },
       [
-        scheduledDate,
         defaultScheduleDate,
         onScheduledDateChange,
+        scheduledDate,
       ],
-    );
-
-  /* ============================================================
-     DISPLAY DATE
-  ============================================================ */
-
-  const displayDate =
-    scheduledDate ??
-    defaultScheduleDate;
-
-  const formattedDate =
-    displayDate.toLocaleDateString(
-      "en-US",
-      {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      },
-    );
-
-  const formattedTime =
-    displayDate.toLocaleTimeString(
-      "en-US",
-      {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      },
     );
 
   /* ============================================================
@@ -283,199 +333,65 @@ function RequestTiming({
           styles.container
         }
       >
-        {/* ======================================================
+        {/* ====================================================
             ASAP
-        ====================================================== */}
+        ==================================================== */}
 
-        <Pressable
-          disabled={disabled}
+        <TimingCard
+          icon="clock"
+          title="ASAP"
+          subtitle="As soon as possible"
+          selected={
+            value === "asap"
+          }
+          disabled={
+            disabled
+          }
           onPress={
             handleAsapPress
           }
-          accessibilityRole="button"
-          accessibilityLabel="ASAP"
-          accessibilityState={{
-            selected:
-              value === "asap",
-            disabled,
-          }}
-          style={({ pressed }) => [
-            styles.card,
+        />
 
-            value === "asap" &&
-              styles.cardSelected,
-
-            pressed &&
-              !disabled &&
-              styles.cardPressed,
-
-            disabled &&
-              styles.cardDisabled,
-          ]}
-        >
-          {/* ICON */}
-
-          <View
-            style={
-              styles.iconBox
-            }
-          >
-            <AppText
-              style={
-                styles.asapIcon
-              }
-            >
-              ⚡
-            </AppText>
-          </View>
-
-          {/* CONTENT */}
-
-          <View
-            style={
-              styles.cardContent
-            }
-          >
-            <AppText
-              weight="bold"
-              numberOfLines={1}
-              style={[
-                styles.cardTitle,
-
-                value ===
-                  "asap" &&
-                  styles.cardTitleSelected,
-              ]}
-            >
-              ASAP
-            </AppText>
-
-            <AppText
-              numberOfLines={2}
-              style={
-                styles.cardSubtitle
-              }
-            >
-              As soon as possible
-            </AppText>
-          </View>
-        </Pressable>
-
-        {/* ======================================================
+        {/* ====================================================
             SCHEDULE
-        ====================================================== */}
+        ==================================================== */}
 
-        <Pressable
-          disabled={disabled}
+        <TimingCard
+          icon="calendar"
+          title="Schedule"
+          subtitle="Choose date & time"
+          selected={
+            value ===
+            "schedule"
+          }
+          disabled={
+            disabled
+          }
+          scheduled={
+            value ===
+            "schedule"
+          }
+          date={
+            formattedDate
+          }
+          time={
+            formattedTime
+          }
           onPress={
             handleSchedulePress
           }
-          accessibilityRole="button"
-          accessibilityLabel="Schedule service"
-          accessibilityState={{
-            selected:
-              value ===
-              "schedule",
-            disabled,
-          }}
-          style={({ pressed }) => [
-            styles.card,
-
-            value ===
-              "schedule" &&
-              styles.cardSelected,
-
-            pressed &&
-              !disabled &&
-              styles.cardPressed,
-
-            disabled &&
-              styles.cardDisabled,
-          ]}
-        >
-          {/* ICON */}
-
-          <View
-            style={[
-              styles.iconBox,
-
-              value ===
-                "schedule" &&
-                styles.iconBoxSelected,
-            ]}
-          >
-            <AppText
-              style={
-                styles.calendarIcon
-              }
-            >
-              📅
-            </AppText>
-          </View>
-
-          {/* CONTENT */}
-
-          <View
-            style={
-              styles.cardContent
-            }
-          >
-            <AppText
-              weight="bold"
-              numberOfLines={1}
-              style={[
-                styles.cardTitle,
-
-                value ===
-                  "schedule" &&
-                  styles.cardTitleSelected,
-              ]}
-            >
-              Schedule
-            </AppText>
-
-            {value ===
-            "schedule" ? (
-              <>
-                <AppText
-                  numberOfLines={1}
-                  style={
-                    styles.scheduleDate
-                  }
-                >
-                  {formattedDate}
-                </AppText>
-
-                <AppText
-                  numberOfLines={1}
-                  style={
-                    styles.scheduleTime
-                  }
-                >
-                  {formattedTime}
-                </AppText>
-              </>
-            ) : (
-              <AppText
-                numberOfLines={2}
-                style={
-                  styles.cardSubtitle
-                }
-              >
-                Choose date & time
-              </AppText>
-            )}
-          </View>
-        </Pressable>
+        />
       </View>
 
       {/* ========================================================
           DATE PICKER
       ======================================================== */}
 
-      {showDatePicker && (
+      {showDatePicker ? (
         <DateTimePicker
-          value={displayDate}
+          value={
+            displayDate
+          }
           mode="date"
           minimumDate={
             new Date()
@@ -485,15 +401,17 @@ function RequestTiming({
             handleDateChange
           }
         />
-      )}
+      ) : null}
 
       {/* ========================================================
           TIME PICKER
       ======================================================== */}
 
-      {showTimePicker && (
+      {showTimePicker ? (
         <DateTimePicker
-          value={displayDate}
+          value={
+            displayDate
+          }
           mode="time"
           is24Hour={false}
           display="default"
@@ -501,8 +419,186 @@ function RequestTiming({
             handleTimeChange
           }
         />
-      )}
+      ) : null}
     </>
+  );
+}
+
+/* ==============================================================
+   TIMING CARD
+============================================================== */
+
+function TimingCard({
+  icon,
+  title,
+  subtitle,
+  selected,
+  disabled,
+  scheduled = false,
+  date,
+  time,
+  onPress,
+}: {
+  icon:
+    | "clock"
+    | "calendar";
+
+  title: string;
+
+  subtitle: string;
+
+  selected: boolean;
+
+  disabled: boolean;
+
+  scheduled?: boolean;
+
+  date?: string;
+
+  time?: string;
+
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        title
+      }
+      accessibilityState={{
+        selected,
+        disabled,
+      }}
+      disabled={
+        disabled
+      }
+      onPress={
+        onPress
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.card,
+
+        selected
+          ? styles.cardSelected
+          : null,
+
+        pressed &&
+        !disabled
+          ? styles.cardPressed
+          : null,
+
+        disabled
+          ? styles.cardDisabled
+          : null,
+      ]}
+    >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.iconBox,
+
+          selected
+            ? styles.iconBoxSelected
+            : null,
+        ]}
+      >
+        <AppIcon
+          name={icon}
+          role="customer"
+          size="md"
+          state={
+            selected
+              ? "active"
+              : "muted"
+          }
+        />
+      </View>
+
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.cardContent
+        }
+      >
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          numberOfLines={1}
+          style={
+            selected
+              ? styles.titleSelected
+              : undefined
+          }
+        >
+          {title}
+        </AppText>
+
+        {scheduled ? (
+          <>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.scheduleDate
+              }
+            >
+              {date}
+            </AppText>
+
+            <AppText
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={1}
+              style={
+                styles.scheduleTime
+              }
+            >
+              {time}
+            </AppText>
+          </>
+        ) : (
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={2}
+            style={
+              styles.subtitle
+            }
+          >
+            {subtitle}
+          </AppText>
+        )}
+      </View>
+
+      {/* ======================================================
+          SELECTED INDICATOR
+      ====================================================== */}
+
+      {selected ? (
+        <View
+          style={
+            styles.selectedIndicator
+          }
+        >
+          <AppIcon
+            name="check"
+            role="customer"
+            size="xs"
+            state="inverse"
+            strokeWidth="strong"
+          />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -513,119 +609,112 @@ function RequestTiming({
 const styles =
   StyleSheet.create({
     container: {
-      flexDirection: "row",
-
-      gap: 12,
-
       width: "100%",
+
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
-    /* ==========================================================
+    /* ========================================================
        CARD
-    ========================================================== */
+    ======================================================== */
 
     card: {
       flex: 1,
 
       minWidth: 0,
 
-      minHeight: 154,
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight +
+        FixxamTokens.spacing.xxxl,
 
-      borderRadius: 22,
+      position:
+        "relative",
 
-      paddingHorizontal: 16,
+      padding:
+        FixxamTokens.spacing.lg,
 
-      paddingVertical: 16,
-
-      backgroundColor:
-        "#FFFFFF",
-
-      borderWidth: 1.5,
+      borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      alignItems: "flex-start",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      justifyContent:
-        "flex-start",
+      backgroundColor:
+        Colors.surface,
     },
 
     cardSelected: {
-      borderColor:
-        "#2563EB",
-
       borderWidth: 2,
+
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     cardPressed: {
-      opacity: 0.85,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     cardDisabled: {
-      opacity: 0.55,
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
-    /* ==========================================================
+    /* ========================================================
        ICON
-    ========================================================== */
+    ======================================================== */
 
     iconBox: {
-      width: 70,
+      width:
+        FixxamTokens.size.iconBox,
 
-      height: 70,
+      height:
+        FixxamTokens.size.iconBox,
 
-      borderRadius: 18,
-
-      backgroundColor:
-        "#EFF6FF",
-
-      borderWidth: 1,
-
-      borderColor:
-        "#DBEAFE",
-
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      marginBottom: 12,
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     iconBoxSelected: {
       backgroundColor:
-        "#EFF6FF",
-
-      borderColor:
-        "#DBEAFE",
+        Colors.surface,
     },
 
-    asapIcon: {
-      fontSize: 42,
-
-      lineHeight: 50,
-
-      textAlign: "center",
-    },
-
-    calendarIcon: {
-      fontSize: 38,
-
-      lineHeight: 46,
-
-      textAlign: "center",
-    },
-
-    /* ==========================================================
+    /* ========================================================
        CONTENT
-    ========================================================== */
+    ======================================================== */
 
     cardContent: {
       width: "100%",
@@ -633,56 +722,62 @@ const styles =
       minWidth: 0,
     },
 
-    cardTitle: {
-      fontSize: 18,
-
-      lineHeight: 23,
-
-      color: "#0F172A",
-
-      textTransform:
-        "none",
+    titleSelected: {
+      color:
+        CustomerColors.primary,
     },
 
-    cardTitleSelected: {
-      color: "#2563EB",
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
-    cardSubtitle: {
-      marginTop: 4,
-
-      fontSize: 14,
-
-      lineHeight: 20,
-
-      color: "#64748B",
-    },
-
-    /* ==========================================================
-       SCHEDULE DATA
-    ========================================================== */
+    /* ========================================================
+       SCHEDULE
+    ======================================================== */
 
     scheduleDate: {
-      marginTop: 5,
-
-      fontSize: 14,
-
-      lineHeight: 19,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     scheduleTime: {
-      marginTop: 1,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 15,
+      color:
+        CustomerColors.primary,
+    },
 
-      lineHeight: 20,
+    /* ========================================================
+       SELECTED
+    ======================================================== */
 
-      fontWeight:
-        "700",
+    selectedIndicator: {
+      position:
+        "absolute",
 
-      color: "#2563EB",
+      top:
+        FixxamTokens.spacing.sm,
+
+      right:
+        FixxamTokens.spacing.sm,
+
+      width: 24,
+
+      height: 24,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
   });
 

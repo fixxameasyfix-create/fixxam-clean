@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -10,131 +13,302 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   jobs?: number | null;
+
   completed?: number | null;
+
   rating?: number | null;
+
   earnings?: number | null;
 };
 
-function safeNumber(
+type StatItem = {
+  label: string;
+
+  value: string;
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeCount(
   value: number | null | undefined,
 ): number {
-  return typeof value === "number" &&
-    Number.isFinite(value)
-    ? value
-    : 0;
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(value);
 }
 
-export default function WorkerStats({
+function normalizeRating(
+  value: number | null | undefined,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    value,
+  );
+}
+
+function normalizeEarnings(
+  value: number | null | undefined,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return 0;
+  }
+
+  return value;
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerStats({
   jobs,
   completed,
   rating,
   earnings,
 }: Props) {
-  const safeJobs =
-    safeNumber(jobs);
+  const stats =
+    useMemo<StatItem[]>(
+      () => {
+        const safeJobs =
+          normalizeCount(
+            jobs,
+          );
 
-  const safeCompleted =
-    safeNumber(completed);
+        const safeCompleted =
+          normalizeCount(
+            completed,
+          );
 
-  const safeRating =
-    safeNumber(rating);
+        const safeRating =
+          normalizeRating(
+            rating,
+          );
 
-  const safeEarnings =
-    safeNumber(earnings);
+        const safeEarnings =
+          normalizeEarnings(
+            earnings,
+          );
 
-  const stats = [
-    {
-      label: "Jobs",
-      value:
-        safeJobs.toLocaleString(),
-    },
-    {
-      label: "Completed",
-      value:
-        safeCompleted.toLocaleString(),
-    },
-    {
-      label: "Rating",
-      value:
-        safeRating > 0
-          ? safeRating.toFixed(1)
-          : "New",
-    },
-    {
-      label: "Earnings",
-      value:
-        `₦${safeEarnings.toLocaleString()}`,
-    },
-  ];
+        return [
+          {
+            label: "Jobs",
+
+            value:
+              safeJobs.toLocaleString(),
+          },
+
+          {
+            label: "Completed",
+
+            value:
+              safeCompleted.toLocaleString(),
+          },
+
+          {
+            label: "Rating",
+
+            value:
+              safeRating > 0
+                ? safeRating.toFixed(
+                    1,
+                  )
+                : "New",
+          },
+
+          {
+            label: "Earnings",
+
+            value: `₦${safeEarnings.toLocaleString()}`,
+          },
+        ];
+      },
+      [
+        jobs,
+        completed,
+        rating,
+        earnings,
+      ],
+    );
 
   return (
     <AppCard
+      role="worker"
       style={styles.card}
     >
-      {stats.map((item) => (
-        <View
-          key={item.label}
-          style={styles.item}
-        >
-          <AppText
-            weight="bold"
-            style={styles.value}
-            numberOfLines={1}
+      {stats.map(
+        (
+          item,
+          index,
+        ) => (
+          <React.Fragment
+            key={item.label}
           >
-            {item.value}
-          </AppText>
+            {index > 0 ? (
+              <View
+                style={
+                  styles.divider
+                }
+              />
+            ) : null}
 
-          <AppText
-            style={styles.label}
-            numberOfLines={1}
-          >
-            {item.label}
-          </AppText>
-        </View>
-      ))}
+            <View
+              style={
+                styles.item
+              }
+              accessible
+              accessibilityLabel={`${item.label}: ${item.value}`}
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                numberOfLines={1}
+                style={
+                  styles.value
+                }
+              >
+                {item.value}
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.label
+                }
+              >
+                {item.label}
+              </AppText>
+            </View>
+          </React.Fragment>
+        ),
+      )}
     </AppCard>
   );
 }
 
+export default memo(
+  WorkerStats,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
       marginHorizontal: 0,
+
       marginTop: 0,
+
       marginBottom: 0,
 
-      paddingVertical: 14,
-      paddingHorizontal: 6,
+      minHeight: 88,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
-      justifyContent:
-        "space-around",
+
       alignItems: "center",
 
-      borderRadius: 17,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
+
+    /* ========================================================
+       STAT
+    ======================================================== */
 
     item: {
       flex: 1,
+
       minWidth: 0,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
     },
 
     value: {
-      fontSize: 18,
-      lineHeight: 22,
-      color: "#0F172A",
+      textAlign: "center",
+
+      color:
+        WorkerColors.primary,
     },
 
     label: {
-      marginTop: 3,
-      color: "#64748B",
-      fontSize: 10.5,
-      lineHeight: 15,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       textAlign: "center",
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
+
+    divider: {
+      width: 1,
+
+      height: 38,
+
+      backgroundColor:
+        Colors.divider,
     },
   });

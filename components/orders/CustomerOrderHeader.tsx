@@ -1,4 +1,7 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,27 +9,116 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   BookingStatus,
 } from "@/types/booking";
 
-/* ============================================================
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Props = {
   orderId: string;
+
   status: BookingStatus;
+
   onBack: () => void;
 };
 
-/* ============================================================
+type StatusConfig = {
+  label: string;
+
+  backgroundColor: string;
+
+  color: string;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getStatusConfig(
+  status: BookingStatus,
+): StatusConfig {
+  switch (status) {
+    case "pending":
+      return {
+        label: "PENDING",
+        backgroundColor:
+          Colors.warningSoft,
+        color:
+          Colors.warning,
+      };
+
+    case "accepted":
+      return {
+        label: "ACCEPTED",
+        backgroundColor:
+          Colors.infoSoft,
+        color:
+          Colors.info,
+      };
+
+    case "in-progress":
+      return {
+        label: "IN PROGRESS",
+        backgroundColor:
+          Colors.infoSoft,
+        color:
+          Colors.info,
+      };
+
+    case "completed":
+      return {
+        label: "COMPLETED",
+        backgroundColor:
+          Colors.successSoft,
+        color:
+          Colors.success,
+      };
+
+    case "cancelled":
+      return {
+        label: "CANCELLED",
+        backgroundColor:
+          Colors.errorSoft,
+        color:
+          Colors.error,
+      };
+
+    case "expired":
+      return {
+        label: "EXPIRED",
+        backgroundColor:
+          Colors.disabledBackground,
+        color:
+          Colors.textSecondary,
+      };
+
+    default:
+      return {
+        label: "PENDING",
+        backgroundColor:
+          Colors.warningSoft,
+        color:
+          Colors.warning,
+      };
+  }
+}
+
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
 function CustomerOrderHeader({
   orderId,
@@ -36,9 +128,23 @@ function CustomerOrderHeader({
   const config =
     getStatusConfig(status);
 
+  const safeOrderId =
+    useMemo(() => {
+      const value =
+        typeof orderId === "string"
+          ? orderId.trim()
+          : "";
+
+      return value || "—";
+    }, [orderId]);
+
   return (
-    <View style={styles.container}>
-      {/* BACK */}
+    <View
+      style={styles.container}
+    >
+      {/* ======================================================
+          BACK
+      ====================================================== */}
 
       <Pressable
         onPress={onBack}
@@ -47,55 +153,87 @@ function CustomerOrderHeader({
         hitSlop={8}
         style={({ pressed }) => [
           styles.backButton,
-          pressed && styles.pressed,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="chevron-back"
-          size={21}
-          color="#0F172A"
+        <AppIcon
+          name="back"
+          size="sm"
+          color={
+            Colors.textPrimary
+          }
         />
       </Pressable>
 
-      {/* TITLE */}
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
 
-      <View style={styles.content}>
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
-          style={styles.title}
           numberOfLines={1}
+          style={styles.title}
         >
           Order Details
         </AppText>
 
         <AppText
-          style={styles.subtitle}
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
+          style={
+            styles.subtitle
+          }
         >
-          #{orderId}
+          #{safeOrderId}
         </AppText>
       </View>
 
-      {/* STATUS */}
+      {/* ======================================================
+          STATUS
+      ====================================================== */}
 
       <View
+        accessibilityRole="text"
+        accessibilityLabel={`Order status: ${config.label}`}
         style={[
           styles.statusBadge,
-          config.background,
+
+          {
+            backgroundColor:
+              config.backgroundColor,
+          },
         ]}
       >
         <View
           style={[
             styles.statusDot,
-            config.dot,
+
+            {
+              backgroundColor:
+                config.color,
+            },
           ]}
         />
 
         <AppText
+          variant="caption"
           weight="bold"
+          numberOfLines={1}
           style={[
             styles.statusText,
-            config.text,
+
+            {
+              color:
+                config.color,
+            },
           ]}
         >
           {config.label}
@@ -105,230 +243,139 @@ function CustomerOrderHeader({
   );
 }
 
-/* ============================================================
-   STATUS CONFIG
-============================================================ */
-
-function getStatusConfig(
-  status: BookingStatus,
-) {
-  switch (status) {
-    case "pending":
-      return {
-        label: "PENDING",
-        background: styles.pending,
-        dot: styles.dotPending,
-        text: styles.textPending,
-      };
-
-    case "accepted":
-      return {
-        label: "ACCEPTED",
-        background: styles.accepted,
-        dot: styles.dotAccepted,
-        text: styles.textAccepted,
-      };
-
-    case "in-progress":
-      return {
-        label: "IN PROGRESS",
-        background: styles.progress,
-        dot: styles.dotProgress,
-        text: styles.textProgress,
-      };
-
-    case "completed":
-      return {
-        label: "COMPLETED",
-        background: styles.completed,
-        dot: styles.dotCompleted,
-        text: styles.textCompleted,
-      };
-
-    case "cancelled":
-      return {
-        label: "CANCELLED",
-        background: styles.cancelled,
-        dot: styles.dotCancelled,
-        text: styles.textCancelled,
-      };
-
-    case "expired":
-      return {
-        label: "EXPIRED",
-        background: styles.expired,
-        dot: styles.dotExpired,
-        text: styles.textExpired,
-      };
-
-    default:
-      return {
-        label: "PENDING",
-        background: styles.pending,
-        dot: styles.dotPending,
-        text: styles.textPending,
-      };
-  }
-}
-
-/* ============================================================
+/* ==============================================================
    EXPORT
-============================================================ */
+============================================================== */
 
 export default memo(
   CustomerOrderHeader,
 );
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
-      minHeight: 60,
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection: "row",
+
       alignItems: "center",
     },
 
+    /* ========================================================
+       BACK
+    ======================================================== */
+
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     pressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.97,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     content: {
       flex: 1,
-      marginLeft: 11,
-      marginRight: 8,
+
       minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 19,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
     statusBadge: {
+      flexShrink: 0,
+
+      minHeight: 28,
+
       flexDirection: "row",
+
       alignItems: "center",
-      gap: 5,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      borderRadius: 9,
+
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
 
     statusDot: {
       width: 7,
+
       height: 7,
-      borderRadius: 4,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusText: {
-      fontSize: 7.5,
-    },
-
-    /* PENDING */
-
-    pending: {
-      backgroundColor: "#FFF7E8",
-    },
-
-    dotPending: {
-      backgroundColor: "#F59E0B",
-    },
-
-    textPending: {
-      color: "#D97706",
-    },
-
-    /* ACCEPTED */
-
-    accepted: {
-      backgroundColor: "#EFF6FF",
-    },
-
-    dotAccepted: {
-      backgroundColor: "#2563EB",
-    },
-
-    textAccepted: {
-      color: "#1D4ED8",
-    },
-
-    /* IN PROGRESS */
-
-    progress: {
-      backgroundColor: "#F3E8FF",
-    },
-
-    dotProgress: {
-      backgroundColor: "#7C3AED",
-    },
-
-    textProgress: {
-      color: "#6D28D9",
-    },
-
-    /* COMPLETED */
-
-    completed: {
-      backgroundColor: "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor: "#16A34A",
-    },
-
-    textCompleted: {
-      color: "#15803D",
-    },
-
-    /* CANCELLED */
-
-    cancelled: {
-      backgroundColor: "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor: "#DC2626",
-    },
-
-    textCancelled: {
-      color: "#B91C1C",
-    },
-
-    /* EXPIRED */
-
-    expired: {
-      backgroundColor: "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor: "#64748B",
-    },
-
-    textExpired: {
-      color: "#475569",
+      flexShrink: 0,
     },
   });

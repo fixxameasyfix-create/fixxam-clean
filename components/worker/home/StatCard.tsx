@@ -1,23 +1,49 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   title: string;
+
   value: string | number;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  icon: AppIconName;
+
   iconColor: string;
+
   iconBackground: string;
+
   trend?: string;
 };
 
-export default function StatCard({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function StatCard({
   title,
   value,
   icon,
@@ -25,113 +51,205 @@ export default function StatCard({
   iconBackground,
   trend,
 }: Props) {
+  const displayTrend =
+    typeof trend === "string"
+      ? trend.trim()
+      : "";
+
   return (
-    <View style={styles.card}>
-  <View
-    style={[
-      styles.iconContainer,
-      {
-        backgroundColor: iconBackground,
-      },
-    ]}
-  >
-    <Ionicons
-      name={icon}
-      size={24}
-      color={iconColor}
-    />
-  </View>
+    <View
+      style={
+        styles.card
+      }
+    >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
 
-  <AppText
-    weight="bold"
-    style={styles.value}
-  >
-    {value}
-  </AppText>
+      <View
+        style={[
+          styles.iconContainer,
+          {
+            backgroundColor:
+              iconBackground,
+          },
+        ]}
+      >
+        <AppIcon
+          name={
+            icon
+          }
+          size="md"
+          color={
+            iconColor
+          }
+        />
+      </View>
 
-  <AppText
-    weight="bold"
-    numberOfLines={1}
-    style={[
-      styles.title,
-      {
-        color: iconColor,
-      },
-    ]}
-  >
-    {title}
-  </AppText>
+      {/* ======================================================
+          VALUE
+      ====================================================== */}
 
-  {trend ? (
-    <View style={styles.trendContainer}>
-      <Ionicons
-        name="trending-up"
-        size={10}
-        color="#16A34A"
-      />
-
-      <AppText style={styles.trend}>
-        {trend}
+      <AppText
+        variant="heading2"
+        weight="bold"
+        numberOfLines={1}
+        style={
+          styles.value
+        }
+      >
+        {value}
       </AppText>
+
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
+      <AppText
+        variant="bodyMedium"
+        weight="bold"
+        numberOfLines={1}
+        style={
+          styles.title
+        }
+      >
+        {title}
+      </AppText>
+
+      {/* ======================================================
+          TREND
+      ====================================================== */}
+
+      {displayTrend ? (
+        <View
+          style={
+            styles.trendContainer
+          }
+        >
+          <AppIcon
+            name="arrow-up"
+            size="xs"
+            color={
+              Colors.success
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.trend
+            }
+          >
+            {displayTrend}
+          </AppText>
+        </View>
+      ) : null}
     </View>
-  ) : null}
-</View>
   );
 }
-const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: "#FFF",
-    borderRadius: 22,
-    padding: 16,
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+/* ============================================================
+   MEMO
+============================================================ */
 
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
+StatCard.displayName =
+  "StatCard";
+
+export default memo(
+  StatCard,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    card: {
+      flex: 1,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
 
-    elevation: 4,
-  },
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-  iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
+    iconContainer: {
+      width:
+        FixxamTokens.size.iconBox,
 
-    justifyContent: "center",
-    alignItems: "center",
+      height:
+        FixxamTokens.size.iconBox,
 
-    marginBottom: 14,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  value: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      alignItems:
+        "center",
 
-  title: {
-    marginTop: 4,
-    fontSize: 15,
-    fontWeight: "700",
-  },
+      justifyContent:
+        "center",
 
-  trendContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
 
-  trend: {
-    marginLeft: 4,
-    fontSize: 11,
-    color: "#16A34A",
-    fontWeight: "700",
-  },
-});
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    value: {
+      color:
+        Colors.textPrimary,
+    },
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       TREND
+    ======================================================== */
+
+    trendContainer: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    trend: {
+      flexShrink: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.success,
+    },
+  });

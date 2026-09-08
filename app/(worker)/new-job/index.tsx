@@ -1,4 +1,7 @@
-import React, { useMemo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -7,21 +10,30 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import WorkerMarketOrderCard from "@/components/workerorders/WorkerMarketOrderCard";
 import WorkerOrderCard from "@/components/workerorders/WorkerOrderCard";
 
 import useWorkerOrders from "@/hooks/orders/useWorkerOrders";
-
-import { auth } from "@/firebase/config";
 
 import type {
   WorkerMarketOrder,
@@ -42,11 +54,19 @@ type NewJobItem =
       data: WorkerMarketOrder;
     };
 
+type NewJobLabelProps = {
+  icon: AppIconName;
+
+  label: string;
+};
+
 /* ==============================================================
    HELPERS
 ============================================================== */
 
-function getTime(value: unknown): number {
+function getTime(
+  value: unknown,
+): number {
   if (
     value &&
     typeof value === "object" &&
@@ -58,20 +78,32 @@ function getTime(value: unknown): number {
     ).toMillis === "function"
   ) {
     try {
-      return (
-        value as {
-          toMillis: () => number;
-        }
-      ).toMillis();
+      const result =
+        (
+          value as {
+            toMillis: () => number;
+          }
+        ).toMillis();
+
+      return Number.isFinite(
+        result,
+      )
+        ? result
+        : 0;
     } catch {
       return 0;
     }
   }
 
-  if (value instanceof Date) {
-    const time = value.getTime();
+  if (
+    value instanceof Date
+  ) {
+    const time =
+      value.getTime();
 
-    return Number.isFinite(time)
+    return Number.isFinite(
+      time,
+    )
       ? time
       : 0;
   }
@@ -83,15 +115,50 @@ function getTime(value: unknown): number {
     return value;
   }
 
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
+  if (
+    typeof value === "string"
+  ) {
+    const parsed =
+      Date.parse(
+        value,
+      );
 
-    return Number.isFinite(parsed)
+    return Number.isFinite(
+      parsed,
+    )
       ? parsed
       : 0;
   }
 
   return 0;
+}
+
+function getSafeCount(
+  value: unknown,
+): number {
+  const count =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(count) ||
+    count <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    count,
+  );
+}
+
+function getOrderId(
+  value: unknown,
+): string {
+  return String(
+    value ?? "",
+  ).trim();
 }
 
 /* ==============================================================
@@ -100,173 +167,272 @@ function getTime(value: unknown): number {
 
 export default function NewJobsScreen() {
   /* ============================================================
-     WORKER ID
-  ============================================================ */
-
-  const workerId =
-    auth.currentUser?.uid ?? "";
-
-  /* ============================================================
      ORDERS
   ============================================================ */
 
   const {
     serviceOrders,
     marketOrders,
+    counts,
     loading,
     error,
-  } = useWorkerOrders();
+  } =
+    useWorkerOrders();
+
+  /*
+   * Keep counts.pending as the
+   * single source of truth.
+   */
+  const pendingCount =
+    getSafeCount(
+      counts.pending,
+    );
 
   /* ============================================================
-     NEW JOBS
+     NEW JOBS LIST
   ============================================================ */
 
-  const newJobs = useMemo<NewJobItem[]>(() => {
-    const serviceJobs: NewJobItem[] =
-      Array.isArray(serviceOrders)
-        ? serviceOrders
-            .filter(
-              (order: WorkerServiceOrder) =>
-                order.status === "pending" &&
-                order.deletedByWorker !== true,
-            )
-            .map(
-              (order: WorkerServiceOrder) => ({
-                type: "service",
-                data: order,
-              }),
-            )
-        : [];
+  const newJobs =
+    useMemo<NewJobItem[]>(
+      () => {
+        const serviceJobs:
+          NewJobItem[] =
+          Array.isArray(
+            serviceOrders,
+          )
+            ? serviceOrders
+                .filter(
+                  (
+                    order:
+                      WorkerServiceOrder,
+                  ) =>
+                    order.status ===
+                      "pending" &&
+                    order.deletedByWorker !==
+                      true,
+                )
+                .map(
+                  (
+                    order:
+                      WorkerServiceOrder,
+                  ) => ({
+                    type:
+                      "service",
 
-    const marketJobs: NewJobItem[] =
-      Array.isArray(marketOrders)
-        ? marketOrders
-            .filter(
-              (order: WorkerMarketOrder) =>
-                order.status === "pending" &&
-                order.deletedByWorker !== true,
-            )
-            .map(
-              (order: WorkerMarketOrder) => ({
-                type: "market",
-                data: order,
-              }),
-            )
-        : [];
+                    data:
+                      order,
+                  }),
+                )
+            : [];
 
-    return [
-      ...serviceJobs,
-      ...marketJobs,
-    ].sort((a, b) => {
-      const aTime = getTime(
-        a.data.createdAt ??
-          a.data.updatedAt ??
-          a.data.date,
-      );
+        const marketJobs:
+          NewJobItem[] =
+          Array.isArray(
+            marketOrders,
+          )
+            ? marketOrders
+                .filter(
+                  (
+                    order:
+                      WorkerMarketOrder,
+                  ) =>
+                    order.status ===
+                      "pending" &&
+                    order.deletedByWorker !==
+                      true,
+                )
+                .map(
+                  (
+                    order:
+                      WorkerMarketOrder,
+                  ) => ({
+                    type:
+                      "market",
 
-      const bTime = getTime(
-        b.data.createdAt ??
-          b.data.updatedAt ??
-          b.data.date,
-      );
+                    data:
+                      order,
+                  }),
+                )
+            : [];
 
-      return bTime - aTime;
-    });
-  }, [
-    serviceOrders,
-    marketOrders,
-  ]);
+        return [
+          ...serviceJobs,
+          ...marketJobs,
+        ].sort(
+          (
+            a,
+            b,
+          ) => {
+            const aTime =
+              getTime(
+                a.data
+                  .createdAt ??
+                  a.data
+                    .updatedAt ??
+                  a.data.date,
+              );
+
+            const bTime =
+              getTime(
+                b.data
+                  .createdAt ??
+                  b.data
+                    .updatedAt ??
+                  b.data.date,
+              );
+
+            return (
+              bTime -
+              aTime
+            );
+          },
+        );
+      },
+      [
+        marketOrders,
+        serviceOrders,
+      ],
+    );
 
   /* ============================================================
      OPEN SERVICE ORDER
   ============================================================ */
 
-  const handleOpenServiceOrder = (
-    order: WorkerServiceOrder,
-  ) => {
-    const orderId = String(
-      order.id ?? "",
-    ).trim();
+  const handleOpenServiceOrder =
+    (
+      order:
+        WorkerServiceOrder,
+    ) => {
+      const orderId =
+        getOrderId(
+          order.id,
+        );
 
-    if (!orderId) {
-      return;
-    }
+      if (!orderId) {
+        return;
+      }
 
-    router.push({
-      pathname:
-        "/(worker)/orders/[orderId]",
-      params: {
-        orderId,
-      },
-    });
-  };
+      router.push({
+        pathname:
+          "/(worker)/orders/[orderId]",
+
+        params: {
+          orderId,
+        },
+      });
+    };
 
   /* ============================================================
      OPEN MARKET ORDER
   ============================================================ */
 
-  const handleOpenMarketOrder = (
-    order: WorkerMarketOrder,
-  ) => {
-    const marketId = String(
-      order.id ?? "",
-    ).trim();
+  const handleOpenMarketOrder =
+    (
+      order:
+        WorkerMarketOrder,
+    ) => {
+      const marketId =
+        getOrderId(
+          order.id,
+        );
 
-    if (!marketId) {
-      return;
-    }
+      if (!marketId) {
+        return;
+      }
 
-    router.push({
-      pathname:
-        "/(worker)/orders/market/[market]",
-      params: {
-        market: marketId,
-      },
-    });
-  };
+      router.push({
+        pathname:
+          "/(worker)/orders/market/[market]",
+
+        params: {
+          market:
+            marketId,
+        },
+      });
+    };
 
   /* ============================================================
      HEADER
   ============================================================ */
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.headerIcon}>
-        <Ionicons
-          name="notifications-outline"
-          size={23}
-          color="#FF6B00"
-        />
-      </View>
-
-      <View style={styles.headerContent}>
-        <View style={styles.titleRow}>
-          <AppText
-            weight="bold"
-            style={styles.title}
-          >
-            New Jobs
-          </AppText>
-
-          {newJobs.length > 0 && (
-            <View style={styles.countBadge}>
-              <AppText
-                weight="bold"
-                style={styles.countText}
-              >
-                {newJobs.length}
-              </AppText>
-            </View>
-          )}
+  const renderHeader =
+    () => (
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerIcon
+          }
+        >
+          <AppIcon
+            name="notifications"
+            role="worker"
+            size="md"
+            color={
+              WorkerColors.primary
+            }
+          />
         </View>
 
-        <AppText style={styles.subtitle}>
-          New customer requests and market
-          orders waiting for your response.
-        </AppText>
+        <View
+          style={
+            styles.headerContent
+          }
+        >
+          <View
+            style={
+              styles.titleRow
+            }
+          >
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
+              New Jobs
+            </AppText>
+
+            {pendingCount >
+            0 ? (
+              <View
+                style={
+                  styles.countBadge
+                }
+                accessibilityLabel={`${pendingCount} pending jobs`}
+              >
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.countText
+                  }
+                >
+                  {pendingCount >
+                  99
+                    ? "99+"
+                    : pendingCount}
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
+            New customer requests and market orders waiting for your response.
+          </AppText>
+        </View>
       </View>
-    </View>
-  );
+    );
 
   /* ============================================================
      LOADING
@@ -275,6 +441,7 @@ export default function NewJobsScreen() {
   if (loading) {
     return (
       <AppScreen
+        role="worker"
         contentContainerStyle={
           styles.screen
         }
@@ -286,13 +453,26 @@ export default function NewJobsScreen() {
             styles.loadingContainer
           }
         >
-          <ActivityIndicator
-            size="small"
-            color="#FF6B00"
-          />
+          <View
+            style={
+              styles.stateIcon
+            }
+          >
+            <ActivityIndicator
+              size="small"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
 
           <AppText
-            style={styles.loadingText}
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.loadingText
+            }
           >
             Checking for new jobs...
           </AppText>
@@ -311,32 +491,53 @@ export default function NewJobsScreen() {
   ) {
     return (
       <AppScreen
+        role="worker"
         contentContainerStyle={
           styles.screen
         }
       >
         {renderHeader()}
 
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIcon}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={30}
-              color="#64748B"
+        <View
+          style={
+            styles.emptyCard
+          }
+        >
+          <View
+            style={[
+              styles.stateIcon,
+              styles.errorIcon,
+            ]}
+          >
+            <AppIcon
+              name="wifi-off"
+              size="lg"
+              color={
+                Colors.error
+              }
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.emptyTitle}
+            center
+            style={
+              styles.emptyTitle
+            }
           >
             Unable to Load Jobs
           </AppText>
 
           <AppText
-            style={styles.emptyText}
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
           >
-            {String(error)}
+            We couldn&apos;t load your new jobs. Please check your connection and try again.
           </AppText>
         </View>
       </AppScreen>
@@ -349,16 +550,31 @@ export default function NewJobsScreen() {
 
   return (
     <AppScreen
+      role="worker"
       contentContainerStyle={
         styles.screen
       }
     >
       <FlatList<NewJobItem>
-        data={newJobs}
-        keyExtractor={(item) =>
-          `${item.type}-${item.data.id}`
+        data={
+          newJobs
         }
-        showsVerticalScrollIndicator={false}
+        keyExtractor={(
+          item,
+          index,
+        ) => {
+          const id =
+            getOrderId(
+              item.data.id,
+            );
+
+          return id
+            ? `${item.type}-${id}`
+            : `${item.type}-${index}`;
+        }}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.list
         }
@@ -366,37 +582,60 @@ export default function NewJobsScreen() {
           renderHeader
         }
         ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIcon}>
-              <Ionicons
-                name="briefcase-outline"
-                size={30}
-                color="#FF6B00"
+          <View
+            style={
+              styles.emptyCard
+            }
+          >
+            <View
+              style={
+                styles.stateIcon
+              }
+            >
+              <AppIcon
+                name="jobs"
+                role="worker"
+                size="lg"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
 
             <AppText
+              variant="heading3"
               weight="bold"
-              style={styles.emptyTitle}
+              center
+              style={
+                styles.emptyTitle
+              }
             >
               No New Jobs
             </AppText>
 
             <AppText
-              style={styles.emptyText}
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.emptyText
+              }
             >
-              New service requests and market
-              orders assigned to you will
-              appear here automatically.
+              New service requests and market orders assigned to you will appear here automatically.
             </AppText>
           </View>
         }
-        renderItem={({ item }) => {
+        renderItem={({
+          item,
+        }) => {
           /* ====================================================
              SERVICE
           ==================================================== */
 
-          if (item.type === "service") {
+          if (
+            item.type ===
+            "service"
+          ) {
             return (
               <View
                 style={
@@ -404,12 +643,14 @@ export default function NewJobsScreen() {
                 }
               >
                 <NewJobLabel
-                  icon="briefcase-outline"
+                  icon="jobs"
                   label="NEW SERVICE REQUEST"
                 />
 
                 <WorkerOrderCard
-                  order={item.data}
+                  order={
+                    item.data
+                  }
                   onPress={
                     handleOpenServiceOrder
                   }
@@ -429,12 +670,14 @@ export default function NewJobsScreen() {
               }
             >
               <NewJobLabel
-                icon="cart-outline"
+                icon="cart"
                 label="NEW MARKET ORDER"
               />
 
               <WorkerMarketOrderCard
-                order={item.data}
+                order={
+                  item.data
+                }
                 onPress={
                   handleOpenMarketOrder
                 }
@@ -451,42 +694,52 @@ export default function NewJobsScreen() {
    NEW JOB LABEL
 ============================================================== */
 
-function NewJobLabel({
-  icon,
-  label,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-}) {
-  return (
-    <View
-      style={
-        styles.newJobLabel
-      }
-    >
-      <View
-        style={
-          styles.newJobDot
-        }
-      />
+const NewJobLabel =
+  memo(
+    function NewJobLabel({
+      icon,
+      label,
+    }: NewJobLabelProps) {
+      return (
+        <View
+          style={
+            styles.newJobLabel
+          }
+        >
+          <View
+            style={
+              styles.newJobDot
+            }
+          />
 
-      <Ionicons
-        name={icon}
-        size={14}
-        color="#FF6B00"
-      />
+          <AppIcon
+            name={
+              icon
+            }
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
+          />
 
-      <AppText
-        weight="bold"
-        style={
-          styles.newJobLabelText
-        }
-      >
-        {label}
-      </AppText>
-    </View>
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.newJobLabelText
+            }
+          >
+            {label}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
+
+NewJobLabel.displayName =
+  "NewJobLabel";
 
 /* ==============================================================
    STYLES
@@ -496,144 +749,278 @@ const styles =
   StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: "#F8FAFC",
-      paddingHorizontal: 16,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     list: {
-      paddingBottom: 40,
+      flexGrow: 1,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: 8,
-      paddingBottom: 18,
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     headerIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor: "#FFF7ED",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 12,
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     headerContent: {
       flex: 1,
+
       minWidth: 0,
     },
 
     titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 25,
-      lineHeight: 31,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     countBadge: {
-      minWidth: 25,
-      height: 25,
-      paddingHorizontal: 7,
-      borderRadius: 999,
-      backgroundColor: "#FF6B00",
-      alignItems: "center",
-      justifyContent: "center",
+      minWidth: 26,
+
+      height: 26,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     countText: {
-      fontSize: 12,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 18,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ==========================================================
+       LOADING
+    ========================================================== */
+
     loadingContainer: {
-      minHeight: 220,
-      alignItems: "center",
-      justifyContent: "center",
+      minHeight: 240,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 10,
-      color: "#64748B",
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
+
+    /* ==========================================================
+       STATES
+    ========================================================== */
 
     emptyCard: {
-      marginTop: 12,
-      borderRadius: 22,
-      backgroundColor: "#FFFFFF",
-      paddingHorizontal: 24,
-      paddingVertical: 42,
-      alignItems: "center",
-      justifyContent: "center",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    emptyIcon: {
-      width: 62,
-      height: 62,
-      borderRadius: 20,
-      backgroundColor: "#FFF7ED",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 14,
+    stateIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    errorIcon: {
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     emptyTitle: {
-      fontSize: 19,
-      color: "#0F172A",
-      textAlign: "center",
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 7,
-      fontSize: 13,
+      maxWidth: 310,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 20,
-      textAlign: "center",
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ==========================================================
+       ORDERS
+    ========================================================== */
+
     orderWrapper: {
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     newJobLabel: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      marginBottom: 7,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 999,
-      backgroundColor: "#FFF7ED",
+      minHeight: 32,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      alignSelf:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     newJobDot: {
       width: 7,
+
       height: 7,
-      borderRadius: 4,
-      backgroundColor: "#F59E0B",
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     newJobLabelText: {
-      fontSize: 9,
-      color: "#C2410C",
-      letterSpacing: 0.2,
+      letterSpacing: 0.3,
+
+      color:
+        WorkerColors.primary,
     },
   });

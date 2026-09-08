@@ -1,193 +1,230 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
- Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { AppCard, AppText } from "@/components/ui";
+import {
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
-  WorkerColors,
   FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
 } from "@/theme";
 
-interface Step {
+export interface SignupStep {
   number: number;
   title: string;
   subtitle?: string;
 }
 
-interface Props {
+export interface SignupStepsProps {
   currentStep: number;
-  steps: Step[];
-  onStepPress?: (step: number) => void;
+
+  steps: SignupStep[];
+
+  onStepPress?: (
+    step: number,
+  ) => void;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
   variant?: "customer" | "worker";
 }
 
-export default function SignupSteps({
+function SignupSteps({
   currentStep,
   steps,
   onStepPress,
-  variant = "customer",
-}: Props) {
 
-  const primary =
-    variant === "worker"
-      ? WorkerColors.primary
-      : CustomerColors.primary;
+  role = "customer",
+  variant,
+}: SignupStepsProps) {
+  const resolvedRole: FixxamRole =
+    variant ?? role;
 
-    const totalSteps = steps.length;
-      
+  const roleColors =
+    resolvedRole === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
   return (
-  <View style={styles.container}>
+    <View style={styles.container}>
+      {steps.map((step) => {
+        const completed =
+          step.number < currentStep;
 
-    {steps.map((step) => {
+        const active =
+          step.number === currentStep;
 
-      const completed =
-        currentStep > step.number;
+        const pending =
+          step.number > currentStep;
 
-      const active =
-        currentStep === step.number;
+        const canPress =
+          !pending &&
+          Boolean(onStepPress);
 
-      return (
-        <Pressable
-          key={step.number}
-          disabled={step.number > currentStep}
-          onPress={() =>
-            onStepPress?.(step.number)
-          }
-        >
-          <AppCard style={styles.card}>
-
+        return (
+          <AppCard
+            key={step.number}
+            role={resolvedRole}
+            variant={
+              active
+                ? "accent"
+                : "outlined"
+            }
+            disabled={pending}
+            onPress={
+              canPress
+                ? () =>
+                    onStepPress?.(
+                      step.number,
+                    )
+                : undefined
+            }
+            accessibilityLabel={`${step.title}${
+              completed
+                ? ", completed"
+                : active
+                  ? ", current step"
+                  : ", upcoming step"
+            }`}
+            style={styles.card}
+          >
             <View style={styles.row}>
-
               <View
                 style={[
-                  styles.circle,
-                  completed
-                    ? styles.completed
-                    : active
-                    ? {
-                        backgroundColor:
-                          primary,
-                      }
-                    : styles.pending,
+                  styles.stepCircle,
+                  {
+                    backgroundColor:
+                      completed
+                        ? Colors.success
+                        : active
+                          ? roleColors.primary
+                          : Colors
+                              .disabledBackground,
+                  },
                 ]}
               >
-  
                 {completed ? (
-                  <Ionicons
-                    name="checkmark"
-                    size={16}
-                    color="#FFFFFF"
+                  <AppIcon
+                    name="check"
+                    role={resolvedRole}
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                    strokeWidth="strong"
                   />
                 ) : (
                   <AppText
-                    style={[
-                      styles.number,
-                      !active &&
-                        styles.pendingNumber,
-                    ]}
+                    variant="caption"
+                    weight="semibold"
+                    style={{
+                      color: active
+                        ? Colors.textInverse
+                        : Colors.textSecondary,
+                    }}
                   >
                     {step.number}
                   </AppText>
                 )}
-
               </View>
 
               <View
-                style={{
-                  flex: 1,
-                  marginLeft: 12,
-                }}
+                style={
+                  styles.textContainer
+                }
               >
-
                 <AppText
-                  style={[
-                    styles.title,
-                    active && {
-                      color: primary,
-                    },
-                  ]}
+                  variant="bodyMedium"
+                  role={resolvedRole}
+                  tone={
+                    active
+                      ? "primary"
+                      : pending
+                        ? "muted"
+                        : "default"
+                  }
+                  numberOfLines={1}
                 >
                   {step.title}
                 </AppText>
 
-                {!!step.subtitle && (
+                {step.subtitle ? (
                   <AppText
-                    style={styles.subtitle}
+                    variant="caption"
+                    tone={
+                      pending
+                        ? "muted"
+                        : "secondary"
+                    }
+                    numberOfLines={2}
+                    style={
+                      styles.subtitle
+                    }
                   >
                     {step.subtitle}
                   </AppText>
-                )}
-
+                ) : null}
               </View>
 
               {completed ? (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={18}
-                  color="#22C55E"
-                />
-              ) : active ? (
-                <Ionicons
-                  name="ellipse"
-                  size={12}
-                  color={primary}
+                <AppIcon
+                  name="success"
+                  role={resolvedRole}
+                  size="sm"
+                  state="success"
                 />
               ) : (
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color="#9CA3AF"
+                <AppIcon
+                  name="next"
+                  role={resolvedRole}
+                  size="sm"
+                  state={
+                    active
+                      ? "active"
+                      : "muted"
+                  }
                 />
               )}
-
             </View>
-
           </AppCard>
-        </Pressable>
-      );
-
-    })}
-
-  </View>
-);
+        );
+      })}
+    </View>
+  );
 }
-const styles = StyleSheet.create({
 
+const styles = StyleSheet.create({
   container: {
-    marginTop: 20,
-    marginBottom: 10,
-    marginHorizontal: 16,
+    width: "100%",
+
+    gap:
+      FixxamTokens.spacing.sm,
+
+    marginTop:
+      FixxamTokens.spacing.xl,
+
+    marginBottom:
+      FixxamTokens.spacing.md,
   },
 
   card: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    width: "100%",
 
-    marginBottom: 8,
-
-    borderRadius: 16,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-
-    elevation: 2,
+    padding:
+      FixxamTokens.spacing.md,
   },
 
   row: {
@@ -195,46 +232,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  circle: {
-    width: 30,
-    height: 30,
+  stepCircle: {
+    width:
+      FixxamTokens.size.avatarXs,
 
-    borderRadius: 15,
+    height:
+      FixxamTokens.size.avatarXs,
 
-    justifyContent: "center",
+    flexShrink: 0,
+
     alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
   },
 
-  completed: {
-    backgroundColor: "#22C55E",
-  },
+  textContainer: {
+    flex: 1,
+    minWidth: 0,
 
-  pending: {
-    backgroundColor: "#E5E7EB",
-  },
-
-  number: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-
-  pendingNumber: {
-    color: "#6B7280",
-  },
-
-  title: {
-    fontSize: 15,
-    fontWeight: "700",
-
-    color: "#111827",
+    marginHorizontal:
+      FixxamTokens.spacing.md,
   },
 
   subtitle: {
-    marginTop: 2,
-
-    fontSize: 12,
-
-    color: "#94A3B8",
-  }
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
 });
+
+export default memo(
+  SignupSteps,
+);

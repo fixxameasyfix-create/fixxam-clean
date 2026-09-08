@@ -1,106 +1,222 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
   StyleSheet,
   View,
 } from "react-native";
+
+import {
+  Image,
+} from "expo-image";
 
 import {
   AppText,
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-import {
+import type {
   AiMessage,
 } from "../types";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface UserBubbleProps {
   message: AiMessage;
 }
 
-export default function UserBubble({
+/* ==============================================================
+   TIME
+============================================================== */
+
+function formatMessageTime(
+  value: AiMessage["createdAt"],
+): string {
+  try {
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return "";
+    }
+
+    return date.toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+    );
+  } catch {
+    return "";
+  }
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function UserBubble({
   message,
 }: UserBubbleProps) {
   const hasText =
-    message.content.trim().length > 0;
+    message.content.trim()
+      .length > 0;
 
   const hasImage =
-    !!message.image;
+    Boolean(
+      message.image,
+    );
+
+  const time =
+    useMemo(
+      () =>
+        formatMessageTime(
+          message.createdAt,
+        ),
+      [
+        message.createdAt,
+      ],
+    );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        {hasImage && (
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.content
+        }
+      >
+        {/* ====================================================
+            IMAGE
+        ==================================================== */}
+
+        {hasImage &&
+        message.image ? (
           <View
-            style={styles.imageContainer}
+            style={
+              styles.imageContainer
+            }
           >
             <Image
               source={{
                 uri: message.image,
               }}
-              resizeMode="cover"
-              style={styles.image}
+              style={
+                styles.image
+              }
+              contentFit="cover"
+              transition={
+                FixxamTokens.motion
+                  .fast
+              }
+              cachePolicy="memory-disk"
+              accessibilityLabel="Image sent with message"
             />
           </View>
-        )}
+        ) : null}
 
-        {hasText && (
-          <View style={styles.bubble}>
-            <AppText style={styles.text}>
+        {/* ====================================================
+            MESSAGE
+        ==================================================== */}
+
+        {hasText ? (
+          <View
+            style={
+              styles.bubble
+            }
+          >
+            <AppText
+              variant="body"
+              style={
+                styles.text
+              }
+            >
               {message.content}
             </AppText>
           </View>
-        )}
+        ) : null}
 
-        <AppText style={styles.time}>
-          {new Date(
-            message.createdAt,
-          ).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </AppText>
+        {/* ====================================================
+            TIME
+        ==================================================== */}
+
+        {time ? (
+          <AppText
+            variant="caption"
+            tone="muted"
+            style={
+              styles.time
+            }
+          >
+            {time}
+          </AppText>
+        ) : null}
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     container: {
-      alignItems: "flex-end",
+      alignItems:
+        "flex-end",
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.lg,
 
-      marginTop: 14,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     content: {
-      alignItems: "flex-end",
-
       maxWidth: "86%",
+
+      alignItems:
+        "flex-end",
     },
+
+    /* ========================================================
+       IMAGE
+    ======================================================== */
 
     imageContainer: {
       overflow: "hidden",
 
-      borderRadius: 20,
-
-      marginBottom: 8,
-
-      backgroundColor:
-        "#F5F7FA",
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.image,
+
+      backgroundColor:
+        Colors.iconBackground,
     },
 
     image: {
@@ -108,40 +224,51 @@ const styles =
 
       height: 240,
 
-      borderRadius: 20,
+      borderRadius:
+        FixxamTokens.radius.image,
     },
 
+    /* ========================================================
+       BUBBLE
+    ======================================================== */
+
     bubble: {
+      maxWidth: "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      borderBottomRightRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
         CustomerColors.primary,
-
-      borderRadius: 20,
-
-      borderBottomRightRadius: 8,
-
-      paddingHorizontal: 16,
-
-      paddingVertical: 14,
-
-      maxWidth: "100%",
     },
 
     text: {
-      fontSize: 16,
-
-      lineHeight: 26,
-
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
+
+    /* ========================================================
+       TIME
+    ======================================================== */
 
     time: {
-      marginTop: 6,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      marginRight: 4,
-
-      fontSize: 12,
-
-      color:
-        CustomerColors.textSecondary,
+      marginRight:
+        FixxamTokens.spacing.xs,
     },
   });
+
+export default memo(
+  UserBubble,
+);

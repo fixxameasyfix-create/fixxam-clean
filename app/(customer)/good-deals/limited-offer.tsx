@@ -6,162 +6,322 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import {
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function LimitedOfferScreen() {
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={10}
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#0F172A"
-          />
-        </Pressable>
+    <AppScreen
+      role="customer"
+      style={styles.screen}
+    >
+      <View
+        style={styles.container}
+      >
+        {/* ==================================================
+            HEADER
+        ================================================== */}
 
-        <View style={styles.headerText}>
-          <AppText
-            weight="bold"
-            style={styles.title}
+        <View
+          style={styles.header}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={8}
+            onPress={() =>
+              router.back()
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            Limited-Time Offers
+            <AppIcon
+              name="back"
+              role="customer"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
+            />
+          </Pressable>
+
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={styles.title}
+            >
+              Limited-Time Offers
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              Grab special deals before they expire.
+            </AppText>
+          </View>
+        </View>
+
+        {/* ==================================================
+            EMPTY STATE
+        ================================================== */}
+
+        <AppCard
+          role="customer"
+          style={
+            styles.emptyCard
+          }
+        >
+          <View
+            style={
+              styles.iconBox
+            }
+          >
+            <AppIcon
+              name="clock"
+              role="customer"
+              size="xl"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            center
+            style={
+              styles.emptyTitle
+            }
+          >
+            No Limited-Time Offers
           </AppText>
 
-          <AppText style={styles.subtitle}>
-            Grab special deals before they expire.
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
+          >
+            There are no active limited-time offers available right now.
           </AppText>
-        </View>
+        </AppCard>
       </View>
-
-      <View style={styles.emptyCard}>
-        <View style={styles.iconBox}>
-          <Ionicons
-            name="time-outline"
-            size={42}
-            color="#7C3AED"
-          />
-        </View>
-
-        <AppText
-          weight="bold"
-          style={styles.emptyTitle}
-        >
-          No Limited-Time Offers
-        </AppText>
-
-        <AppText
-          center
-          style={styles.emptyText}
-        >
-          There are no active limited-time offers
-          available right now.
-        </AppText>
-      </View>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 20,
-    paddingTop: 54,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+    screen: {
+      backgroundColor:
+        Colors.background,
     },
 
-    elevation: 3,
-  },
+    container: {
+      flex: 1,
 
-  headerText: {
-    flex: 1,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  title: {
-    fontSize: 27,
-    lineHeight: 34,
-    color: "#0F172A",
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  subtitle: {
-    marginTop: 5,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-
-  emptyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    paddingHorizontal: 24,
-    paddingVertical: 42,
-    alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    elevation: 3,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  iconBox: {
-    width: 82,
-    height: 82,
-    borderRadius: 24,
-    backgroundColor: "#F5F3FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
+    header: {
+      flexDirection: "row",
 
-  emptyTitle: {
-    fontSize: 21,
-    lineHeight: 27,
-    color: "#0F172A",
-  },
+      alignItems:
+        "flex-start",
 
-  emptyText: {
-    marginTop: 8,
-    maxWidth: 290,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-});
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
+
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    headerText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       EMPTY CARD
+    ======================================================== */
+
+    emptyCard: {
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    iconBox: {
+      width: 82,
+
+      height: 82,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    emptyTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    emptyText: {
+      maxWidth: 290,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

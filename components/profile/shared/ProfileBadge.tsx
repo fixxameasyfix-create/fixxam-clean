@@ -5,108 +5,193 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
 
-  role: "customer" | "worker";
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
+  role: FixxamRole;
 
   verified?: boolean;
-
 };
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function ProfileBadge({
-
   role,
-
   verified = true,
-
 }: Props) {
-
   const isWorker =
     role === "worker";
 
-  return (
+  const roleColors =
+    isWorker
+      ? WorkerColors
+      : CustomerColors;
 
+  const accountLabel =
+    isWorker
+      ? "Worker Account"
+      : "Customer Account";
+
+  /* ==========================================================
+     PENDING VERIFICATION
+  ========================================================== */
+
+  if (!verified) {
+    return (
+      <View
+        style={[
+          styles.container,
+          styles.pendingContainer,
+        ]}
+        accessibilityRole="text"
+        accessibilityLabel="Verification pending"
+      >
+        <AppIcon
+          name="warning"
+          size="xs"
+          state="warning"
+          color={
+            Colors.warning
+          }
+        />
+
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.pendingText
+          }
+        >
+          Verification Pending
+        </AppText>
+      </View>
+    );
+  }
+
+  /* ==========================================================
+     VERIFIED ACCOUNT
+  ========================================================== */
+
+  return (
     <View
       style={[
         styles.container,
         {
-          backgroundColor: isWorker
-            ? "#DCFCE7"
-            : "#DBEAFE",
+          backgroundColor:
+            roleColors.primarySoft,
         },
       ]}
+      accessibilityRole="text"
+      accessibilityLabel={`Verified ${accountLabel}`}
     >
-
-      <Ionicons
-        name={
-          verified
-            ? "checkmark-circle"
-            : "alert-circle"
+      <View
+        style={
+          styles.verifiedIcon
         }
-        size={11}
-        color={
-          isWorker
-            ? "#16A34A"
-            : "#2563EB"
-        }
-      />
+      >
+        <AppIcon
+          name="verified"
+          size="xs"
+          state="success"
+          color={
+            Colors.success
+          }
+        />
+      </View>
 
       <AppText
+        variant="caption"
         weight="bold"
         style={[
           styles.text,
           {
-            color: isWorker
-              ? "#15803D"
-              : "#2563EB",
+            color:
+              roleColors.primary,
           },
         ]}
       >
-
-        {verified
-          ? `${
-              isWorker
-                ? "Worker"
-                : "Customer"
-            } Account`
-          : "Verification Pending"}
-
+        {accountLabel}
       </AppText>
-
     </View>
-
   );
-
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignSelf: "flex-start",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    flexDirection: "row",
-    alignItems: "center",
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       BADGE
+    ======================================================== */
 
-    paddingHorizontal: 2,
-    paddingVertical: 4,
+    container: {
+      alignSelf:
+        "flex-start",
 
-    borderRadius: 999,
+      minHeight: 24,
 
-    marginTop: 1,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-  text: {
-    marginLeft: 2,
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
 
-    fontSize: 11,
+      flexDirection: "row",
 
-    fontWeight: "700",
+      alignItems: "center",
 
-    lineHeight: 14,
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.chip,
+    },
+
+    /* ========================================================
+       VERIFIED
+    ======================================================== */
+
+    verifiedIcon: {
+      marginRight:
+        FixxamTokens.spacing.xxs,
+    },
+
+    text: {
+      lineHeight: 14,
+    },
+
+    /* ========================================================
+       PENDING
+    ======================================================== */
+
+    pendingContainer: {
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    pendingText: {
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 14,
+
+      color:
+        Colors.warning,
+    },
+  });

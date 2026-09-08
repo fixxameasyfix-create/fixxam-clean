@@ -1,108 +1,170 @@
 import React from "react";
 
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   onPress: () => void;
 
   loading?: boolean;
-
 };
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function LogoutButton({
-
   onPress,
-
   loading = false,
-
 }: Props) {
-
   return (
-
     <Pressable
-
-      disabled={loading}
-
       onPress={onPress}
-
-      style={[
+      disabled={loading}
+      accessibilityRole="button"
+      accessibilityLabel={
+        loading
+          ? "Logging out"
+          : "Logout"
+      }
+      accessibilityState={{
+        disabled: loading,
+        busy: loading,
+      }}
+      style={({ pressed }) => [
         styles.button,
-        loading && styles.disabled,
+
+        pressed &&
+        !loading
+          ? styles.pressed
+          : null,
+
+        loading
+          ? styles.disabled
+          : null,
       ]}
-
     >
-
-      <Ionicons
-        name="log-out-outline"
-        size={22}
-        color="#FFFFFF"
-      />
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={
+            Colors.textInverse
+          }
+        />
+      ) : (
+        <AppIcon
+          name="logout"
+          size="sm"
+          state="error"
+          color={
+            Colors.textInverse
+          }
+        />
+      )}
 
       <AppText
+        variant="bodyMedium"
         weight="bold"
         style={styles.text}
       >
-
         {loading
           ? "Logging out..."
           : "Logout"}
-
       </AppText>
-
     </Pressable>
-
   );
-
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   STYLES
+============================================================ */
 
-  button: {
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       BUTTON
+    ======================================================== */
 
-    height: 56,
+    button: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-    marginHorizontal: 16,
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    marginTop: 24,
+      marginTop:
+        FixxamTokens.spacing.xl,
 
-    marginBottom: 40,
+      marginBottom:
+        FixxamTokens.spacing.xxxl,
 
-    borderRadius: 18,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    backgroundColor: "#DC2626",
+      flexDirection: "row",
 
-    flexDirection: "row",
+      alignItems: "center",
 
-    justifyContent: "center",
+      justifyContent: "center",
 
-    alignItems: "center",
+      gap:
+        FixxamTokens.spacing.sm,
 
-  },
+      borderRadius:
+        FixxamTokens.radius.button,
 
-  text: {
+      backgroundColor:
+        Colors.error,
+    },
 
-    marginLeft: 10,
+    /* ========================================================
+       TEXT
+    ======================================================== */
 
-    color: "#FFFFFF",
+    text: {
+      color:
+        Colors.textInverse,
+    },
 
-    fontSize: 16,
+    /* ========================================================
+       STATES
+    ======================================================== */
 
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  disabled: {
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-    opacity: 0.7,
-
-  },
-
-});
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+  });

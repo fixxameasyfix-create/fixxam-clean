@@ -1,54 +1,87 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppErrorProps {
   title?: string;
-  message?: string;
-  buttonText?: string;
-  onRetry?: () => void;
-};
 
-export default function AppError({
+  message?: string;
+
+  buttonText?: string;
+
+  onRetry?: () => void;
+
+  role?: FixxamRole;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppError({
   title = "Something went wrong",
-  message = "An unexpected error occurred. Please try again.",
+  message = "We couldn't complete that action. Please try again.",
   buttonText = "Try Again",
   onRetry,
-}: Props) {
+  role = "customer",
+  style,
+}: AppErrorProps) {
   return (
-    <View style={styles.container}>
+    <View
+      accessibilityRole="alert"
+      style={[
+        styles.container,
+        style,
+      ]}
+    >
       <View style={styles.iconBox}>
-        <MaterialCommunityIcons
-          name="alert-circle-outline"
-          size={60}
-          color="#EF4444"
+        <AppIcon
+          name="error"
+          role={role}
+          size="xl"
+          state="error"
+          strokeWidth="medium"
         />
       </View>
 
       <AppText
-        weight="bold"
+        variant="heading3"
+        center
         style={styles.title}
       >
         {title}
       </AppText>
 
-      <AppText style={styles.message}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={styles.message}
+      >
         {message}
       </AppText>
 
-      {onRetry && (
+      {onRetry ? (
         <AppButton
           title={buttonText}
+          role={role}
           onPress={onRetry}
+          style={styles.button}
         />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -56,33 +89,52 @@ export default function AppError({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
+
     alignItems: "center",
-    paddingHorizontal: 24,
+    justifyContent: "center",
+
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
+
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
   },
 
   iconBox: {
-    width: 120,
-    height: 120,
-    borderRadius: 32,
-    backgroundColor: "#FEF2F2",
-    justifyContent: "center",
+    width: 72,
+    height: 72,
+
     alignItems: "center",
-    marginBottom: 24,
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.errorSoft,
   },
 
   title: {
-    fontSize: 22,
-    color: "#0F172A",
-    textAlign: "center",
+    maxWidth: 320,
+
+    marginTop:
+      FixxamTokens.spacing.lg,
   },
 
   message: {
-    marginTop: 10,
-    marginBottom: 28,
-    fontSize: 15,
-    color: "#64748B",
-    lineHeight: 24,
-    textAlign: "center",
+    maxWidth: 340,
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
+
+  button: {
+    width: "100%",
+    maxWidth: 280,
+
+    marginTop:
+      FixxamTokens.spacing.xxl,
   },
 });
+
+export default memo(AppError);

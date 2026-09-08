@@ -1,79 +1,203 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
-  ActivityIndicator,
   Modal,
-  Pressable,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppButton,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+} from "@/theme";
 
 import styles from "./ProductDeleteDialog.styles";
-import { ProductDeleteDialogProps } from "./ProductDeleteDialog.types";
 
-export default function ProductDeleteDialog({
+import type {
+  ProductDeleteDialogProps,
+} from "./ProductDeleteDialog.types";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProductDeleteDialog({
   visible,
   loading = false,
   onCancel,
   onConfirm,
 }: ProductDeleteDialogProps) {
+  /* ==========================================================
+     CLOSE
+  ========================================================== */
+
+  const handleCancel =
+    useCallback(() => {
+      if (loading) {
+        return;
+      }
+
+      onCancel();
+    }, [
+      loading,
+      onCancel,
+    ]);
+
+  /* ==========================================================
+     CONFIRM
+  ========================================================== */
+
+  const handleConfirm =
+    useCallback(() => {
+      if (loading) {
+        return;
+      }
+
+      onConfirm();
+    }, [
+      loading,
+      onConfirm,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
       statusBarTranslucent
+      onRequestClose={
+        handleCancel
+      }
     >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          <Ionicons
-            style={styles.icon}
-            name="trash"
-            size={56}
-            color="#DC2626"
-          />
+      <View
+        style={
+          styles.overlay
+        }
+      >
+        <View
+          style={
+            styles.container
+          }
+          accessibilityViewIsModal
+          accessibilityLabel="Delete product confirmation"
+        >
+          {/* ==================================================
+              ICON
+          ================================================== */}
+
+          <View
+            style={
+              styles.icon
+            }
+          >
+            <AppIcon
+              name="delete"
+              size="xl"
+              color={
+                Colors.error
+              }
+            />
+          </View>
+
+          {/* ==================================================
+              CONTENT
+          ================================================== */}
 
           <AppText
+            variant="heading2"
             weight="bold"
-            style={styles.title}
+            center
+            style={
+              styles.title
+            }
           >
             Delete Product?
           </AppText>
 
-          <AppText style={styles.message}>
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.message
+            }
+          >
             This action cannot be undone.
           </AppText>
 
-          <View style={styles.row}>
-            <Pressable
-              style={styles.cancelButton}
-              onPress={onCancel}
-              disabled={loading}
-            >
-              <AppText style={styles.cancelText}>
-                Cancel
-              </AppText>
-            </Pressable>
+          {/* ==================================================
+              ACTIONS
+          ================================================== */}
 
-            <Pressable
-              style={styles.deleteButton}
-              onPress={onConfirm}
-              disabled={loading}
+          <View
+            style={
+              styles.row
+            }
+          >
+            <View
+              style={
+                styles.cancelButton
+              }
             >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <AppText style={styles.deleteText}>
-                  Delete
-                </AppText>
-              )}
-            </Pressable>
+              <AppButton
+                title="Cancel"
+                variant="outline"
+                role="worker"
+                disabled={
+                  loading
+                }
+                onPress={
+                  handleCancel
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.deleteButton
+              }
+            >
+              <AppButton
+                title="Delete"
+                variant="danger"
+                role="worker"
+                leftIconName="delete"
+                loading={
+                  loading
+                }
+                disabled={
+                  loading
+                }
+                onPress={
+                  handleConfirm
+                }
+              />
+            </View>
           </View>
         </View>
       </View>
     </Modal>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+ProductDeleteDialog.displayName =
+  "ProductDeleteDialog";
+
+export default memo(
+  ProductDeleteDialog,
+);

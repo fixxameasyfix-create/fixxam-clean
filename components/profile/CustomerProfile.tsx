@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,9 +8,20 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -18,17 +31,25 @@ type Props = {
   hasWorkerAccount: boolean;
 
   onBecomeWorker: () => void;
+
   onSwitchWorker: () => void;
 
   onProfile: () => void;
+
   onActivity: () => void;
 
   onSaved: () => void;
+
   onAddresses: () => void;
+
   onPayments: () => void;
+
   onNotifications: () => void;
+
   onReviews: () => void;
+
   onSupport: () => void;
+
   onSettings: () => void;
 
   onLogout: () => void;
@@ -36,7 +57,9 @@ type Props = {
 
 type MenuItem = {
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  icon: AppIconName;
+
   onPress?: () => void;
 };
 
@@ -67,122 +90,137 @@ export default function CustomerProfile({
      MENU
   ========================================================== */
 
-  const menuItems: MenuItem[] = [
-    /* ========================================================
-       PROFILE
-    ======================================================== */
+  const menuItems =
+    useMemo<MenuItem[]>(
+      () => [
+        {
+          label: "Profile",
+          icon: "profile",
+          onPress:
+            onProfile,
+        },
 
-    {
-      label: "Profile",
-      icon: "person-outline",
-      onPress: onProfile,
-    },
+        /*
+         * No route/callback exists yet.
+         * Keep disabled.
+         */
+        {
+          label: "Orders",
+          icon: "jobs",
+        },
 
-    /* ========================================================
-       ORDERS
-    ======================================================== */
+        {
+          label: "Saved",
+          icon: "heart",
+          onPress:
+            onSaved,
+        },
 
-    {
-      label: "Orders",
-      icon: "receipt-outline",
-    },
+        /*
+         * No route/callback exists yet.
+         * Keep disabled.
+         */
+        {
+          label: "Promotions",
+          icon: "info",
+        },
 
-    /* ========================================================
-       SAVED
-    ======================================================== */
+        {
+          label: "Addresses",
+          icon: "location",
+          onPress:
+            onAddresses,
+        },
 
-    {
-      label: "Saved",
-      icon: "bookmark-outline",
-      onPress: onSaved,
-    },
+        {
+          label:
+            "Payment Methods",
+          icon: "payment",
+          onPress:
+            onPayments,
+        },
 
-    /* ========================================================
-       PROMOTIONS
-    ======================================================== */
+        {
+          label:
+            "Notifications",
+          icon:
+            "notifications",
+          onPress:
+            onNotifications,
+        },
 
-    {
-      label: "Promotions",
-      icon: "pricetag-outline",
-    },
+        {
+          label: "Reviews",
+          icon: "star",
+          onPress:
+            onReviews,
+        },
 
-    /* ========================================================
-       ADDRESSES
-    ======================================================== */
+        {
+          label:
+            "Fixxam Activity",
+          icon: "jobs",
+          onPress:
+            onActivity,
+        },
 
-    {
-      label: "Addresses",
-      icon: "location-outline",
-      onPress: onAddresses,
-    },
+        {
+          label:
+            "Help & Support",
+          icon: "help",
+          onPress:
+            onSupport,
+        },
 
-    /* ========================================================
-       PAYMENT METHODS
-    ======================================================== */
+        {
+          label: "Settings",
+          icon: "settings",
+          onPress:
+            onSettings,
+        },
+      ],
+      [
+        onActivity,
+        onAddresses,
+        onNotifications,
+        onPayments,
+        onProfile,
+        onReviews,
+        onSaved,
+        onSettings,
+        onSupport,
+      ],
+    );
 
-    {
-      label: "Payment Methods",
-      icon: "card-outline",
-      onPress: onPayments,
-    },
+  /* ==========================================================
+     WORKER CTA
+  ========================================================== */
 
-    /* ========================================================
-       NOTIFICATIONS
-    ======================================================== */
+  const workerTitle =
+    hasWorkerAccount
+      ? "Worker Mode"
+      : "Become a Worker";
 
-    {
-      label: "Notifications",
-      icon: "notifications-outline",
-      onPress: onNotifications,
-    },
+  const workerDescription =
+    hasWorkerAccount
+      ? "Manage services and receive jobs."
+      : "Start offering services and earn more.";
 
-    /* ========================================================
-       REVIEWS
-    ======================================================== */
-
-    {
-      label: "Reviews",
-      icon: "star-outline",
-      onPress: onReviews,
-    },
-
-    /* ========================================================
-       ACTIVITY
-    ======================================================== */
-
-    {
-      label: "Fixxam Activity",
-      icon: "pulse-outline",
-      onPress: onActivity,
-    },
-
-    /* ========================================================
-       SUPPORT
-    ======================================================== */
-
-    {
-      label: "Help & Support",
-      icon: "help-circle-outline",
-      onPress: onSupport,
-    },
-
-    /* ========================================================
-       SETTINGS
-    ======================================================== */
-
-    {
-      label: "Settings",
-      icon: "settings-outline",
-      onPress: onSettings,
-    },
-  ];
+  const workerAction =
+    hasWorkerAccount
+      ? "Continue"
+      : "Get Started";
 
   /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* =====================================================
           CUSTOMER → WORKER
       ===================================================== */}
@@ -193,70 +231,103 @@ export default function CustomerProfile({
             ? onSwitchWorker
             : onBecomeWorker
         }
-        style={({ pressed }) => [
-          styles.workerCard,
-          pressed && styles.pressed,
-        ]}
         accessibilityRole="button"
         accessibilityLabel={
           hasWorkerAccount
             ? "Continue to worker mode"
             : "Become a worker"
         }
+        accessibilityHint={
+          hasWorkerAccount
+            ? "Switches to your worker account"
+            : "Starts worker account registration"
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.workerCard,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
         {/* WORKER ICON */}
 
-        <View style={styles.workerIcon}>
-          <Ionicons
+        <View
+          style={
+            styles.workerIcon
+          }
+        >
+          <AppIcon
             name={
               hasWorkerAccount
-                ? "briefcase"
-                : "construct-outline"
+                ? "jobs"
+                : "service"
             }
-            size={22}
-            color="#2563EB"
+            role="worker"
+            size="md"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
         {/* WORKER CONTENT */}
 
-        <View style={styles.workerContent}>
+        <View
+          style={
+            styles.workerContent
+          }
+        >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.workerTitle}
             numberOfLines={1}
+            style={
+              styles.workerTitle
+            }
           >
-            {hasWorkerAccount
-              ? "Worker Mode"
-              : "Become a Worker"}
+            {workerTitle}
           </AppText>
 
           <AppText
-            numberOfLines={1}
-            style={styles.workerText}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={2}
+            style={
+              styles.workerText
+            }
           >
-            {hasWorkerAccount
-              ? "Manage services and receive jobs."
-              : "Start offering services and earn more."}
+            {workerDescription}
           </AppText>
         </View>
 
         {/* CONTINUE */}
 
-        <View style={styles.continueButton}>
+        <View
+          style={
+            styles.continueButton
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.continueText}
+            numberOfLines={1}
+            style={
+              styles.continueText
+            }
           >
-            {hasWorkerAccount
-              ? "Continue"
-              : "Get Started"}
+            {workerAction}
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={15}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
       </Pressable>
@@ -265,33 +336,33 @@ export default function CustomerProfile({
           ACCOUNT MENU
       ===================================================== */}
 
-      <View style={styles.menu}>
+      <View
+        style={styles.menu}
+      >
         {menuItems.map(
-          (item, index) => {
+          (
+            item,
+            index,
+          ) => {
             const isLast =
               index ===
-              menuItems.length - 1;
+              menuItems.length -
+                1;
 
             const isDisabled =
               !item.onPress;
 
             return (
               <Pressable
-                key={item.label}
-                onPress={item.onPress}
-                disabled={isDisabled}
-                style={({
-                  pressed,
-                }) => [
-                  styles.row,
-
-                  !isLast &&
-                    styles.rowBorder,
-
-                  pressed &&
-                    !isDisabled &&
-                    styles.rowPressed,
-                ]}
+                key={
+                  item.label
+                }
+                onPress={
+                  item.onPress
+                }
+                disabled={
+                  isDisabled
+                }
                 accessibilityRole="button"
                 accessibilityLabel={
                   item.label
@@ -300,6 +371,24 @@ export default function CustomerProfile({
                   disabled:
                     isDisabled,
                 }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.row,
+
+                  !isLast
+                    ? styles.rowBorder
+                    : null,
+
+                  isDisabled
+                    ? styles.rowDisabled
+                    : null,
+
+                  pressed &&
+                  !isDisabled
+                    ? styles.rowPressed
+                    : null,
+                ]}
               >
                 {/* ICON */}
 
@@ -308,34 +397,55 @@ export default function CustomerProfile({
                     styles.iconBox
                   }
                 >
-                  <Ionicons
+                  <AppIcon
                     name={
                       item.icon
                     }
-                    size={21}
-                    color="#64748B"
+                    size="sm"
+                    state={
+                      isDisabled
+                        ? "muted"
+                        : "default"
+                    }
+                    color={
+                      isDisabled
+                        ? Colors.textMuted
+                        : Colors.textSecondary
+                    }
                   />
                 </View>
 
                 {/* LABEL */}
 
                 <AppText
+                  variant="body"
+                  numberOfLines={1}
                   style={[
                     styles.rowText,
-                    isDisabled &&
-                      styles.disabledText,
+
+                    isDisabled
+                      ? styles.disabledText
+                      : null,
                   ]}
                 >
                   {item.label}
                 </AppText>
 
-                {/* CHEVRON */}
+                {/* STATUS / ARROW */}
 
-                <Ionicons
-                  name="chevron-forward"
-                  size={19}
-                  color="#94A3B8"
-                />
+                {isDisabled ? (
+                  <AppIcon
+                    name="lock"
+                    size="xs"
+                    state="muted"
+                  />
+                ) : (
+                  <AppIcon
+                    name="next"
+                    size="xs"
+                    state="muted"
+                  />
+                )}
               </Pressable>
             );
           },
@@ -347,23 +457,36 @@ export default function CustomerProfile({
       ===================================================== */}
 
       <Pressable
-        onPress={onLogout}
-        style={({ pressed }) => [
-          styles.logout,
-          pressed && styles.pressed,
-        ]}
+        onPress={
+          onLogout
+        }
         accessibilityRole="button"
         accessibilityLabel="Logout"
+        style={({
+          pressed,
+        }) => [
+          styles.logout,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="log-out-outline"
-          size={20}
-          color="#DC2626"
+        <AppIcon
+          name="logout"
+          size="sm"
+          state="error"
+          color={
+            Colors.error
+          }
         />
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.logoutText}
+          style={
+            styles.logoutText
+          }
         >
           Logout
         </AppText>
@@ -376,197 +499,291 @@ export default function CustomerProfile({
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  /* ==========================================================
-     WORKER CARD
-  ========================================================== */
-
-  workerCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-
-    padding: 13,
-
-    borderRadius: 17,
-
-    backgroundColor: "#FFFFFF",
-
-    flexDirection: "row",
-    alignItems: "center",
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+    container: {
+      width: "100%",
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       WORKER CARD
+    ======================================================== */
 
-  workerIcon: {
-    width: 44,
-    height: 44,
+    workerCard: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    borderRadius: 14,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#EFF6FF",
+      padding:
+        FixxamTokens.spacing.md,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      flexDirection:
+        "row",
 
-  workerContent: {
-    flex: 1,
-    minWidth: 0,
+      alignItems:
+        "center",
 
-    marginLeft: 11,
-    marginRight: 8,
-  },
+      borderWidth: 1,
 
-  workerTitle: {
-    fontSize: 15,
-    color: "#111827",
-  },
+      borderColor:
+        WorkerColors.primary,
 
-  workerText: {
-    marginTop: 2,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    fontSize: 10.5,
-    lineHeight: 16,
+      backgroundColor:
+        WorkerColors.primarySoft,
 
-    color: "#64748B",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  continueButton: {
-    minHeight: 34,
+    workerIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    paddingHorizontal: 11,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    borderRadius: 11,
+      flexShrink: 0,
 
-    backgroundColor: "#2563EB",
+      alignItems:
+        "center",
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      justifyContent:
+        "center",
 
-    gap: 5,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  continueText: {
-    fontSize: 10.5,
-    color: "#FFFFFF",
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  /* ==========================================================
-     MENU
-  ========================================================== */
+    workerContent: {
+      flex: 1,
 
-  menu: {
-    marginHorizontal: 16,
+      minWidth: 0,
 
-    borderRadius: 17,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#FFFFFF",
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
 
-    overflow: "hidden",
+    workerTitle: {
+      color:
+        Colors.textPrimary,
+    },
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    workerText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-  row: {
-    minHeight: 54,
+      lineHeight: 16,
+    },
 
-    paddingHorizontal: 13,
+    continueButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      flexShrink: 0,
 
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-  rowPressed: {
-    backgroundColor: "#F8FAFC",
-  },
+      flexDirection:
+        "row",
 
-  iconBox: {
-    width: 38,
-    height: 38,
+      alignItems:
+        "center",
 
-    borderRadius: 12,
+      justifyContent:
+        "center",
 
-    backgroundColor: "#F8FAFC",
+      gap:
+        FixxamTokens.spacing.xxs,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.button,
 
-  rowText: {
-    flex: 1,
+      backgroundColor:
+        WorkerColors.primary,
+    },
 
-    marginLeft: 11,
+    continueText: {
+      color:
+        Colors.textInverse,
+    },
 
-    fontSize: 13.5,
+    /* ========================================================
+       MENU
+    ======================================================== */
 
-    color: "#111827",
-  },
+    menu: {
+      overflow:
+        "hidden",
 
-  disabledText: {
-    color: "#475569",
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-  /* ==========================================================
-     LOGOUT
-  ========================================================== */
+      borderWidth: 1,
 
-  logout: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 20,
+      borderColor:
+        Colors.border,
 
-    height: 48,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    borderRadius: 14,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    backgroundColor: "#FEE2E2",
+    row: {
+      minHeight: 56,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    gap: 7,
-  },
+      flexDirection:
+        "row",
 
-  logoutText: {
-    fontSize: 13.5,
-    color: "#DC2626",
-  },
+      alignItems:
+        "center",
+    },
 
-  /* ==========================================================
-     PRESS
-  ========================================================== */
+    rowBorder: {
+      borderBottomWidth: 1,
 
-  pressed: {
-    opacity: 0.78,
+      borderBottomColor:
+        Colors.divider,
+    },
 
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
-});
+    rowPressed: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    rowDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    iconBox: {
+      width: 38,
+
+      height: 38,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    rowText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    disabledText: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       LOGOUT
+    ======================================================== */
+
+    logout: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    logoutText: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

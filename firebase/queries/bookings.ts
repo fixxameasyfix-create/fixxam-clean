@@ -163,11 +163,41 @@ function getValidCounterBy(
 export async function createBooking(
   booking: Booking,
 ) {
+  /* ----------------------------------------------------------
+     CUSTOMER
+  ---------------------------------------------------------- */
+
   const customerId =
     validateUserId(
       booking.customerId,
       "Customer ID",
     );
+
+  /* ----------------------------------------------------------
+     WORKER
+  ---------------------------------------------------------- */
+
+  const workerId =
+    validateUserId(
+      booking.workerId,
+      "Worker ID",
+    );
+
+  /* ----------------------------------------------------------
+     PREVENT SELF BOOKING
+  ---------------------------------------------------------- */
+
+  if (
+    workerId === customerId
+  ) {
+    throw new Error(
+      "Customer cannot create a booking for themselves.",
+    );
+  }
+
+  /* ----------------------------------------------------------
+     SERVICE
+  ---------------------------------------------------------- */
 
   if (
     !booking.serviceId?.trim()
@@ -177,6 +207,10 @@ export async function createBooking(
     );
   }
 
+  /* ----------------------------------------------------------
+     DESCRIPTION
+  ---------------------------------------------------------- */
+
   if (
     !booking.description?.trim()
   ) {
@@ -185,10 +219,16 @@ export async function createBooking(
     );
   }
 
+  /* ----------------------------------------------------------
+     BOOKING DATA
+  ---------------------------------------------------------- */
+
   const bookingData = {
     ...booking,
 
     customerId,
+
+    workerId,
 
     status:
       "pending" as BookingStatus,
@@ -1312,10 +1352,6 @@ export async function completeBooking(
   return runTransaction(
     db,
     async (transaction) => {
-      /* ------------------------------------------------------
-         GET BOOKING
-      ------------------------------------------------------ */
-
       const bookingSnapshot =
         await transaction.get(
           bookingRef,
@@ -1330,20 +1366,12 @@ export async function completeBooking(
       const booking =
         bookingSnapshot.data();
 
-      /* ------------------------------------------------------
-         PREVENT DOUBLE COMPLETION
-      ------------------------------------------------------ */
-
       if (
         booking.status ===
         "completed"
       ) {
         return;
       }
-
-      /* ------------------------------------------------------
-         SERVICE ID
-      ------------------------------------------------------ */
 
       const serviceId =
         typeof booking.serviceId ===
@@ -1363,10 +1391,6 @@ export async function completeBooking(
         serviceId,
       );
 
-      /* ------------------------------------------------------
-         GET SERVICE
-      ------------------------------------------------------ */
-
       const serviceSnapshot =
         await transaction.get(
           serviceRef,
@@ -1377,10 +1401,6 @@ export async function completeBooking(
           "Service associated with this booking was not found.",
         );
       }
-
-      /* ------------------------------------------------------
-         COMPLETE BOOKING
-      ------------------------------------------------------ */
 
       transaction.update(
         bookingRef,
@@ -1398,10 +1418,6 @@ export async function completeBooking(
             serverTimestamp(),
         },
       );
-
-      /* ------------------------------------------------------
-         UPDATE REAL SERVICE COMPLETION COUNT
-      ------------------------------------------------------ */
 
       transaction.update(
         serviceRef,

@@ -1,85 +1,209 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-interface CategoriesHeaderProps {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type CategoriesHeaderProps = {
   title?: string;
-}
+};
 
-export default function CategoriesHeader({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CategoriesHeader({
   title = "All Categories",
 }: CategoriesHeaderProps) {
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        activeOpacity={0.8}
-        onPress={() => router.back()}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          BACK
+      ====================================================== */}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={8}
+        onPress={
+          handleBack
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.backButton,
+
+          pressed
+            ? styles.backButtonPressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="arrow-back"
-          size={22}
-          color="#0F172A"
+        <AppIcon
+          name="back"
+          role="customer"
+          size="sm"
+          state="default"
         />
-      </TouchableOpacity>
+      </Pressable>
+
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        center
+        numberOfLines={1}
+        style={
+          styles.title
+        }
       >
         {title}
       </AppText>
 
-      <View style={styles.placeholder} />
+      {/* ======================================================
+          BALANCE
+      ====================================================== */}
+
+      <View
+        pointerEvents="none"
+        style={
+          styles.placeholder
+        }
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    marginBottom: 20,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-  backButton: {
-    width: 42,
-    height: 42,
+      flexDirection:
+        "row",
 
-    borderRadius: 12,
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
-
-    justifyContent: "center",
-    alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
-    elevation: 3,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  title: {
-    fontSize: 20,
-    color: "#0F172A",
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  placeholder: {
-    width: 42,
-  },
-});
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    title: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    placeholder: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+    },
+  });
+
+export default memo(
+  CategoriesHeader,
+);

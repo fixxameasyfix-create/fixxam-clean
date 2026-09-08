@@ -1,369 +1,228 @@
 import React, {
+  memo,
   useCallback,
 } from "react";
 
 import {
-  Modal,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import { router } from "expo-router";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppIcon,
+  AppModal,
+  AppText,
+} from "@/components/ui";
 
-type AuthRequiredModalProps = {
+import {
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AuthRequiredModalProps {
   visible: boolean;
+
   title?: string;
+
   description?: string;
+
   onClose: () => void;
-};
 
-export default function AuthRequiredModal({
+  role?: FixxamRole;
+
+  showWorkerSignup?: boolean;
+}
+
+function AuthRequiredModal({
   visible,
+
   title = "Login required",
-  description = "Create an account or login to continue contacting this worker.",
+
+  description =
+    "Sign in to your account to continue.",
+
   onClose,
+
+  role = "customer",
+
+  showWorkerSignup = true,
 }: AuthRequiredModalProps) {
-  /* ==========================================================
-     LOGIN
-  ========================================================== */
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
 
-  const handleLogin = useCallback(() => {
-    onClose();
+  const handleLogin =
+    useCallback(() => {
+      onClose();
 
-    router.push(
-      "/(auth)/login",
-    );
-  }, [onClose]);
+      router.push(
+        "/(auth)/login",
+      );
+    }, [onClose]);
 
-  /* ==========================================================
-     CREATE ACCOUNT
-  ========================================================== */
+  const handleWorkerSignUp =
+    useCallback(() => {
+      onClose();
 
-  const handleSignUp = useCallback(() => {
-    onClose();
-
-    router.push(
-      "/(auth)/worker/worker-signup",
-    );
-  }, [onClose]);
+      router.push(
+        "/(auth)/worker/worker-signup",
+      );
+    }, [onClose]);
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
-      transparent
+      onClose={onClose}
+      role={role}
+      dismissOnBackdrop
       animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
+      cardStyle={styles.card}
     >
-      <View
-        style={
-          styles.overlay
-        }
-      >
+      <View style={styles.content}>
         <View
-          style={
-            styles.card
-          }
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor:
+                colors.primarySoft,
+            },
+          ]}
         >
-          {/* ==================================================
-              ICON
-          ================================================== */}
-
-          <View
-            style={
-              styles.icon
-            }
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={30}
-              color="#2563EB"
-            />
-          </View>
-
-          {/* ==================================================
-              TITLE
-          ================================================== */}
-
-          <AppText
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            {title}
-          </AppText>
-
-          {/* ==================================================
-              DESCRIPTION
-          ================================================== */}
-
-          <AppText
-            center
-            style={
-              styles.description
-            }
-          >
-            {description}
-          </AppText>
-
-          {/* ==================================================
-              LOGIN / CANCEL
-          ================================================== */}
-
-          <View
-            style={
-              styles.actions
-            }
-          >
-            {/* CANCEL */}
-
-            <Pressable
-              onPress={
-                onClose
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.cancelButton,
-                pressed &&
-                  styles.cancelPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel"
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.cancelText
-                }
-              >
-                Cancel
-              </AppText>
-            </Pressable>
-
-            {/* LOGIN */}
-
-            <Pressable
-              onPress={
-                handleLogin
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.loginButton,
-                pressed &&
-                  styles.buttonPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Login"
-            >
-              <Ionicons
-                name="log-in-outline"
-                size={18}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.buttonText
-                }
-              >
-                Login
-              </AppText>
-            </Pressable>
-          </View>
-
-          {/* ==================================================
-              CREATE ACCOUNT
-          ================================================== */}
-
-          <Pressable
-            onPress={
-              handleSignUp
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.signupButton,
-              pressed &&
-                styles.signupPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Create customer account"
-          >
-            <Ionicons
-              name="person-add-outline"
-              size={18}
-              color="#2563EB"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.signupText
-              }
-            >
-              Join As a Worker
-            </AppText>
-          </Pressable>
+          <AppIcon
+            name="lock"
+            role={role}
+            size="lg"
+            state="active"
+            strokeWidth="medium"
+          />
         </View>
+
+        <AppText
+          variant="heading2"
+          center
+          style={styles.title}
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={styles.description}
+        >
+          {description}
+        </AppText>
+
+        <View style={styles.actions}>
+          <AppButton
+            title="Cancel"
+            role={role}
+            variant="outline"
+            onPress={onClose}
+            style={styles.actionButton}
+          />
+
+          <AppButton
+            title="Login"
+            role={role}
+            leftIconName="profile"
+            onPress={handleLogin}
+            style={styles.actionButton}
+          />
+        </View>
+
+        {showWorkerSignup ? (
+          <AppButton
+            title="Join as a Worker"
+            role={role}
+            variant="ghost"
+            leftIconName="professional"
+            onPress={
+              handleWorkerSignUp
+            }
+            style={styles.signupButton}
+          />
+        ) : null}
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 
-/* ============================================================
-   STYLES
-============================================================ */
+const styles = StyleSheet.create({
+  card: {
+    width: "100%",
+    maxWidth: 390,
 
-const styles =
-  StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      justifyContent:
-        "center",
-      alignItems:
-        "center",
-      paddingHorizontal: 24,
-    },
+    padding:
+      FixxamTokens.spacing.xxl,
+  },
 
-    card: {
-      width: "100%",
-      maxWidth: 390,
-      padding: 24,
-      borderRadius: 26,
-      backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-    },
+  content: {
+    width: "100%",
+    alignItems: "center",
+  },
 
-    icon: {
-      width: 64,
-      height: 64,
-      borderRadius: 22,
-      backgroundColor:
-        "#EAF2FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginBottom: 16,
-    },
+  iconContainer: {
+    width:
+      FixxamTokens.size
+        .authHeaderIcon ?? 64,
 
-    title: {
-      fontSize: 21,
-      color: "#111827",
-      textAlign:
-        "center",
-    },
+    height:
+      FixxamTokens.size
+        .authHeaderIcon ?? 64,
 
-    description: {
-      marginTop: 10,
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#64748B",
-      textAlign:
-        "center",
-    },
+    alignItems: "center",
+    justifyContent: "center",
 
-    actions: {
-      width: "100%",
-      flexDirection:
-        "row",
-      gap: 10,
-      marginTop: 22,
-    },
+    borderRadius:
+      FixxamTokens.radius.lg,
 
-    cancelButton: {
-      flex: 1,
-      height: 48,
-      borderRadius: 14,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
+    marginBottom:
+      FixxamTokens.spacing.lg,
+  },
 
-    cancelPressed: {
-      opacity: 0.75,
-    },
+  title: {
+    width: "100%",
+  },
 
-    cancelText: {
-      fontSize: 13,
-      color: "#475569",
-    },
+  description: {
+    width: "100%",
 
-    loginButton: {
-      flex: 1,
-      height: 48,
-      borderRadius: 14,
-      backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 7,
-    },
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
 
-    buttonPressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
-    },
+  actions: {
+    width: "100%",
 
-    buttonText: {
-      fontSize: 13,
-      color: "#FFFFFF",
-    },
+    flexDirection: "row",
 
-    signupButton: {
-      width: "100%",
-      height: 48,
-      marginTop: 10,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor:
-        "#2563EB",
-      backgroundColor:
-        "#FFFFFF",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 7,
-    },
+    gap:
+      FixxamTokens.spacing.sm,
 
-    signupPressed: {
-      opacity: 0.75,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
-    },
+    marginTop:
+      FixxamTokens.spacing.xl,
+  },
 
-    signupText: {
-      fontSize: 13,
-      color: "#2563EB",
-    },
-  });
+  actionButton: {
+    flex: 1,
+  },
+
+  signupButton: {
+    width: "100%",
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
+});
+
+export default memo(
+  AuthRequiredModal,
+);

@@ -1,29 +1,60 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
-  Image,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
+  FixxamTokens,
 } from "@/theme";
 
-interface Props {
-  firstName: string;
-  surname: string;
-  otherName: string;
-  email: string;
-  phone: string;
-  photo: string | null;
-}
+/* ==============================================================
+   TYPES
+============================================================== */
 
-export default function CustomerReview({
+type Props = {
+  firstName: string;
+
+  surname: string;
+
+  otherName: string;
+
+  email: string;
+
+  phone: string;
+
+  photo: string | null;
+};
+
+type ReviewItemProps = {
+  label: string;
+
+  value: string;
+
+  last?: boolean;
+};
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CustomerReview({
   firstName,
   surname,
   otherName,
@@ -32,64 +63,124 @@ export default function CustomerReview({
   photo,
 }: Props) {
   const fullName =
-    [
-      firstName,
-      surname,
-      otherName,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+    useMemo(
+      () =>
+        [
+          firstName,
+          surname,
+          otherName,
+        ]
+          .map((value) =>
+            value.trim(),
+          )
+          .filter(Boolean)
+          .join(" "),
+      [
+        firstName,
+        otherName,
+        surname,
+      ],
+    );
+
+  const hasPhoto =
+    typeof photo === "string" &&
+    photo.trim().length > 0;
 
   return (
-    <AppCard style={styles.card}>
-      {/* PROFILE PHOTO */}
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ========================================================
+          PROFILE PHOTO
+      ======================================================== */}
 
-      <View style={styles.photoSection}>
-        {photo ? (
+      <View
+        style={
+          styles.photoSection
+        }
+      >
+        {hasPhoto ? (
           <Image
-            source={{ uri: photo }}
-            style={styles.photo}
+            source={{
+              uri: photo,
+            }}
+            contentFit="cover"
+            transition={150}
+            accessibilityLabel="Profile photo"
+            style={
+              styles.photo
+            }
           />
         ) : (
-          <View style={styles.photoPlaceholder}>
-            <AppText style={styles.photoPlaceholderText}>
-              No photo
-            </AppText>
+          <View
+            accessibilityLabel="No profile photo added"
+            style={
+              styles.photoPlaceholder
+            }
+          >
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="lg"
+              state="muted"
+            />
           </View>
         )}
 
         <AppText
-          weight="semibold"
-          style={styles.photoLabel}
+          variant="caption"
+          weight="medium"
+          tone="secondary"
+          style={
+            styles.photoLabel
+          }
         >
           Profile photo
         </AppText>
       </View>
 
-      {/* HEADER */}
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
 
       <AppText
+        variant="heading2"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Almost there!
       </AppText>
 
       <AppText
-        style={styles.subtitle}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
       >
-        Check your details before
-        creating your account.
+        Check your details before creating your account.
       </AppText>
 
-      {/* DETAILS */}
+      {/* ========================================================
+          DETAILS
+      ======================================================== */}
 
-      <View style={styles.details}>
+      <View
+        style={
+          styles.details
+        }
+      >
         <ReviewItem
           label="Full name"
           value={
-            fullName || "Not provided"
+            fullName ||
+            "Not provided"
           }
         />
 
@@ -101,14 +192,16 @@ export default function CustomerReview({
         <ReviewItem
           label="Email address"
           value={
-            email || "Not provided"
+            email.trim() ||
+            "Not provided"
           }
         />
 
         <ReviewItem
           label="Phone number"
           value={
-            phone || "Not provided"
+            phone.trim() ||
+            "Not provided"
           }
         />
 
@@ -119,24 +212,50 @@ export default function CustomerReview({
         />
       </View>
 
-      {/* SECURITY NOTICE */}
+      {/* ========================================================
+          SECURITY NOTICE
+      ======================================================== */}
 
-      <View style={styles.notice}>
-        <View style={styles.noticeDot} />
+      <View
+        style={
+          styles.notice
+        }
+      >
+        <View
+          style={
+            styles.noticeIcon
+          }
+        >
+          <AppIcon
+            name="shield"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        </View>
 
-        <View style={styles.noticeContent}>
+        <View
+          style={
+            styles.noticeContent
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.noticeTitle}
+            style={
+              styles.noticeTitle
+            }
           >
             Your information is secure
           </AppText>
 
           <AppText
-            style={styles.noticeText}
+            variant="caption"
+            style={
+              styles.noticeText
+            }
           >
-            You can update most of your
-            details later from your profile.
+            You can update most of your details later from your profile.
           </AppText>
         </View>
       </View>
@@ -144,166 +263,262 @@ export default function CustomerReview({
   );
 }
 
+export default memo(
+  CustomerReview,
+);
+
 /* ==============================================================
    REVIEW ITEM
 ============================================================== */
 
-function ReviewItem({
-  label,
-  value,
-  last = false,
-}: {
-  label: string;
-  value: string;
-  last?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.item,
-        last && styles.lastItem,
-      ]}
-    >
-      <AppText style={styles.label}>
-        {label}
-      </AppText>
+const ReviewItem =
+  memo(
+    function ReviewItem({
+      label,
+      value,
+      last = false,
+    }: ReviewItemProps) {
+      return (
+        <View
+          style={[
+            styles.item,
 
-      <AppText
-        weight="semibold"
-        numberOfLines={1}
-        style={styles.value}
-      >
-        {value}
-      </AppText>
-    </View>
+            last
+              ? styles.lastItem
+              : null,
+          ]}
+        >
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.label
+            }
+          >
+            {label}
+          </AppText>
+
+          <AppText
+            variant="body"
+            weight="medium"
+            numberOfLines={1}
+            style={
+              styles.value
+            }
+          >
+            {value}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
+
+ReviewItem.displayName =
+  "CustomerReviewItem";
 
 /* ==============================================================
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 20,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 18,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-  photoSection: {
-    alignItems: "center",
-    marginBottom: 16,
-  },
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-  photo: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#F3F4F6",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  photoPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  photoPlaceholderText: {
-    fontSize: 11,
-    color: CustomerColors.textSecondary,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.md,
+    },
 
-  photoLabel: {
-    marginTop: 7,
-    fontSize: 11,
-    color: CustomerColors.textSecondary,
-  },
+    /* ==========================================================
+       PHOTO
+    ========================================================== */
 
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    color: CustomerColors.textPrimary,
-    marginBottom: 4,
-  },
+    photoSection: {
+      alignItems:
+        "center",
 
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: CustomerColors.textSecondary,
-    marginBottom: 16,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  details: {
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#F8FAFC",
-  },
+    photo: {
+      width:
+        FixxamTokens.size.avatarXl,
 
-  item: {
-    minHeight: 54,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8EDF3",
-    justifyContent: "center",
-  },
+      height:
+        FixxamTokens.size.avatarXl,
 
-  lastItem: {
-    borderBottomWidth: 0,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  label: {
-    fontSize: 10.5,
-    lineHeight: 15,
-    color: CustomerColors.textSecondary,
-    marginBottom: 2,
-  },
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  value: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: CustomerColors.textPrimary,
-  },
+    photoPlaceholder: {
+      width:
+        FixxamTokens.size.avatarXl,
 
-  notice: {
-    marginTop: 14,
-    padding: 11,
-    borderRadius: 13,
-    backgroundColor: "#FFF7ED",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+      height:
+        FixxamTokens.size.avatarXl,
 
-  noticeDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#FF6A00",
-    marginTop: 5,
-    marginRight: 9,
-  },
+      alignItems:
+        "center",
 
-  noticeContent: {
-    flex: 1,
-  },
+      justifyContent:
+        "center",
 
-  noticeTitle: {
-    fontSize: 11.5,
-    lineHeight: 17,
-    color: "#EA580C",
-    marginBottom: 1,
-  },
+      borderWidth: 1,
 
-  noticeText: {
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#7C2D12",
-  },
-});
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    photoLabel: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       DETAILS
+    ========================================================== */
+
+    details: {
+      overflow:
+        "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    item: {
+      minHeight: 54,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      justifyContent:
+        "center",
+
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
+    },
+
+    lastItem: {
+      borderBottomWidth: 0,
+    },
+
+    label: {
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    value: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ==========================================================
+       NOTICE
+    ========================================================== */
+
+    notice: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    noticeIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      paddingTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    noticeContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    noticeTitle: {
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    noticeText: {
+      color:
+        Colors.textSecondary,
+    },
+  });

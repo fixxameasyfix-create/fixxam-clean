@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -19,54 +22,19 @@ import type {
 } from "@/services/fixxamAi";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 interface Props {
   cost: EstimatedCost;
+
   estimatedTime: string;
-}
-
-export default function ResultCostCard({
-  cost,
-  estimatedTime,
-}: Props) {
-  return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <MaterialCommunityIcons
-            name="cash-multiple"
-            size={18}
-            color={CustomerColors.primary}
-          />
-        </View>
-
-        <AppText
-          size="lg"
-          weight="bold"
-          style={styles.title}
-        >
-          Cost & Time
-        </AppText>
-      </View>
-
-      <View style={styles.list}>
-        <InfoRow
-          icon="currency-ngn"
-          value={`${cost.currency} ${cost.min.toLocaleString()} - ${cost.max.toLocaleString()}`}
-        />
-
-        <View style={styles.divider} />
-
-        <InfoRow
-          icon="clock-outline"
-          value={estimatedTime}
-        />
-      </View>
-    </AppCard>
-  );
 }
 
 interface InfoRowProps {
@@ -77,22 +45,207 @@ interface InfoRowProps {
   value: string;
 }
 
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeNumber(
+  value: unknown,
+): number | null {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function formatAmount(
+  value: number,
+): string {
+  return value.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultCostCard({
+  cost,
+  estimatedTime,
+}: Props) {
+  const costLabel =
+    useMemo(() => {
+      const min =
+        normalizeNumber(
+          cost?.min,
+        );
+
+      const max =
+        normalizeNumber(
+          cost?.max,
+        );
+
+      const currency =
+        cleanString(
+          cost?.currency,
+        );
+
+      if (
+        min === null ||
+        max === null
+      ) {
+        return "Cost unavailable";
+      }
+
+      const lower =
+        Math.min(
+          min,
+          max,
+        );
+
+      const upper =
+        Math.max(
+          min,
+          max,
+        );
+
+      const prefix =
+        currency
+          ? `${currency} `
+          : "";
+
+      if (
+        lower === upper
+      ) {
+        return `${prefix}${formatAmount(
+          lower,
+        )}`;
+      }
+
+      return `${prefix}${formatAmount(
+        lower,
+      )} - ${formatAmount(
+        upper,
+      )}`;
+    }, [
+      cost,
+    ]);
+
+  const timeLabel =
+    cleanString(
+      estimatedTime,
+    ) ||
+    "Time estimate unavailable";
+
+  return (
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
+          <MaterialCommunityIcons
+            name="cash-multiple"
+            size={18}
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          style={styles.title}
+        >
+          Cost & Time
+        </AppText>
+      </View>
+
+      {/* ========================================================
+          DETAILS
+      ======================================================== */}
+
+      <View
+        style={styles.list}
+      >
+        <InfoRow
+          icon="currency-ngn"
+          value={costLabel}
+        />
+
+        <View
+          style={styles.divider}
+        />
+
+        <InfoRow
+          icon="clock-outline"
+          value={timeLabel}
+        />
+      </View>
+    </AppCard>
+  );
+}
+
+/* ==============================================================
+   INFO ROW
+============================================================== */
+
 function InfoRow({
   icon,
   value,
 }: InfoRowProps) {
   return (
-    <View style={styles.row}>
-      <MaterialCommunityIcons
-        name={icon}
-        size={18}
-        color={CustomerColors.primary}
-      />
+    <View
+      style={styles.row}
+    >
+      <View
+        style={
+          styles.rowIcon
+        }
+      >
+        <MaterialCommunityIcons
+          name={icon}
+          size={18}
+          color={
+            CustomerColors.primary
+          }
+        />
+      </View>
 
       <AppText
-        weight="bold"
+        variant="body"
+        weight="semibold"
         style={styles.value}
-        numberOfLines={1}
       >
         {value}
       </AppText>
@@ -100,61 +253,130 @@ function InfoRow({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: FixxamTokens.spacing.md,
-    gap: FixxamTokens.spacing.sm,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 2,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      padding:
+        FixxamTokens.spacing.md,
 
-  iconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor:
-      CustomerColors.diagnosisBackground,
-  },
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-  title: {
-    marginLeft: 10,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  list: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor:
-      CustomerColors.border,
-    backgroundColor:
-      CustomerColors.card,
-    overflow: "hidden",
-  },
+    header: {
+      flexDirection: "row",
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
+      alignItems: "center",
+    },
 
-  value: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color:
-      CustomerColors.primaryText,
-  },
+    iconContainer: {
+      width: 34,
 
-  divider: {
-    height: 1,
-    backgroundColor:
-      CustomerColors.border,
-    marginHorizontal: 12,
-  },
-});
+      height: 34,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    title: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       DETAILS
+    ======================================================== */
+
+    list: {
+      overflow: "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    row: {
+      minHeight: 48,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
+
+    rowIcon: {
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    value: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+
+      lineHeight: 21,
+    },
+
+    divider: {
+      height: 1,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.divider,
+    },
+  });
+
+export default memo(
+  ResultCostCard,
+);

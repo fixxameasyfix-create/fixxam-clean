@@ -1,43 +1,95 @@
 import React, {
+  memo,
   useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Alert,
-  Image,
+  ActivityIndicator,
+  FlatList,
   Linking,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  router,
+} from "expo-router";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   getHomeGreeting,
 } from "@/utils/getHomeGreeting";
 
-import useCustomerNotifications, {
+import useCustomerNotifications from "@/hooks/customer/useCustomerNotification";
+
+import type {
   CustomerNotification,
 } from "@/hooks/customer/useCustomerNotification";
 
 import useUserProfile from "@/hooks/auth/useUserProfile";
 
-export default function HomeHeader() {
-  const greeting = getHomeGreeting();
+/* =============================================================
+   HELPERS
+============================================================= */
 
-  const [visible, setVisible] =
-    useState(false);
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function showCallError(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* =============================================================
+   COMPONENT
+============================================================= */
+
+export default function HomeHeader() {
+  const insets =
+    useSafeAreaInsets();
+
+  const greeting =
+    getHomeGreeting();
+
+  const [
+    visible,
+    setVisible,
+  ] = useState(false);
 
   /* ==========================================================
      CUSTOMER PROFILE
@@ -47,29 +99,44 @@ export default function HomeHeader() {
     profile,
   } = useUserProfile();
 
-  /* ==========================================================
-     CUSTOMER NAME
-  ========================================================== */
-
-  const fullName = useMemo(() => {
-    return [
+  const fullName =
+    useMemo(() => {
+      return [
+        cleanText(
+          profile?.firstName,
+        ),
+        cleanText(
+          profile?.otherName,
+        ),
+        cleanText(
+          profile?.surname,
+        ),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }, [
       profile?.firstName,
       profile?.otherName,
       profile?.surname,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-  }, [
-    profile?.firstName,
-    profile?.otherName,
-    profile?.surname,
-  ]);
+    ]);
 
   const displayName =
     fullName ||
-    profile?.firstName ||
+    cleanText(
+      profile?.firstName,
+    ) ||
     "Customer";
+
+  const photoUrl =
+    useMemo(
+      () =>
+        cleanText(
+          profile?.photoUrl,
+        ),
+      [
+        profile?.photoUrl,
+      ],
+    );
 
   /* ==========================================================
      NOTIFICATIONS
@@ -82,20 +149,31 @@ export default function HomeHeader() {
   } =
     useCustomerNotifications();
 
-  const hasNotifications =
-    notifications.length > 0;
-
   const notificationLabel =
     useMemo(() => {
-      if (unreadCount > 99) {
-        return "99+";
-      }
+      const safeUnreadCount =
+        Number.isFinite(
+          unreadCount,
+        )
+          ? Math.max(
+              0,
+              Math.floor(
+                unreadCount,
+              ),
+            )
+          : 0;
 
-      return String(unreadCount);
-    }, [unreadCount]);
+      return safeUnreadCount > 99
+        ? "99+"
+        : String(
+            safeUnreadCount,
+          );
+    }, [
+      unreadCount,
+    ]);
 
   /* ==========================================================
-     PROFILE
+     ACTIONS
   ========================================================== */
 
   const handleOpenProfile =
@@ -105,16 +183,48 @@ export default function HomeHeader() {
       );
     }, []);
 
+  const handleOpenNotifications =
+    useCallback(() => {
+      setVisible(true);
+    }, []);
+
+  const handleCloseNotifications =
+    useCallback(() => {
+      setVisible(false);
+    }, []);
+
+  const renderNotification =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: CustomerNotification;
+      }) => (
+        <NotificationCard
+          notification={item}
+        />
+      ),
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <>
       {/* =====================================================
           HEADER
       ===================================================== */}
 
-      <View style={styles.container}>
-        <View style={styles.left}>
+      <View
+        style={styles.container}
+      >
+        <View
+          style={styles.left}
+        >
           {/* ==================================================
-              CUSTOMER AVATAR
+              AVATAR
           ================================================== */}
 
           <Pressable
@@ -127,17 +237,23 @@ export default function HomeHeader() {
             hitSlop={8}
             style={({ pressed }) => [
               styles.avatarButton,
-              pressed &&
-                styles.avatarPressed,
+
+              pressed
+                ? styles.avatarPressed
+                : null,
             ]}
           >
-            {profile?.photoUrl ? (
+            {photoUrl ? (
               <Image
                 source={{
-                  uri: profile.photoUrl,
+                  uri: photoUrl,
                 }}
-                style={styles.avatar}
-                resizeMode="cover"
+                style={
+                  styles.avatar
+                }
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={150}
               />
             ) : (
               <View
@@ -145,10 +261,13 @@ export default function HomeHeader() {
                   styles.avatarPlaceholder
                 }
               >
-                <Ionicons
-                  name="person"
-                  size={27}
-                  color="#64748B"
+                <AppIcon
+                  name="profile"
+                  role="customer"
+                  size="lg"
+                  color={
+                    Colors.textSecondary
+                  }
                 />
               </View>
             )}
@@ -158,8 +277,11 @@ export default function HomeHeader() {
               NAME + GREETING
           ================================================== */}
 
-          <View style={styles.info}>
+          <View
+            style={styles.info}
+          >
             <AppText
+              variant="heading3"
               weight="bold"
               style={styles.name}
               numberOfLines={1}
@@ -168,7 +290,11 @@ export default function HomeHeader() {
             </AppText>
 
             <AppText
-              style={styles.greeting}
+              variant="body"
+              tone="secondary"
+              style={
+                styles.greeting
+              }
               numberOfLines={1}
             >
               {greeting}
@@ -177,40 +303,52 @@ export default function HomeHeader() {
         </View>
 
         {/* ===================================================
-            NOTIFICATION BUTTON
+            NOTIFICATIONS
         =================================================== */}
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open notifications"
+          accessibilityLabel={
+            unreadCount > 0
+              ? `Open notifications. ${notificationLabel} unread.`
+              : "Open notifications"
+          }
           accessibilityHint="Opens your notifications"
-          onPress={() =>
-            setVisible(true)
+          onPress={
+            handleOpenNotifications
           }
           style={({ pressed }) => [
             styles.notification,
-            pressed &&
-              styles.notificationPressed,
+
+            pressed
+              ? styles.notificationPressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="notifications-outline"
-            size={21}
-            color="#2563EB"
+          <AppIcon
+            name="notifications"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
 
-          {unreadCount > 0 && (
+          {unreadCount > 0 ? (
             <View
               style={styles.badge}
             >
               <AppText
+                variant="caption"
                 weight="bold"
-                style={styles.badgeText}
+                style={
+                  styles.badgeText
+                }
               >
                 {notificationLabel}
               </AppText>
             </View>
-          )}
+          ) : null}
         </Pressable>
       </View>
 
@@ -221,23 +359,65 @@ export default function HomeHeader() {
       <Modal
         visible={visible}
         transparent
+        statusBarTranslucent
         animationType="slide"
-        onRequestClose={() =>
-          setVisible(false)
+        onRequestClose={
+          handleCloseNotifications
         }
       >
         <View
-          style={styles.modalOverlay}
+          style={
+            styles.modalOverlay
+          }
         >
+          {/* =================================================
+              BACKDROP
+          ================================================= */}
+
+          <Pressable
+            style={
+              styles.backdrop
+            }
+            onPress={
+              handleCloseNotifications
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Close notifications"
+          />
+
+          {/* =================================================
+              SHEET
+          ================================================= */}
+
           <View
-            style={styles.modalSheet}
+            accessibilityViewIsModal
+            style={[
+              styles.modalSheet,
+
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
+                    FixxamTokens
+                      .spacing.lg,
+                  ),
+              },
+            ]}
           >
+            <View
+              style={
+                styles.sheetHandle
+              }
+            />
+
             {/* ===============================================
                 MODAL HEADER
             =============================================== */}
 
             <View
-              style={styles.modalHeader}
+              style={
+                styles.modalHeader
+              }
             >
               <View
                 style={
@@ -245,6 +425,7 @@ export default function HomeHeader() {
                 }
               >
                 <AppText
+                  variant="heading2"
                   weight="bold"
                   style={
                     styles.modalTitle
@@ -254,11 +435,13 @@ export default function HomeHeader() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.modalSubtitle
                   }
                 >
-                  New requests from workers near you.
+                  New updates from workers and your service requests.
                 </AppText>
               </View>
 
@@ -266,19 +449,23 @@ export default function HomeHeader() {
                 accessibilityRole="button"
                 accessibilityLabel="Close notifications"
                 hitSlop={8}
-                onPress={() =>
-                  setVisible(false)
+                onPress={
+                  handleCloseNotifications
                 }
                 style={({ pressed }) => [
                   styles.closeButton,
-                  pressed &&
-                    styles.closePressed,
+
+                  pressed
+                    ? styles.closePressed
+                    : null,
                 ]}
               >
-                <Ionicons
+                <AppIcon
                   name="close"
-                  size={22}
-                  color="#0F172A"
+                  size="sm"
+                  color={
+                    Colors.textPrimary
+                  }
                 />
               </Pressable>
             </View>
@@ -288,93 +475,29 @@ export default function HomeHeader() {
             =============================================== */}
 
             {loading ? (
-              <View
-                style={
-                  styles.emptyContainer
-                }
-              >
-                <View
-                  style={
-                    styles.emptyIcon
-                  }
-                >
-                  <Ionicons
-                    name="notifications-outline"
-                    size={34}
-                    color="#94A3B8"
-                  />
-                </View>
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.emptyTitle
-                  }
-                >
-                  Loading...
-                </AppText>
-              </View>
-            ) : !hasNotifications ? (
-              <View
-                style={
-                  styles.emptyContainer
-                }
-              >
-                <View
-                  style={
-                    styles.emptyIcon
-                  }
-                >
-                  <Ionicons
-                    name="notifications-off-outline"
-                    size={34}
-                    color="#94A3B8"
-                  />
-                </View>
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.emptyTitle
-                  }
-                >
-                  No Notifications
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.emptyText
-                  }
-                >
-                  New service requests from
-                  workers in your area will
-                  appear here.
-                </AppText>
-              </View>
+              <NotificationLoading />
+            ) : notifications.length ===
+              0 ? (
+              <NotificationEmpty />
             ) : (
-              <ScrollView
+              <FlatList
+                data={
+                  notifications
+                }
+                keyExtractor={(
+                  item,
+                ) => item.id}
+                renderItem={
+                  renderNotification
+                }
                 showsVerticalScrollIndicator={
                   false
                 }
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={
                   styles.list
                 }
-              >
-                {notifications.map(
-                  (
-                    notification,
-                  ) => (
-                    <NotificationCard
-                      key={
-                        notification.id
-                      }
-                      notification={
-                        notification
-                      }
-                    />
-                  ),
-                )}
-              </ScrollView>
+              />
             )}
           </View>
         </View>
@@ -384,311 +507,489 @@ export default function HomeHeader() {
 }
 
 /* =============================================================
+   LOADING
+============================================================= */
+
+const NotificationLoading =
+  memo(
+    function NotificationLoading() {
+      return (
+        <View
+          style={
+            styles.emptyContainer
+          }
+        >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <ActivityIndicator
+              size="small"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            style={
+              styles.emptyTitle
+            }
+          >
+            Loading notifications
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
+          >
+            Getting your latest updates.
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+/* =============================================================
+   EMPTY
+============================================================= */
+
+const NotificationEmpty =
+  memo(
+    function NotificationEmpty() {
+      return (
+        <View
+          style={
+            styles.emptyContainer
+          }
+        >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="notifications"
+              size="xl"
+              state="muted"
+            />
+          </View>
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            style={
+              styles.emptyTitle
+            }
+          >
+            No Notifications
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
+          >
+            New service updates from workers will appear here.
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+/* =============================================================
    NOTIFICATION CARD
 ============================================================= */
 
 type NotificationCardProps = {
-  notification: CustomerNotification;
+  notification:
+    CustomerNotification;
 };
 
-function NotificationCard({
-  notification,
-}: NotificationCardProps) {
-  const handleCallWorker =
-    useCallback(async () => {
-      const rawPhone =
-        notification.workerPhone?.trim();
+const NotificationCard =
+  memo(
+    function NotificationCard({
+      notification,
+    }: NotificationCardProps) {
+      const title =
+        cleanText(
+          notification.title,
+        ) || "Service update";
 
-      if (!rawPhone) {
-        Alert.alert(
-          "Phone Number Unavailable",
-          "This worker did not provide a valid phone number.",
+      const workerName =
+        cleanText(
+          notification.workerName,
         );
 
-        return;
-      }
-
-      const phone =
-        rawPhone.replace(
-          /[^0-9+*#,;]/g,
-          "",
+      const service =
+        cleanText(
+          notification.service,
         );
 
-      if (!phone) {
-        Alert.alert(
-          "Invalid Phone Number",
-          "The worker's phone number is not valid.",
+      const location =
+        cleanText(
+          notification.location,
         );
 
-        return;
-      }
-
-      const url = `tel:${phone}`;
-
-      try {
-        const supported =
-          await Linking.canOpenURL(
-            url,
-          );
-
-        if (!supported) {
-          Alert.alert(
-            "Cannot Make Call",
-            "Your device cannot open the phone dialer.",
-          );
-
-          return;
-        }
-
-        await Linking.openURL(
-          url,
-        );
-      } catch (error) {
-        console.error(
-          "FIXXAM_CALL_WORKER_ERROR:",
-          error,
+      const workerPhone =
+        cleanText(
+          notification.workerPhone,
         );
 
-        Alert.alert(
-          "Call Failed",
-          "Unable to open the phone dialer. Please try again.",
+      const message =
+        cleanText(
+          notification.message,
         );
-      }
-    }, [
-      notification.workerPhone,
-    ]);
 
-  return (
-    <View
-      style={[
-        styles.card,
-        !notification.read &&
-          styles.unreadCard,
-      ]}
-    >
-      {/* =====================================================
-          ICON
-      ===================================================== */}
+      /* ======================================================
+         CALL WORKER
+      ====================================================== */
 
-      <View
-        style={styles.cardIcon}
-      >
-        <Ionicons
-          name="briefcase-outline"
-          size={21}
-          color="#FF6B00"
-        />
-      </View>
+      const handleCallWorker =
+        useCallback(async () => {
+          if (!workerPhone) {
+            showCallError(
+              "Phone number unavailable",
+              "This worker did not provide a valid phone number.",
+            );
 
-      <View
-        style={styles.cardContent}
-      >
-        {/* ===================================================
-            TITLE
-        =================================================== */}
-
-        <View
-          style={
-            styles.cardTitleRow
+            return;
           }
-        >
-          <AppText
-            weight="bold"
-            style={
-              styles.cardTitle
-            }
-            numberOfLines={1}
-          >
-            {notification.title}
-          </AppText>
 
-          {!notification.read && (
-            <View
-              style={
-                styles.unreadDot
+          const phone =
+            workerPhone.replace(
+              /[^0-9+*#,;]/g,
+              "",
+            );
+
+          if (!phone) {
+            showCallError(
+              "Invalid phone number",
+              "The worker's phone number is not valid.",
+            );
+
+            return;
+          }
+
+          const url =
+            `tel:${phone}`;
+
+          try {
+            const supported =
+              await Linking.canOpenURL(
+                url,
+              );
+
+            if (!supported) {
+              showCallError(
+                "Cannot make call",
+                "Your device cannot open the phone dialer.",
+              );
+
+              return;
+            }
+
+            await Linking.openURL(
+              url,
+            );
+          } catch (error) {
+            console.error(
+              "FIXXAM_CALL_WORKER_ERROR",
+              error,
+            );
+
+            showCallError(
+              "Call failed",
+              "Unable to open the phone dialer. Please try again.",
+            );
+          }
+        }, [
+          workerPhone,
+        ]);
+
+      return (
+        <View
+          style={[
+            styles.card,
+
+            !notification.read
+              ? styles.unreadCard
+              : null,
+          ]}
+        >
+          {/* =================================================
+              ICON
+          ================================================= */}
+
+          <View
+            style={
+              styles.cardIcon
+            }
+          >
+            <AppIcon
+              name="jobs"
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
               }
             />
-          )}
-        </View>
+          </View>
 
-        {/* ===================================================
-            WORKER NAME
-        =================================================== */}
-
-        {notification.workerName && (
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.workerName
+              styles.cardContent
             }
-            numberOfLines={1}
           >
-            {notification.workerName}
-          </AppText>
-        )}
+            {/* ===============================================
+                TITLE
+            =============================================== */}
 
-        {/* ===================================================
-            SERVICE
-        =================================================== */}
-
-        {notification.service && (
-          <InfoRow
-            icon="briefcase-outline"
-            value={
-              notification.service
-            }
-          />
-        )}
-
-        {/* ===================================================
-            LOCATION
-        =================================================== */}
-
-        {notification.location && (
-          <InfoRow
-            icon="location-outline"
-            value={
-              notification.location
-            }
-          />
-        )}
-
-        {/* ===================================================
-            PHONE
-        =================================================== */}
-
-        {notification.workerPhone && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${notification.workerName ?? "worker"} at ${notification.workerPhone}`}
-            accessibilityHint="Opens your phone dialer"
-            onPress={
-              handleCallWorker
-            }
-            hitSlop={6}
-            style={({ pressed }) => [
-              styles.callRow,
-              pressed &&
-                styles.callRowPressed,
-            ]}
-          >
             <View
               style={
-                styles.callIcon
+                styles.cardTitleRow
               }
             >
-              <Ionicons
-                name="call-outline"
-                size={15}
-                color="#2563EB"
-              />
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.cardTitle
+                }
+                numberOfLines={2}
+              >
+                {title}
+              </AppText>
+
+              {!notification.read ? (
+                <View
+                  style={
+                    styles.unreadDot
+                  }
+                />
+              ) : null}
             </View>
 
-            <AppText
-              weight="bold"
-              style={
-                styles.callNumber
-              }
-              numberOfLines={1}
-            >
-              {notification.workerPhone}
-            </AppText>
+            {/* ===============================================
+                WORKER NAME
+            =============================================== */}
 
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color="#2563EB"
-            />
-          </Pressable>
-        )}
+            {workerName ? (
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.workerName
+                }
+                numberOfLines={1}
+              >
+                {workerName}
+              </AppText>
+            ) : null}
 
-        {/* ===================================================
-            MESSAGE
-        =================================================== */}
+            {/* ===============================================
+                SERVICE
+            =============================================== */}
 
-        {notification.message ? (
-          <AppText
-            style={
-              styles.message
-            }
-          >
-            {notification.message}
-          </AppText>
-        ) : null}
+            {service ? (
+              <InfoRow
+                icon="service"
+                value={service}
+              />
+            ) : null}
 
-        {/* ===================================================
-            CALL ACTION
-        =================================================== */}
+            {/* ===============================================
+                LOCATION
+            =============================================== */}
 
-        {notification.workerPhone && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Call worker"
-            onPress={
-              handleCallWorker
-            }
-            style={({ pressed }) => [
-              styles.callButton,
-              pressed &&
-                styles.callButtonPressed,
-            ]}
-          >
-            <Ionicons
-              name="call"
-              size={16}
-              color="#FFFFFF"
-            />
+            {location ? (
+              <InfoRow
+                icon="location"
+                value={location}
+              />
+            ) : null}
 
-            <AppText
-              weight="bold"
-              style={
-                styles.callButtonText
-              }
-            >
-              Call Worker
-            </AppText>
-          </Pressable>
-        )}
-      </View>
-    </View>
+            {/* ===============================================
+                PHONE ROW
+            =============================================== */}
+
+            {workerPhone ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${
+                  workerName ||
+                  "worker"
+                } at ${workerPhone}`}
+                accessibilityHint="Opens your phone dialer"
+                onPress={
+                  handleCallWorker
+                }
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.callRow,
+
+                  pressed
+                    ? styles.callRowPressed
+                    : null,
+                ]}
+              >
+                <View
+                  style={
+                    styles.callIcon
+                  }
+                >
+                  <AppIcon
+                    name="phone"
+                    role="customer"
+                    size="xs"
+                    color={
+                      CustomerColors.primary
+                    }
+                  />
+                </View>
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.callNumber
+                  }
+                  numberOfLines={1}
+                >
+                  {workerPhone}
+                </AppText>
+
+                <AppIcon
+                  name="next"
+                  role="customer"
+                  size="xs"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </Pressable>
+            ) : null}
+
+            {/* ===============================================
+                MESSAGE
+            =============================================== */}
+
+            {message ? (
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.message
+                }
+              >
+                {message}
+              </AppText>
+            ) : null}
+
+            {/* ===============================================
+                CALL ACTION
+            =============================================== */}
+
+            {workerPhone ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${
+                  workerName ||
+                  "worker"
+                }`}
+                onPress={
+                  handleCallWorker
+                }
+                style={({ pressed }) => [
+                  styles.callButton,
+
+                  pressed
+                    ? styles.callButtonPressed
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name="phone"
+                  role="customer"
+                  size="xs"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.callButtonText
+                  }
+                >
+                  Call Worker
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      );
+    },
   );
-}
 
 /* =============================================================
    INFO ROW
 ============================================================= */
 
 type InfoRowProps = {
-  icon: React.ComponentProps<
-    typeof Ionicons
-  >["name"];
+  icon:
+    | "service"
+    | "location";
 
   value: string;
 };
 
-function InfoRow({
-  icon,
-  value,
-}: InfoRowProps) {
-  return (
-    <View
-      style={styles.infoRow}
-    >
-      <Ionicons
-        name={icon}
-        size={15}
-        color="#64748B"
-      />
+const InfoRow =
+  memo(
+    function InfoRow({
+      icon,
+      value,
+    }: InfoRowProps) {
+      return (
+        <View
+          style={
+            styles.infoRow
+          }
+        >
+          <AppIcon
+            name={icon}
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
+          />
 
-      <AppText
-        style={styles.infoValue}
-        numberOfLines={2}
-      >
-        {value}
-      </AppText>
-    </View>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.infoValue
+            }
+            numberOfLines={2}
+          >
+            {value}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
 
 /* =============================================================
    STYLES
@@ -696,20 +997,33 @@ function InfoRow({
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     container: {
       flexDirection: "row",
+
       justifyContent:
         "space-between",
+
       alignItems: "center",
-      marginTop: 4,
-      marginBottom: 12,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     left: {
       flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
+
       minWidth: 0,
+
+      flexDirection: "row",
+
+      alignItems: "center",
     },
 
     /* ========================================================
@@ -717,58 +1031,77 @@ const styles =
     ======================================================== */
 
     avatarButton: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      marginRight: 12,
+      width:
+        FixxamTokens.size
+          .avatarLg,
+
+      height:
+        FixxamTokens.size
+          .avatarLg,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
       overflow: "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#E5E7EB",
+        Colors.disabledBackground,
     },
 
     avatar: {
       width: "100%",
+
       height: "100%",
-      borderRadius: 28,
     },
 
     avatarPlaceholder: {
-      width: "100%",
-      height: "100%",
-      borderRadius: 28,
-      backgroundColor:
-        "#E5E7EB",
+      flex: 1,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     avatarPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.96,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     info: {
       flex: 1,
+
       minWidth: 0,
+
       justifyContent:
         "center",
     },
 
     name: {
-      fontSize: 20,
-      lineHeight: 25,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     greeting: {
-      marginTop: 2,
-      fontSize: 16,
-      lineHeight: 20,
-      color: "#090B0D",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
@@ -777,58 +1110,78 @@ const styles =
 
     notification: {
       width: 50,
+
       height: 50,
-      borderRadius: 16,
-      backgroundColor:
-        "#FFFFFF",
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
       justifyContent:
         "center",
-      alignItems: "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#EEF2F7",
+        Colors.border,
 
-      shadowColor: "#000000",
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      elevation: 3,
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     notificationPressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.96,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     badge: {
       position: "absolute",
-      top: 4,
-      right: 4,
-      minWidth: 17,
-      height: 17,
-      borderRadius: 9,
+
+      top: 3,
+
+      right: 3,
+
+      minWidth: 18,
+
+      height: 18,
+
       paddingHorizontal: 4,
-      backgroundColor:
-        "#F97316",
-      borderWidth: 2,
-      borderColor:
-        "#FFFFFF",
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.error,
     },
 
     badgeText: {
-      color: "#FFFFFF",
-      fontSize: 8,
+      color:
+        Colors.textInverse,
+
       lineHeight: 10,
     },
 
@@ -838,227 +1191,377 @@ const styles =
 
     modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15,23,42,0.45)",
+
       justifyContent:
         "flex-end",
     },
 
-    modalSheet: {
-      maxHeight: "82%",
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+
       backgroundColor:
-        "#FFFFFF",
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      paddingHorizontal: 18,
-      paddingTop: 20,
-      paddingBottom: 28,
+        Colors.overlayMedium,
+    },
+
+    modalSheet: {
+      width: "100%",
+
+      maxHeight: "82%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    sheetHandle: {
+      width: 42,
+
+      height: 4,
+
+      alignSelf: "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabled,
     },
 
     modalHeader: {
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 18,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     modalHeaderText: {
       flex: 1,
+
       minWidth: 0,
     },
 
     modalTitle: {
-      fontSize: 22,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalSubtitle: {
-      marginTop: 3,
-      fontSize: 12,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     closeButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#F8FAFC",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginLeft: 12,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     closePressed: {
-      opacity: 0.65,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     list: {
-      paddingBottom: 10,
+      paddingBottom:
+        FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
-       EMPTY
+       EMPTY / LOADING
     ======================================================== */
 
     emptyContainer: {
       minHeight: 300,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 35,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
     },
 
     emptyIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor:
-        "#F8FAFC",
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginBottom: 14,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     emptyTitle: {
-      fontSize: 17,
-      color: "#0F172A",
-      marginBottom: 6,
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      textAlign: "center",
-      fontSize: 13,
+      maxWidth: 280,
+
       lineHeight: 20,
-      color: "#64748B",
     },
 
     /* ========================================================
-       CARD
+       NOTIFICATION CARD
     ======================================================== */
 
     card: {
       flexDirection: "row",
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#F8FAFC",
-      marginBottom: 10,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       borderWidth: 1,
+
       borderColor:
-        "#EEF2F7",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     unreadCard: {
-      backgroundColor:
-        "#FFF7ED",
       borderColor:
-        "#FED7AA",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     cardIcon: {
       width: 44,
+
       height: 44,
-      borderRadius: 14,
-      backgroundColor:
-        "#FFFFFF",
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginRight: 11,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     cardContent: {
       flex: 1,
+
       minWidth: 0,
     },
 
     cardTitleRow: {
       flexDirection: "row",
+
       alignItems: "center",
-      marginBottom: 4,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
     },
 
     cardTitle: {
       flex: 1,
-      fontSize: 14,
-      color: "#0F172A",
+
+      minWidth: 0,
+
+      color:
+        Colors.textPrimary,
     },
 
     unreadDot: {
       width: 8,
+
       height: 8,
-      borderRadius: 4,
+
+      flexShrink: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#F97316",
-      marginLeft: 7,
+        CustomerColors.primary,
     },
 
     workerName: {
-      fontSize: 15,
-      color: "#0F172A",
-      marginBottom: 7,
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       INFO ROW
+    ======================================================== */
 
     infoRow: {
       flexDirection: "row",
-      alignItems: "flex-start",
-      marginTop: 4,
-      gap: 7,
+
+      alignItems:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     infoValue: {
       flex: 1,
-      fontSize: 12,
+
+      minWidth: 0,
+
       lineHeight: 17,
-      color: "#475569",
     },
 
     /* ========================================================
-       PHONE
+       PHONE ROW
     ======================================================== */
 
     callRow: {
-      marginTop: 6,
-      minHeight: 32,
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
       flexDirection: "row",
+
       alignItems: "center",
-      alignSelf: "flex-start",
-      paddingVertical: 3,
-      paddingRight: 4,
-      borderRadius: 8,
+
+      alignSelf:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     callRowPressed: {
-      opacity: 0.55,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     callIcon: {
-      width: 26,
-      height: 26,
-      borderRadius: 8,
-      backgroundColor:
-        "#EFF6FF",
+      width: 30,
+
+      height: 30,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginRight: 7,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     callNumber: {
-      color: "#2563EB",
-      fontSize: 13,
+      maxWidth: 190,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      color:
+        CustomerColors.primary,
+
       textDecorationLine:
         "underline",
-      marginRight: 4,
     },
 
     /* ========================================================
@@ -1066,38 +1569,63 @@ const styles =
     ======================================================== */
 
     callButton: {
-      marginTop: 11,
-      minHeight: 40,
-      paddingHorizontal: 15,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      alignSelf: "flex-start",
-      gap: 7,
+
+      alignSelf:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     callButtonPressed: {
-      opacity: 0.78,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.97,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     callButtonText: {
-      color: "#FFFFFF",
-      fontSize: 12,
+      color:
+        Colors.textInverse,
     },
 
+    /* ========================================================
+       MESSAGE
+    ======================================================== */
+
     message: {
-      marginTop: 9,
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 18,
-      color: "#64748B",
     },
   });

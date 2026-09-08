@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -9,72 +11,89 @@ import {
   AppButton,
 } from "@/components/ui";
 
-type Props = {
+import {
+  FixxamTokens,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   loading?: boolean;
 
   onAccept: () => void;
 
   onReject: () => void;
-
 };
 
-export default function WorkerOfferActions({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function WorkerOfferActions({
   loading = false,
-
   onAccept,
-
   onReject,
-
 }: Props) {
-
   return (
-
-    <View style={styles.container}>
-
+    <View
+      style={
+        styles.container
+      }
+    >
       <AppButton
-
         title="Accept Customer Offer"
-
-        loading={loading}
-
-        onPress={onAccept}
-
+        role="worker"
+        variant="primary"
+        loading={
+          loading
+        }
+        disabled={
+          loading
+        }
+        onPress={
+          onAccept
+        }
       />
-
-      <View style={styles.space} />
 
       <AppButton
-
         title="Reject Offer"
-
-        variant="customer"
-
-        loading={loading}
-
-        onPress={onReject}
-
+        role="worker"
+        variant="danger"
+        disabled={
+          loading
+        }
+        onPress={
+          onReject
+        }
       />
-
     </View>
-
   );
-
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   MEMO
+============================================================ */
 
-  container: {
+WorkerOfferActions.displayName =
+  "WorkerOfferActions";
 
-    marginTop: 18,
+export default memo(
+  WorkerOfferActions,
+);
 
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  space: {
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-    height: 12,
-
-  },
-
-});
+      gap:
+        FixxamTokens.spacing.md,
+    },
+  });

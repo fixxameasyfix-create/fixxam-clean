@@ -1,4 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import {
   Modal,
@@ -8,162 +13,373 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import AppButton from "@/components/ui/AppButton";
-import AppText from "@/components/ui/AppText";
+import {
+  AppButton,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Filters = {
   onlineOnly: boolean;
+
   verifiedOnly: boolean;
 };
 
 type Props = {
   visible: boolean;
+
   filters: Filters;
+
   onClose: () => void;
-  onApply: (filters: Filters) => void;
+
+  onApply: (
+    filters: Filters,
+  ) => void;
 };
 
-export default function WorkerFilterPopup({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerFilterPopup({
   visible,
   filters,
   onClose,
   onApply,
 }: Props) {
-  const [onlineOnly, setOnlineOnly] =
-    useState(filters.onlineOnly);
+  const insets =
+    useSafeAreaInsets();
 
-  const [verifiedOnly, setVerifiedOnly] =
-    useState(filters.verifiedOnly);
+  const [
+    onlineOnly,
+    setOnlineOnly,
+  ] =
+    useState(
+      filters.onlineOnly,
+    );
+
+  const [
+    verifiedOnly,
+    setVerifiedOnly,
+  ] =
+    useState(
+      filters.verifiedOnly,
+    );
+
+  /* ============================================================
+     SYNC FILTERS
+  ============================================================ */
 
   useEffect(() => {
-    setOnlineOnly(filters.onlineOnly);
-    setVerifiedOnly(filters.verifiedOnly);
-  }, [filters]);
+    setOnlineOnly(
+      filters.onlineOnly,
+    );
 
-  const handleReset = () => {
-    setOnlineOnly(false);
-    setVerifiedOnly(false);
-  };
+    setVerifiedOnly(
+      filters.verifiedOnly,
+    );
+  }, [
+    filters.onlineOnly,
+    filters.verifiedOnly,
+  ]);
 
-  const handleApply = () => {
-    onApply({
+  /* ============================================================
+     RESET
+  ============================================================ */
+
+  const handleReset =
+    useCallback(() => {
+      setOnlineOnly(
+        false,
+      );
+
+      setVerifiedOnly(
+        false,
+      );
+    }, []);
+
+  /* ============================================================
+     APPLY
+  ============================================================ */
+
+  const handleApply =
+    useCallback(() => {
+      onApply({
+        onlineOnly,
+        verifiedOnly,
+      });
+    }, [
+      onApply,
       onlineOnly,
       verifiedOnly,
-    });
-  };
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
     <Modal
       transparent
-      visible={visible}
+      visible={
+        visible
+      }
       animationType="fade"
-      onRequestClose={onClose}
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
     >
-      <Pressable
-        style={styles.overlay}
-        onPress={onClose}
-      >
-        <Pressable
-          style={styles.popup}
-          onPress={(event) => event.stopPropagation()}
-        >
-          {/* HEADER */}
+      {/* ======================================================
+          BACKDROP
+      ====================================================== */}
 
-          <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons
-                name="options-outline"
-                size={17}
-                color="#2563EB"
+      <Pressable
+        onPress={
+          onClose
+        }
+        style={[
+          styles.overlay,
+          {
+            paddingTop:
+              insets.top +
+              FixxamTokens.size
+                .headerHeight +
+              FixxamTokens.spacing.sm,
+          },
+        ]}
+      >
+        {/* ====================================================
+            POPUP
+        ==================================================== */}
+
+        <Pressable
+          accessibilityViewIsModal
+          onPress={(
+            event,
+          ) => {
+            event.stopPropagation();
+          }}
+          style={
+            styles.popup
+          }
+        >
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <View
+            style={
+              styles.header
+            }
+          >
+            <View
+              style={
+                styles.headerIcon
+              }
+            >
+              <AppIcon
+                name="filter"
+                role="customer"
+                size="sm"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="bodyLarge"
               weight="bold"
-              style={styles.title}
+              numberOfLines={1}
+              style={
+                styles.title
+              }
             >
               Filters
             </AppText>
 
             <Pressable
-              onPress={onClose}
-              hitSlop={8}
-              style={styles.closeButton}
               accessibilityRole="button"
               accessibilityLabel="Close filters"
+              hitSlop={8}
+              onPress={
+                onClose
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={17}
-                color="#64748B"
+                role="customer"
+                size="sm"
+                state="muted"
               />
             </Pressable>
           </View>
 
-          {/* ONLINE */}
+          {/* ==================================================
+              ONLINE
+          ================================================== */}
 
-          <View style={styles.row}>
-            <View style={styles.labelContainer}>
+          <View
+            style={
+              styles.row
+            }
+          >
+            <View
+              style={
+                styles.labelContainer
+              }
+            >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
-                style={styles.label}
               >
                 Online Workers
               </AppText>
 
-              <AppText style={styles.description}>
-                Show workers currently online
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.description
+                }
+              >
+                Show workers currently
+                online
               </AppText>
             </View>
 
             <Switch
-              value={onlineOnly}
-              onValueChange={setOnlineOnly}
+              value={
+                onlineOnly
+              }
+              onValueChange={
+                setOnlineOnly
+              }
               accessibilityLabel="Online workers filter"
+              trackColor={{
+                false:
+                  Colors.disabled,
+                true:
+                  CustomerColors.primary,
+              }}
+              thumbColor={
+                Colors.surface
+              }
+              ios_backgroundColor={
+                Colors.disabled
+              }
             />
           </View>
 
-          {/* VERIFIED */}
+          {/* ==================================================
+              VERIFIED
+          ================================================== */}
 
-          <View style={styles.row}>
-            <View style={styles.labelContainer}>
+          <View
+            style={
+              styles.row
+            }
+          >
+            <View
+              style={
+                styles.labelContainer
+              }
+            >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
-                style={styles.label}
               >
                 Verified Workers
               </AppText>
 
-              <AppText style={styles.description}>
-                Show verified workers only
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.description
+                }
+              >
+                Show verified workers
+                only
               </AppText>
             </View>
 
             <Switch
-              value={verifiedOnly}
-              onValueChange={setVerifiedOnly}
+              value={
+                verifiedOnly
+              }
+              onValueChange={
+                setVerifiedOnly
+              }
               accessibilityLabel="Verified workers filter"
+              trackColor={{
+                false:
+                  Colors.disabled,
+                true:
+                  CustomerColors.primary,
+              }}
+              thumbColor={
+                Colors.surface
+              }
+              ios_backgroundColor={
+                Colors.disabled
+              }
             />
           </View>
 
-          {/* BUTTONS */}
+          {/* ==================================================
+              ACTIONS
+          ================================================== */}
 
-          <View style={styles.buttons}>
-            <View style={styles.buttonWrapper}>
-              <AppButton
-                title="Reset"
-                onPress={handleReset}
-              />
-            </View>
+          <View
+            style={
+              styles.buttons
+            }
+          >
+            <AppButton
+              title="Reset"
+              role="customer"
+              variant="outline"
+              onPress={
+                handleReset
+              }
+              style={
+                styles.button
+              }
+            />
 
-            <View style={styles.buttonWrapper}>
-              <AppButton
-                title="Apply"
-                onPress={handleApply}
-              />
-            </View>
+            <AppButton
+              title="Apply"
+              role="customer"
+              onPress={
+                handleApply
+              }
+              style={
+                styles.button
+              }
+            />
           </View>
         </Pressable>
       </Pressable>
@@ -171,103 +387,210 @@ export default function WorkerFilterPopup({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,23,42,0.16)",
-    justifyContent: "flex-start",
-    paddingHorizontal: 12,
-    paddingTop: 88,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  popup: {
-    width: "100%",
-    padding: 13,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.10,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 5,
+    overlay: {
+      flex: 1,
+
+      justifyContent:
+        "flex-start",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.overlayLight,
     },
 
-    elevation: 8,
-  },
+    /* ========================================================
+       POPUP
+    ======================================================== */
 
-  header: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    popup: {
+      width: "100%",
 
-  headerIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      maxWidth: 420,
 
-  title: {
-    flex: 1,
-    marginLeft: 7,
-    fontSize: 15,
-    lineHeight: 19,
-    color: "#0F172A",
-  },
+      alignSelf:
+        "center",
 
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  row: {
-    minHeight: 52,
-    marginTop: 5,
-    paddingVertical: 7,
-    paddingHorizontal: 3,
+      borderWidth: 1,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+      borderColor:
+        Colors.border,
 
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  labelContainer: {
-    flex: 1,
-    paddingRight: 8,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  label: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#0F172A",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  description: {
-    marginTop: 1,
-    fontSize: 9.5,
-    lineHeight: 13,
-    color: "#94A3B8",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  buttons: {
-    flexDirection: "row",
-    gap: 7,
-    marginTop: 11,
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  buttonWrapper: {
-    flex: 1,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    headerIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    title: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    closeButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       FILTER ROW
+    ======================================================== */
+
+    row: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
+    },
+
+    labelContainer: {
+      flex: 1,
+
+      minWidth: 0,
+
+      paddingRight:
+        FixxamTokens.spacing.md,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
+
+    buttons: {
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    button: {
+      flex: 1,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkerFilterPopup,
+);

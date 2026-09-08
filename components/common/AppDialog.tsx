@@ -1,134 +1,254 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  Modal,
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import type { AppIconName } from "@/components/ui/AppIcon";
+import AppModal from "@/components/ui/AppModal";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+type DialogTone =
+  | "primary"
+  | "info"
+  | "success"
+  | "warning"
+  | "error";
+
+export interface AppDialogProps {
   visible: boolean;
-
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
 
   title: string;
 
   message: string;
 
+  role?: FixxamRole;
+
+  tone?: DialogTone;
+
+  icon?: AppIconName;
+
   confirmText?: string;
 
   cancelText?: string;
 
+  loading?: boolean;
+
+  confirmDisabled?: boolean;
+
+  dismissOnBackdrop?: boolean;
+
   onConfirm: () => void;
 
   onCancel: () => void;
-};
+}
 
-export default function AppDialog({
+function AppDialog({
   visible,
-
-  icon = "help-circle-outline",
-
   title,
-
   message,
 
-  confirmText = "Confirm",
+  role = "customer",
+  tone = "primary",
+  icon,
 
+  confirmText = "Confirm",
   cancelText = "Cancel",
 
+  loading = false,
+  confirmDisabled = false,
+
+  dismissOnBackdrop = false,
+
   onConfirm,
-
   onCancel,
-}: Props) {
+}: AppDialogProps) {
+  const roleColors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const palette = {
+    primary: {
+      color: roleColors.primary,
+      background: roleColors.primarySoft,
+      icon: "help" as AppIconName,
+    },
+
+    info: {
+      color: Colors.info,
+      background: Colors.infoSoft,
+      icon: "info" as AppIconName,
+    },
+
+    success: {
+      color: Colors.success,
+      background: Colors.successSoft,
+      icon: "success" as AppIconName,
+    },
+
+    warning: {
+      color: Colors.warning,
+      background: Colors.warningSoft,
+      icon: "warning" as AppIconName,
+    },
+
+    error: {
+      color: Colors.error,
+      background: Colors.errorSoft,
+      icon: "error" as AppIconName,
+    },
+  } as const;
+
+  const current = palette[tone];
+
+  const resolvedIcon =
+    icon ?? current.icon;
+
   return (
-    <Modal
+    <AppModal
       visible={visible}
-      transparent
-      animationType="fade"
+      role={role}
+      onClose={onCancel}
+      dismissOnBackdrop={
+        dismissOnBackdrop
+      }
+      cardStyle={styles.card}
     >
-      <View style={styles.overlay}>
-        <View style={styles.card}>
-          <View style={styles.iconBox}>
-            <MaterialCommunityIcons
-              name={icon}
-              size={58}
-              color="#2563EB"
-            />
-          </View>
+      <View
+        accessibilityViewIsModal
+        style={styles.content}
+      >
+        <View
+          style={[
+            styles.iconBox,
+            {
+              backgroundColor:
+                current.background,
+            },
+          ]}
+        >
+          <AppIcon
+            name={resolvedIcon}
+            role={role}
+            size="lg"
+            color={current.color}
+            strokeWidth="medium"
+          />
+        </View>
 
-          <AppText
-            weight="bold"
-            style={styles.title}
-          >
-            {title}
-          </AppText>
+        <AppText
+          variant="heading3"
+          center
+          style={styles.title}
+        >
+          {title}
+        </AppText>
 
-          <AppText style={styles.message}>
-            {message}
-          </AppText>
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={styles.message}
+        >
+          {message}
+        </AppText>
+
+        <View style={styles.actions}>
+          <AppButton
+            title={cancelText}
+            role={role}
+            variant="outline"
+            disabled={loading}
+            onPress={onCancel}
+            style={styles.action}
+          />
 
           <AppButton
             title={confirmText}
+            role={role}
+            variant={
+              tone === "error"
+                ? "danger"
+                : "primary"
+            }
+            loading={loading}
+            disabled={
+              confirmDisabled
+            }
             onPress={onConfirm}
-          />
-
-          <View style={{ height: 12 }} />
-
-          <AppButton
-            title={cancelText}
-            variant="worker"
-            onPress={onCancel}
+            style={styles.action}
           />
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+  card: {
+    maxWidth: 380,
+
+    padding:
+      FixxamTokens.spacing.xl,
   },
 
-  card: {
+  content: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
-    padding: 24,
+
+    alignItems: "center",
   },
 
   iconBox: {
-    width: 90,
-    height: 90,
-    borderRadius: 24,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
+    width: 56,
+    height: 56,
+
     alignItems: "center",
-    alignSelf: "center",
-    marginBottom: 18,
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.lg,
   },
 
   title: {
-    fontSize: 22,
-    textAlign: "center",
-    color: "#0F172A",
+    marginTop:
+      FixxamTokens.spacing.lg,
+
+    maxWidth: 310,
   },
 
   message: {
-    marginTop: 10,
-    marginBottom: 28,
-    textAlign: "center",
-    color: "#64748B",
-    lineHeight: 22,
-    fontSize: 15,
+    marginTop:
+      FixxamTokens.spacing.sm,
+
+    maxWidth: 320,
+  },
+
+  actions: {
+    width: "100%",
+
+    flexDirection: "row",
+
+    gap:
+      FixxamTokens.spacing.sm,
+
+    marginTop:
+      FixxamTokens.spacing.xxl,
+  },
+
+  action: {
+    flex: 1,
   },
 });
+
+export default memo(AppDialog);

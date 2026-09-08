@@ -1,53 +1,99 @@
-import React from "react";
+import React, { memo } from "react";
 
 import {
+  StyleProp,
   StyleSheet,
   View,
+  ViewStyle,
 } from "react-native";
 
 import SkeletonBox from "./SkeletonBox";
 
-export default function ProductCardSkeleton() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+export interface ProductCardSkeletonProps {
+  width?: number;
+  style?: StyleProp<ViewStyle>;
+}
+
+function ProductCardSkeleton({
+  width = 156,
+  style,
+}: ProductCardSkeletonProps) {
   return (
-    <View style={styles.card}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading product"
+      style={[
+        styles.card,
+        { width },
+        style,
+      ]}
+    >
       <SkeletonBox
-        height={110}
-        borderRadius={16}
+        height={112}
+        borderRadius={
+          FixxamTokens.radius.image
+        }
       />
 
-      <SkeletonBox
-        height={16}
-        width="80%"
-        style={styles.title}
-      />
+      <View style={styles.content}>
+        <SkeletonBox
+          height={16}
+          width="82%"
+          borderRadius={
+            FixxamTokens.radius.sm
+          }
+        />
 
-      <SkeletonBox
-        height={16}
-        width={70}
-        style={styles.price}
-      />
+        <SkeletonBox
+          height={14}
+          width="58%"
+          borderRadius={
+            FixxamTokens.radius.sm
+          }
+        />
+
+        <SkeletonBox
+          height={18}
+          width="46%"
+          borderRadius={
+            FixxamTokens.radius.sm
+          }
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    width: 150,
+    backgroundColor:
+      Colors.surface,
 
-    backgroundColor: "#FFFFFF",
+    borderRadius:
+      FixxamTokens.radius.card,
 
-    borderRadius: 20,
+    padding:
+      FixxamTokens.spacing.md,
 
-    padding: 12,
+    borderWidth:
+      StyleSheet.hairlineWidth,
 
-    marginRight: 14,
+    borderColor:
+      Colors.border,
   },
 
-  title: {
-    marginTop: 12,
-  },
+  content: {
+    gap:
+      FixxamTokens.spacing.sm,
 
-  price: {
-    marginTop: 10,
+    marginTop:
+      FixxamTokens.spacing.md,
   },
 });
+
+export default memo(ProductCardSkeleton);

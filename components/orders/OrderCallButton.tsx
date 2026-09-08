@@ -9,26 +9,33 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-/* ============================================================
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Props = {
   enabled: boolean;
+
   loading?: boolean;
+
   expired?: boolean;
+
   onPress: () => void;
 };
 
-/* ============================================================
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
 function OrderCallButton({
   enabled,
@@ -41,59 +48,76 @@ function OrderCallButton({
     loading ||
     expired;
 
-  const title = expired
-    ? "CALL UNAVAILABLE"
-    : enabled
-      ? "CALL WORKER"
-      : "CALL WILL OPEN AFTER MESSAGES";
+  const title =
+    expired
+      ? "CALL UNAVAILABLE"
+      : enabled
+        ? "CALL WORKER"
+        : "CALL WILL OPEN AFTER MESSAGES";
+
+  const accessibilityLabel =
+    expired
+      ? "Call unavailable because the order has expired"
+      : enabled
+        ? "Call worker"
+        : "Call worker will be available after messages end";
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={
+        accessibilityLabel
+      }
       accessibilityState={{
         disabled,
+        busy: loading,
       }}
-      accessibilityLabel={
-        expired
-          ? "Call unavailable because the order has expired"
-          : enabled
-            ? "Call worker"
-            : "Call worker will be available after messages end"
-      }
       style={({ pressed }) => [
         styles.button,
 
         enabled &&
-          !expired &&
-          styles.enabledButton,
+        !expired
+          ? styles.enabledButton
+          : null,
 
         !enabled &&
-          styles.lockedButton,
+        !expired
+          ? styles.lockedButton
+          : null,
 
-        expired &&
-          styles.expiredButton,
+        expired
+          ? styles.expiredButton
+          : null,
 
         pressed &&
-          !disabled &&
-          styles.pressed,
+        !disabled
+          ? styles.pressed
+          : null,
 
         disabled &&
-          !enabled &&
-          styles.disabledOpacity,
+        !enabled
+          ? styles.disabledOpacity
+          : null,
       ]}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconContainer,
 
           enabled &&
-            !expired &&
-            styles.enabledIcon,
+          !expired
+            ? styles.enabledIcon
+            : null,
 
-          expired &&
-            styles.expiredIcon,
+          expired
+            ? styles.expiredIcon
+            : null,
         ]}
       >
         {loading ? (
@@ -102,49 +126,54 @@ function OrderCallButton({
             color={
               enabled &&
               !expired
-                ? "#FFFFFF"
-                : "#94A3B8"
+                ? Colors.textInverse
+                : Colors.textMuted
             }
           />
         ) : (
-          <Ionicons
+          <AppIcon
             name={
               expired
-                ? "close-circle-outline"
+                ? "error"
                 : enabled
-                  ? "call-outline"
-                  : "lock-closed-outline"
+                  ? "phone"
+                  : "lock"
             }
-            size={19}
+            size="sm"
             color={
               expired
-                ? "#DC2626"
+                ? Colors.error
                 : enabled
-                  ? "#FFFFFF"
-                  : "#64748B"
+                  ? Colors.textInverse
+                  : Colors.textSecondary
             }
           />
         )}
       </View>
 
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <View
-        style={
-          styles.content
-        }
+        style={styles.content}
       >
         <AppText
+          variant="caption"
           weight="bold"
+          numberOfLines={1}
           style={[
             styles.title,
 
             enabled &&
-              !expired &&
-              styles.enabledTitle,
+            !expired
+              ? styles.enabledTitle
+              : null,
 
-            expired &&
-              styles.expiredTitle,
+            expired
+              ? styles.expiredTitle
+              : null,
           ]}
-          numberOfLines={1}
         >
           {loading
             ? "STARTING CALL..."
@@ -155,9 +184,9 @@ function OrderCallButton({
         !expired &&
         !loading ? (
           <AppText
-            style={
-              styles.subtitle
-            }
+            variant="caption"
+            tone="muted"
+            style={styles.subtitle}
           >
             Available when message time ends
           </AppText>
@@ -166,6 +195,7 @@ function OrderCallButton({
         {expired &&
         !loading ? (
           <AppText
+            variant="caption"
             style={
               styles.expiredSubtitle
             }
@@ -175,13 +205,19 @@ function OrderCallButton({
         ) : null}
       </View>
 
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
+
       {enabled &&
       !expired &&
       !loading ? (
-        <Ionicons
-          name="arrow-forward"
-          size={18}
-          color="#FFFFFF"
+        <AppIcon
+          name="next"
+          size="xs"
+          color={
+            Colors.textInverse
+          }
         />
       ) : null}
     </Pressable>
@@ -192,52 +228,45 @@ export default memo(
   OrderCallButton,
 );
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       BUTTON
+    ======================================================== */
+
     button: {
       minHeight: 58,
-      marginTop: 10,
-      paddingHorizontal: 11,
-      borderRadius: 16,
-      borderWidth: 1,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
     },
+
+    /* ========================================================
+       ENABLED
+    ======================================================== */
 
     enabledButton: {
       backgroundColor:
-        "#16A34A",
-      borderColor:
-        "#16A34A",
-    },
+        Colors.success,
 
-    lockedButton: {
-      backgroundColor:
-        "#F8FAFC",
       borderColor:
-        "#E2E8F0",
-    },
-
-    expiredButton: {
-      backgroundColor:
-        "#FEF2F2",
-      borderColor:
-        "#FECACA",
-    },
-
-    iconContainer: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor:
-        "#E2E8F0",
-      alignItems: "center",
-      justifyContent:
-        "center",
+        Colors.success,
     },
 
     enabledIcon: {
@@ -245,54 +274,125 @@ const styles =
         "rgba(255,255,255,0.18)",
     },
 
+    enabledTitle: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       LOCKED
+    ======================================================== */
+
+    lockedButton: {
+      backgroundColor:
+        Colors.background,
+
+      borderColor:
+        Colors.border,
+    },
+
+    /* ========================================================
+       EXPIRED
+    ======================================================== */
+
+    expiredButton: {
+      backgroundColor:
+        Colors.errorSoft,
+
+      borderColor:
+        Colors.error,
+    },
+
     expiredIcon: {
       backgroundColor:
-        "#FEE2E2",
-    },
-
-    content: {
-      flex: 1,
-      marginLeft: 9,
-      marginRight: 8,
-    },
-
-    title: {
-      fontSize: 10,
-      letterSpacing: 0.3,
-      color: "#475569",
-    },
-
-    enabledTitle: {
-      color: "#FFFFFF",
+        Colors.errorSoft,
     },
 
     expiredTitle: {
-      color: "#B91C1C",
-    },
-
-    subtitle: {
-      marginTop: 3,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#94A3B8",
+      color:
+        Colors.error,
     },
 
     expiredSubtitle: {
-      marginTop: 3,
-      fontSize: 9,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 14,
-      color: "#991B1B",
+
+      color:
+        Colors.error,
     },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconContainer: {
+      width: 40,
+
+      height: 40,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      letterSpacing: 0.3,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 14,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
 
     disabledOpacity: {
       opacity: 0.9,
     },
 
     pressed: {
-      opacity: 0.85,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

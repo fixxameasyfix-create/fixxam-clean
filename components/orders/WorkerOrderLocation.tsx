@@ -1,4 +1,7 @@
-import React, { memo, useMemo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,16 +9,54 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   address: string;
+
   latitude?: number | null;
+
   longitude?: number | null;
+
   onViewLocation: () => void;
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function hasValidCoordinates(
+  latitude?: number | null,
+  longitude?: number | null,
+): boolean {
+  return (
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    typeof longitude === "number" &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 const WorkerOrderLocation = memo(
   function WorkerOrderLocation({
@@ -24,61 +65,116 @@ const WorkerOrderLocation = memo(
     longitude,
     onViewLocation,
   }: Props) {
-    const hasCoordinates = useMemo(
-      () =>
-        typeof latitude === "number" &&
-        Number.isFinite(latitude) &&
-        typeof longitude === "number" &&
-        Number.isFinite(longitude),
-      [latitude, longitude],
-    );
+    const safeAddress =
+      useMemo(
+        () =>
+          typeof address === "string"
+            ? address.trim()
+            : "",
+        [address],
+      );
+
+    const coordinatesAvailable =
+      useMemo(
+        () =>
+          hasValidCoordinates(
+            latitude,
+            longitude,
+          ),
+        [
+          latitude,
+          longitude,
+        ],
+      );
 
     return (
-      <View style={styles.card}>
-        <View style={styles.icon}>
-          <Ionicons
-            name="location-outline"
-            size={23}
-            color="#2563EB"
+      <View
+        style={styles.card}
+        accessible
+        accessibilityLabel={`Service location. ${
+          safeAddress ||
+          "Location unavailable"
+        }`}
+      >
+        {/* ====================================================
+            LOCATION ICON
+        ==================================================== */}
+
+        <View
+          style={styles.icon}
+        >
+          <AppIcon
+            name="location"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
-        <View style={styles.info}>
+        {/* ====================================================
+            LOCATION INFO
+        ==================================================== */}
+
+        <View
+          style={styles.info}
+        >
           <AppText
+            variant="body"
             weight="bold"
             numberOfLines={3}
             style={styles.title}
           >
-            {address?.trim() ||
+            {safeAddress ||
               "Location unavailable"}
           </AppText>
 
           <AppText
-            style={styles.subtitle}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
           >
-            {hasCoordinates
+            {coordinatesAvailable
               ? "Location coordinates available"
               : "Address only"}
           </AppText>
         </View>
 
+        {/* ====================================================
+            MAP
+        ==================================================== */}
+
         <Pressable
           onPress={onViewLocation}
           accessibilityRole="button"
-          accessibilityLabel="View service location on map"
+          accessibilityLabel={
+            coordinatesAvailable
+              ? "View service location on map"
+              : "View service address"
+          }
+          hitSlop={6}
           style={({ pressed }) => [
             styles.mapButton,
-            pressed &&
-              styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="map-outline"
-            size={17}
-            color="#2563EB"
+          <AppIcon
+            name="navigation"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
             style={styles.mapText}
           >
@@ -95,68 +191,153 @@ WorkerOrderLocation.displayName =
 
 export default WorkerOrderLocation;
 
-const styles = StyleSheet.create({
-  card: {
-    minHeight: 76,
-    padding: 11,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  icon: {
-    width: 45,
-    height: 45,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  info: {
-    flex: 1,
-    marginLeft: 10,
-    marginRight: 8,
-  },
+    card: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-  title: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#0F172A",
-  },
+      padding:
+        FixxamTokens.spacing.sm,
 
-  subtitle: {
-    marginTop: 3,
-    fontSize: 9.5,
-    color: "#64748B",
-  },
+      flexDirection: "row",
 
-  mapButton: {
-    minWidth: 50,
-    height: 37,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 4,
-  },
+      alignItems: "center",
 
-  mapText: {
-    fontSize: 8,
-    color: "#2563EB",
-  },
+      borderWidth: 1,
 
-  pressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    icon: {
+      width: 44,
+
+      height: 44,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      lineHeight: 18,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       MAP BUTTON
+    ======================================================== */
+
+    mapButton: {
+      minWidth:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexShrink: 0,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    mapText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

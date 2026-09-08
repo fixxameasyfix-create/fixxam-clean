@@ -1,7 +1,11 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
@@ -9,9 +13,20 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -51,17 +66,57 @@ export type ProductCardProps = {
    HELPERS
 ============================================================== */
 
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizePrice(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function normalizeStock(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    parsed,
+  );
+}
+
 function formatPrice(
   value: number,
 ): string {
-  const safeValue = Number(value);
-
-  if (
-    !Number.isFinite(safeValue) ||
-    safeValue < 0
-  ) {
-    return "0";
-  }
+  const safeValue =
+    normalizePrice(value);
 
   return safeValue.toLocaleString(
     "en-NG",
@@ -80,7 +135,7 @@ function formatPrice(
    COMPONENT
 ============================================================== */
 
-export default function ProductCard({
+function ProductCard({
   name,
   price,
   image,
@@ -93,34 +148,71 @@ export default function ProductCard({
   onBuyPress,
   style,
 }: ProductCardProps) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
   /* ============================================================
-     SAFE PRICE
+     PRODUCT
+  ============================================================ */
+
+  const productName =
+    cleanString(name) ||
+    "Product";
+
+  const categoryName =
+    cleanString(
+      category,
+    );
+
+  const imageUrl =
+    cleanString(
+      image,
+    );
+
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+  }, [
+    imageUrl,
+  ]);
+
+  const showImage =
+    Boolean(imageUrl) &&
+    !imageFailed;
+
+  /* ============================================================
+     PRICE
   ============================================================ */
 
   const originalPrice =
-    Number(price);
+    normalizePrice(
+      price,
+    );
 
   const discount =
-    Number(discountPercentage);
+    Number(
+      discountPercentage,
+    );
 
   const dealPrice =
-    Number(discountedPrice);
-
-  /* ============================================================
-     VALID DEAL
-  ============================================================ */
+    normalizePrice(
+      discountedPrice,
+    );
 
   const hasDiscount =
-    Number.isFinite(
-      originalPrice,
-    ) &&
     originalPrice > 0 &&
-    Number.isFinite(discount) &&
+    Number.isFinite(
+      discount,
+    ) &&
     discount > 0 &&
     discount < 100 &&
-    Number.isFinite(dealPrice) &&
     dealPrice > 0 &&
-    dealPrice < originalPrice;
+    dealPrice <
+      originalPrice;
 
   const displayPrice =
     hasDiscount
@@ -129,21 +221,51 @@ export default function ProductCard({
 
   const displayDiscount =
     hasDiscount
-      ? Math.round(discount)
+      ? Math.round(
+          discount,
+        )
       : 0;
 
   /* ============================================================
-     SAFE STOCK
+     STOCK
   ============================================================ */
 
   const safeStock =
-    Number(stock);
+    normalizeStock(
+      stock,
+    );
 
   const hasStock =
-    Number.isFinite(
-      safeStock,
-    ) &&
     safeStock > 0;
+
+  const stockLabel =
+    useMemo(
+      () =>
+        hasStock
+          ? `${safeStock} ${
+              safeStock === 1
+                ? "item"
+                : "items"
+            } available`
+          : "Out of stock",
+      [
+        hasStock,
+        safeStock,
+      ],
+    );
+
+  /* ============================================================
+     ADD TO CART
+  ============================================================ */
+
+  const handleBuyPress =
+    () => {
+      if (!hasStock) {
+        return;
+      }
+
+      onBuyPress();
+    };
 
   /* ============================================================
      UI
@@ -157,18 +279,22 @@ export default function ProductCard({
       ]}
     >
       {/* ======================================================
-          PRODUCT
+          PRODUCT CONTENT
       ====================================================== */}
 
       <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.productContent,
-          pressed &&
-            styles.productPressed,
-        ]}
         accessibilityRole="button"
-        accessibilityLabel={`View ${name}`}
+        accessibilityLabel={`View ${productName}`}
+        onPress={onPress}
+        style={({
+          pressed,
+        }) => [
+          styles.productContent,
+
+          pressed
+            ? styles.productPressed
+            : null,
+        ]}
       >
         {/* ====================================================
             IMAGE
@@ -179,15 +305,23 @@ export default function ProductCard({
             styles.imageContainer
           }
         >
-          {image?.trim() ? (
+          {showImage ? (
             <Image
               source={{
-                uri: image.trim(),
+                uri:
+                  imageUrl,
               }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
               style={
                 styles.image
               }
-              resizeMode="cover"
+              accessibilityLabel={`${productName} product image`}
+              onError={() =>
+                setImageFailed(
+                  true,
+                )
+              }
             />
           ) : (
             <View
@@ -195,10 +329,11 @@ export default function ProductCard({
                 styles.imagePlaceholder
               }
             >
-              <Ionicons
-                name="cube-outline"
-                size={30}
-                color="#94A3B8"
+              <AppIcon
+                name="package"
+                role="customer"
+                size="xl"
+                state="muted"
               />
             </View>
           )}
@@ -207,19 +342,23 @@ export default function ProductCard({
               FEATURED
           ================================================== */}
 
-          {featured && (
+          {featured ? (
             <View
               style={
                 styles.featuredBadge
               }
             >
-              <Ionicons
+              <AppIcon
                 name="star"
-                size={10}
-                color="#F59E0B"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.warning
+                }
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.featuredText
@@ -228,19 +367,20 @@ export default function ProductCard({
                 Featured
               </AppText>
             </View>
-          )}
+          ) : null}
 
           {/* ==================================================
               DISCOUNT
           ================================================== */}
 
-          {hasDiscount && (
+          {hasDiscount ? (
             <View
               style={
                 styles.discountBadge
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.discountText
@@ -249,11 +389,11 @@ export default function ProductCard({
                 -{displayDiscount}%
               </AppText>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* ====================================================
-            CONTENT
+            DETAILS
         ==================================================== */}
 
         <View
@@ -261,30 +401,33 @@ export default function ProductCard({
             styles.content
           }
         >
-          {/* PRODUCT NAME */}
-
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={2}
             style={
               styles.name
             }
           >
-            {name}
+            {productName}
           </AppText>
 
-          {/* CATEGORY */}
+          {/* ==================================================
+              CATEGORY
+          ================================================== */}
 
-          {!!category && (
+          {categoryName ? (
             <AppText
+              variant="caption"
+              tone="secondary"
               numberOfLines={1}
               style={
                 styles.category
               }
             >
-              {category}
+              {categoryName}
             </AppText>
-          )}
+          ) : null}
 
           {/* ==================================================
               PRICE
@@ -301,12 +444,11 @@ export default function ProductCard({
               }
             >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 numberOfLines={1}
                 style={
-                  hasDiscount
-                    ? styles.discountedPrice
-                    : styles.price
+                  styles.price
                 }
               >
                 ₦
@@ -315,8 +457,9 @@ export default function ProductCard({
                 )}
               </AppText>
 
-              {hasDiscount && (
+              {hasDiscount ? (
                 <AppText
+                  variant="caption"
                   numberOfLines={1}
                   style={
                     styles.originalPrice
@@ -327,41 +470,47 @@ export default function ProductCard({
                     originalPrice,
                   )}
                 </AppText>
-              )}
+              ) : null}
             </View>
           </View>
 
           {/* ==================================================
-              DEAL / NO DEAL
+              DEAL
           ================================================== */}
 
           <View
             style={[
               styles.dealRow,
-              !hasDiscount &&
-                styles.noDealRow,
+
+              hasDiscount
+                ? styles.activeDealRow
+                : styles.noDealRow,
             ]}
           >
-            <Ionicons
+            <AppIcon
               name={
                 hasDiscount
-                  ? "pricetag"
-                  : "pricetag-outline"
+                  ? "payment"
+                  : "info"
               }
-              size={11}
+              role="customer"
+              size="xs"
               color={
                 hasDiscount
-                  ? "#2563EB"
-                  : "#94A3B8"
+                  ? CustomerColors.primary
+                  : Colors.textMuted
               }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
               style={[
                 styles.dealText,
-                !hasDiscount &&
-                  styles.noDealText,
+
+                !hasDiscount
+                  ? styles.noDealText
+                  : null,
               ]}
             >
               {hasDiscount
@@ -375,48 +524,49 @@ export default function ProductCard({
           ================================================== */}
 
           <View
-            style={
-              styles.stockRow
-            }
-          >
-            <View
-              style={
-                styles.stockBadge
-              }
-            >
-              <Ionicons
-                name={
-                  hasStock
-                    ? "checkmark-circle"
-                    : "close-circle"
-                }
-                size={11}
-                color={
-                  hasStock
-                    ? "#16A34A"
-                    : "#DC2626"
-                }
-              />
+            style={[
+              styles.stockBadge,
 
-              <AppText
-                weight="bold"
-                style={[
-                  styles.stockText,
-                  !hasStock &&
-                    styles.outOfStockText,
-                ]}
-              >
-                {hasStock
-                  ? `${safeStock} available`
-                  : "Out of stock"}
-              </AppText>
-            </View>
+              hasStock
+                ? styles.inStockBadge
+                : styles.outOfStockBadge,
+            ]}
+          >
+            <AppIcon
+              name={
+                hasStock
+                  ? "success"
+                  : "error"
+              }
+              role="customer"
+              size="xs"
+              state={
+                hasStock
+                  ? "success"
+                  : "error"
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              numberOfLines={1}
+              style={[
+                styles.stockText,
+
+                hasStock
+                  ? styles.inStockText
+                  : styles.outOfStockText,
+              ]}
+            >
+              {stockLabel}
+            </AppText>
           </View>
         </View>
       </Pressable>
 
       {/* ======================================================
-          ADD TO CART
+          CART ACTION
       ====================================================== */}
 
       <View
@@ -425,46 +575,62 @@ export default function ProductCard({
         }
       >
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
           style={
             styles.cartHint
           }
         >
-          Add to cart
+          {hasStock
+            ? "Add to cart"
+            : "Unavailable"}
         </AppText>
 
         <Pressable
-          onPress={(event) => {
-            event.stopPropagation();
-
-            if (hasStock) {
-              onBuyPress();
-            }
-          }}
-          disabled={!hasStock}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.cartButton,
-            !hasStock &&
-              styles.cartButtonDisabled,
-            pressed &&
-              hasStock &&
-              styles.cartPressed,
-          ]}
           accessibilityRole="button"
           accessibilityLabel={
             hasStock
-              ? `Add ${name} to cart`
-              : `${name} is out of stock`
+              ? `Add ${productName} to cart`
+              : `${productName} is out of stock`
           }
           accessibilityState={{
-            disabled: !hasStock,
+            disabled:
+              !hasStock,
           }}
+          disabled={
+            !hasStock
+          }
+          hitSlop={6}
+          onPress={
+            handleBuyPress
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.cartButton,
+
+            !hasStock
+              ? styles.cartButtonDisabled
+              : null,
+
+            pressed &&
+            hasStock
+              ? styles.cartPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="cart-outline"
-            size={20}
-            color="#FFFFFF"
+          <AppIcon
+            name={
+              hasStock
+                ? "add"
+                : "close"
+            }
+            role="customer"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
           />
         </Pressable>
       </View>
@@ -478,70 +644,63 @@ export default function ProductCard({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
+    /* ========================================================
        CARD
-    ========================================================== */
+    ======================================================== */
 
     card: {
       width: "100%",
 
-      backgroundColor:
-        "#FFFFFF",
-
-      borderRadius: 16,
+      overflow:
+        "hidden",
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      overflow: "hidden",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowColor:
-        "#0F172A",
+      backgroundColor:
+        Colors.surface,
 
-      shadowOpacity: 0.05,
-
-      shadowRadius: 6,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 2,
-      },
-
-      elevation: 2,
+      ...FixxamTokens.shadow.card,
     },
 
     productContent: {
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
     },
 
     productPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
-    /* ==========================================================
+    /* ========================================================
        IMAGE
-    ========================================================== */
+    ======================================================== */
 
     imageContainer: {
+      position:
+        "relative",
+
       width: "100%",
 
       height: 132,
 
       backgroundColor:
-        "#F1F5F9",
-
-      position:
-        "relative",
+        Colors.disabledBackground,
     },
 
     image: {
@@ -560,20 +719,24 @@ const styles =
         "center",
 
       backgroundColor:
-        "#F8FAFC",
+        Colors.disabledBackground,
     },
 
-    /* ==========================================================
+    /* ========================================================
        FEATURED
-    ========================================================== */
+    ======================================================== */
 
     featuredBadge: {
       position:
         "absolute",
 
-      top: 8,
+      top:
+        FixxamTokens.spacing.sm,
 
-      left: 8,
+      left:
+        FixxamTokens.spacing.sm,
+
+      minHeight: 28,
 
       flexDirection:
         "row",
@@ -581,65 +744,48 @@ const styles =
       alignItems:
         "center",
 
-      paddingHorizontal: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      paddingVertical: 5,
+      borderWidth: 1,
 
-      borderRadius: 10,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      shadowColor:
-        "#0F172A",
-
-      shadowOpacity: 0.08,
-
-      shadowRadius: 3,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 1,
-      },
-
-      elevation: 2,
+      ...FixxamTokens.shadow.card,
     },
 
     featuredText: {
-      marginLeft: 4,
-
-      fontSize: 9,
+      marginLeft:
+        FixxamTokens.spacing.xs,
 
       color:
-        "#475569",
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        DISCOUNT
-    ========================================================== */
+    ======================================================== */
 
     discountBadge: {
       position:
         "absolute",
 
-      top: 8,
+      top:
+        FixxamTokens.spacing.sm,
 
-      right: 8,
+      right:
+        FixxamTokens.spacing.sm,
 
       minWidth: 46,
 
-      height: 36,
-
-      paddingHorizontal: 8,
-
-      borderRadius: 12,
-
-      /*
-       * RED percentage badge
-       */
-      backgroundColor:
-        "#DC2626",
+      minHeight: 34,
 
       alignItems:
         "center",
@@ -647,228 +793,197 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#DC2626",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      shadowOpacity: 0.18,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-      shadowRadius: 4,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 2,
-      },
-
-      elevation: 3,
+      backgroundColor:
+        Colors.error,
     },
 
     discountText: {
-      fontSize: 12,
-
       color:
-        "#FFFFFF",
+        Colors.textInverse,
     },
 
-    /* ==========================================================
+    /* ========================================================
        CONTENT
-    ========================================================== */
+    ======================================================== */
 
     content: {
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      paddingTop: 10,
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-      paddingBottom: 8,
+      paddingBottom:
+        FixxamTokens.spacing.sm,
     },
 
     name: {
-      fontSize: 14,
-
-      lineHeight: 18,
+      minHeight: 36,
 
       color:
-        "#0F172A",
-
-      minHeight: 36,
+        Colors.textPrimary,
     },
 
     category: {
-      marginTop: 3,
-
-      fontSize: 10,
-
-      color:
-        "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    /* ==========================================================
+    /* ========================================================
        PRICE
-    ========================================================== */
+    ======================================================== */
 
     priceSection: {
-      marginTop: 7,
-
-      minHeight: 22,
+      minHeight: 24,
 
       justifyContent:
         "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     priceRow: {
       flexDirection:
         "row",
 
-      alignItems:
-        "baseline",
-
       flexWrap:
         "wrap",
 
-      columnGap: 6,
+      alignItems:
+        "baseline",
 
-      rowGap: 1,
+      columnGap:
+        FixxamTokens.spacing.xs,
     },
 
     price: {
-      fontSize: 16,
-
-      lineHeight: 21,
-
       color:
-        "#2563EB",
-    },
-
-    discountedPrice: {
-      fontSize: 16,
-
-      lineHeight: 21,
-
-      color:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
     originalPrice: {
-      fontSize: 10,
-
-      lineHeight: 14,
-
       color:
-        "#94A3B8",
+        Colors.textMuted,
 
       textDecorationLine:
         "line-through",
     },
 
-    /* ==========================================================
+    /* ========================================================
        DEAL
-    ========================================================== */
+    ======================================================== */
 
     dealRow: {
       alignSelf:
         "flex-start",
 
+      minHeight: 24,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      marginTop: 5,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      paddingHorizontal: 6,
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-      paddingVertical: 3,
+      borderRadius:
+        FixxamTokens.radius.sm,
+    },
 
-      borderRadius: 7,
-
+    activeDealRow: {
       backgroundColor:
-        "#EFF6FF",
+        CustomerColors.primarySoft,
     },
-
-    dealText: {
-      marginLeft: 4,
-
-      fontSize: 8,
-
-      color:
-        "#2563EB",
-    },
-
-    /* ==========================================================
-       NO DEAL
-    ========================================================== */
 
     noDealRow: {
       backgroundColor:
-        "#F8FAFC",
+        Colors.disabledBackground,
+    },
+
+    dealText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        CustomerColors.primary,
     },
 
     noDealText: {
       color:
-        "#94A3B8",
+        Colors.textMuted,
     },
 
-    /* ==========================================================
+    /* ========================================================
        STOCK
-    ========================================================== */
-
-    stockRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginTop: 5,
-    },
+    ======================================================== */
 
     stockBadge: {
+      alignSelf:
+        "flex-start",
+
+      minHeight: 24,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      paddingHorizontal: 6,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      paddingVertical: 3,
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-      borderRadius: 7,
+      borderRadius:
+        FixxamTokens.radius.sm,
+    },
 
+    inStockBadge: {
       backgroundColor:
-        "#F0FDF4",
+        Colors.successSoft,
+    },
+
+    outOfStockBadge: {
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     stockText: {
-      marginLeft: 4,
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
 
-      fontSize: 8,
-
+    inStockText: {
       color:
-        "#16A34A",
+        Colors.success,
     },
 
     outOfStockText: {
       color:
-        "#DC2626",
+        Colors.error,
     },
 
-    /* ==========================================================
+    /* ========================================================
        CART
-    ========================================================== */
+    ======================================================== */
 
     cartRow: {
-      minHeight: 48,
-
-      paddingHorizontal: 8,
-
-      paddingVertical: 7,
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        "#F1F5F9",
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
       flexDirection:
         "row",
@@ -879,30 +994,40 @@ const styles =
       justifyContent:
         "space-between",
 
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
     },
 
     cartHint: {
       flex: 1,
 
-      marginRight: 6,
+      minWidth: 0,
 
-      fontSize: 10,
-
-      color:
-        "#64748B",
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     cartButton: {
-      width: 38,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      height: 38,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 11,
-
-      backgroundColor:
-        "#2563EB",
+      flexShrink: 0,
 
       alignItems:
         "center",
@@ -910,38 +1035,33 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#2563EB",
+      borderRadius:
+        FixxamTokens.radius.button,
 
-      shadowOpacity: 0.18,
-
-      shadowRadius: 4,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 2,
-      },
-
-      elevation: 3,
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     cartButtonDisabled: {
       backgroundColor:
-        "#CBD5E1",
-
-      shadowOpacity: 0,
-
-      elevation: 0,
+        Colors.disabled,
     },
 
     cartPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.94,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
   });
+
+export default memo(
+  ProductCard,
+);

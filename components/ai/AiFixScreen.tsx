@@ -1,4 +1,8 @@
-import React, { useCallback, useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -8,16 +12,17 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
-import { getAuth } from "firebase/auth";
+import {
+  getAuth,
+} from "firebase/auth";
 
 import AiComposer from "./AiComposer";
 import AiHeader from "./AiHeader";
@@ -25,13 +30,28 @@ import AiMenuDrawer from "./AiMenuDrawer";
 import AiWelcome from "./AiWelcome";
 import ClearChatModal from "./ClearChatModal";
 import NewChatModal from "./NewChatModal";
+
 import MessageList from "./message/MessageList";
 
 import useAiChat from "@/hooks/ai/useAiChat";
 
-import { askCustomerAiV2 } from "@/services/ai/customer-ai";
+import {
+  askCustomerAiV2,
+} from "@/services/ai/customer-ai";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    LOGIN MODAL
@@ -52,65 +72,82 @@ function FixxamLoginModal({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onCancel}
+      onRequestClose={
+        onCancel
+      }
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.loginModal}>
-          <View style={styles.loginIconContainer}>
-            <Ionicons
-              name="person-outline"
-              size={42}
-              color="#2563EB"
+      <View
+        style={
+          styles.modalOverlay
+        }
+      >
+        <AppCard
+          role="customer"
+          variant="elevated"
+          style={
+            styles.loginModal
+          }
+        >
+          <View
+            style={
+              styles.loginIconContainer
+            }
+          >
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="xl"
+              state="active"
             />
           </View>
 
           <AppText
-            weight="bold"
-            style={styles.loginModalTitle}
+            variant="heading2"
+            weight="semibold"
           >
             Login required
           </AppText>
 
-          <AppText style={styles.loginModalMessage}>
-            Please login to use Fixxam Smarter.
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loginModalMessage
+            }
+          >
+            Please login to use
+            Fixxam Smarter.
           </AppText>
 
-          <View style={styles.loginModalActions}>
-            <Pressable
-              onPress={onCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel login"
-              style={({ pressed }) => [
-                styles.loginModalButton,
-                pressed && styles.loginModalButtonPressed,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={styles.cancelButtonText}
-              >
-                CANCEL
-              </AppText>
-            </Pressable>
+          <View
+            style={
+              styles.loginModalActions
+            }
+          >
+            <AppButton
+              title="Cancel"
+              role="customer"
+              variant="ghost"
+              onPress={
+                onCancel
+              }
+              style={
+                styles.modalAction
+              }
+            />
 
-            <Pressable
-              onPress={onLogin}
-              accessibilityRole="button"
-              accessibilityLabel="Login"
-              style={({ pressed }) => [
-                styles.loginModalButton,
-                pressed && styles.loginModalButtonPressed,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={styles.loginButtonText}
-              >
-                LOGIN
-              </AppText>
-            </Pressable>
+            <AppButton
+              title="Login"
+              role="customer"
+              onPress={
+                onLogin
+              }
+              style={
+                styles.modalAction
+              }
+            />
           </View>
-        </View>
+        </AppCard>
       </View>
     </Modal>
   );
@@ -125,48 +162,84 @@ export default function AiFixScreen() {
      COMPOSER
   ============================================================ */
 
-  const [message, setMessage] = useState("");
+  const [
+    message,
+    setMessage,
+  ] =
+    useState("");
 
-  const [selectedImage, setSelectedImage] =
-    useState<string | null>(null);
+  const [
+    selectedImage,
+    setSelectedImage,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  const [selectedImageBase64, setSelectedImageBase64] =
-    useState<string | null>(null);
+  const [
+    selectedImageBase64,
+    setSelectedImageBase64,
+  ] =
+    useState<
+      string | null
+    >(null);
 
-  const [selectedImageMimeType, setSelectedImageMimeType] =
-    useState<string | null>(null);
+  const [
+    selectedImageMimeType,
+    setSelectedImageMimeType,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   /* ============================================================
      MENU
   ============================================================ */
 
-  const [menuVisible, setMenuVisible] = useState(false);
-
-  /* ============================================================
-     LOGIN MODAL
-  ============================================================ */
-
-  const [loginModalVisible, setLoginModalVisible] =
+  const [
+    menuVisible,
+    setMenuVisible,
+  ] =
     useState(false);
 
   /* ============================================================
-     NEW CHAT MODAL
+     LOGIN
   ============================================================ */
 
-  const [newChatModalVisible, setNewChatModalVisible] =
+  const [
+    loginModalVisible,
+    setLoginModalVisible,
+  ] =
     useState(false);
 
   /* ============================================================
-     CLEAR CHAT MODAL
+     NEW CHAT
   ============================================================ */
 
-  const [clearChatModalVisible, setClearChatModalVisible] =
+  const [
+    newChatModalVisible,
+    setNewChatModalVisible,
+  ] =
     useState(false);
 
-  const [clearingChat, setClearingChat] = useState(false);
+  /* ============================================================
+     CLEAR CHAT
+  ============================================================ */
+
+  const [
+    clearChatModalVisible,
+    setClearChatModalVisible,
+  ] =
+    useState(false);
+
+  const [
+    clearingChat,
+    setClearingChat,
+  ] =
+    useState(false);
 
   /* ============================================================
-     AI CHAT
+     CHAT
   ============================================================ */
 
   const {
@@ -192,595 +265,869 @@ export default function AiFixScreen() {
   ============================================================ */
 
   const aiConversationMessages =
-    conversationMessages
-      .filter(
-        (item) =>
-          (item.role === "user" ||
-            item.role === "assistant") &&
-          typeof item.content === "string",
-      )
-      .map((item) => ({
-        role: item.role as "user" | "assistant",
-        content: item.content,
-      }));
+    useMemo(
+      () =>
+        conversationMessages
+          .filter(
+            (
+              item,
+            ) =>
+              (item.role ===
+                "user" ||
+                item.role ===
+                  "assistant") &&
+              typeof item.content ===
+                "string",
+          )
+          .map(
+            (item) => ({
+              role:
+                item.role as
+                  | "user"
+                  | "assistant",
+
+              content:
+                item.content,
+            }),
+          ),
+      [
+        conversationMessages,
+      ],
+    );
 
   /* ============================================================
      RESET COMPOSER
   ============================================================ */
 
-  const resetComposer = useCallback(() => {
-    setMessage("");
-    setSelectedImage(null);
-    setSelectedImageBase64(null);
-    setSelectedImageMimeType(null);
-  }, []);
+  const resetComposer =
+    useCallback(() => {
+      setMessage("");
+
+      setSelectedImage(
+        null,
+      );
+
+      setSelectedImageBase64(
+        null,
+      );
+
+      setSelectedImageMimeType(
+        null,
+      );
+    }, []);
+
+  /* ============================================================
+     QUICK ACTION
+  ============================================================ */
+
+  const handleQuickActionPress =
+    useCallback(
+      (
+        action: string,
+      ) => {
+        setMessage(
+          `I need help with ${action.toLowerCase()}.`,
+        );
+      },
+      [],
+    );
 
   /* ============================================================
      LOGIN
   ============================================================ */
 
-  const openLoginModal = useCallback(() => {
-    setLoginModalVisible(true);
-  }, []);
+  const openLoginModal =
+    useCallback(() => {
+      setLoginModalVisible(
+        true,
+      );
+    }, []);
 
-  const closeLoginModal = useCallback(() => {
-    setLoginModalVisible(false);
-  }, []);
+  const closeLoginModal =
+    useCallback(() => {
+      setLoginModalVisible(
+        false,
+      );
+    }, []);
 
-  const handleLogin = useCallback(() => {
-    setLoginModalVisible(false);
+  const handleLogin =
+    useCallback(() => {
+      setLoginModalVisible(
+        false,
+      );
 
-    router.push("/(auth)/login");
-  }, []);
+      router.push(
+        "/(auth)/login",
+      );
+    }, []);
+
+  /* ============================================================
+     MENU
+  ============================================================ */
+
+  const handleOpenMenu =
+    useCallback(() => {
+      setMenuVisible(
+        true,
+      );
+    }, []);
+
+  const handleCloseMenu =
+    useCallback(() => {
+      setMenuVisible(
+        false,
+      );
+    }, []);
+
+  const handleOpenHistory =
+    useCallback(() => {
+      setMenuVisible(
+        false,
+      );
+
+      router.push(
+        "/(customer)/ai/ai-history",
+      );
+    }, []);
 
   /* ============================================================
      NEW CHAT
   ============================================================ */
 
-  const handleNewChat = useCallback(() => {
-    setMenuVisible(false);
+  const handleNewChat =
+    useCallback(() => {
+      setMenuVisible(
+        false,
+      );
 
-    if (!hasCurrentChat) {
-      resetComposer();
-      return;
-    }
-
-    setNewChatModalVisible(true);
-  }, [
-    hasCurrentChat,
-    resetComposer,
-  ]);
-
-  /* ============================================================
-     CANCEL NEW CHAT
-  ============================================================ */
-
-  const handleCancelNewChat = useCallback(() => {
-    setNewChatModalVisible(false);
-  }, []);
-
-  /* ============================================================
-     CLEAR + NEW CHAT
-  ============================================================ */
-
-  const handleClearAndNew = useCallback(() => {
-    setNewChatModalVisible(false);
-
-    clearAndStartNew();
-
-    resetComposer();
-  }, [
-    clearAndStartNew,
-    resetComposer,
-  ]);
-
-  /* ============================================================
-     SAVE + NEW CHAT
-  ============================================================ */
-
-  const handleSaveAndNew = useCallback(async () => {
-    try {
-      const saved = await saveAndStartNew();
-
-      if (!saved) {
-        Alert.alert(
-          "History Full",
-          "You already have 5 saved chats. Delete an old chat from History before saving this one.",
-        );
+      if (
+        !hasCurrentChat
+      ) {
+        resetComposer();
 
         return;
       }
 
-      setNewChatModalVisible(false);
-
-      resetComposer();
-    } catch (error) {
-      console.error(
-        "SAVE_AND_NEW_CHAT_ERROR:",
-        error,
+      setNewChatModalVisible(
+        true,
       );
+    }, [
+      hasCurrentChat,
+      resetComposer,
+    ]);
 
-      setNewChatModalVisible(false);
-
-      resetComposer();
-
-      Alert.alert(
-        "Save Failed",
-        "The chat could not be saved to History. A new chat has been started.",
+  const handleCancelNewChat =
+    useCallback(() => {
+      setNewChatModalVisible(
+        false,
       );
-    }
-  }, [
-    resetComposer,
-    saveAndStartNew,
-  ]);
+    }, []);
 
   /* ============================================================
-     OPEN CLEAR CHAT
+     CLEAR + NEW
   ============================================================ */
 
-  const handleOpenClearChat = useCallback(() => {
-    setMenuVisible(false);
+  const handleClearAndNew =
+    useCallback(() => {
+      setNewChatModalVisible(
+        false,
+      );
 
-    if (!hasCurrentChat) {
-      return;
-    }
-
-    setClearChatModalVisible(true);
-  }, [hasCurrentChat]);
-
-  /* ============================================================
-     CANCEL CLEAR CHAT
-  ============================================================ */
-
-  const handleCancelClearChat = useCallback(() => {
-    if (clearingChat) {
-      return;
-    }
-
-    setClearChatModalVisible(false);
-  }, [clearingChat]);
-
-  /* ============================================================
-     DELETE CURRENT CHAT
-  ============================================================ */
-
-  const handleDeleteChat = useCallback(() => {
-    if (clearingChat) {
-      return;
-    }
-
-    setClearingChat(true);
-
-    try {
-      clearChat();
+      clearAndStartNew();
 
       resetComposer();
+    }, [
+      clearAndStartNew,
+      resetComposer,
+    ]);
 
-      setClearChatModalVisible(false);
-    } catch (error) {
-      console.error(
-        "CLEAR_CHAT_ERROR:",
-        error,
+  /* ============================================================
+     SAVE + NEW
+  ============================================================ */
+
+  const handleSaveAndNew =
+    useCallback(async () => {
+      try {
+        const saved =
+          await saveAndStartNew();
+
+        if (!saved) {
+          Alert.alert(
+            "History Full",
+            "You already have 5 saved chats. Delete an old chat from History before saving this one.",
+          );
+
+          return;
+        }
+
+        setNewChatModalVisible(
+          false,
+        );
+
+        resetComposer();
+      } catch (error) {
+        console.error(
+          "SAVE_AND_NEW_CHAT_ERROR:",
+          error,
+        );
+
+        setNewChatModalVisible(
+          false,
+        );
+
+        resetComposer();
+
+        Alert.alert(
+          "Save Failed",
+          "The chat could not be saved to History. A new chat has been started.",
+        );
+      }
+    }, [
+      resetComposer,
+      saveAndStartNew,
+    ]);
+
+  /* ============================================================
+     CLEAR CURRENT CHAT
+  ============================================================ */
+
+  const handleOpenClearChat =
+    useCallback(() => {
+      setMenuVisible(
+        false,
       );
 
-      Alert.alert(
-        "Unable to clear chat",
-        "We could not clear your chat. Please try again.",
+      if (
+        !hasCurrentChat
+      ) {
+        return;
+      }
+
+      setClearChatModalVisible(
+        true,
       );
-    } finally {
-      setClearingChat(false);
-    }
-  }, [
-    clearChat,
-    clearingChat,
-    resetComposer,
-  ]);
+    }, [
+      hasCurrentChat,
+    ]);
+
+  const handleCancelClearChat =
+    useCallback(() => {
+      if (clearingChat) {
+        return;
+      }
+
+      setClearChatModalVisible(
+        false,
+      );
+    }, [
+      clearingChat,
+    ]);
+
+  const handleDeleteChat =
+    useCallback(() => {
+      if (clearingChat) {
+        return;
+      }
+
+      setClearingChat(
+        true,
+      );
+
+      try {
+        clearChat();
+
+        resetComposer();
+
+        setClearChatModalVisible(
+          false,
+        );
+      } catch (error) {
+        console.error(
+          "CLEAR_CHAT_ERROR:",
+          error,
+        );
+
+        Alert.alert(
+          "Unable to clear chat",
+          "We could not clear your chat. Please try again.",
+        );
+      } finally {
+        setClearingChat(
+          false,
+        );
+      }
+    }, [
+      clearChat,
+      clearingChat,
+      resetComposer,
+    ]);
 
   /* ============================================================
      SEND MESSAGE
   ============================================================ */
 
-  const handleSend = useCallback(async () => {
-    const text = message.trim();
+  const handleSend =
+    useCallback(async () => {
+      const text =
+        message.trim();
 
-    if (
-      (!text && !selectedImageBase64) ||
-      isTyping
-    ) {
-      return;
-    }
-
-    /* ----------------------------------------------------------
-       AUTH
-    ---------------------------------------------------------- */
-
-    const auth = getAuth();
-
-    if (!auth.currentUser) {
-      openLoginModal();
-      return;
-    }
-
-    /* ----------------------------------------------------------
-       IMAGE
-    ---------------------------------------------------------- */
-
-    const imageBase64 = selectedImageBase64;
-
-    const imageMimeType =
-      selectedImageMimeType ?? "image/jpeg";
-
-    const imageUri = selectedImage;
-
-    const userContent =
-      text.length > 0
-        ? text
-        : "Analyze this image.";
-
-    /* ----------------------------------------------------------
-       ADD USER MESSAGE
-    ---------------------------------------------------------- */
-
-    sendMessage(
-      text.length > 0 ? text : "📷 Image",
-      imageUri ?? undefined,
-    );
-
-    resetComposer();
-
-    setTyping(true);
-
-    try {
-      /* --------------------------------------------------------
-         AI REQUEST
-      -------------------------------------------------------- */
-
-      const response = await askCustomerAiV2({
-        messages: [
-          ...aiConversationMessages,
-
-          {
-            role: "user",
-            content: userContent,
-
-            image: imageBase64
-              ? {
-                  mimeType: imageMimeType,
-                  data: imageBase64,
-                }
-              : undefined,
-          },
-        ],
-      });
-
-      /* --------------------------------------------------------
-         AI RESPONSE
-      -------------------------------------------------------- */
-
-      receiveMessage(response.message);
-    } catch (error: unknown) {
-      const firebaseError =
-        error &&
-        typeof error === "object"
-          ? (error as {
-              code?: string;
-              message?: string;
-            })
-          : null;
-
-      const errorCode =
-        firebaseError?.code ?? "";
-
-      const errorMessage =
-        firebaseError?.message ?? "";
-
-      const normalizedError =
-        errorMessage.toLowerCase();
-
-      const isAuthenticationError =
-        errorCode ===
-          "functions/unauthenticated" ||
-        errorCode ===
-          "functions/permission-denied" ||
-        errorCode === "unauthenticated" ||
-        errorCode === "permission-denied" ||
-        normalizedError.includes(
-          "authentication is required",
-        ) ||
-        normalizedError.includes(
-          "unauthenticated",
-        ) ||
-        normalizedError.includes(
-          "login required",
-        );
-
-      if (isAuthenticationError) {
-        openLoginModal();
+      if (
+        (!text &&
+          !selectedImageBase64) ||
+        isTyping
+      ) {
         return;
       }
 
-      console.error(
-        "Customer AI request failed:",
-        error,
+      /* --------------------------------------------------------
+         AUTH
+      -------------------------------------------------------- */
+
+      const auth =
+        getAuth();
+
+      if (
+        !auth.currentUser
+      ) {
+        openLoginModal();
+
+        return;
+      }
+
+      /* --------------------------------------------------------
+         IMAGE
+      -------------------------------------------------------- */
+
+      const imageBase64 =
+        selectedImageBase64;
+
+      const imageMimeType =
+        selectedImageMimeType ??
+        "image/jpeg";
+
+      const imageUri =
+        selectedImage;
+
+      const userContent =
+        text.length > 0
+          ? text
+          : "Analyze this image.";
+
+      /* --------------------------------------------------------
+         LOCAL USER MESSAGE
+      -------------------------------------------------------- */
+
+      sendMessage(
+        text.length > 0
+          ? text
+          : "📷 Image",
+
+        imageUri ??
+          undefined,
       );
 
-      Alert.alert(
-        "AI Assistant",
-        "We couldn't process your request right now. Please try again.",
-      );
-    } finally {
-      setTyping(false);
-    }
-  }, [
-    aiConversationMessages,
-    isTyping,
-    message,
-    openLoginModal,
-    receiveMessage,
-    resetComposer,
-    selectedImage,
-    selectedImageBase64,
-    selectedImageMimeType,
-    sendMessage,
-    setTyping,
-  ]);
+      resetComposer();
+
+      setTyping(true);
+
+      try {
+        /* ------------------------------------------------------
+           REQUEST
+        ------------------------------------------------------ */
+
+        const response =
+          await askCustomerAiV2({
+            messages: [
+              ...aiConversationMessages,
+
+              {
+                role: "user",
+
+                content:
+                  userContent,
+
+                image:
+                  imageBase64
+                    ? {
+                        mimeType:
+                          imageMimeType,
+
+                        data:
+                          imageBase64,
+                      }
+                    : undefined,
+              },
+            ],
+          });
+
+        /* ------------------------------------------------------
+           RESPONSE
+        ------------------------------------------------------ */
+
+        receiveMessage(
+          response.message,
+        );
+      } catch (
+        error: unknown
+      ) {
+        const firebaseError =
+          error &&
+          typeof error ===
+            "object"
+            ? (error as {
+                code?: string;
+                message?: string;
+              })
+            : null;
+
+        const errorCode =
+          firebaseError?.code ??
+          "";
+
+        const errorMessage =
+          firebaseError?.message ??
+          "";
+
+        const normalizedError =
+          errorMessage.toLowerCase();
+
+        const isAuthenticationError =
+          errorCode ===
+            "functions/unauthenticated" ||
+          errorCode ===
+            "functions/permission-denied" ||
+          errorCode ===
+            "unauthenticated" ||
+          errorCode ===
+            "permission-denied" ||
+          normalizedError.includes(
+            "authentication is required",
+          ) ||
+          normalizedError.includes(
+            "unauthenticated",
+          ) ||
+          normalizedError.includes(
+            "login required",
+          );
+
+        if (
+          isAuthenticationError
+        ) {
+          openLoginModal();
+
+          return;
+        }
+
+        console.error(
+          "Customer AI request failed:",
+          error,
+        );
+
+        Alert.alert(
+          "AI Assistant",
+          "We couldn't process your request right now. Please try again.",
+        );
+      } finally {
+        setTyping(false);
+      }
+    }, [
+      aiConversationMessages,
+      isTyping,
+      message,
+      openLoginModal,
+      receiveMessage,
+      resetComposer,
+      selectedImage,
+      selectedImageBase64,
+      selectedImageMimeType,
+      sendMessage,
+      setTyping,
+    ]);
 
   /* ============================================================
      LOAD IMAGE
   ============================================================ */
 
-  const loadImage = useCallback(
-    async (
-      asset: ImagePicker.ImagePickerAsset,
-    ) => {
-      try {
-        const base64 =
-          await FileSystem.readAsStringAsync(
+  const loadImage =
+    useCallback(
+      async (
+        asset:
+          ImagePicker.ImagePickerAsset,
+      ) => {
+        try {
+          if (
+            !asset.uri
+          ) {
+            throw new Error(
+              "Image URI is missing.",
+            );
+          }
+
+          const base64 =
+            await FileSystem.readAsStringAsync(
+              asset.uri,
+              {
+                encoding:
+                  FileSystem
+                    .EncodingType
+                    .Base64,
+              },
+            );
+
+          if (!base64) {
+            throw new Error(
+              "Unable to read selected image.",
+            );
+          }
+
+          setSelectedImage(
             asset.uri,
-            {
-              encoding:
-                FileSystem.EncodingType.Base64,
-            },
           );
 
-        setSelectedImage(asset.uri);
+          setSelectedImageBase64(
+            base64,
+          );
 
-        setSelectedImageBase64(base64);
+          setSelectedImageMimeType(
+            asset.mimeType ??
+              "image/jpeg",
+          );
+        } catch (error) {
+          console.error(
+            "IMAGE_LOAD_ERROR:",
+            error,
+          );
 
-        setSelectedImageMimeType(
-          asset.mimeType ?? "image/jpeg",
-        );
-      } catch (error) {
-        console.error(
-          "IMAGE_LOAD_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Image Error",
-          "Unable to prepare the selected image.",
-        );
-      }
-    },
-    [],
-  );
+          Alert.alert(
+            "Image Error",
+            "Unable to prepare the selected image.",
+          );
+        }
+      },
+      [],
+    );
 
   /* ============================================================
      CAMERA
   ============================================================ */
 
-  const handleCamera = useCallback(
-    async () => {
-      try {
-        const permission =
-          await ImagePicker.requestCameraPermissionsAsync();
+  const handleCamera =
+    useCallback(
+      async () => {
+        try {
+          const permission =
+            await ImagePicker
+              .requestCameraPermissionsAsync();
 
-        if (!permission.granted) {
+          if (
+            !permission.granted
+          ) {
+            Alert.alert(
+              "Permission Required",
+              "Please allow camera access to attach a repair photo.",
+            );
+
+            return;
+          }
+
+          const result =
+            await ImagePicker
+              .launchCameraAsync({
+                mediaTypes: [
+                  "images",
+                ],
+
+                allowsEditing:
+                  false,
+
+                quality: 0.8,
+              });
+
+          if (
+            !result.canceled &&
+            result.assets?.[0]
+          ) {
+            await loadImage(
+              result.assets[0],
+            );
+          }
+        } catch (error) {
+          console.error(
+            "CAMERA_ERROR:",
+            error,
+          );
+
           Alert.alert(
-            "Permission Required",
-            "Please allow camera access.",
-          );
-
-          return;
-        }
-
-        const result =
-          await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            allowsEditing: false,
-            quality: 0.8,
-          });
-
-        if (
-          !result.canceled &&
-          result.assets?.[0]
-        ) {
-          await loadImage(
-            result.assets[0],
+            "Camera Error",
+            "Unable to open camera.",
           );
         }
-      } catch (error) {
-        console.error(
-          "CAMERA_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Camera Error",
-          "Unable to open camera.",
-        );
-      }
-    },
-    [loadImage],
-  );
+      },
+      [
+        loadImage,
+      ],
+    );
 
   /* ============================================================
      GALLERY
   ============================================================ */
 
-  const handleGallery = useCallback(
-    async () => {
-      try {
-        const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const handleGallery =
+    useCallback(
+      async () => {
+        try {
+          const permission =
+            await ImagePicker
+              .requestMediaLibraryPermissionsAsync();
 
-        if (!permission.granted) {
+          if (
+            !permission.granted
+          ) {
+            Alert.alert(
+              "Permission Required",
+              "Please allow photo library access to attach a repair photo.",
+            );
+
+            return;
+          }
+
+          const result =
+            await ImagePicker
+              .launchImageLibraryAsync(
+                {
+                  mediaTypes: [
+                    "images",
+                  ],
+
+                  allowsEditing:
+                    false,
+
+                  quality: 0.8,
+                },
+              );
+
+          if (
+            !result.canceled &&
+            result.assets?.[0]
+          ) {
+            await loadImage(
+              result.assets[0],
+            );
+          }
+        } catch (error) {
+          console.error(
+            "GALLERY_ERROR:",
+            error,
+          );
+
           Alert.alert(
-            "Permission Required",
-            "Please allow photo library access.",
-          );
-
-          return;
-        }
-
-        const result =
-          await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            allowsEditing: false,
-            quality: 0.8,
-          });
-
-        if (
-          !result.canceled &&
-          result.assets?.[0]
-        ) {
-          await loadImage(
-            result.assets[0],
+            "Gallery Error",
+            "Unable to open gallery.",
           );
         }
-      } catch (error) {
-        console.error(
-          "GALLERY_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Gallery Error",
-          "Unable to open gallery.",
-        );
-      }
-    },
-    [loadImage],
-  );
+      },
+      [
+        loadImage,
+      ],
+    );
 
   /* ============================================================
      REMOVE IMAGE
   ============================================================ */
 
-  const handleRemoveImage = useCallback(() => {
-    setSelectedImage(null);
-    setSelectedImageBase64(null);
-    setSelectedImageMimeType(null);
-  }, []);
+  const handleRemoveImage =
+    useCallback(() => {
+      setSelectedImage(
+        null,
+      );
+
+      setSelectedImageBase64(
+        null,
+      );
+
+      setSelectedImageMimeType(
+        null,
+      );
+    }, []);
 
   /* ============================================================
      UI
   ============================================================ */
 
   return (
-    <SafeAreaView style={styles.container}>
+    <AppScreen
+      role="customer"
+      padded={false}
+      edges={[
+        "bottom",
+      ]}
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <AiHeader
+        onMenuPress={
+          handleOpenMenu
+        }
+      />
+
+      {/* ======================================================
+          KEYBOARD AREA
+      ====================================================== */}
+
       <KeyboardAvoidingView
-        style={styles.keyboard}
+        style={
+          styles.keyboard
+        }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
             : "height"
         }
+        keyboardVerticalOffset={
+          0
+        }
       >
-        {/* ======================================================
-            HEADER
-        ====================================================== */}
-
-        <AiHeader
-          onMenuPress={() => {
-            setMenuVisible(true);
-          }}
-        />
-
-        {/* ======================================================
+        {/* ====================================================
             CONTENT
-        ====================================================== */}
+        ==================================================== */}
 
-        <View style={styles.content}>
-          {messages.length === 0 ? (
-            <AiWelcome />
+        <View
+          style={
+            styles.content
+          }
+        >
+          {messages.length ===
+          0 ? (
+            <AiWelcome
+              onQuickActionPress={
+                handleQuickActionPress
+              }
+            />
           ) : (
             <MessageList
-              messages={messages}
-              isTyping={isTyping}
+              messages={
+                messages
+              }
+              isTyping={
+                isTyping
+              }
             />
           )}
         </View>
 
-        {/* ======================================================
+        {/* ====================================================
             COMPOSER
-        ====================================================== */}
+        ==================================================== */}
 
         <AiComposer
           value={message}
-          onChangeText={setMessage}
-          onSend={handleSend}
-          onCameraPress={handleCamera}
-          onGalleryPress={handleGallery}
-          selectedImage={selectedImage}
-          onRemoveImage={handleRemoveImage}
-          isSending={isTyping}
-        />
-
-        {/* ======================================================
-            MENU
-        ====================================================== */}
-
-        <AiMenuDrawer
-          visible={menuVisible}
-          onClose={() => {
-            setMenuVisible(false);
-          }}
-          onNewChat={handleNewChat}
-          onHistory={() => {
-            setMenuVisible(false);
-
-            router.push(
-              "/(customer)/ai/ai-history",
-            );
-          }}
-          onClear={handleOpenClearChat}
-        />
-
-        {/* ======================================================
-            NEW CHAT MODAL
-        ====================================================== */}
-
-        <NewChatModal
-          visible={newChatModalVisible}
-          canSave={canSaveCurrentChat}
-          onCancel={handleCancelNewChat}
-          onClear={handleClearAndNew}
-          onSave={handleSaveAndNew}
-        />
-
-        {/* ======================================================
-            CLEAR CHAT MODAL
-        ====================================================== */}
-
-        <ClearChatModal
-          visible={clearChatModalVisible}
-          deleting={clearingChat}
-          onCancel={handleCancelClearChat}
-          onDelete={handleDeleteChat}
-        />
-
-        {/* ======================================================
-            LOGIN MODAL
-        ====================================================== */}
-
-        <FixxamLoginModal
-          visible={loginModalVisible}
-          onCancel={closeLoginModal}
-          onLogin={handleLogin}
+          onChangeText={
+            setMessage
+          }
+          onSend={
+            handleSend
+          }
+          onCameraPress={
+            handleCamera
+          }
+          onGalleryPress={
+            handleGallery
+          }
+          selectedImage={
+            selectedImage
+          }
+          onRemoveImage={
+            handleRemoveImage
+          }
+          disabled={false}
+          isSending={
+            isTyping
+          }
         />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+      {/* ======================================================
+          MENU
+      ====================================================== */}
+
+      <AiMenuDrawer
+        visible={
+          menuVisible
+        }
+        onClose={
+          handleCloseMenu
+        }
+        onNewChat={
+          handleNewChat
+        }
+        onHistory={
+          handleOpenHistory
+        }
+        onClear={
+          handleOpenClearChat
+        }
+      />
+
+      {/* ======================================================
+          NEW CHAT
+      ====================================================== */}
+
+      <NewChatModal
+        visible={
+          newChatModalVisible
+        }
+        canSave={
+          canSaveCurrentChat
+        }
+        onCancel={
+          handleCancelNewChat
+        }
+        onClear={
+          handleClearAndNew
+        }
+        onSave={
+          handleSaveAndNew
+        }
+      />
+
+      {/* ======================================================
+          CLEAR CHAT
+      ====================================================== */}
+
+      <ClearChatModal
+        visible={
+          clearChatModalVisible
+        }
+        deleting={
+          clearingChat
+        }
+        onCancel={
+          handleCancelClearChat
+        }
+        onDelete={
+          handleDeleteChat
+        }
+      />
+
+      {/* ======================================================
+          LOGIN
+      ====================================================== */}
+
+      <FixxamLoginModal
+        visible={
+          loginModalVisible
+        }
+        onCancel={
+          closeLoginModal
+        }
+        onLogin={
+          handleLogin
+        }
+      />
+    </AppScreen>
   );
 }
 
@@ -788,108 +1135,108 @@ export default function AiFixScreen() {
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
+const styles =
+  StyleSheet.create({
+    keyboard: {
+      flex: 1,
 
-  keyboard: {
-    flex: 1,
-  },
+      minHeight: 0,
 
-  content: {
-    flex: 1,
-  },
-
-  /* ============================================================
-     LOGIN MODAL
-  ============================================================ */
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor:
-      "rgba(15, 23, 42, 0.55)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
-
-  loginModal: {
-    width: "100%",
-    maxWidth: 390,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 25,
-    paddingTop: 27,
-    paddingHorizontal: 27,
-    paddingBottom: 20,
-
-    shadowColor: "#000000",
-    shadowOffset: {
-      width: 0,
-      height: 9,
+      backgroundColor:
+        Colors.background,
     },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 12,
-  },
 
-  loginIconContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 21,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 21,
-  },
+    content: {
+      flex: 1,
 
-  loginModalTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    color: "#0F172A",
-    letterSpacing: -0.3,
-  },
+      minHeight: 0,
+    },
 
-  loginModalMessage: {
-    marginTop: 9,
-    fontSize: 16,
-    lineHeight: 23,
-    color: "#64748B",
-  },
+    /* ========================================================
+       LOGIN MODAL
+    ======================================================== */
 
-  loginModalActions: {
-    marginTop: 28,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 8,
-  },
+    modalOverlay: {
+      flex: 1,
 
-  loginModalButton: {
-    minWidth: 82,
-    minHeight: 44,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      alignItems:
+        "center",
 
-  loginModalButtonPressed: {
-    backgroundColor: "#F1F5F9",
-  },
+      justifyContent:
+        "center",
 
-  cancelButtonText: {
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color: "#64748B",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing
+          .xxl,
 
-  loginButtonText: {
-    fontSize: 14,
-    lineHeight: 18,
-    letterSpacing: 0.7,
-    color: "#2563EB",
-  },
-});
+      backgroundColor:
+        Colors.overlayStrong,
+    },
+
+    loginModal: {
+      width: "100%",
+
+      maxWidth: 390,
+
+      padding:
+        FixxamTokens.spacing
+          .xxl,
+    },
+
+    loginIconContainer: {
+      width:
+        FixxamTokens.size
+          .fabLarge,
+
+      height:
+        FixxamTokens.size
+          .fabLarge,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing
+          .lg,
+
+      borderRadius:
+        FixxamTokens.radius
+          .lg,
+
+      backgroundColor:
+        CustomerColors
+          .primarySoft,
+    },
+
+    loginModalMessage: {
+      marginTop:
+        FixxamTokens.spacing
+          .sm,
+    },
+
+    loginModalActions: {
+      flexDirection:
+        "row",
+
+      justifyContent:
+        "flex-end",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing
+          .sm,
+
+      marginTop:
+        FixxamTokens.spacing
+          .xl,
+    },
+
+    modalAction: {
+      minWidth: 100,
+    },
+  });

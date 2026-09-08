@@ -1,40 +1,87 @@
-import React from "react";
+import React, { memo } from "react";
 
 import {
+  StyleProp,
   StyleSheet,
   View,
+  ViewStyle,
 } from "react-native";
 
 import SkeletonBox from "./SkeletonBox";
 
-export default function JobCardSkeleton() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+export interface JobCardSkeletonProps {
+  style?: StyleProp<ViewStyle>;
+}
+
+function JobCardSkeleton({
+  style,
+}: JobCardSkeletonProps) {
   return (
-    <View style={styles.card}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading job"
+      style={[
+        styles.card,
+        style,
+      ]}
+    >
       <View style={styles.row}>
         <SkeletonBox
-          width={54}
-          height={54}
-          borderRadius={18}
+          width={56}
+          height={56}
+          borderRadius={
+            FixxamTokens.radius.lg
+          }
         />
 
         <View style={styles.content}>
           <SkeletonBox
-            width="70%"
+            width="72%"
             height={18}
+            borderRadius={
+              FixxamTokens.radius.sm
+            }
           />
 
           <SkeletonBox
-            width="50%"
+            width="52%"
             height={14}
-            style={styles.space}
+            borderRadius={
+              FixxamTokens.radius.sm
+            }
           />
 
           <SkeletonBox
-            width={90}
+            width={96}
             height={14}
-            style={styles.space}
+            borderRadius={
+              FixxamTokens.radius.sm
+            }
           />
         </View>
+      </View>
+
+      <View style={styles.footer}>
+        <SkeletonBox
+          width="42%"
+          height={14}
+          borderRadius={
+            FixxamTokens.radius.sm
+          }
+        />
+
+        <SkeletonBox
+          width={72}
+          height={28}
+          borderRadius={
+            FixxamTokens.radius.badge
+          }
+        />
       </View>
     </View>
   );
@@ -42,25 +89,47 @@ export default function JobCardSkeleton() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
+    width: "100%",
 
-    borderRadius: 22,
+    backgroundColor:
+      Colors.surface,
 
-    padding: 18,
+    borderRadius:
+      FixxamTokens.radius.card,
 
-    marginTop: 16,
+    padding:
+      FixxamTokens.spacing.card,
+
+    borderWidth:
+      StyleSheet.hairlineWidth,
+
+    borderColor:
+      Colors.border,
   },
 
   row: {
     flexDirection: "row",
+    alignItems: "flex-start",
   },
 
   content: {
     flex: 1,
-    marginLeft: 14,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
+
+    gap:
+      FixxamTokens.spacing.sm,
   },
 
-  space: {
-    marginTop: 10,
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    marginTop:
+      FixxamTokens.spacing.lg,
   },
 });
+
+export default memo(JobCardSkeleton);

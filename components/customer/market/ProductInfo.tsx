@@ -1,13 +1,27 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   name: string;
@@ -19,9 +33,6 @@ type Props = {
 
   /**
    * Active discounted price.
-   *
-   * null/undefined means there is
-   * currently no active discount.
    */
   discountedPrice?: number | null;
 
@@ -49,7 +60,72 @@ type Props = {
   currentImage?: number;
 };
 
-export default function ProductInfo({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeCount(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    parsed,
+  );
+}
+
+function normalizePrice(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function formatPrice(
+  value: number,
+): string {
+  return `₦${value.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ProductInfo({
   name,
   price,
   discountedPrice,
@@ -58,93 +134,162 @@ export default function ProductInfo({
   stock,
   condition,
   delivery,
-  rating = 4.8,
+  rating = 0,
   reviews = 0,
   imagesCount = 1,
   currentImage = 1,
 }: Props) {
-  /* ==========================================================
-     PRICE
-  ========================================================== */
+  /* ============================================================
+     NORMALIZED PRODUCT DATA
+  ============================================================ */
 
-  const originalPrice =
-    Number(price);
+  const productName =
+    cleanString(name) ||
+    "Product";
 
-  const validOriginalPrice =
+  const productCategory =
+    cleanString(category) ||
+    "Others";
+
+  const safeStock =
+    normalizeCount(
+      stock,
+    );
+
+  const safeReviews =
+    normalizeCount(
+      reviews,
+    );
+
+  /* ============================================================
+     RATING
+  ============================================================ */
+
+  const parsedRating =
+    Number(rating);
+
+  const safeRating =
     Number.isFinite(
-      originalPrice,
-    ) &&
-    originalPrice > 0
-      ? originalPrice
+      parsedRating,
+    )
+      ? Math.min(
+          5,
+          Math.max(
+            0,
+            parsedRating,
+          ),
+        )
       : 0;
 
-  const parsedDiscountedPrice =
-    Number(
+  const hasRating =
+    safeRating > 0;
+
+  /* ============================================================
+     PRICE
+  ============================================================ */
+
+  const originalPrice =
+    normalizePrice(
+      price,
+    );
+
+  const dealPrice =
+    normalizePrice(
       discountedPrice,
     );
 
-  const hasDiscount =
-    Number.isFinite(
-      parsedDiscountedPrice,
-    ) &&
-    parsedDiscountedPrice > 0 &&
-    parsedDiscountedPrice <
-      validOriginalPrice;
-
-  const parsedDiscountPercentage =
+  const discount =
     Number(
       discountPercentage,
     );
 
+  const hasDiscount =
+    originalPrice > 0 &&
+    dealPrice > 0 &&
+    dealPrice <
+      originalPrice;
+
   const hasDiscountPercentage =
+    hasDiscount &&
     Number.isFinite(
-      parsedDiscountPercentage,
+      discount,
     ) &&
-    parsedDiscountPercentage > 0 &&
-    parsedDiscountPercentage <
-      100;
+    discount > 0 &&
+    discount < 100;
 
-  /* ==========================================================
-     FORMATTING
-  ========================================================== */
+  /* ============================================================
+     GALLERY
+  ============================================================ */
 
-  const formatPrice = (
-    value: number,
-  ) =>
-    `₦${value.toLocaleString(
-      "en-NG",
-    )}`;
+  const safeImagesCount =
+    normalizeCount(
+      imagesCount,
+    );
 
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  const safeCurrentImage =
+    useMemo(() => {
+      if (
+        safeImagesCount <= 0
+      ) {
+        return 0;
+      }
+
+      const parsed =
+        normalizeCount(
+          currentImage,
+        );
+
+      return Math.min(
+        Math.max(
+          parsed,
+          1,
+        ),
+        safeImagesCount,
+      );
+    }, [
+      currentImage,
+      safeImagesCount,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
       {/* ======================================================
-          TITLE
+          TITLE + GALLERY
       ====================================================== */}
 
       <View
-        style={styles.titleRow}
+        style={
+          styles.titleRow
+        }
       >
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={2}
-          style={styles.name}
+          style={
+            styles.name
+          }
         >
-          {name}
+          {productName}
         </AppText>
 
-        {imagesCount > 0 && (
+        {safeImagesCount >
+        0 ? (
           <View
             style={
               styles.galleryInfo
             }
           >
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.galleryTitle
@@ -154,15 +299,14 @@ export default function ProductInfo({
             </AppText>
 
             <AppText
-              style={
-                styles.galleryCount
-              }
+              variant="caption"
+              tone="secondary"
             >
-              {currentImage}/
-              {imagesCount}
+              {safeCurrentImage}/
+              {safeImagesCount}
             </AppText>
           </View>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -170,27 +314,49 @@ export default function ProductInfo({
       ====================================================== */}
 
       <View
-        style={styles.ratingRow}
+        style={
+          styles.ratingRow
+        }
       >
-        <Ionicons
+        <AppIcon
           name="star"
-          size={13}
-          color="#F59E0B"
+          role="customer"
+          size="xs"
+          color={
+            Colors.warning
+          }
         />
 
         <AppText
-          style={styles.rating}
+          variant="caption"
+          weight="bold"
+          style={
+            styles.rating
+          }
         >
-          {Number(
-            rating,
-          ).toFixed(1)}
+          {hasRating
+            ? safeRating.toFixed(
+                1,
+              )
+            : "New"}
         </AppText>
 
-        <AppText
-          style={styles.reviews}
-        >
-          ({reviews} Reviews)
-        </AppText>
+        {safeReviews >
+        0 ? (
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.reviews
+            }
+          >
+            ({safeReviews}{" "}
+            {safeReviews === 1
+              ? "Review"
+              : "Reviews"}
+            )
+          </AppText>
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -199,7 +365,9 @@ export default function ProductInfo({
 
       {hasDiscount ? (
         <View
-          style={styles.discountPriceSection}
+          style={
+            styles.discountPriceSection
+          }
         >
           <View
             style={
@@ -207,24 +375,26 @@ export default function ProductInfo({
             }
           >
             <AppText
+              variant="heading3"
               weight="bold"
+              numberOfLines={1}
               style={
                 styles.discountedPrice
               }
-              numberOfLines={1}
             >
               {formatPrice(
-                parsedDiscountedPrice,
+                dealPrice,
               )}
             </AppText>
 
-            {hasDiscountPercentage && (
+            {hasDiscountPercentage ? (
               <View
                 style={
                   styles.discountBadge
                 }
               >
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.discountBadgeText
@@ -232,31 +402,35 @@ export default function ProductInfo({
                 >
                   -
                   {Math.round(
-                    parsedDiscountPercentage,
+                    discount,
                   )}
                   %
                 </AppText>
               </View>
-            )}
+            ) : null}
           </View>
 
           <AppText
+            variant="caption"
             style={
               styles.originalPrice
             }
           >
             {formatPrice(
-              validOriginalPrice,
+              originalPrice,
             )}
           </AppText>
         </View>
       ) : (
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.price}
+          style={
+            styles.price
+          }
         >
           {formatPrice(
-            validOriginalPrice,
+            originalPrice,
           )}
         </AppText>
       )}
@@ -266,41 +440,59 @@ export default function ProductInfo({
       ====================================================== */}
 
       <View
-        style={styles.infoRow}
+        style={
+          styles.infoRow
+        }
       >
         <View
-          style={styles.infoBox}
+          style={
+            styles.infoBox
+          }
         >
           <AppText
-            style={styles.label}
+            variant="caption"
+            tone="secondary"
           >
             Category
           </AppText>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
-            style={styles.value}
+            style={
+              styles.infoValue
+            }
           >
-            {category ||
-              "Others"}
+            {productCategory}
           </AppText>
         </View>
 
         <View
-          style={styles.infoBox}
+          style={
+            styles.infoBox
+          }
         >
           <AppText
-            style={styles.label}
+            variant="caption"
+            tone="secondary"
           >
             Stock
           </AppText>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.value}
+            numberOfLines={1}
+            style={
+              safeStock > 0
+                ? styles.infoValue
+                : styles.outOfStockValue
+            }
           >
-            {stock}
+            {safeStock > 0
+              ? safeStock
+              : "Out"}
           </AppText>
         </View>
       </View>
@@ -310,13 +502,21 @@ export default function ProductInfo({
       ====================================================== */}
 
       <View
-        style={styles.tags}
+        style={
+          styles.tags
+        }
       >
         <View
-          style={styles.tag}
+          style={
+            styles.tag
+          }
         >
           <AppText
-            style={styles.tagText}
+            variant="caption"
+            weight="bold"
+            style={
+              styles.tagText
+            }
           >
             {condition ===
             "new"
@@ -325,31 +525,40 @@ export default function ProductInfo({
           </AppText>
         </View>
 
-        {delivery && (
+        {delivery ? (
           <View
-            style={styles.tag}
+            style={
+              styles.tag
+            }
           >
             <AppText
-              style={styles.tagText}
+              variant="caption"
+              weight="bold"
+              style={
+                styles.tagText
+              }
             >
               Delivery
             </AppText>
           </View>
-        )}
+        ) : null}
 
-        {hasDiscount && (
+        {hasDiscount ? (
           <View
             style={
               styles.saleTag
             }
           >
-            <Ionicons
-              name="pricetag-outline"
-              size={11}
-              color="#16A34A"
+            <AppIcon
+              name="payment"
+              role="customer"
+              size="xs"
+              state="success"
             />
 
             <AppText
+              variant="caption"
+              weight="bold"
               style={
                 styles.saleTagText
               }
@@ -357,7 +566,7 @@ export default function ProductInfo({
               Special Offer
             </AppText>
           </View>
-        )}
+        ) : null}
       </View>
     </View>
   );
@@ -370,69 +579,83 @@ export default function ProductInfo({
 const styles =
   StyleSheet.create({
     container: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
     },
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
     titleRow: {
       flexDirection:
         "row",
+
       alignItems:
         "flex-start",
+
       justifyContent:
         "space-between",
     },
 
     name: {
       flex: 1,
-      paddingRight: 8,
-      fontSize: 14,
-      lineHeight: 18,
-      color: "#111827",
+
+      minWidth: 0,
+
+      paddingRight:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
     galleryInfo: {
+      minWidth: 48,
+
+      flexShrink: 0,
+
       alignItems:
         "flex-end",
-      minWidth: 45,
     },
 
     galleryTitle: {
-      fontSize: 10,
-      lineHeight: 13,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
-    galleryCount: {
-      marginTop: 1,
-      fontSize: 9,
-      lineHeight: 12,
-      color: "#64748B",
-    },
+    /* ========================================================
+       RATING
+    ======================================================== */
 
     ratingRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      marginTop: 2,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     rating: {
-      marginLeft: 3,
-      fontSize: 10,
-      lineHeight: 14,
-      fontWeight: "700",
-      color: "#111827",
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     reviews: {
-      marginLeft: 4,
-      fontSize: 9,
-      lineHeight: 13,
-      color: "#6B7280",
+      marginLeft:
+        FixxamTokens.spacing.xs,
     },
 
     /* ========================================================
@@ -440,10 +663,11 @@ const styles =
     ======================================================== */
 
     price: {
-      marginTop: 7,
-      fontSize: 20,
-      lineHeight: 24,
-      color: "#2563EB",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -451,44 +675,57 @@ const styles =
     ======================================================== */
 
     discountPriceSection: {
-      marginTop: 7,
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     discountPriceRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     discountedPrice: {
-      fontSize: 21,
-      lineHeight: 25,
-      color: "#16A34A",
+      color:
+        Colors.success,
     },
 
     originalPrice: {
-      marginTop: 2,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
+
       textDecorationLine:
         "line-through",
     },
 
     discountBadge: {
-      marginLeft: 8,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      borderRadius: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
       backgroundColor:
-        "#DCFCE7",
+        Colors.successSoft,
     },
 
     discountBadgeText: {
-      fontSize: 10,
-      lineHeight: 13,
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
     /* ========================================================
@@ -498,30 +735,46 @@ const styles =
     infoRow: {
       flexDirection:
         "row",
-      gap: 6,
-      marginTop: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     infoBox: {
       flex: 1,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      borderRadius: 9,
+
+      minWidth: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.disabledBackground,
     },
 
-    label: {
-      marginBottom: 1,
-      fontSize: 9,
-      lineHeight: 12,
-      color: "#6B7280",
+    infoValue: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
     },
 
-    value: {
-      fontSize: 10,
-      lineHeight: 14,
-      color: "#111827",
+    outOfStockValue: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.error,
     },
 
     /* ========================================================
@@ -531,45 +784,68 @@ const styles =
     tags: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      flexWrap: "wrap",
-      gap: 5,
-      marginTop: 7,
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     tag: {
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      borderRadius: 9,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
       backgroundColor:
-        "#EFF6FF",
+        CustomerColors.primarySoft,
     },
 
     tagText: {
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "700",
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     saleTag: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 3,
-      paddingHorizontal: 7,
-      paddingVertical: 4,
-      borderRadius: 9,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
       backgroundColor:
-        "#F0FDF4",
+        Colors.successSoft,
     },
 
     saleTagText: {
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "700",
-      color: "#16A34A",
+      color:
+        Colors.success,
     },
   });
+
+export default memo(
+  ProductInfo,
+);

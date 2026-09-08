@@ -1,4 +1,7 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Pressable,
@@ -6,9 +9,20 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 export type LocationType =
   | "current"
@@ -16,237 +30,422 @@ export type LocationType =
 
 type Props = {
   value: LocationType;
-  onChange: (value: LocationType) => void;
+
+  onChange: (
+    value: LocationType,
+  ) => void;
+
+  disabled?: boolean;
 };
+
+type LocationOptionProps = {
+  type: LocationType;
+
+  icon:
+    | "locate"
+    | "file";
+
+  title: string;
+
+  subtitle: string;
+
+  selected: boolean;
+
+  disabled: boolean;
+
+  onSelect: (
+    value: LocationType,
+  ) => void;
+};
+
+/* ==============================================================
+   OPTION
+============================================================== */
+
+function LocationOption({
+  type,
+  icon,
+  title,
+  subtitle,
+  selected,
+  disabled,
+  onSelect,
+}: LocationOptionProps) {
+  const handlePress =
+    useCallback(() => {
+      if (
+        disabled ||
+        selected
+      ) {
+        return;
+      }
+
+      onSelect(
+        type,
+      );
+    }, [
+      disabled,
+      onSelect,
+      selected,
+      type,
+    ]);
+
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={`${title} location`}
+      accessibilityState={{
+        selected,
+        disabled,
+      }}
+      disabled={
+        disabled
+      }
+      onPress={
+        handlePress
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.option,
+
+        selected
+          ? styles.optionSelected
+          : null,
+
+        pressed &&
+        !disabled
+          ? styles.optionPressed
+          : null,
+
+        disabled
+          ? styles.optionDisabled
+          : null,
+      ]}
+    >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.iconBox,
+
+          selected
+            ? styles.iconBoxSelected
+            : null,
+        ]}
+      >
+        <AppIcon
+          name={icon}
+          role="customer"
+          size="sm"
+          state={
+            selected
+              ? "active"
+              : "muted"
+          }
+        />
+      </View>
+
+      {/* ======================================================
+          TEXT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={1}
+          style={
+            selected
+              ? styles.titleSelected
+              : undefined
+          }
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
+          style={
+            styles.subtitle
+          }
+        >
+          {subtitle}
+        </AppText>
+      </View>
+
+      {/* ======================================================
+          RADIO
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.radio,
+
+          selected
+            ? styles.radioSelected
+            : null,
+        ]}
+      >
+        {selected ? (
+          <View
+            style={
+              styles.radioDot
+            }
+          />
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function BookingLocationType({
   value,
   onChange,
+  disabled = false,
 }: Props) {
-  const renderOption = (
-    type: LocationType,
-    icon: "navigate-outline" | "create-outline",
-    title: string,
-    subtitle: string,
-  ) => {
-    const selected = value === type;
-
-    return (
-      <Pressable
-        onPress={() => onChange(type)}
-        accessibilityRole="radio"
-        accessibilityState={{
-          selected,
-        }}
-        accessibilityLabel={`${title} location`}
-        style={({ pressed }) => [
-          styles.option,
-          selected && styles.activeOption,
-          pressed && styles.pressed,
-        ]}
-      >
-        <View
-          style={[
-            styles.iconBox,
-            selected && styles.activeIconBox,
-          ]}
-        >
-          <Ionicons
-            name={icon}
-            size={20}
-            color={
-              selected
-                ? "#2563EB"
-                : "#64748B"
-            }
-          />
-        </View>
-
-        <View style={styles.content}>
-          <AppText
-            weight="bold"
-            style={[
-              styles.title,
-              selected && styles.activeTitle,
-            ]}
-          >
-            {title}
-          </AppText>
-
-          <AppText
-            numberOfLines={1}
-            style={styles.subtitle}
-          >
-            {subtitle}
-          </AppText>
-        </View>
-
-        <View
-          style={[
-            styles.radio,
-            selected && styles.activeRadio,
-          ]}
-        >
-          {selected && (
-            <View style={styles.radioDot} />
-          )}
-        </View>
-      </Pressable>
-    );
-  };
-
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
       accessibilityRole="radiogroup"
       accessibilityLabel="Service location type"
     >
-      {renderOption(
-        "current",
-        "navigate-outline",
-        "Current",
-        "Use my current location",
-      )}
+      <LocationOption
+        type="current"
+        icon="locate"
+        title="Current"
+        subtitle="Use my current location"
+        selected={
+          value === "current"
+        }
+        disabled={
+          disabled
+        }
+        onSelect={
+          onChange
+        }
+      />
 
-      {renderOption(
-        "manual",
-        "create-outline",
-        "Manual",
-        "Enter service location",
-      )}
+      <LocationOption
+        type="manual"
+        icon="file"
+        title="Manual"
+        subtitle="Enter service location"
+        selected={
+          value === "manual"
+        }
+        disabled={
+          disabled
+        }
+        onSelect={
+          onChange
+        }
+      />
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       OPTION
+    ======================================================== */
+
+    option: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    optionSelected: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    optionPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    optionDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    iconBoxSelected: {
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+    },
+
+    titleSelected: {
+      color:
+        CustomerColors.primary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       RADIO
+    ======================================================== */
+
+    radio: {
+      width:
+        FixxamTokens.size.iconSm,
+
+      height:
+        FixxamTokens.size.iconSm,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.disabled,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    radioSelected: {
+      borderColor:
+        CustomerColors.primary,
+    },
+
+    radioDot: {
+      width: 10,
+
+      height: 10,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+  });
+
 export default memo(
   BookingLocationType,
 );
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-
-    gap: 10,
-
-    marginTop: 14,
-  },
-
-  option: {
-    flex: 1,
-
-    minHeight: 82,
-
-    flexDirection: "row",
-    alignItems: "center",
-
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    borderRadius: 18,
-
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.035,
-    shadowRadius: 8,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-
-    elevation: 2,
-  },
-
-  activeOption: {
-    borderColor: "#2563EB",
-    backgroundColor: "#FFFFFF",
-  },
-
-  pressed: {
-    opacity: 0.85,
-
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-
-  iconBox: {
-    width: 42,
-    height: 42,
-
-    borderRadius: 14,
-
-    backgroundColor: "#F8FAFC",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  activeIconBox: {
-    backgroundColor: "#EFF6FF",
-
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
-
-  content: {
-    flex: 1,
-
-    minWidth: 0,
-
-    marginLeft: 9,
-    marginRight: 4,
-  },
-
-  title: {
-    fontSize: 13.5,
-    lineHeight: 19,
-
-    color: "#0F172A",
-  },
-
-  activeTitle: {
-    color: "#1D4ED8",
-  },
-
-  subtitle: {
-    marginTop: 3,
-
-    fontSize: 10.5,
-    lineHeight: 15,
-
-    color: "#64748B",
-  },
-
-  radio: {
-    width: 20,
-    height: 20,
-
-    borderRadius: 10,
-
-    borderWidth: 1.7,
-    borderColor: "#CBD5E1",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  activeRadio: {
-    borderColor: "#2563EB",
-  },
-
-  radioDot: {
-    width: 10,
-    height: 10,
-
-    borderRadius: 5,
-
-    backgroundColor: "#2563EB",
-  },
-});

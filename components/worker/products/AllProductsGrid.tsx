@@ -1,9 +1,11 @@
 import React, {
+  useCallback,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -13,11 +15,21 @@ import {
   router,
 } from "expo-router";
 
-import deleteProduct from "@/services/products/deleteProduct";
+import Toast from "react-native-toast-message";
 
 import {
+  AppButton,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+import deleteProduct from "@/services/products/deleteProduct";
 
 import ProductCard from "../my-products/ProductCard";
 
@@ -25,7 +37,7 @@ import ProductPopupMenu from "../products/ProductPopupMenu";
 
 import ProductDeleteDialog from "../products/ProductDeleteDialog";
 
-import {
+import type {
   MenuAnchor,
 } from "../products/ProductPopupMenu/ProductPopupMenu.types";
 
@@ -33,7 +45,7 @@ import {
    TYPES
 ============================================================== */
 
-type Product = {
+export type Product = {
   id: string;
 
   name: string;
@@ -42,7 +54,7 @@ type Product = {
 
   thumbnail?: string;
 
-  category?: string;
+  category: string;
 
   stock?: number;
 
@@ -78,7 +90,10 @@ function getSafeNumber(
   ) {
     const cleaned =
       value
-        .replace(/[₦,\s]/g, "")
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
         .trim();
 
     if (!cleaned) {
@@ -104,7 +119,7 @@ function getSafeString(
 ): string {
   if (
     typeof value === "string" &&
-    value.trim().length > 0
+    value.trim()
   ) {
     return value.trim();
   }
@@ -125,25 +140,53 @@ export default function AllProductsGrid({
   } = useWindowDimensions();
 
   /* ============================================================
-     GRID WIDTH
+     GRID
   ============================================================ */
 
-  /*
-   * The screen normally has horizontal padding.
-   * Keep the cards inside the available viewport.
-   */
-  const horizontalPadding =
-    36;
-
   const columnGap =
-    12;
+    FixxamTokens.spacing.md;
 
-  const cardWidth = Math.floor(
-    (screenWidth -
-      horizontalPadding -
-      columnGap) /
-      2,
-  );
+  const horizontalPadding =
+    FixxamTokens.spacing.lg *
+    2;
+
+  const cardWidth =
+    useMemo(
+      () =>
+        Math.max(
+          140,
+          Math.floor(
+            (
+              screenWidth -
+              horizontalPadding -
+              columnGap
+            ) / 2,
+          ),
+        ),
+      [
+        columnGap,
+        horizontalPadding,
+        screenWidth,
+      ],
+    );
+
+  /* ============================================================
+     VALID PRODUCTS
+  ============================================================ */
+
+  const validProducts =
+    useMemo(
+      () =>
+        products.filter(
+          product =>
+            Boolean(
+              getSafeString(
+                product.id,
+              ),
+            ),
+        ),
+      [products],
+    );
 
   /* ============================================================
      POPUP MENU
@@ -152,21 +195,24 @@ export default function AllProductsGrid({
   const [
     menuVisible,
     setMenuVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     menuAnchor,
     setMenuAnchor,
-  ] = useState<MenuAnchor | null>(
-    null,
-  );
+  ] =
+    useState<MenuAnchor | null>(
+      null,
+    );
 
   const [
     selectedProduct,
     setSelectedProduct,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   /* ============================================================
      DELETE
@@ -175,69 +221,326 @@ export default function AllProductsGrid({
   const [
     showDeleteDialog,
     setShowDeleteDialog,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     deleting,
     setDeleting,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const deletingRef =
+    useRef(false);
 
   /* ============================================================
      OPEN MENU
   ============================================================ */
 
-  const handleOpenMenu = (
-    productId: string,
-    anchor: MenuAnchor,
-  ) => {
-    if (!productId) {
-      return;
-    }
+  const handleOpenMenu =
+    useCallback(
+      (
+        productId: string,
+        anchor: MenuAnchor,
+      ) => {
+        const normalizedProductId =
+          productId.trim();
 
-    setSelectedProduct(
-      productId,
-    );
+        if (
+          !normalizedProductId ||
+          deletingRef.current
+        ) {
+          return;
+        }
 
-    setMenuAnchor(
-      anchor,
-    );
+        setSelectedProduct(
+          normalizedProductId,
+        );
 
-    setMenuVisible(
-      true,
+        setMenuAnchor(
+          anchor,
+        );
+
+        setMenuVisible(
+          true,
+        );
+      },
+      [],
     );
-  };
 
   /* ============================================================
      CLOSE MENU
   ============================================================ */
 
-  const closeMenu = () => {
-    if (deleting) {
-      return;
-    }
+  const closeMenu =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
 
-    setMenuVisible(
-      false,
-    );
+      setMenuVisible(
+        false,
+      );
 
-    setMenuAnchor(
-      null,
-    );
-  };
+      setMenuAnchor(
+        null,
+      );
+    }, []);
+
+  /* ============================================================
+     ADD
+  ============================================================ */
+
+  const handleAddProduct =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products/add",
+      );
+    }, []);
+
+  /* ============================================================
+     EDIT
+  ============================================================ */
+
+  const handleEdit =
+    useCallback(() => {
+      if (
+        !selectedProduct
+      ) {
+        return;
+      }
+
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      router.push({
+        pathname:
+          "/(worker)/products/edit/[id]",
+
+        params: {
+          id:
+            productId,
+        },
+      });
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     DUPLICATE
+  ============================================================ */
+
+  const handleDuplicate =
+    useCallback(() => {
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      if (!productId) {
+        return;
+      }
+
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Duplicate unavailable",
+
+        text2:
+          "Product duplication is not available yet.",
+      });
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     SHARE
+  ============================================================ */
+
+  const handleShare =
+    useCallback(() => {
+      const productId =
+        selectedProduct;
+
+      closeMenu();
+
+      if (!productId) {
+        return;
+      }
+
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Share unavailable",
+
+        text2:
+          "Product sharing is not available yet.",
+      });
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     OPEN DELETE
+  ============================================================ */
+
+  const handleDelete =
+    useCallback(() => {
+      if (
+        !selectedProduct ||
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      closeMenu();
+
+      setShowDeleteDialog(
+        true,
+      );
+    }, [
+      closeMenu,
+      selectedProduct,
+    ]);
+
+  /* ============================================================
+     CANCEL DELETE
+  ============================================================ */
+
+  const handleCancelDelete =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      setShowDeleteDialog(
+        false,
+      );
+    }, []);
+
+  /* ============================================================
+     CONFIRM DELETE
+  ============================================================ */
+
+  const handleConfirmDelete =
+    useCallback(async () => {
+      if (
+        !selectedProduct ||
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      const productId =
+        selectedProduct;
+
+      deletingRef.current =
+        true;
+
+      setDeleting(
+        true,
+      );
+
+      try {
+        await deleteProduct(
+          productId,
+        );
+
+        setShowDeleteDialog(
+          false,
+        );
+
+        setMenuVisible(
+          false,
+        );
+
+        setMenuAnchor(
+          null,
+        );
+
+        setSelectedProduct(
+          null,
+        );
+
+        Toast.show({
+          type: "success",
+
+          text1:
+            "Product deleted",
+
+          text2:
+            "The product has been removed successfully.",
+        });
+      } catch (error) {
+        console.error(
+          "FIXXAM_PRODUCT_DELETE_ERROR:",
+          error,
+        );
+
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Unable to delete product",
+
+          text2:
+            "Please check your connection and try again.",
+        });
+      } finally {
+        deletingRef.current =
+          false;
+
+        setDeleting(
+          false,
+        );
+      }
+    }, [
+      selectedProduct,
+    ]);
 
   /* ============================================================
      EMPTY
   ============================================================ */
 
-  if (products.length === 0) {
+  if (
+    validProducts.length === 0
+  ) {
     return (
       <View
         style={
           styles.empty
         }
       >
+        <View
+          style={
+            styles.emptyIcon
+          }
+        >
+          <AppIcon
+            name="package"
+            role="worker"
+            size="xl"
+            color={
+              WorkerColors.primary
+            }
+          />
+        </View>
+
         <AppText
+          variant="heading2"
           weight="bold"
+          center
           style={
             styles.emptyTitle
           }
@@ -246,37 +549,34 @@ export default function AllProductsGrid({
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
+          center
           style={
             styles.emptyText
           }
         >
-          Add your first product
-          to start selling.
+          Add your first product to start selling.
         </AppText>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add product"
-          onPress={() =>
-            router.push(
-              "/(worker)/products/add",
-            )
+        <View
+          style={
+            styles.emptyAction
           }
-          style={({ pressed }) => [
-            styles.addButton,
-            pressed &&
-              styles.buttonPressed,
-          ]}
         >
-          <AppText
-            weight="bold"
-            style={
-              styles.addButtonText
+          <AppButton
+            title="Add Product"
+            role="worker"
+            variant="primary"
+            leftIconName="add"
+            onPress={
+              handleAddProduct
             }
-          >
-            Add Product
-          </AppText>
-        </Pressable>
+            style={
+              styles.addButton
+            }
+          />
+        </View>
       </View>
     );
   }
@@ -287,36 +587,21 @@ export default function AllProductsGrid({
 
   return (
     <>
-      {/* ========================================================
-          GRID
-      ======================================================== */}
-
       <View
         style={[
           styles.grid,
+
           {
             columnGap,
           },
         ]}
       >
-        {products.map(
-          (item) => {
-            /* ==================================================
-               ID
-            ================================================== */
-
+        {validProducts.map(
+          item => {
             const productId =
               getSafeString(
                 item.id,
               );
-
-            if (!productId) {
-              return null;
-            }
-
-            /* ==================================================
-               NAME
-            ================================================== */
 
             const name =
               getSafeString(
@@ -324,19 +609,11 @@ export default function AllProductsGrid({
                 "Unnamed Product",
               );
 
-            /* ==================================================
-               CATEGORY
-            ================================================== */
-
             const category =
               getSafeString(
                 item.category,
                 "Others",
               );
-
-            /* ==================================================
-               PRICE
-            ================================================== */
 
             const price =
               Math.max(
@@ -345,10 +622,6 @@ export default function AllProductsGrid({
                   item.price,
                 ),
               );
-
-            /* ==================================================
-               DISCOUNT
-            ================================================== */
 
             const discountPercent =
               Math.min(
@@ -360,10 +633,6 @@ export default function AllProductsGrid({
                   ),
                 ),
               );
-
-            /* ==================================================
-               DISCOUNTED PRICE
-            ================================================== */
 
             const rawDiscountedPrice =
               getSafeNumber(
@@ -379,18 +648,11 @@ export default function AllProductsGrid({
                 ? rawDiscountedPrice
                 : undefined;
 
-            /* ==================================================
-               THUMBNAIL
-            ================================================== */
-
             const thumbnail =
               getSafeString(
                 item.thumbnail,
-              ) || undefined;
-
-            /* ==================================================
-               STOCK
-            ================================================== */
+              ) ||
+              undefined;
 
             const stock =
               Math.max(
@@ -402,10 +664,6 @@ export default function AllProductsGrid({
                 ),
               );
 
-            /* ==================================================
-               CARD
-            ================================================== */
-
             return (
               <View
                 key={
@@ -413,6 +671,7 @@ export default function AllProductsGrid({
                 }
                 style={[
                   styles.cardWrapper,
+
                   {
                     width:
                       cardWidth,
@@ -444,19 +703,17 @@ export default function AllProductsGrid({
                   stock={
                     stock
                   }
-                  onPress={() =>
+                  onPress={() => {
                     onProductPress(
                       productId,
-                    )
-                  }
-                  onMore={(
-                    anchor,
-                  ) =>
+                    );
+                  }}
+                  onMore={anchor => {
                     handleOpenMenu(
                       productId,
                       anchor,
-                    )
-                  }
+                    );
+                  }}
                 />
               </View>
             );
@@ -478,79 +735,18 @@ export default function AllProductsGrid({
         onClose={
           closeMenu
         }
-        onEdit={() => {
-          if (
-            !selectedProduct
-          ) {
-            return;
-          }
-
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          router.push({
-            pathname:
-              "/(worker)/products/edit/[id]",
-            params: {
-              id:
-                productId,
-            },
-          });
-        }}
-        onDuplicate={() => {
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          if (!productId) {
-            return;
-          }
-
-          /*
-           * Keep existing behaviour.
-           * Connect your duplicate service here
-           * when it is available.
-           */
-          console.log(
-            "Duplicate product:",
-            productId,
-          );
-        }}
-        onShare={() => {
-          const productId =
-            selectedProduct;
-
-          closeMenu();
-
-          if (!productId) {
-            return;
-          }
-
-          /*
-           * Keep existing behaviour.
-           * Connect your share flow here.
-           */
-          console.log(
-            "Share product:",
-            productId,
-          );
-        }}
-        onDelete={() => {
-          if (
-            !selectedProduct
-          ) {
-            return;
-          }
-
-          closeMenu();
-
-          setShowDeleteDialog(
-            true,
-          );
-        }}
+        onEdit={
+          handleEdit
+        }
+        onDuplicate={
+          handleDuplicate
+        }
+        onShare={
+          handleShare
+        }
+        onDelete={
+          handleDelete
+        }
       />
 
       {/* ========================================================
@@ -564,58 +760,12 @@ export default function AllProductsGrid({
         loading={
           deleting
         }
-        onCancel={() => {
-          if (deleting) {
-            return;
-          }
-
-          setShowDeleteDialog(
-            false,
-          );
-        }}
-        onConfirm={async () => {
-          if (
-            !selectedProduct ||
-            deleting
-          ) {
-            return;
-          }
-
-          try {
-            setDeleting(
-              true,
-            );
-
-            await deleteProduct(
-              selectedProduct,
-            );
-
-            setShowDeleteDialog(
-              false,
-            );
-
-            setMenuVisible(
-              false,
-            );
-
-            setMenuAnchor(
-              null,
-            );
-
-            setSelectedProduct(
-              null,
-            );
-          } catch (error) {
-            console.error(
-              "FIXXAM_PRODUCT_DELETE_ERROR:",
-              error,
-            );
-          } finally {
-            setDeleting(
-              false,
-            );
-          }
-        }}
+        onCancel={
+          handleCancelDelete
+        }
+        onConfirm={
+          handleConfirmDelete
+        }
       />
     </>
   );
@@ -627,9 +777,9 @@ export default function AllProductsGrid({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
+    /* ========================================================
        GRID
-    ========================================================== */
+    ======================================================== */
 
     grid: {
       width: "100%",
@@ -640,38 +790,34 @@ const styles =
       flexWrap:
         "wrap",
 
-      justifyContent:
-        "flex-start",
-
       alignItems:
         "flex-start",
 
-      rowGap: 14,
-    },
+      justifyContent:
+        "flex-start",
 
-    /* ==========================================================
-       CARD
-    ========================================================== */
+      rowGap:
+        FixxamTokens.spacing.md,
+    },
 
     cardWrapper: {
       flexShrink: 0,
     },
 
-    /* ==========================================================
+    /* ========================================================
        EMPTY
-    ========================================================== */
+    ======================================================== */
 
     empty: {
       width: "100%",
 
-      backgroundColor:
-        "#FFFFFF",
+      minHeight: 300,
 
-      borderRadius: 24,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-      paddingVertical: 40,
-
-      paddingHorizontal: 24,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
       alignItems:
         "center",
@@ -679,79 +825,70 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#000000",
+      borderWidth: 1,
 
-      shadowOpacity: 0.05,
+      borderColor:
+        Colors.border,
 
-      shadowRadius: 12,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+      backgroundColor:
+        Colors.surface,
 
-      elevation: 4,
+      ...FixxamTokens.shadow.card,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     emptyTitle: {
-      fontSize: 22,
-
       color:
-        "#0F172A",
-
-      marginBottom: 10,
+        Colors.textPrimary,
     },
 
     emptyText: {
-      fontSize: 15,
+      maxWidth: 300,
 
-      color:
-        "#64748B",
-
-      textAlign:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 22,
 
-      marginBottom: 22,
+      color:
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
-       ADD BUTTON
-    ========================================================== */
+    emptyAction: {
+      width: "100%",
+
+      maxWidth: 260,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
 
     addButton: {
-      minHeight: 52,
-
-      paddingHorizontal: 28,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        "#FF6B00",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    addButtonText: {
-      color:
-        "#FFFFFF",
-
-      fontSize: 15,
-    },
-
-    buttonPressed: {
-      opacity: 0.82,
-
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
+      width: "100%",
     },
   });

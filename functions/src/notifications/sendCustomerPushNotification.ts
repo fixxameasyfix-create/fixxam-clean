@@ -1,43 +1,92 @@
-import * as admin from "firebase-admin";
+import {
+  FieldValue,
+  Timestamp,
+  getFirestore,
+} from "firebase-admin/firestore";
+
+const db = getFirestore();
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-export type CustomerPushNotificationType =
+export type UserPushNotificationType =
   | "service_request"
   | "booking"
   | "market_order"
   | "system";
 
-export type NotificationData = Record<
-  string,
-  string | number | boolean
->;
+export type NotificationRecipientRole =
+  | "customer"
+  | "worker";
 
-export type SendCustomerPushNotificationParams = {
-  customerId: string;
+export interface SendUserPushNotificationParams {
+  userId: string;
 
-  type: CustomerPushNotificationType;
+  recipientRole: NotificationRecipientRole;
+
+  type: UserPushNotificationType;
 
   title: string;
 
   message: string;
 
-  /**
-   * Deterministic notification ID.
-   *
-   * Cloud Functions should provide this for events that
-   * can be retried, e.g.:
-   *
-   * notificationId: `booking_${bookingId}_${event.id}`
-   *
-   * If omitted, Firestore generates a random ID.
-   */
-  notificationId?: string;
+  notificationId: string;
 
-  data?: NotificationData;
-};
+  data?: Record<string, unknown>;
+}
+
+export interface SendCustomerPushNotificationParams {
+  customerId: string;
+
+  type: UserPushNotificationType;
+
+  title: string;
+
+  message: string;
+
+  notificationId: string;
+
+  data?: Record<string, unknown>;
+}
+
+/* ============================================================
+   EXPO TYPES
+============================================================ */
+
+interface ExpoPushMessage {
+  to: string;
+
+  sound: "default";
+
+  title: string;
+
+  body: string;
+
+  data: Record<string, unknown>;
+
+  channelId: string;
+
+  priority: "high";
+
+  ttl: number;
+}
+
+interface ExpoPushTicket {
+  status?: string;
+
+  id?: string;
+
+  message?: string;
+
+  details?: Record<string, unknown>;
+}
+
+interface ExpoPushResponse {
+  data?: ExpoPushTicket[];
+
+  errors?: Array<Record<string, unknown>>;
+}
 
 /* ============================================================
    CONSTANTS
@@ -46,56 +95,35 @@ export type SendCustomerPushNotificationParams = {
 const EXPO_PUSH_URL =
   "https://exp.host/--/api/v2/push/send";
 
-const MAX_TOKENS_PER_REQUEST = 100;
+const EXPO_CHUNK_SIZE = 100;
 
-const NOTIFICATION_EXPIRY_DAYS = 30;
+const NOTIFICATION_TTL_DAYS = 30;
 
-const EXPO_CHANNEL_ID =
+const PUSH_TTL_SECONDS =
+  60 * 60;
+
+const ANDROID_CHANNEL_ID =
   "fixxam-default";
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function normalizeString(
-  value: unknown,
-): string {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
-}
-
-function isValidExpoPushToken(
-  value: unknown,
-): value is string {
-  if (typeof value !== "string") {
-    return false;
-  }
-
-  const token = value.trim();
-
-  return (
-    token.startsWith(
-      "ExponentPushToken[",
-    ) ||
-    token.startsWith(
-      "ExpoPushToken[",
-    )
-  );
-}
-
-function chunkArray<T>(
+/**
+ * Split an array into smaller chunks.
+ */
+function chunk<T>(
   items: T[],
   size: number,
 ): T[][] {
-  const chunks: T[][] = [];
+  const result: T[][] = [];
 
   for (
     let index = 0;
     index < items.length;
     index += size
   ) {
-    chunks.push(
+    result.push(
       items.slice(
         index,
         index + size,
@@ -103,226 +131,530 @@ function chunkArray<T>(
     );
   }
 
-  return chunks;
+  return result;
 }
 
-function getNotificationRef(
-  customerId: string,
-  notificationId?: string,
-) {
-  const notificationsRef =
-    admin
-      .firestore()
-      .collection("users")
-      .doc(customerId)
-      .collection("notifications");
-
-  if (notificationId) {
-    return notificationsRef.doc(
-      notificationId,
-    );
-  }
-
-  return notificationsRef.doc();
-}
-
-/* ============================================================
-   CREATE FIRESTORE NOTIFICATION
-============================================================ */
-
-async function createFirestoreNotification(
-  params: SendCustomerPushNotificationParams,
-): Promise<{
-  notificationId: string;
-  notificationPath: string;
-}> {
-  const {
-    customerId,
-    type,
-    title,
-    message,
-    data = {},
-    notificationId,
-  } = params;
-
-  const notificationRef =
-    getNotificationRef(
-      customerId,
-      notificationId,
-    );
-
-  const notificationData = {
-    type,
-
-    title,
-
-    message,
-
-    read: false,
-
-    createdAt:
-      admin.firestore.FieldValue.serverTimestamp(),
-
-    expiresAt:
-      admin.firestore.Timestamp.fromMillis(
-        Date.now() +
-          NOTIFICATION_EXPIRY_DAYS *
-            24 *
-            60 *
-            60 *
-            1000,
-      ),
-
-    ...data,
-  };
-
-  /*
-   * set() with merge:false intentionally creates/replaces
-   * the deterministic notification document.
-   *
-   * When the same Cloud Function event is retried using
-   * the same notificationId, no second document is created.
-   */
-  await notificationRef.set(
-    notificationData,
-    {
-      merge: false,
-    },
-  );
-
-  return {
-    notificationId:
-      notificationRef.id,
-
-    notificationPath:
-      notificationRef.path,
-  };
-}
-
-/* ============================================================
-   GET CUSTOMER
-============================================================ */
-
-async function getCustomerData(
-  customerId: string,
-): Promise<
-  FirebaseFirestore.DocumentData | null
-> {
-  const customerRef =
-    admin
-      .firestore()
-      .collection("users")
-      .doc(customerId);
-
-  const customerSnapshot =
-    await customerRef.get();
-
-  if (!customerSnapshot.exists) {
-    console.warn(
-      "FIXXAM_CUSTOMER_NOT_FOUND:",
-      customerId,
-    );
-
-    return null;
-  }
-
+/**
+ * Validate Expo push token.
+ */
+function isExpoPushToken(
+  value: unknown,
+): value is string {
   return (
-    customerSnapshot.data() ?? null
+    typeof value === "string" &&
+    value.startsWith(
+      "ExponentPushToken[",
+    ) &&
+    value.endsWith("]")
   );
 }
 
-/* ============================================================
-   GET PUSH TOKENS
-============================================================ */
+/**
+ * Validate notification recipient role.
+ */
+function isRecipientRole(
+  value: unknown,
+): value is NotificationRecipientRole {
+  return (
+    value === "customer" ||
+    value === "worker"
+  );
+}
 
-function getValidPushTokens(
-  customerData:
-    | FirebaseFirestore.DocumentData
-    | null,
+/**
+ * Convert arbitrary notification data
+ * into JSON-safe values.
+ *
+ * Expo push data should contain primitive
+ * JSON-compatible values.
+ */
+function sanitizeValue(
+  value: unknown,
+): unknown {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return undefined;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString();
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(sanitizeValue)
+      .filter(
+        (item) =>
+          item !== undefined,
+      );
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    const result: Record<
+      string,
+      unknown
+    > = {};
+
+    for (
+      const [
+        key,
+        item,
+      ] of Object.entries(
+        value as Record<
+          string,
+          unknown
+        >,
+      )
+    ) {
+      const sanitized =
+        sanitizeValue(item);
+
+      if (
+        sanitized !== undefined
+      ) {
+        result[key] =
+          sanitized;
+      }
+    }
+
+    return result;
+  }
+
+  return undefined;
+}
+
+/**
+ * Sanitize top-level notification data.
+ */
+function sanitizeData(
+  data?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!data) {
+    return {};
+  }
+
+  const sanitized =
+    sanitizeValue(data);
+
+  if (
+    !sanitized ||
+    typeof sanitized !== "object" ||
+    Array.isArray(sanitized)
+  ) {
+    return {};
+  }
+
+  return sanitized as Record<
+    string,
+    unknown
+  >;
+}
+
+/**
+ * Return only valid unique Expo tokens.
+ */
+function getValidExpoTokens(
+  value: unknown,
 ): string[] {
-  if (!customerData) {
+  if (!Array.isArray(value)) {
     return [];
   }
 
-  const rawTokens =
-    Array.isArray(
-      customerData.expoPushTokens,
-    )
-      ? customerData.expoPushTokens
-      : [];
-
-  return [
-    ...new Set(
-      rawTokens
-        .filter(
-          isValidExpoPushToken,
-        )
-        .map((token) =>
-          token.trim(),
-        ),
+  return Array.from(
+    new Set(
+      value.filter(
+        isExpoPushToken,
+      ),
     ),
-  ];
+  );
 }
 
 /* ============================================================
-   SEND EXPO PUSH
+   SEND USER NOTIFICATION
 ============================================================ */
 
-async function sendExpoPushNotifications(
-  tokens: string[],
-  notification: {
-    title: string;
-    body: string;
-    data: NotificationData;
-  },
-): Promise<void> {
-  if (tokens.length === 0) {
+export async function sendUserPushNotification({
+  userId,
+  recipientRole,
+  type,
+  title,
+  message,
+  notificationId,
+  data,
+}: SendUserPushNotificationParams): Promise<void> {
+  /* ==========================================================
+     VALIDATION
+  ========================================================== */
+
+  const cleanUserId =
+    userId.trim();
+
+  const cleanNotificationId =
+    notificationId.trim();
+
+  const cleanTitle =
+    title.trim();
+
+  const cleanMessage =
+    message.trim();
+
+  if (!cleanUserId) {
+    console.warn(
+      "PUSH_NOTIFICATION_SKIPPED: missing userId",
+    );
+
     return;
   }
 
-  const tokenChunks =
-    chunkArray(
-      tokens,
-      MAX_TOKENS_PER_REQUEST,
+  if (!cleanNotificationId) {
+    console.warn(
+      "PUSH_NOTIFICATION_SKIPPED: missing notificationId",
+      {
+        userId: cleanUserId,
+      },
     );
 
-  for (
-    const tokenChunk of tokenChunks
+    return;
+  }
+
+  if (!cleanTitle) {
+    console.warn(
+      "PUSH_NOTIFICATION_SKIPPED: missing title",
+      {
+        userId:
+          cleanUserId,
+
+        notificationId:
+          cleanNotificationId,
+      },
+    );
+
+    return;
+  }
+
+  if (!cleanMessage) {
+    console.warn(
+      "PUSH_NOTIFICATION_SKIPPED: missing message",
+      {
+        userId:
+          cleanUserId,
+
+        notificationId:
+          cleanNotificationId,
+      },
+    );
+
+    return;
+  }
+
+  if (!isRecipientRole(recipientRole)) {
+    console.warn(
+      "PUSH_NOTIFICATION_SKIPPED: invalid recipientRole",
+      {
+        userId:
+          cleanUserId,
+
+        recipientRole,
+      },
+    );
+
+    return;
+  }
+
+  /* ==========================================================
+     SANITIZE DATA
+  ========================================================== */
+
+  const cleanData =
+    sanitizeData(data);
+
+  /**
+   * Reserved fields are added last.
+   *
+   * This prevents callers from accidentally
+   * overriding the actual notification recipient
+   * or notification type.
+   */
+  const notificationData: Record<
+    string,
+    unknown
+  > = {
+    ...cleanData,
+
+    type,
+
+    recipientId:
+      cleanUserId,
+
+    recipientRole,
+  };
+
+  /* ==========================================================
+     FIRESTORE NOTIFICATION
+  ========================================================== */
+
+  const notificationRef =
+    db
+      .collection("users")
+      .doc(cleanUserId)
+      .collection("notifications")
+      .doc(cleanNotificationId);
+
+  const expiresAt =
+    Timestamp.fromMillis(
+      Date.now() +
+        NOTIFICATION_TTL_DAYS *
+          24 *
+          60 *
+          60 *
+          1000,
+    );
+
+  const existingSnapshot =
+    await notificationRef.get();
+
+  if (existingSnapshot.exists) {
+    /**
+     * IMPORTANT:
+     *
+     * Do not reset read:false during retries.
+     */
+    await notificationRef.set(
+      {
+        ...notificationData,
+
+        title:
+          cleanTitle,
+
+        message:
+          cleanMessage,
+
+        expiresAt,
+      },
+      {
+        merge: true,
+      },
+    );
+  } else {
+    await notificationRef.set({
+      ...notificationData,
+
+      title:
+        cleanTitle,
+
+      message:
+        cleanMessage,
+
+      read: false,
+
+      createdAt:
+        FieldValue.serverTimestamp(),
+
+      expiresAt,
+    });
+  }
+
+  /* ==========================================================
+     USER PROFILE
+  ========================================================== */
+
+  const userRef =
+    db
+      .collection("users")
+      .doc(cleanUserId);
+
+  const userSnapshot =
+    await userRef.get();
+
+  if (!userSnapshot.exists) {
+    console.warn(
+      "PUSH_NOTIFICATION_USER_NOT_FOUND",
+      {
+        userId:
+          cleanUserId,
+
+        recipientRole,
+
+        notificationId:
+          cleanNotificationId,
+      },
+    );
+
+    return;
+  }
+
+  const userData =
+    userSnapshot.data() ?? {};
+
+  /* ==========================================================
+     PUSH PREFERENCE
+  ========================================================== */
+
+  if (
+    userData.pushNotificationsEnabled ===
+    false
   ) {
-    const messages =
-      tokenChunk.map(
-        (to) => ({
-          to,
+    console.info(
+      "PUSH_NOTIFICATION_DISABLED_BY_USER",
+      {
+        userId:
+          cleanUserId,
 
-          sound: "default",
+        recipientRole,
 
-          title:
-            notification.title,
+        notificationId:
+          cleanNotificationId,
+      },
+    );
 
-          body:
-            notification.body,
+    return;
+  }
 
-          data:
-            notification.data,
+  /* ==========================================================
+     PUSH TOKENS
+  ========================================================== */
 
-          channelId:
-            EXPO_CHANNEL_ID,
+  const tokens =
+    getValidExpoTokens(
+      userData.expoPushTokens,
+    );
 
-          priority: "high",
+  if (tokens.length === 0) {
+    console.info(
+      "PUSH_NOTIFICATION_NO_TOKENS",
+      {
+        userId:
+          cleanUserId,
 
-          ttl: 60 * 60,
+        recipientRole,
 
-          mutableContent:
-            true,
-        }),
-      );
+        notificationId:
+          cleanNotificationId,
+      },
+    );
+
+    return;
+  }
+
+  console.info(
+    "PUSH_NOTIFICATION_TOKENS_FOUND",
+    {
+      userId:
+        cleanUserId,
+
+      recipientRole,
+
+      notificationId:
+        cleanNotificationId,
+
+      tokenCount:
+        tokens.length,
+    },
+  );
+
+  /* ==========================================================
+     EXPO PUSH MESSAGES
+  ========================================================== */
+
+  const messages: ExpoPushMessage[] =
+    tokens.map(
+      (token) => ({
+        to: token,
+
+        sound:
+          "default",
+
+        title:
+          cleanTitle,
+
+        body:
+          cleanMessage,
+
+        data: {
+          ...notificationData,
+
+          bookingId:
+            typeof notificationData.bookingId ===
+            "string"
+              ? notificationData.bookingId
+              : undefined,
+
+          orderId:
+            typeof notificationData.orderId ===
+            "string"
+              ? notificationData.orderId
+              : undefined,
+
+          requestId:
+            typeof notificationData.requestId ===
+            "string"
+              ? notificationData.requestId
+              : undefined,
+
+          action:
+            typeof notificationData.action ===
+            "string"
+              ? notificationData.action
+              : undefined,
+        },
+
+        channelId:
+          ANDROID_CHANNEL_ID,
+
+        priority:
+          "high",
+
+        ttl:
+          PUSH_TTL_SECONDS,
+      }),
+    );
+
+  /* ==========================================================
+     CHUNK MESSAGES
+  ========================================================== */
+
+  const messageChunks =
+    chunk(
+      messages,
+      EXPO_CHUNK_SIZE,
+    );
+
+  /* ==========================================================
+     SEND TO EXPO
+  ========================================================== */
+
+  for (
+    let chunkIndex = 0;
+    chunkIndex <
+    messageChunks.length;
+    chunkIndex++
+  ) {
+    const messagesChunk =
+      messageChunks[chunkIndex];
 
     try {
       const response =
         await fetch(
           EXPO_PUSH_URL,
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               Accept:
@@ -337,211 +669,291 @@ async function sendExpoPushNotifications(
 
             body:
               JSON.stringify(
-                messages,
+                messagesChunk,
               ),
           },
         );
 
-      const responseText =
-        await response.text();
+      /* ======================================================
+         HTTP ERROR
+      ====================================================== */
 
       if (!response.ok) {
+        const responseText =
+          await response.text();
+
         console.error(
-          "FIXXAM_EXPO_PUSH_HTTP_ERROR:",
+          "EXPO_PUSH_HTTP_ERROR",
           {
+            userId:
+              cleanUserId,
+
+            recipientRole,
+
+            notificationId:
+              cleanNotificationId,
+
+            chunkIndex,
+
             status:
               response.status,
 
             response:
-              responseText,
+              responseText.slice(
+                0,
+                1000,
+              ),
           },
         );
 
         continue;
       }
 
-      console.log(
-        "FIXXAM_EXPO_PUSH_SENT:",
+      /* ======================================================
+         PARSE RESPONSE
+      ====================================================== */
+
+      let result:
+        | ExpoPushResponse
+        | undefined;
+
+      try {
+        result =
+          (await response.json()) as ExpoPushResponse;
+      } catch (parseError) {
+        console.error(
+          "EXPO_PUSH_RESPONSE_PARSE_ERROR",
+          {
+            userId:
+              cleanUserId,
+
+            recipientRole,
+
+            notificationId:
+              cleanNotificationId,
+
+            chunkIndex,
+
+            error:
+              parseError,
+          },
+        );
+
+        continue;
+      }
+
+      /* ======================================================
+         FULL RESPONSE LOG
+      ====================================================== */
+
+      console.info(
+        "FIXXAM_EXPO_PUSH_RESPONSE",
         {
+          userId:
+            cleanUserId,
+
+          recipientRole,
+
+          notificationId:
+            cleanNotificationId,
+
+          chunkIndex,
+
           tokenCount:
-            tokenChunk.length,
+            messagesChunk.length,
 
           response:
-            responseText,
+            result,
         },
       );
+
+      /* ======================================================
+         TICKETS
+      ====================================================== */
+
+      if (
+        Array.isArray(
+          result?.data,
+        )
+      ) {
+        for (
+          let ticketIndex = 0;
+          ticketIndex <
+          result.data.length;
+          ticketIndex++
+        ) {
+          const ticket =
+            result.data[
+              ticketIndex
+            ];
+
+          if (
+            ticket?.status ===
+            "ok"
+          ) {
+            console.info(
+              "EXPO_PUSH_TICKET_OK",
+              {
+                userId:
+                  cleanUserId,
+
+                recipientRole,
+
+                notificationId:
+                  cleanNotificationId,
+
+                chunkIndex,
+
+                ticketIndex,
+
+                ticketId:
+                  ticket.id ??
+                  null,
+              },
+            );
+
+            continue;
+          }
+
+          if (
+            ticket?.status ===
+            "error"
+          ) {
+            console.error(
+              "EXPO_PUSH_TICKET_ERROR",
+              {
+                userId:
+                  cleanUserId,
+
+                recipientRole,
+
+                notificationId:
+                  cleanNotificationId,
+
+                chunkIndex,
+
+                ticketIndex,
+
+                ticketId:
+                  ticket.id ??
+                  null,
+
+                message:
+                  ticket.message ??
+                  null,
+
+                details:
+                  ticket.details ??
+                  null,
+              },
+            );
+          }
+        }
+      }
+
+      /* ======================================================
+         EXPO API ERRORS
+      ====================================================== */
+
+      if (
+        Array.isArray(
+          result?.errors,
+        ) &&
+        result.errors.length >
+          0
+      ) {
+        console.error(
+          "EXPO_PUSH_API_ERRORS",
+          {
+            userId:
+              cleanUserId,
+
+            recipientRole,
+
+            notificationId:
+              cleanNotificationId,
+
+            chunkIndex,
+
+            errors:
+              result.errors,
+          },
+        );
+      }
     } catch (error) {
-      /*
-       * Do not throw here.
-       *
-       * The Firestore notification has already been saved,
-       * so the customer can still see it when opening the app.
+      /**
+       * Push failure must not delete
+       * the Firestore notification.
        */
       console.error(
-        "FIXXAM_EXPO_PUSH_REQUEST_ERROR:",
-        error,
+        "EXPO_PUSH_SEND_ERROR",
+        {
+          userId:
+            cleanUserId,
+
+          recipientRole,
+
+          notificationId:
+            cleanNotificationId,
+
+          chunkIndex,
+
+          error,
+        },
       );
     }
   }
-}
 
-/* ============================================================
-   MAIN SERVICE
-============================================================ */
+  /* ==========================================================
+     COMPLETE
+  ========================================================== */
 
-export async function sendCustomerPushNotification(
-  params: SendCustomerPushNotificationParams,
-): Promise<void> {
-  const customerId =
-    normalizeString(
-      params.customerId,
-    );
+  console.info(
+    "EXPO_PUSH_PROCESS_COMPLETED",
+    {
+      userId:
+        cleanUserId,
 
-  const title =
-    normalizeString(
-      params.title,
-    );
-
-  const message =
-    normalizeString(
-      params.message,
-    );
-
-  const type =
-    params.type;
-
-  const data =
-    params.data ?? {};
-
-  const notificationId =
-    normalizeString(
-      params.notificationId,
-    );
-
-  /* ----------------------------------------------------------
-     VALIDATION
-  ---------------------------------------------------------- */
-
-  if (!customerId) {
-    throw new Error(
-      "customerId is required.",
-    );
-  }
-
-  if (!title) {
-    throw new Error(
-      "Notification title is required.",
-    );
-  }
-
-  if (!message) {
-    throw new Error(
-      "Notification message is required.",
-    );
-  }
-
-  if (
-    type !==
-      "service_request" &&
-    type !== "booking" &&
-    type !== "market_order" &&
-    type !== "system"
-  ) {
-    throw new Error(
-      "Invalid notification type.",
-    );
-  }
-
-  /* ----------------------------------------------------------
-     SAVE FIRESTORE NOTIFICATION
-  ---------------------------------------------------------- */
-
-  const savedNotification =
-    await createFirestoreNotification({
-      customerId,
+      recipientRole,
 
       type,
 
-      title,
-
-      message,
-
       notificationId:
-        notificationId ||
-        undefined,
+        cleanNotificationId,
 
-      data,
-    });
-
-  console.log(
-    "FIXXAM_NOTIFICATION_SAVED:",
-    savedNotification,
-  );
-
-  /* ----------------------------------------------------------
-     GET CUSTOMER
-  ---------------------------------------------------------- */
-
-  const customerData =
-    await getCustomerData(
-      customerId,
-    );
-
-  if (!customerData) {
-    return;
-  }
-
-  /* ----------------------------------------------------------
-     CHECK PUSH ENABLED
-  ---------------------------------------------------------- */
-
-  if (
-    customerData
-      .pushNotificationsEnabled ===
-    false
-  ) {
-    console.log(
-      "FIXXAM_PUSH_DISABLED_FOR_CUSTOMER:",
-      customerId,
-    );
-
-    return;
-  }
-
-  /* ----------------------------------------------------------
-     GET PUSH TOKENS
-  ---------------------------------------------------------- */
-
-  const tokens =
-    getValidPushTokens(
-      customerData,
-    );
-
-  if (tokens.length === 0) {
-    console.log(
-      "FIXXAM_NO_PUSH_TOKEN:",
-      customerId,
-    );
-
-    return;
-  }
-
-  /* ----------------------------------------------------------
-     SEND PUSH
-  ---------------------------------------------------------- */
-
-  await sendExpoPushNotifications(
-    tokens,
-    {
-      title,
-
-      body: message,
-
-      data: {
-        type,
-
-        ...data,
-      },
+      tokenCount:
+        tokens.length,
     },
   );
+}
+
+/* ============================================================
+   CUSTOMER WRAPPER
+============================================================ */
+
+export async function sendCustomerPushNotification({
+  customerId,
+  type,
+  title,
+  message,
+  notificationId,
+  data,
+}: SendCustomerPushNotificationParams): Promise<void> {
+  await sendUserPushNotification({
+    userId:
+      customerId,
+
+    recipientRole:
+      "customer",
+
+    type,
+
+    title,
+
+    message,
+
+    notificationId,
+
+    data,
+  });
 }

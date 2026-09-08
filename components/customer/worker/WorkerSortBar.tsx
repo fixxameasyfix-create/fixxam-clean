@@ -1,92 +1,217 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
-  TouchableOpacity,
-  View,
+  Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import AppText from "@/components/ui/AppText";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   label: string;
+
   onPress: () => void;
 };
 
-export default function WorkerSortBar({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerSortBar({
   label,
   onPress,
 }: Props) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      style={styles.container}
-      onPress={onPress}
+    <Pressable
+      onPress={
+        onPress
+      }
+      accessibilityRole="button"
+      accessibilityLabel={`Sort workers by ${label}`}
+      accessibilityHint="Opens worker sorting options"
+      style={({
+        pressed,
+      }) => [
+        styles.container,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
-      <View style={styles.left}>
-        <Ionicons
-          name="swap-vertical-outline"
-          size={18}
-          color="#2563EB"
-        />
+      {/* ======================================================
+          LEFT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.left
+        }
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
+          <AppIcon
+            name="filter"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        </View>
 
         <AppText
+          variant="bodyMedium"
           weight="medium"
-          style={styles.label}
+          numberOfLines={1}
+          style={
+            styles.label
+          }
         >
           {label}
         </AppText>
       </View>
 
-      <Ionicons
-        name="chevron-down"
-        size={18}
-        color="#64748B"
+      {/* ======================================================
+          DOWN
+      ====================================================== */}
+
+      <AppIcon
+        name="down"
+        role="customer"
+        size="sm"
+        state="muted"
       />
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 52,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
 
-    backgroundColor: "#FFFFFF",
+      flexDirection:
+        "row",
 
-    borderRadius: 16,
+      alignItems:
+        "center",
 
-    paddingHorizontal: 16,
+      justifyContent:
+        "space-between",
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    left: {
+      flex: 1,
 
-  left: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      minWidth: 0,
 
-  label: {
-    marginLeft: 10,
+      flexDirection:
+        "row",
 
-    fontSize: 15,
+      alignItems:
+        "center",
 
-    color: "#0F172A",
-  },
-});
+      paddingRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    label: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    pressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkerSortBar,
+);

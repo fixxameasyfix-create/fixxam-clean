@@ -1,90 +1,172 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
 } from "@/theme";
 
-type Props = {
+export interface SignupProgressProps {
   currentStep: number;
-  totalSteps: number;
-};
 
-export default function SignupProgress({
+  totalSteps: number;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
+  variant?: "customer" | "worker";
+}
+
+function SignupProgress({
   currentStep,
   totalSteps,
-}: Props) {
+
+  role = "customer",
+  variant,
+}: SignupProgressProps) {
+  const resolvedRole: FixxamRole =
+    variant ?? role;
+
+  const roleColors =
+    resolvedRole === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const safeTotalSteps =
+    useMemo(
+      () =>
+        Math.max(
+          1,
+          Math.floor(totalSteps),
+        ),
+      [totalSteps],
+    );
+
+  const safeCurrentStep =
+    useMemo(
+      () =>
+        Math.min(
+          safeTotalSteps,
+          Math.max(
+            1,
+            Math.floor(currentStep),
+          ),
+        ),
+      [
+        currentStep,
+        safeTotalSteps,
+      ],
+    );
+
   return (
-    <View style={styles.container}>
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Sign up progress"
+      accessibilityValue={{
+        min: 1,
+        max: safeTotalSteps,
+        now: safeCurrentStep,
+        text: `Step ${safeCurrentStep} of ${safeTotalSteps}`,
+      }}
+      style={styles.container}
+    >
       <AppText
-        weight="bold"
+        variant="label"
+        center
         style={styles.title}
       >
-        Step {currentStep} of {totalSteps}
+        Step {safeCurrentStep} of{" "}
+        {safeTotalSteps}
       </AppText>
 
       <View style={styles.row}>
-        {Array.from({ length: totalSteps }).map(
-          (_, index) => {
-            const step = index + 1;
+        {Array.from({
+          length: safeTotalSteps,
+        }).map((_, index) => {
+          const step = index + 1;
 
-            const completed =
-              step < currentStep;
+          const completed =
+            step < safeCurrentStep;
 
-            const active =
-              step === currentStep;
+          const active =
+            step === safeCurrentStep;
 
-            return (
-              <React.Fragment key={step}>
+          return (
+            <React.Fragment key={step}>
+              <View
+                style={[
+                  styles.circle,
+
+                  completed
+                    ? styles.completedCircle
+                    : null,
+
+                  active
+                    ? {
+                        backgroundColor:
+                          roleColors.primary,
+                      }
+                    : null,
+                ]}
+              >
+                {completed ? (
+                  <AppIcon
+                    name="check"
+                    role={resolvedRole}
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                    strokeWidth="strong"
+                  />
+                ) : (
+                  <AppText
+                    variant="caption"
+                    weight="semibold"
+                    style={{
+                      color: active
+                        ? Colors.textInverse
+                        : Colors.textSecondary,
+                    }}
+                  >
+                    {step}
+                  </AppText>
+                )}
+              </View>
+
+              {step !==
+              safeTotalSteps ? (
                 <View
                   style={[
-                    styles.circle,
-                    completed &&
-                      styles.completedCircle,
-                    active &&
-                      styles.activeCircle,
-                  ]}
-                >
-                  {completed ? (
-                    <Ionicons
-                      name="checkmark"
-                      size={14}
-                      color="#FFFFFF"
-                    />
-                  ) : (
-                    <AppText
-                      style={[
-                        styles.number,
-                        active &&
-                          styles.activeNumber,
-                      ]}
-                    >
-                      {step}
-                    </AppText>
-                  )}
-                </View>
+                    styles.line,
 
-                {step !== totalSteps && (
-                  <View
-                    style={[
-                      styles.line,
-                      completed &&
-                        styles.activeLine,
-                    ]}
-                  />
-                )}
-              </React.Fragment>
-            );
-          }
-        )}
+                    completed
+                      ? styles.completedLine
+                      : null,
+                  ]}
+                />
+              ) : null}
+            </React.Fragment>
+          );
+        })}
       </View>
     </View>
   );
@@ -92,58 +174,64 @@ export default function SignupProgress({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    width: "100%",
+
+    marginBottom:
+      FixxamTokens.spacing.lg,
   },
 
   title: {
-    textAlign: "center",
-    marginBottom: 14,
-    fontSize: 15,
-    color: CustomerColors.textPrimary,
+    marginBottom:
+      FixxamTokens.spacing.md,
   },
 
   row: {
+    width: "100%",
+
     flexDirection: "row",
     alignItems: "center",
   },
 
   circle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width:
+      FixxamTokens.size.avatarXs,
 
-    backgroundColor: "#E5E7EB",
+    height:
+      FixxamTokens.size.avatarXs,
 
-    justifyContent: "center",
+    flexShrink: 0,
+
     alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      Colors.disabledBackground,
   },
 
   completedCircle: {
-    backgroundColor: "#22C55E",
-  },
-
-  activeCircle: {
     backgroundColor:
-      CustomerColors.primary,
-  },
-
-  number: {
-    color: "#6B7280",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-
-  activeNumber: {
-    color: "#FFFFFF",
+      Colors.success,
   },
 
   line: {
     flex: 1,
-    height: 3,
-    backgroundColor: "#E5E7EB",
+
+    height:
+      FixxamTokens.spacing.xxs,
+
+    backgroundColor:
+      Colors.divider,
   },
 
-  activeLine: {
-    backgroundColor: "#22C55E",
+  completedLine: {
+    backgroundColor:
+      Colors.success,
   },
 });
+
+export default memo(
+  SignupProgress,
+);

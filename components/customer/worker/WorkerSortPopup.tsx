@@ -1,15 +1,33 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Modal,
-  View,
   Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type SortType =
   | "latest"
@@ -20,176 +38,324 @@ type SortType =
 
 type Props = {
   visible: boolean;
+
   value: SortType;
+
   onClose: () => void;
-  onChange: (value: SortType) => void;
+
+  onChange: (
+    value: SortType,
+  ) => void;
 };
 
-const options = [
-  {
-    label: "Latest",
-    value: "latest",
-    icon: "time-outline",
-  },
-  {
-    label: "Highest Rated",
-    value: "rating",
-    icon: "star-outline",
-  },
-  {
-    label: "Nearest",
-    value: "nearest",
-    icon: "navigate-outline",
-  },
-  {
-    label: "Lowest Price",
-    value: "priceLow",
-    icon: "trending-down-outline",
-  },
-  {
-    label: "Highest Price",
-    value: "priceHigh",
-    icon: "trending-up-outline",
-  },
-] as const;
+type SortOption = {
+  label: string;
 
-export default function WorkerSortPopup({
+  value: SortType;
+
+  icon:
+    | "clock"
+    | "star"
+    | "navigation"
+    | "down"
+    | "arrow-up";
+};
+
+/* ==============================================================
+   OPTIONS
+============================================================== */
+
+const OPTIONS: readonly SortOption[] =
+  [
+    {
+      label: "Latest",
+      value: "latest",
+      icon: "clock",
+    },
+    {
+      label: "Highest Rated",
+      value: "rating",
+      icon: "star",
+    },
+    {
+      label: "Nearest",
+      value: "nearest",
+      icon: "navigation",
+    },
+    {
+      label: "Lowest Price",
+      value: "priceLow",
+      icon: "down",
+    },
+    {
+      label: "Highest Price",
+      value: "priceHigh",
+      icon: "arrow-up",
+    },
+  ];
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerSortPopup({
   visible,
   value,
   onClose,
   onChange,
 }: Props) {
-  const handleChange = (sortValue: SortType) => {
-    onChange(sortValue);
-  };
+  const insets =
+    useSafeAreaInsets();
+
+  const handleChange =
+    useCallback(
+      (
+        sortValue:
+          SortType,
+      ) => {
+        onChange(
+          sortValue,
+        );
+      },
+      [
+        onChange,
+      ],
+    );
 
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
     >
+      {/* ======================================================
+          BACKDROP
+      ====================================================== */}
+
       <Pressable
-        style={styles.overlay}
-        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close sort options"
+        onPress={
+          onClose
+        }
+        style={[
+          styles.overlay,
+          {
+            paddingTop:
+              insets.top +
+              FixxamTokens.size
+                .headerHeight +
+              FixxamTokens.spacing.xl,
+          },
+        ]}
       >
+        {/* ====================================================
+            POPUP
+        ==================================================== */}
+
         <Pressable
-          style={styles.popup}
-          onPress={(event) =>
-            event.stopPropagation()
+          accessibilityRole="none"
+          onPress={(
+            event,
+          ) => {
+            event.stopPropagation();
+          }}
+          style={
+            styles.popup
           }
         >
-          {/* HEADER */}
+          {/* ==================================================
+              HEADER
+          ================================================== */}
 
-          <View style={styles.header}>
-            <View style={styles.headerIcon}>
-              <Ionicons
-                name="swap-vertical-outline"
-                size={16}
-                color="#2563EB"
+          <View
+            style={
+              styles.header
+            }
+          >
+            <View
+              style={
+                styles.headerIcon
+              }
+            >
+              <AppIcon
+                name="filter"
+                role="customer"
+                size="sm"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="bodyLarge"
               weight="bold"
-              style={styles.title}
+              numberOfLines={1}
+              style={
+                styles.title
+              }
             >
               Sort Workers
             </AppText>
 
             <Pressable
-              onPress={onClose}
-              hitSlop={8}
-              style={styles.closeButton}
               accessibilityRole="button"
               accessibilityLabel="Close sort options"
+              hitSlop={8}
+              onPress={
+                onClose
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={16}
-                color="#64748B"
+                role="customer"
+                size="sm"
+                state="muted"
               />
             </Pressable>
           </View>
 
-          {/* OPTIONS */}
+          {/* ==================================================
+              OPTIONS
+          ================================================== */}
 
-          <View style={styles.options}>
-            {options.map((item) => {
-              const selected =
-                value === item.value;
+          <View
+            accessibilityRole="radiogroup"
+            style={
+              styles.options
+            }
+          >
+            {OPTIONS.map(
+              (
+                item,
+              ) => {
+                const selected =
+                  value ===
+                  item.value;
 
-              return (
-                <Pressable
-                  key={item.value}
-                  onPress={() =>
-                    handleChange(item.value)
-                  }
-                  accessibilityRole="radio"
-                  accessibilityState={{
-                    selected,
-                  }}
-                  accessibilityLabel={`Sort by ${item.label}`}
-                  style={({ pressed }) => [
-                    styles.item,
-                    selected &&
-                      styles.selectedItem,
-                    pressed &&
-                      styles.pressed,
-                  ]}
-                >
-                  <View style={styles.left}>
+                return (
+                  <Pressable
+                    key={
+                      item.value
+                    }
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Sort by ${item.label}`}
+                    accessibilityState={{
+                      selected,
+                    }}
+                    onPress={() =>
+                      handleChange(
+                        item.value,
+                      )
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.item,
+
+                      selected
+                        ? styles.selectedItem
+                        : null,
+
+                      pressed
+                        ? styles.pressed
+                        : null,
+                    ]}
+                  >
+                    {/* ========================================
+                        LEFT
+                    ======================================== */}
+
                     <View
-                      style={[
-                        styles.iconBox,
-                        selected &&
-                          styles.selectedIconBox,
-                      ]}
+                      style={
+                        styles.left
+                      }
                     >
-                      <Ionicons
-                        name={item.icon}
-                        size={15}
-                        color={
+                      <View
+                        style={[
+                          styles.iconBox,
+
                           selected
-                            ? "#2563EB"
-                            : "#64748B"
+                            ? styles.selectedIconBox
+                            : null,
+                        ]}
+                      >
+                        <AppIcon
+                          name={
+                            item.icon
+                          }
+                          role="customer"
+                          size="sm"
+                          state={
+                            selected
+                              ? "active"
+                              : "muted"
+                          }
+                        />
+                      </View>
+
+                      <AppText
+                        variant="bodyMedium"
+                        weight={
+                          selected
+                            ? "bold"
+                            : "medium"
                         }
-                      />
+                        numberOfLines={1}
+                        style={[
+                          styles.label,
+
+                          selected
+                            ? styles.selectedLabel
+                            : null,
+                        ]}
+                      >
+                        {item.label}
+                      </AppText>
                     </View>
 
-                    <AppText
-                      weight={
-                        selected
-                          ? "bold"
-                          : undefined
-                      }
+                    {/* ========================================
+                        SELECTION
+                    ======================================== */}
+
+                    <View
                       style={[
-                        styles.label,
-                        selected &&
-                          styles.selectedLabel,
+                        styles.radio,
+
+                        selected
+                          ? styles.radioSelected
+                          : null,
                       ]}
                     >
-                      {item.label}
-                    </AppText>
-                  </View>
-
-                  {selected ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={18}
-                      color="#2563EB"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="ellipse-outline"
-                      size={17}
-                      color="#CBD5E1"
-                    />
-                  )}
-                </Pressable>
-              );
-            })}
+                      {selected ? (
+                        <AppIcon
+                          name="check"
+                          role="customer"
+                          size="xs"
+                          color={
+                            Colors.textInverse
+                          }
+                        />
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              },
+            )}
           </View>
         </Pressable>
       </Pressable>
@@ -197,129 +363,298 @@ export default function WorkerSortPopup({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,23,42,0.14)",
-    justifyContent: "flex-start",
-    paddingTop: 145,
-    paddingHorizontal: 12,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  popup: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 17,
-    padding: 8,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.10,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 5,
+    overlay: {
+      flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.overlayLight,
     },
 
-    elevation: 8,
-  },
+    /* ========================================================
+       POPUP
+    ======================================================== */
 
-  header: {
-    minHeight: 34,
-    paddingHorizontal: 5,
+    popup: {
+      width: "100%",
 
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      maxWidth: 420,
 
-  headerIcon: {
-    width: 29,
-    height: 29,
-    borderRadius: 9,
+      alignSelf:
+        "center",
 
-    backgroundColor: "#EFF6FF",
+      padding:
+        FixxamTokens.spacing.sm,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderWidth: 1,
 
-  title: {
-    flex: 1,
-    marginLeft: 7,
+      borderColor:
+        Colors.border,
 
-    fontSize: 14,
-    lineHeight: 18,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    color: "#0F172A",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  closeButton: {
-    width: 29,
-    height: 29,
-    borderRadius: 9,
+      ...FixxamTokens.shadow.modal,
+    },
 
-    backgroundColor: "#F8FAFC",
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  options: {
-    marginTop: 5,
-  },
+      flexDirection:
+        "row",
 
-  item: {
-    minHeight: 42,
+      alignItems:
+        "center",
 
-    marginVertical: 2,
-    paddingHorizontal: 6,
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+    },
 
-    borderRadius: 10,
+    headerIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+      height:
+        FixxamTokens.size
+          .avatarXs,
 
-  selectedItem: {
-    backgroundColor: "#F8FAFF",
-  },
+      flexShrink: 0,
 
-  left: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      alignItems:
+        "center",
 
-  iconBox: {
-    width: 28,
-    height: 28,
+      justifyContent:
+        "center",
 
-    borderRadius: 8,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    backgroundColor: "#F8FAFC",
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    title: {
+      flex: 1,
 
-  selectedIconBox: {
-    backgroundColor: "#EFF6FF",
-  },
+      minWidth: 0,
 
-  label: {
-    marginLeft: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
 
-    fontSize: 11.5,
-    lineHeight: 15,
+    closeButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    color: "#475569",
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  selectedLabel: {
-    color: "#2563EB",
-  },
+      flexShrink: 0,
 
-  pressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.985 }],
-  },
-});
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       OPTIONS
+    ======================================================== */
+
+    options: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    item: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        "transparent",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    selectedItem: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       LEFT
+    ======================================================== */
+
+    left: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    selectedIconBox: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    label: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    selectedLabel: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       RADIO
+    ======================================================== */
+
+    radio: {
+      width: 24,
+
+      height: 24,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.disabled,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    radioSelected: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkerSortPopup,
+);

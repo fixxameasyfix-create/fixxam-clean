@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -20,9 +21,16 @@ import {
 import Toast from "react-native-toast-message";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   useCart,
@@ -42,34 +50,118 @@ import getActiveProductDeal, {
   ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
-/* ============================================================
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type WorkerData = {
   uid?: string;
 
   firstName?: string;
+
   otherName?: string;
+
   surname?: string;
 
   photoUrl?: string;
+
   location?: string;
+
   rating?: number;
 
   phoneNumber?: string;
+
   phone?: string;
+
   mobileNumber?: string;
 
   workerProfile?: {
     phoneNumber?: string;
+
     phone?: string;
   };
 };
 
-/* ============================================================
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function getPositiveNumber(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function getAvailableStock(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    parsed,
+  );
+}
+
+function normalizePhoneNumber(
+  value: unknown,
+): string {
+  const raw =
+    cleanString(value);
+
+  if (!raw) {
+    return "";
+  }
+
+  const normalized =
+    raw.replace(
+      /[\s().-]/g,
+      "",
+    );
+
+  if (
+    !/^\+?\d{7,15}$/.test(
+      normalized,
+    )
+  ) {
+    return "";
+  }
+
+  return normalized;
+}
+
+/* ==============================================================
    SCREEN
-============================================================ */
+============================================================== */
 
 export default function ProductDetailsScreen() {
   /* ============================================================
@@ -78,14 +170,17 @@ export default function ProductDetailsScreen() {
 
   const {
     id,
-  } = useLocalSearchParams<{
-    id?: string;
-  }>();
+  } =
+    useLocalSearchParams<{
+      id?: string;
+    }>();
 
   const productId =
-    Array.isArray(id)
-      ? id[0]
-      : id;
+    cleanString(
+      Array.isArray(id)
+        ? id[0]
+        : id,
+    );
 
   /* ============================================================
      PRODUCT
@@ -96,11 +191,11 @@ export default function ProductDetailsScreen() {
     product,
   } =
     useProductDetails(
-      String(productId ?? ""),
+      productId,
     );
 
   /* ============================================================
-     ACTIVE PRODUCT DEAL
+     DEAL
   ============================================================ */
 
   const [
@@ -111,63 +206,51 @@ export default function ProductDetailsScreen() {
       ActiveProductDeal | null
     >(null);
 
-  const [
-    dealLoading,
-    setDealLoading,
-  ] = useState(false);
-
   useEffect(() => {
-    let mounted = true;
+    let cancelled =
+      false;
+
+    /*
+     * Prevent the previous product's deal
+     * briefly appearing after route changes.
+     */
+    setDeal(null);
+
+    if (!productId) {
+      return () => {
+        cancelled =
+          true;
+      };
+    }
 
     async function loadDeal() {
-      const normalizedId =
-        String(
-          productId ?? "",
-        ).trim();
+      try {
+        const activeDeals =
+          await getActiveProductDeal([
+            productId,
+          ]);
 
-      if (!normalizedId) {
-        if (mounted) {
-          setDeal(null);
+        if (cancelled) {
+          return;
         }
 
-        return;
-      }
-
-      try {
-        setDealLoading(true);
-
-        const activeDeals =
-  await getActiveProductDeal([
-    normalizedId,
-  ]);
-
-const activeDeal =
-  activeDeals.get(
-    normalizedId,
-  ) ?? null;
-
-if (mounted) {
-  setDeal(
-    activeDeal,
-  );
-}
+        setDeal(
+          activeDeals.get(
+            productId,
+          ) ?? null,
+        );
       } catch (error) {
         console.error(
           "LOAD_PRODUCT_DEAL_ERROR:",
           error,
         );
 
-        if (mounted) {
+        if (!cancelled) {
           /*
-           * Discount is optional.
-           * Product should still work
-           * if the deal lookup fails.
+           * Deals are optional.
+           * Product remains usable.
            */
           setDeal(null);
-        }
-      } finally {
-        if (mounted) {
-          setDealLoading(false);
         }
       }
     }
@@ -175,38 +258,58 @@ if (mounted) {
     void loadDeal();
 
     return () => {
-      mounted = false;
+      cancelled =
+        true;
     };
-  }, [productId]);
+  }, [
+    productId,
+  ]);
 
   /* ============================================================
-     EFFECTIVE PRICE
+     PRICE
   ============================================================ */
 
   const originalPrice =
-    Number(
-      product?.price ?? 0,
+    useMemo(
+      () =>
+        getPositiveNumber(
+          product?.price,
+        ),
+      [
+        product?.price,
+      ],
     );
 
   const effectivePrice =
     useMemo(() => {
+      const discountedPrice =
+        getPositiveNumber(
+          deal?.discountedPrice,
+        );
+
       if (
-        deal &&
-        Number.isFinite(
-          deal.discountedPrice,
-        ) &&
-        deal.discountedPrice > 0 &&
-        deal.discountedPrice <
+        discountedPrice > 0 &&
+        originalPrice > 0 &&
+        discountedPrice <
           originalPrice
       ) {
-        return deal.discountedPrice;
+        return discountedPrice;
       }
 
       return originalPrice;
     }, [
-      deal,
+      deal?.discountedPrice,
       originalPrice,
     ]);
+
+  const hasActiveDiscount =
+    Boolean(
+      deal &&
+        originalPrice > 0 &&
+        effectivePrice > 0 &&
+        effectivePrice <
+          originalPrice,
+    );
 
   /* ============================================================
      WORKER
@@ -225,6 +328,62 @@ if (mounted) {
       | null
       | undefined;
 
+  const workerName =
+    useMemo(() => {
+      if (!workerData) {
+        return "Worker";
+      }
+
+      const name =
+        [
+          cleanString(
+            workerData.firstName,
+          ),
+          cleanString(
+            workerData.otherName,
+          ),
+          cleanString(
+            workerData.surname,
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+      return (
+        name ||
+        "Worker"
+      );
+    }, [
+      workerData,
+    ]);
+
+  const phoneNumber =
+    useMemo(
+      () =>
+        cleanString(
+          workerData?.phoneNumber,
+        ) ||
+        cleanString(
+          workerData?.phone,
+        ) ||
+        cleanString(
+          workerData?.mobileNumber,
+        ) ||
+        cleanString(
+          workerData
+            ?.workerProfile
+            ?.phoneNumber,
+        ) ||
+        cleanString(
+          workerData
+            ?.workerProfile
+            ?.phone,
+        ),
+      [
+        workerData,
+      ],
+    );
+
   /* ============================================================
      CART
   ============================================================ */
@@ -232,7 +391,8 @@ if (mounted) {
   const {
     addToCart,
     cartReady,
-  } = useCart();
+  } =
+    useCart();
 
   /* ============================================================
      QUANTITY
@@ -241,45 +401,40 @@ if (mounted) {
   const [
     quantity,
     setQuantity,
-  ] = useState(1);
+  ] =
+    useState(1);
 
-  /* ============================================================
-     WORKER NAME
-  ============================================================ */
+  /*
+   * A new product must never inherit
+   * the previous product's quantity.
+   */
+  useEffect(() => {
+    setQuantity(1);
+  }, [
+    productId,
+  ]);
 
-  const workerName =
-    workerData
-      ? [
-          workerData.firstName,
-          workerData.otherName,
-          workerData.surname,
-        ]
-          .filter(Boolean)
-          .join(" ")
-      : "Worker";
-
-  /* ============================================================
-     WORKER PHONE
-  ============================================================ */
-
-  const phoneNumber =
-    workerData?.phoneNumber ??
-    workerData?.phone ??
-    workerData?.mobileNumber ??
-    workerData?.workerProfile
-      ?.phoneNumber ??
-    workerData?.workerProfile
-      ?.phone ??
-    "";
+  const availableStock =
+    useMemo(
+      () =>
+        getAvailableStock(
+          product?.stock,
+        ),
+      [
+        product?.stock,
+      ],
+    );
 
   /* ============================================================
      VIEW WORKER PROFILE
   ============================================================ */
 
   const handleViewProfile =
-    () => {
+    useCallback(() => {
       const workerId =
-        product?.workerId?.trim();
+        cleanString(
+          product?.workerId,
+        );
 
       if (!workerId) {
         Toast.show({
@@ -293,6 +448,8 @@ if (mounted) {
         return;
       }
 
+      /* ROUTE PRESERVED */
+
       router.push({
         pathname:
           "/(customer)/workers/[id]",
@@ -301,16 +458,20 @@ if (mounted) {
           id: workerId,
         },
       });
-    };
+    }, [
+      product?.workerId,
+    ]);
 
   /* ============================================================
      CALL WORKER
   ============================================================ */
 
   const handleCallWorker =
-    async () => {
+    useCallback(async () => {
       const workerId =
-        product?.workerId?.trim();
+        cleanString(
+          product?.workerId,
+        );
 
       if (!workerId) {
         Toast.show({
@@ -324,16 +485,30 @@ if (mounted) {
         return;
       }
 
-      const normalizedPhone =
-        phoneNumber.trim();
-
-      if (!normalizedPhone) {
+      if (!phoneNumber) {
         Toast.show({
           type: "error",
           text1:
             "Phone number unavailable",
           text2:
             "This worker has not added a phone number.",
+        });
+
+        return;
+      }
+
+      const normalizedPhone =
+        normalizePhoneNumber(
+          phoneNumber,
+        );
+
+      if (!normalizedPhone) {
+        Toast.show({
+          type: "error",
+          text1:
+            "Invalid phone number",
+          text2:
+            "This worker's phone number cannot be dialed.",
         });
 
         return;
@@ -377,28 +552,24 @@ if (mounted) {
             "Unable to open the phone dialer.",
         });
       }
-    };
+    }, [
+      phoneNumber,
+      product?.workerId,
+    ]);
 
   /* ============================================================
-     INCREASE QUANTITY
+     QUANTITY
   ============================================================ */
 
   const increaseQuantity =
-    () => {
+    useCallback(() => {
       if (!product) {
         return;
       }
 
-      const stock =
-        Number.isFinite(
-          product.stock,
-        )
-          ? Math.floor(
-              product.stock,
-            )
-          : 0;
-
-      if (stock <= 0) {
+      if (
+        availableStock <= 0
+      ) {
         Toast.show({
           type: "error",
           text1:
@@ -411,15 +582,16 @@ if (mounted) {
       }
 
       if (
-        quantity >= stock
+        quantity >=
+        availableStock
       ) {
         Toast.show({
           type: "info",
           text1:
             "Maximum quantity reached",
           text2:
-            `Only ${stock} item${
-              stock === 1
+            `Only ${availableStock} item${
+              availableStock === 1
                 ? ""
                 : "s"
             } available.`,
@@ -432,17 +604,17 @@ if (mounted) {
         (previous) =>
           Math.min(
             previous + 1,
-            stock,
+            availableStock,
           ),
       );
-    };
-
-  /* ============================================================
-     DECREASE QUANTITY
-  ============================================================ */
+    }, [
+      availableStock,
+      product,
+      quantity,
+    ]);
 
   const decreaseQuantity =
-    () => {
+    useCallback(() => {
       setQuantity(
         (previous) =>
           Math.max(
@@ -450,14 +622,14 @@ if (mounted) {
             previous - 1,
           ),
       );
-    };
+    }, []);
 
   /* ============================================================
-     VALIDATE PRODUCT
+     PRODUCT VALIDATION
   ============================================================ */
 
   const validateProductForCart =
-    (): boolean => {
+    useCallback((): boolean => {
       if (!product) {
         Toast.show({
           type: "error",
@@ -471,31 +643,23 @@ if (mounted) {
       }
 
       const normalizedProductId =
-        product.id?.trim() ?? "";
-
-      const normalizedName =
-        product.name?.trim() ?? "";
-
-      const normalizedWorkerId =
-        product.workerId?.trim() ?? "";
-
-      const price =
-        Number(
-          effectivePrice,
+        cleanString(
+          product.id,
         );
 
-      const stock =
-        Number.isFinite(
-          product.stock,
-        )
-          ? Math.floor(
-              product.stock,
-            )
-          : 0;
+      const normalizedName =
+        cleanString(
+          product.name,
+        );
 
-      /* PRODUCT ID */
+      const normalizedWorkerId =
+        cleanString(
+          product.workerId,
+        );
 
-      if (!normalizedProductId) {
+      if (
+        !normalizedProductId
+      ) {
         Toast.show({
           type: "error",
           text1:
@@ -506,8 +670,6 @@ if (mounted) {
 
         return false;
       }
-
-      /* PRODUCT NAME */
 
       if (!normalizedName) {
         Toast.show({
@@ -521,13 +683,11 @@ if (mounted) {
         return false;
       }
 
-      /* EFFECTIVE PRICE */
-
       if (
         !Number.isFinite(
-          price,
+          effectivePrice,
         ) ||
-        price <= 0
+        effectivePrice <= 0
       ) {
         Toast.show({
           type: "error",
@@ -540,9 +700,9 @@ if (mounted) {
         return false;
       }
 
-      /* STOCK */
-
-      if (stock <= 0) {
+      if (
+        availableStock <= 0
+      ) {
         Toast.show({
           type: "error",
           text1:
@@ -554,14 +714,13 @@ if (mounted) {
         return false;
       }
 
-      /* QUANTITY */
-
       if (
         !Number.isInteger(
           quantity,
         ) ||
         quantity < 1 ||
-        quantity > stock
+        quantity >
+          availableStock
       ) {
         Toast.show({
           type: "error",
@@ -574,9 +733,9 @@ if (mounted) {
         return false;
       }
 
-      /* WORKER */
-
-      if (!normalizedWorkerId) {
+      if (
+        !normalizedWorkerId
+      ) {
         Toast.show({
           type: "error",
           text1:
@@ -587,8 +746,6 @@ if (mounted) {
 
         return false;
       }
-
-      /* CART */
 
       if (!cartReady) {
         Toast.show({
@@ -603,42 +760,47 @@ if (mounted) {
       }
 
       return true;
-    };
+    }, [
+      availableStock,
+      cartReady,
+      effectivePrice,
+      product,
+      quantity,
+    ]);
 
   /* ============================================================
-     BUILD CART ITEM
+     CART ITEM
   ============================================================ */
 
   const buildCartItem =
-    () => {
+    useCallback(() => {
       if (!product) {
         return null;
       }
 
       const workerId =
-        product.workerId?.trim() ??
-        "";
+        cleanString(
+          product.workerId,
+        );
 
       /*
+       * price     = original product price
+       * unitPrice = customer-facing active price
+       *
        * IMPORTANT:
-       *
-       * Keep both prices.
-       *
-       * price = original product price
-       * unitPrice = actual customer price
-       *
-       * This allows Checkout to display:
-       *
-       * Original
-       * Discount
-       * Final
+       * These are display/cart snapshots only.
+       * Checkout/backend must revalidate them.
        */
       return {
         id:
-          product.id.trim(),
+          cleanString(
+            product.id,
+          ),
 
         name:
-          product.name.trim(),
+          cleanString(
+            product.name,
+          ),
 
         price:
           originalPrice,
@@ -647,50 +809,58 @@ if (mounted) {
           effectivePrice,
 
         image:
-          product.thumbnail?.trim() ??
-          "",
+          cleanString(
+            product.thumbnail,
+          ),
 
         quantity,
 
         storeId:
-          product.storeId?.trim() ||
-          undefined,
+          cleanString(
+            product.storeId,
+          ) || undefined,
 
         sellerId:
-          workerId || undefined,
+          workerId ||
+          undefined,
 
         workerId:
-          workerId || undefined,
+          workerId ||
+          undefined,
 
-        /*
-         * Discount snapshot.
-         *
-         * We store the deal values
-         * with the cart item so Checkout
-         * does not have to guess what
-         * price was active when the
-         * customer added the product.
-         */
         discountPercentage:
-          deal?.discountPercentage ??
-          0,
+          hasActiveDiscount
+            ? deal
+                ?.discountPercentage ??
+              0
+            : 0,
 
         discountedPrice:
-          deal?.discountedPrice ??
-          undefined,
+          hasActiveDiscount
+            ? effectivePrice
+            : undefined,
 
         dealId:
-          deal?.id ??
-          undefined,
+          hasActiveDiscount
+            ? deal?.id
+            : undefined,
       };
-    };
+    }, [
+      deal?.discountPercentage,
+      deal?.id,
+      effectivePrice,
+      hasActiveDiscount,
+      originalPrice,
+      product,
+      quantity,
+    ]);
 
   /* ============================================================
      ADD TO CART
   ============================================================ */
 
   const handleAddToCart =
-    () => {
+    useCallback(() => {
       if (
         !validateProductForCart()
       ) {
@@ -725,8 +895,7 @@ if (mounted) {
       }
 
       if (
-        result ===
-        "updated"
+        result === "updated"
       ) {
         Toast.show({
           type: "success",
@@ -746,14 +915,19 @@ if (mounted) {
         text2:
           `${quantity} × ${cartItem.name} added successfully.`,
       });
-    };
+    }, [
+      addToCart,
+      buildCartItem,
+      quantity,
+      validateProductForCart,
+    ]);
 
   /* ============================================================
      BUY NOW
   ============================================================ */
 
   const handleBuyNow =
-    () => {
+    useCallback(() => {
       if (
         !validateProductForCart()
       ) {
@@ -787,10 +961,16 @@ if (mounted) {
         return;
       }
 
+      /* ROUTE PRESERVED */
+
       router.push(
         "/(customer)/shop/checkout",
       );
-    };
+    }, [
+      addToCart,
+      buildCartItem,
+      validateProductForCart,
+    ]);
 
   /* ============================================================
      LOADING
@@ -798,14 +978,33 @@ if (mounted) {
 
   if (loading) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <View
-          style={styles.center}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading product"
+          style={
+            styles.center
+          }
         >
           <ActivityIndicator
             size="large"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading product...
+          </AppText>
         </View>
       </AppScreen>
     );
@@ -817,20 +1016,43 @@ if (mounted) {
 
   if (!product) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <View
-          style={styles.center}
+          style={
+            styles.center
+          }
         >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              role="customer"
+              size="xl"
+              state="muted"
+            />
+          </View>
+
           <AppText
+            variant="bodyLarge"
             weight="bold"
+            center
             style={
               styles.notFoundTitle
             }
           >
-            Product not found.
+            Product not found
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.subtitle
             }
@@ -848,17 +1070,22 @@ if (mounted) {
   ============================================================ */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.container
         }
-        keyboardShouldPersistTaps="handled"
       >
-        {/* PRODUCT GALLERY */}
+        {/* ====================================================
+            PRODUCT GALLERY
+        ==================================================== */}
 
         <ProductGallery
           images={
@@ -866,37 +1093,37 @@ if (mounted) {
           }
         />
 
-        {/* PRODUCT INFORMATION */}
+        {/* ====================================================
+            PRODUCT INFO
+        ==================================================== */}
 
         <ProductInfo
           name={
             product.name
           }
-
           price={
             originalPrice
           }
-
           category={
             product.category
           }
-
           stock={
             product.stock
           }
-
           condition={
             product.condition
           }
-
           delivery={
             product.delivery
           }
         />
 
-        {/* DISCOUNT */}
+        {/* ====================================================
+            ACTIVE DISCOUNT
+        ==================================================== */}
 
-        {deal && (
+        {hasActiveDiscount &&
+        deal ? (
           <View
             style={
               styles.discountCard
@@ -908,6 +1135,7 @@ if (mounted) {
               }
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.discountTitle
@@ -917,6 +1145,8 @@ if (mounted) {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.discountText
                 }
@@ -933,6 +1163,7 @@ if (mounted) {
               }
             >
               <AppText
+                variant="caption"
                 style={
                   styles.originalPrice
                 }
@@ -944,6 +1175,7 @@ if (mounted) {
               </AppText>
 
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 style={
                   styles.discountedPrice
@@ -956,9 +1188,11 @@ if (mounted) {
               </AppText>
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* PRODUCT DESCRIPTION */}
+        {/* ====================================================
+            DESCRIPTION
+        ==================================================== */}
 
         <ProductDescription
           description={
@@ -966,7 +1200,9 @@ if (mounted) {
           }
         />
 
-        {/* WORKER / SELLER */}
+        {/* ====================================================
+            SELLER
+        ==================================================== */}
 
         <ProductSeller
           workerId={
@@ -998,7 +1234,9 @@ if (mounted) {
         />
       </ScrollView>
 
-      {/* PRODUCT ACTIONS */}
+      {/* ======================================================
+          ACTIONS
+      ====================================================== */}
 
       <ProductActions
         quantity={
@@ -1029,76 +1267,145 @@ const styles =
   StyleSheet.create({
     container: {
       paddingBottom: 120,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
+
+    /* ========================================================
+       LOADING / EMPTY
+    ======================================================== */
 
     center: {
       flex: 1,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      alignItems: "center",
-      paddingHorizontal: 24,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    emptyIcon: {
+      width: 88,
+
+      height: 88,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     notFoundTitle: {
-      fontSize: 18,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 8,
-      textAlign: "center",
-      color: "#64748B",
-      fontSize: 14,
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 20,
     },
 
+    /* ========================================================
+       DISCOUNT
+    ======================================================== */
+
     discountCard: {
-      marginHorizontal: 16,
-      marginTop: 16,
-      padding: 15,
-      borderRadius: 16,
-      backgroundColor: "#ECFDF5",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
-      borderColor: "#BBF7D0",
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     discountContent: {
       flex: 1,
-      paddingRight: 10,
+
+      minWidth: 0,
+
+      paddingRight:
+        FixxamTokens.spacing.md,
     },
 
     discountTitle: {
-      fontSize: 15,
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
     discountText: {
-      marginTop: 3,
-      fontSize: 12,
-      color: "#166534",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     discountPriceContainer: {
-      alignItems: "flex-end",
+      flexShrink: 0,
+
+      alignItems:
+        "flex-end",
     },
 
     originalPrice: {
-      fontSize: 11,
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
+
       textDecorationLine:
         "line-through",
     },
 
     discountedPrice: {
-      marginTop: 2,
-      fontSize: 18,
-      color: "#15803D",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.success,
     },
   });

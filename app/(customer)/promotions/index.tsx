@@ -1,377 +1,748 @@
-import React from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type PromotionId =
+  | "special-offers"
+  | "service-promotions"
+  | "limited-promotions";
 
 type Promotion = {
-  id: string;
+  id: PromotionId;
+
   title: string;
+
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-  iconBackground: string;
+
+  icon: AppIconName;
 };
+
+/* ============================================================
+   PROMOTIONS
+============================================================ */
 
 const PROMOTIONS: Promotion[] = [
   {
     id: "special-offers",
+
     title: "Special Offers",
+
     description:
       "Discover special offers from workers and service providers.",
-    icon: "pricetag-outline",
-    iconColor: "#2563EB",
-    iconBackground: "#EFF6FF",
+
+    icon: "star",
   },
+
   {
     id: "service-promotions",
+
     title: "Service Promotions",
+
     description:
       "Find special offers that can help you save on services.",
-    icon: "construct-outline",
-    iconColor: "#7C3AED",
-    iconBackground: "#F5F3FF",
+
+    icon: "service",
   },
+
   {
     id: "limited-promotions",
+
     title: "Limited-Time Offers",
+
     description:
       "Take advantage of special offers before they end.",
-    icon: "time-outline",
-    iconColor: "#7C3AFF",
-    iconBackground: "#F5F3FF",
+
+    icon: "clock",
   },
 ];
 
-export default function PromotionsScreen() {
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        {/* Header */}
+/* ============================================================
+   SCREEN
+============================================================ */
 
-        <View style={styles.header}>
+export default function PromotionsScreen() {
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
+
+  const handlePromotionPress =
+    useCallback(
+      (
+        promotionId:
+          PromotionId,
+      ) => {
+        if (
+          promotionId ===
+          "special-offers"
+        ) {
+          router.push(
+            "/(customer)/promotions/special-offer",
+          );
+
+          return;
+        }
+
+        if (
+          promotionId ===
+          "service-promotions"
+        ) {
+          router.push(
+            "/(customer)/promotions/service-promotions",
+          );
+
+          return;
+        }
+
+        /*
+         * Keep existing behavior.
+         *
+         * No route existed for
+         * limited-promotions in the
+         * original screen.
+         */
+      },
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
+  return (
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={
+          styles.content
+        }
+      >
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
             hitSlop={10}
-            onPress={() => router.back()}
-            style={styles.backButton}
+            onPress={() => {
+              router.back();
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
-          <View style={styles.headerText}>
-            <Text style={styles.title}>
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading1"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
               Promotions
-            </Text>
+            </AppText>
 
-            <Text style={styles.subtitle}>
-              Discover special offers and promotions
-              available on Fixxam.
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              Discover special offers and promotions available on Fixxam.
+            </AppText>
           </View>
         </View>
 
-        {/* Intro */}
+        {/* ====================================================
+            INTRO
+        ==================================================== */}
 
-        <View style={styles.introCard}>
-          <View style={styles.introIcon}>
-            <Ionicons
-              name="megaphone-outline"
-              size={34}
-              color="#EA580C"
+        <View
+          style={
+            styles.introCard
+          }
+        >
+          <View
+            style={
+              styles.introIcon
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
-          <Text style={styles.introTitle}>
+          <AppText
+            variant="heading2"
+            weight="bold"
+            style={
+              styles.introTitle
+            }
+          >
             Discover Great Offers
-          </Text>
+          </AppText>
 
-          <Text style={styles.introDescription}>
-            Explore promotions that can help you
-            get better value when booking services
-            on Fixxam.
-          </Text>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.introDescription
+            }
+          >
+            Explore promotions that can help you get better value when booking services on Fixxam.
+          </AppText>
         </View>
 
-        {/* Promotions */}
+        {/* ====================================================
+            PROMOTIONS
+        ==================================================== */}
 
-        <View style={styles.list}>
-          {PROMOTIONS.map((promotion) => (
-            <Pressable
-              key={promotion.id}
-              accessibilityRole="button"
-              accessibilityLabel={`View ${promotion.title}`}
-            onPress={() => {
-  if (promotion.id === "special-offers") {
-    router.push(
-      "/(customer)/promotions/special-offer",
-    );
-    return;
-  }
+        <View
+          style={
+            styles.list
+          }
+        >
+          {PROMOTIONS.map(
+            (
+              promotion,
+            ) => (
+              <Pressable
+                key={
+                  promotion.id
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`View ${promotion.title}`}
+                onPress={() => {
+                  handlePromotionPress(
+                    promotion.id,
+                  );
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.promotionCard,
 
-  if (promotion.id === "service-promotions") {
-    router.push(
-      "/(customer)/promotions/service-promotions",
-    );
-    return;
-  }
-}}
-
-
-
-              style={({ pressed }) => [
-                styles.promotionCard,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View
-                style={[
-                  styles.iconBox,
-                  {
-                    backgroundColor:
-                      promotion.iconBackground,
-                  },
+                  pressed
+                    ? styles.pressed
+                    : null,
                 ]}
               >
-                <Ionicons
-                  name={promotion.icon}
-                  size={29}
-                  color={promotion.iconColor}
-                />
-              </View>
-
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>
-                  {promotion.title}
-                </Text>
-
-                <Text style={styles.cardDescription}>
-                  {promotion.description}
-                </Text>
-
-                <View style={styles.actionRow}>
-                  <Text style={styles.actionText}>
-                    VIEW OFFER
-                  </Text>
-
-                  <Ionicons
-                    name="arrow-forward"
-                    size={17}
-                    color="#2563EB"
+                <View
+                  style={
+                    styles.iconBox
+                  }
+                >
+                  <AppIcon
+                    name={
+                      promotion.icon
+                    }
+                    role="customer"
+                    size="lg"
+                    color={
+                      CustomerColors.primary
+                    }
                   />
                 </View>
-              </View>
-            </Pressable>
-          ))}
+
+                <View
+                  style={
+                    styles.cardContent
+                  }
+                >
+                  <AppText
+                    variant="bodyLarge"
+                    weight="bold"
+                    style={
+                      styles.cardTitle
+                    }
+                  >
+                    {promotion.title}
+                  </AppText>
+
+                  <AppText
+                    variant="body"
+                    tone="secondary"
+                    style={
+                      styles.cardDescription
+                    }
+                  >
+                    {promotion.description}
+                  </AppText>
+
+                  <View
+                    style={
+                      styles.actionRow
+                    }
+                  >
+                    <AppText
+                      variant="caption"
+                      weight="bold"
+                      style={
+                        styles.actionText
+                      }
+                    >
+                      VIEW OFFER
+                    </AppText>
+
+                    <AppIcon
+                      name="next"
+                      role="customer"
+                      size="xs"
+                      color={
+                        CustomerColors.primary
+                      }
+                    />
+                  </View>
+                </View>
+              </Pressable>
+            ),
+          )}
         </View>
 
-        {/* Info */}
+        {/* ====================================================
+            INFO
+        ==================================================== */}
 
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="information-circle-outline"
-            size={20}
-            color="#64748B"
-          />
+        <View
+          style={
+            styles.infoBox
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              size="sm"
+              color={
+                Colors.info
+              }
+            />
+          </View>
 
-          <Text style={styles.infoText}>
-            New promotions will appear here as they
-            become available.
-          </Text>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.infoText
+            }
+          >
+            New promotions will appear here as they become available.
+          </AppText>
         </View>
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 40,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
+    screen: {
+      flex: 1,
 
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
     },
-  },
 
-  headerText: {
-    flex: 1,
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  title: {
-    fontSize: 29,
-    lineHeight: 35,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  subtitle: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-
-  introCard: {
-    padding: 22,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 18,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
-  },
 
-  introIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 17,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  introTitle: {
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  introDescription: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#64748B",
-  },
+      flexDirection:
+        "row",
 
-  list: {
-    gap: 14,
-  },
-
-  promotionCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      alignItems:
+        "flex-start",
     },
-  },
 
-  pressed: {
-    opacity: 0.75,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  iconBox: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 15,
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  cardContent: {
-    flex: 1,
-  },
+      flexShrink: 0,
 
-  cardTitle: {
-    fontSize: 18,
-    lineHeight: 24,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      alignItems:
+        "center",
 
-  cardDescription: {
-    marginTop: 5,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
-  },
+      justifyContent:
+        "center",
 
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 12,
-  },
+      borderWidth: 1,
 
-  actionText: {
-    marginRight: 6,
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#2563EB",
-    letterSpacing: 0.3,
-  },
+      borderColor:
+        Colors.border,
 
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 20,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#F1F5F9",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  infoText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#64748B",
-  },
-});
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    headerText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       INTRO
+    ======================================================== */
+
+    introCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    introIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    introTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    introDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
+
+    list: {
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    promotionCard: {
+      padding:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    iconBox: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    cardContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    cardTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    cardDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    actionRow: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    actionText: {
+      letterSpacing: 0.3,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.infoSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

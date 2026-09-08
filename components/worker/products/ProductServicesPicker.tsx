@@ -1,5 +1,7 @@
 import React, {
+  memo,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useState,
@@ -8,6 +10,7 @@ import React, {
 import {
   ActivityIndicator,
   FlatList,
+  type ListRenderItemInfo,
   Modal,
   Pressable,
   StyleSheet,
@@ -15,10 +18,11 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
   collection,
@@ -27,44 +31,78 @@ import {
   query,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
+import {
+  AppButton,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { WorkerColors } from "@/theme/workerColors";
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+import {
+  db,
+} from "@/firebase/config";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type ServiceOption = {
   id: string;
+
   name: string;
+
   icon?: string;
+
   color?: string;
+
   backgroundColor?: string;
+
   aliases: string[];
+
   keywords: string[];
+
   tags: string[];
 };
 
 type Props = {
   visible: boolean;
+
   value: string[];
+
   onClose: () => void;
-  onApply: (serviceIds: string[]) => void;
+
+  onApply: (
+    serviceIds: string[],
+  ) => void;
 };
 
-/*
- * ============================================================
- * NORMALIZATION
- * ============================================================
- */
+type ServiceRowProps = {
+  item: ServiceOption;
+
+  selected: boolean;
+
+  onToggle: (
+    serviceId: string,
+  ) => void;
+};
+
+/* ============================================================
+   NORMALIZATION
+============================================================ */
 
 function normalizeSearch(
   value: unknown,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !==
+    "string"
+  ) {
     return "";
   }
 
@@ -76,13 +114,18 @@ function normalizeSearch(
       /[^\p{L}\p{N}\s]/gu,
       " ",
     )
-    .replace(/\s+/g, " ");
+    .replace(
+      /\s+/g,
+      " ",
+    );
 }
 
 function normalizeStringArray(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(value)
+  ) {
     return [];
   }
 
@@ -90,50 +133,93 @@ function normalizeStringArray(
     new Set(
       value
         .filter(
-          (item): item is string =>
-            typeof item === "string",
+          (
+            item,
+          ): item is string =>
+            typeof item ===
+            "string",
         )
-        .map(normalizeSearch)
+        .map(
+          normalizeSearch,
+        )
         .filter(Boolean),
     ),
   );
 }
 
-/*
- * ============================================================
- * ICON
- * ============================================================
- */
+function normalizeSelectedIds(
+  value: unknown,
+): string[] {
+  if (
+    !Array.isArray(value)
+  ) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .filter(
+          (
+            item,
+          ): item is string =>
+            typeof item ===
+            "string",
+        )
+        .map(
+          item =>
+            item.trim(),
+        )
+        .filter(Boolean),
+    ),
+  );
+}
+
+/* ============================================================
+   SERVICE ICON
+============================================================ */
 
 function getServiceIcon(
   icon?: string,
 ): keyof typeof MaterialCommunityIcons.glyphMap {
+  const normalizedIcon =
+    typeof icon ===
+      "string"
+      ? icon.trim()
+      : "";
+
   if (
-    icon &&
-    icon in MaterialCommunityIcons.glyphMap
+    normalizedIcon &&
+    normalizedIcon in
+      MaterialCommunityIcons.glyphMap
   ) {
-    return icon as keyof typeof MaterialCommunityIcons.glyphMap;
+    return normalizedIcon as keyof typeof MaterialCommunityIcons.glyphMap;
   }
 
   return "tools";
 }
 
-/*
- * ============================================================
- * SEARCH
- * ============================================================
- */
+/* ============================================================
+   SEARCH
+============================================================ */
 
 function getSearchTokens(
   value: string,
 ): string[] {
   return Array.from(
     new Set(
-      normalizeSearch(value)
+      normalizeSearch(
+        value,
+      )
         .split(" ")
-        .map((token) => token.trim())
+        .map(
+          token =>
+            token.trim(),
+        )
         .filter(
-          (token) => token.length >= 2,
+          token =>
+            token.length >=
+            2,
         ),
     ),
   );
@@ -144,7 +230,9 @@ function matchesService(
   searchValue: string,
 ): boolean {
   const search =
-    normalizeSearch(searchValue);
+    normalizeSearch(
+      searchValue,
+    );
 
   if (!search) {
     return true;
@@ -157,46 +245,215 @@ function matchesService(
       ...service.keywords,
       ...service.tags,
     ]
-      .map(normalizeSearch)
+      .map(
+        normalizeSearch,
+      )
       .filter(Boolean)
       .join(" ");
 
   /*
-   * Exact / partial phrase search.
+   * Exact / partial phrase.
    */
   if (
-    searchableText.includes(search)
+    searchableText.includes(
+      search,
+    )
   ) {
     return true;
   }
 
   /*
-   * Token search.
+   * Token matching.
    *
    * Example:
    * "ac gas"
-   *
-   * Can find:
+   * finds:
    * "AC Gas Refill"
    */
   const tokens =
-    getSearchTokens(search);
+    getSearchTokens(
+      search,
+    );
 
-  if (!tokens.length) {
+  if (
+    tokens.length === 0
+  ) {
     return false;
   }
 
   return tokens.every(
-    (token) =>
-      searchableText.includes(token),
+    token =>
+      searchableText.includes(
+        token,
+      ),
   );
 }
 
-/*
- * ============================================================
- * COMPONENT
- * ============================================================
- */
+/* ============================================================
+   SERVICE ROW
+============================================================ */
+
+const ServiceRow =
+  memo(
+    function ServiceRow({
+      item,
+      selected,
+      onToggle,
+    }: ServiceRowProps) {
+      const serviceIcon =
+        getServiceIcon(
+          item.icon,
+        );
+
+      const iconColor =
+        item.color ||
+        WorkerColors.primary;
+
+      const iconBackground =
+        item.backgroundColor ||
+        WorkerColors.primarySoft;
+
+      const handlePress =
+        useCallback(() => {
+          onToggle(
+            item.id,
+          );
+        }, [
+          item.id,
+          onToggle,
+        ]);
+
+      return (
+        <Pressable
+          onPress={
+            handlePress
+          }
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Select ${item.name}`}
+          accessibilityState={{
+            checked:
+              selected,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.row,
+
+            selected
+              ? styles.rowSelected
+              : null,
+
+            pressed
+              ? styles.rowPressed
+              : null,
+          ]}
+        >
+          {/* ==================================================
+              MATERIAL COMMUNITY ICON PRESERVED
+          ================================================== */}
+
+          <View
+            style={[
+              styles.iconBox,
+
+              {
+                backgroundColor:
+                  selected
+                    ? WorkerColors.primary
+                    : iconBackground,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={
+                selected
+                  ? "check"
+                  : serviceIcon
+              }
+              size={23}
+              color={
+                selected
+                  ? Colors.textInverse
+                  : iconColor
+              }
+            />
+          </View>
+
+          {/* ==================================================
+              SERVICE
+          ================================================== */}
+
+          <View
+            style={
+              styles.serviceContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight={
+                selected
+                  ? "bold"
+                  : "regular"
+              }
+              numberOfLines={2}
+              style={[
+                styles.serviceName,
+
+                selected
+                  ? styles.serviceNameSelected
+                  : null,
+              ]}
+            >
+              {item.name}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.serviceDescription
+              }
+            >
+              Material can be used for this service
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              CHECKBOX
+          ================================================== */}
+
+          <View
+            style={[
+              styles.checkbox,
+
+              selected
+                ? styles.checkboxSelected
+                : null,
+            ]}
+          >
+            {selected ? (
+              <AppIcon
+                name="check"
+                role="worker"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
+              />
+            ) : null}
+          </View>
+        </Pressable>
+      );
+    },
+  );
+
+ServiceRow.displayName =
+  "ProductServicesPickerRow";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function ProductServicesPicker({
   visible,
@@ -204,32 +461,85 @@ export default function ProductServicesPicker({
   onClose,
   onApply,
 }: Props) {
-  const [services, setServices] =
-    useState<ServiceOption[]>([]);
+  const insets =
+    useSafeAreaInsets();
 
-  const [selectedIds, setSelectedIds] =
-    useState<string[]>([]);
+  const [
+    services,
+    setServices,
+  ] =
+    useState<ServiceOption[]>(
+      [],
+    );
 
-  const [search, setSearch] =
+  const [
+    selectedIds,
+    setSelectedIds,
+  ] =
+    useState<string[]>(
+      [],
+    );
+
+  const [
+    search,
+    setSearch,
+  ] =
     useState("");
 
-  const [loading, setLoading] =
+  const deferredSearch =
+    useDeferredValue(
+      search,
+    );
+
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
     useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(false);
 
-  /*
-   * ==========================================================
-   * LOAD SERVICES
-   * ==========================================================
-   */
+  const [
+    error,
+    setError,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  /* ==========================================================
+     SELECTION LOOKUP
+  ========================================================== */
+
+  const selectedSet =
+    useMemo(
+      () =>
+        new Set(
+          selectedIds,
+        ),
+      [
+        selectedIds,
+      ],
+    );
+
+  /* ==========================================================
+     LOAD SERVICES
+  ========================================================== */
 
   const loadServices =
     useCallback(async () => {
       try {
-        setLoading(true);
-        setError(null);
+        setLoading(
+          true,
+        );
+
+        setError(
+          null,
+        );
 
         const servicesQuery =
           query(
@@ -251,114 +561,118 @@ export default function ProductServicesPicker({
         const result: ServiceOption[] =
           [];
 
-        snapshot.docs.forEach(
-          (doc) => {
-            const data =
-              doc.data();
+        for (
+          const serviceDoc of
+          snapshot.docs
+        ) {
+          const data =
+            serviceDoc.data();
 
-            const name =
-              typeof data.name ===
+          const name =
+            typeof data.name ===
               "string"
-                ? data.name.trim()
-                : "";
+              ? data.name.trim()
+              : "";
 
-            if (!name) {
-              return;
-            }
+          if (!name) {
+            continue;
+          }
 
-            result.push({
-              id: doc.id,
+          const icon =
+            typeof data.icon ===
+              "string" &&
+            data.icon.trim()
+              ? data.icon.trim()
+              : undefined;
 
-              name,
+          const color =
+            typeof data.color ===
+              "string" &&
+            data.color.trim()
+              ? data.color.trim()
+              : undefined;
 
-              icon:
-                typeof data.icon ===
-                  "string" &&
-                data.icon.trim()
-                  ? data.icon.trim()
-                  : undefined,
+          const backgroundColor =
+            typeof data.backgroundColor ===
+              "string" &&
+            data.backgroundColor.trim()
+              ? data.backgroundColor.trim()
+              : undefined;
 
-              color:
-                typeof data.color ===
-                  "string" &&
-                data.color.trim()
-                  ? data.color.trim()
-                  : undefined,
+          result.push({
+            id:
+              serviceDoc.id,
 
-              backgroundColor:
-                typeof data.backgroundColor ===
-                  "string" &&
-                data.backgroundColor.trim()
-                  ? data.backgroundColor.trim()
-                  : undefined,
+            name,
 
-              aliases:
-                normalizeStringArray(
-                  data.aliases,
-                ),
+            icon,
 
-              keywords:
-                normalizeStringArray(
-                  data.keywords,
-                ),
+            color,
 
-              tags:
-                normalizeStringArray(
-                  data.tags,
-                ),
-            });
-          },
+            backgroundColor,
+
+            aliases:
+              normalizeStringArray(
+                data.aliases,
+              ),
+
+            keywords:
+              normalizeStringArray(
+                data.keywords,
+              ),
+
+            tags:
+              normalizeStringArray(
+                data.tags,
+              ),
+          });
+        }
+
+        setServices(
+          result,
         );
-
-        setServices(result);
       } catch (loadError) {
         console.error(
-          "ProductServicesPicker services:",
+          "FIXXAM_PRODUCT_SERVICES_PICKER_LOAD_ERROR:",
           loadError,
         );
 
-        setServices([]);
+        setServices(
+          [],
+        );
 
         setError(
           "Unable to load services. Please try again.",
         );
       } finally {
-        setLoading(false);
+        setLoading(
+          false,
+        );
       }
     }, []);
 
-  /*
-   * ==========================================================
-   * OPEN / RESET
-   * ==========================================================
-   */
+  /* ==========================================================
+     OPEN / RESET
+  ========================================================== */
 
   useEffect(() => {
     if (!visible) {
       return;
     }
 
-    const normalizedValue =
-      Array.from(
-        new Set(
-          value
-            .filter(
-              (id): id is string =>
-                typeof id ===
-                "string",
-            )
-            .map((id) =>
-              id.trim(),
-            )
-            .filter(Boolean),
-        ),
-      );
-
     setSelectedIds(
-      normalizedValue,
+      normalizeSelectedIds(
+        value,
+      ),
     );
 
-    setSearch("");
+    setSearch(
+      "",
+    );
+
+    setSearchFocused(
+      false,
+    );
 
     void loadServices();
   }, [
@@ -367,59 +681,70 @@ export default function ProductServicesPicker({
     loadServices,
   ]);
 
-  /*
-   * ==========================================================
-   * FILTER SERVICES
-   * ==========================================================
-   */
+  /* ==========================================================
+     FILTER
+  ========================================================== */
 
   const filteredServices =
     useMemo(() => {
       const normalizedSearch =
-        normalizeSearch(search);
+        normalizeSearch(
+          deferredSearch,
+        );
 
-      if (!normalizedSearch) {
+      if (
+        !normalizedSearch
+      ) {
         return services;
       }
 
       return services.filter(
-        (service) =>
+        service =>
           matchesService(
             service,
             normalizedSearch,
           ),
       );
     }, [
-      search,
+      deferredSearch,
       services,
     ]);
 
-  /*
-   * ==========================================================
-   * TOGGLE SERVICE
-   * ==========================================================
-   */
+  /* ==========================================================
+     TOGGLE
+  ========================================================== */
 
   const toggleService =
     useCallback(
-      (serviceId: string) => {
+      (
+        serviceId: string,
+      ) => {
+        const normalizedId =
+          serviceId.trim();
+
+        if (
+          !normalizedId
+        ) {
+          return;
+        }
+
         setSelectedIds(
-          (current) => {
+          current => {
             if (
               current.includes(
-                serviceId,
+                normalizedId,
               )
             ) {
               return current.filter(
-                (id) =>
+                id =>
                   id !==
-                  serviceId,
+                  normalizedId,
               );
             }
 
             return [
               ...current,
-              serviceId,
+              normalizedId,
             ];
           },
         );
@@ -427,50 +752,37 @@ export default function ProductServicesPicker({
       [],
     );
 
-  /*
-   * ==========================================================
-   * CLEAR SELECTION
-   * ==========================================================
-   */
+  /* ==========================================================
+     CLEAR SELECTION
+  ========================================================== */
 
   const handleClear =
     useCallback(() => {
-      setSelectedIds([]);
+      setSelectedIds(
+        [],
+      );
     }, []);
 
-  /*
-   * ==========================================================
-   * CLEAR SEARCH
-   * ==========================================================
-   */
+  /* ==========================================================
+     CLEAR SEARCH
+  ========================================================== */
 
   const handleClearSearch =
     useCallback(() => {
-      setSearch("");
+      setSearch(
+        "",
+      );
     }, []);
 
-  /*
-   * ==========================================================
-   * APPLY
-   * ==========================================================
-   */
+  /* ==========================================================
+     APPLY
+  ========================================================== */
 
   const handleDone =
     useCallback(() => {
       const normalizedIds =
-        Array.from(
-          new Set(
-            selectedIds
-              .filter(
-                (id): id is string =>
-                  typeof id ===
-                  "string",
-              )
-              .map((id) =>
-                id.trim(),
-              )
-              .filter(Boolean),
-          ),
+        normalizeSelectedIds(
+          selectedIds,
         );
 
       onApply(
@@ -479,51 +791,115 @@ export default function ProductServicesPicker({
 
       onClose();
     }, [
-      selectedIds,
       onApply,
       onClose,
+      selectedIds,
     ]);
 
-  /*
-   * ==========================================================
-   * RENDER
-   * ==========================================================
-   */
+  /* ==========================================================
+     RENDER ITEM
+  ========================================================== */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: ListRenderItemInfo<ServiceOption>) => (
+        <ServiceRow
+          item={
+            item
+          }
+          selected={
+            selectedSet.has(
+              item.id,
+            )
+          }
+          onToggle={
+            toggleService
+          }
+        />
+      ),
+      [
+        selectedSet,
+        toggleService,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="slide"
-      onRequestClose={onClose}
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
     >
       <View
-        style={styles.overlay}
+        style={
+          styles.overlay
+        }
       >
         <View
-          style={styles.sheet}
+          style={[
+            styles.sheet,
+
+            {
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens.spacing.lg,
+                ),
+            },
+          ]}
         >
+          {/* =================================================
+              HANDLE
+          ================================================== */}
+
+          <View
+            style={
+              styles.handle
+            }
+          />
+
           {/* =================================================
               HEADER
           ================================================== */}
 
           <View
-            style={styles.header}
+            style={
+              styles.header
+            }
           >
             <Pressable
-              onPress={onClose}
-              hitSlop={10}
-              style={
-                styles.headerButton
+              onPress={
+                onClose
               }
+              hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel="Close services picker"
+              style={({
+                pressed,
+              }) => [
+                styles.headerButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={23}
+                size="sm"
                 color={
-                  WorkerColors.textPrimary
+                  Colors.textPrimary
                 }
               />
             </Pressable>
@@ -534,7 +910,10 @@ export default function ProductServicesPicker({
               }
             >
               <AppText
+                variant="heading2"
                 weight="bold"
+                center
+                numberOfLines={1}
                 style={
                   styles.title
                 }
@@ -543,18 +922,21 @@ export default function ProductServicesPicker({
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                center
+                numberOfLines={2}
                 style={
                   styles.subtitle
                 }
               >
-                Choose the services this
-                material can be used for.
+                Choose the services this material can be used for.
               </AppText>
             </View>
 
             <View
               style={
-                styles.headerButton
+                styles.headerButtonPlaceholder
               }
             />
           </View>
@@ -564,54 +946,87 @@ export default function ProductServicesPicker({
           ================================================== */}
 
           <View
-            style={
-              styles.searchContainer
-            }
+            style={[
+              styles.searchContainer,
+
+              searchFocused
+                ? styles.searchContainerFocused
+                : null,
+            ]}
           >
-            <Ionicons
-              name="search-outline"
-              size={21}
+            <AppIcon
+              name="search"
+              role="worker"
+              size="sm"
               color={
-                WorkerColors.textSecondary
+                searchFocused
+                  ? WorkerColors.primary
+                  : Colors.textMuted
               }
             />
 
             <TextInput
-              value={search}
+              value={
+                search
+              }
               onChangeText={
                 setSearch
               }
+              onFocus={() => {
+                setSearchFocused(
+                  true,
+                );
+              }}
+              onBlur={() => {
+                setSearchFocused(
+                  false,
+                );
+              }}
               placeholder="Search services..."
               placeholderTextColor={
-                WorkerColors.textSecondary
+                Colors.textMuted
               }
+              selectionColor={
+                WorkerColors.primary
+              }
+              cursorColor={
+                WorkerColors.primary
+              }
+              autoCorrect={
+                false
+              }
+              autoCapitalize="none"
+              returnKeyType="search"
+              underlineColorAndroid="transparent"
+              accessibilityLabel="Search services"
               style={
                 styles.searchInput
               }
-              autoCorrect={false}
-              autoCapitalize="none"
-              returnKeyType="search"
-              accessibilityLabel="Search services"
             />
 
-            {search.length >
-            0 ? (
+            {search.length > 0 ? (
               <Pressable
                 onPress={
                   handleClearSearch
                 }
-                hitSlop={8}
-                style={
-                  styles.searchClearButton
-                }
+                hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel="Clear service search"
+                style={({
+                  pressed,
+                }) => [
+                  styles.searchClearButton,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
               >
-                <Ionicons
-                  name="close-circle"
-                  size={20}
+                <AppIcon
+                  name="close"
+                  size="xs"
                   color={
-                    WorkerColors.textSecondary
+                    Colors.textSecondary
                   }
                 />
               </Pressable>
@@ -637,11 +1052,12 @@ export default function ProductServicesPicker({
                   styles.selectionIcon
                 }
               >
-                <Ionicons
-                  name="construct-outline"
-                  size={19}
+                <AppIcon
+                  name="professional"
+                  role="worker"
+                  size="sm"
                   color={
-                    WorkerColors.secondary
+                    WorkerColors.primary
                   }
                 />
               </View>
@@ -652,6 +1068,7 @@ export default function ProductServicesPicker({
                 }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
                   style={
                     styles.selectionTitle
@@ -666,12 +1083,14 @@ export default function ProductServicesPicker({
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={2}
                   style={
                     styles.selectionDescription
                   }
                 >
-                  This material will appear
-                  under the selected services.
+                  This material will appear under the selected services.
                 </AppText>
               </View>
             </View>
@@ -682,11 +1101,21 @@ export default function ProductServicesPicker({
                 onPress={
                   handleClear
                 }
-                hitSlop={8}
+                hitSlop={6}
                 accessibilityRole="button"
                 accessibilityLabel="Clear selected services"
+                style={({
+                  pressed,
+                }) => [
+                  styles.clearButton,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
               >
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.clearText
@@ -704,16 +1133,29 @@ export default function ProductServicesPicker({
 
           {loading ? (
             <View
-              style={styles.center}
+              style={
+                styles.center
+              }
+              accessibilityRole="progressbar"
+              accessibilityLabel="Loading services"
             >
-              <ActivityIndicator
-                size="large"
-                color={
-                  WorkerColors.primary
+              <View
+                style={
+                  styles.loadingIcon
                 }
-              />
+              >
+                <ActivityIndicator
+                  size="large"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
 
               <AppText
+                variant="body"
+                tone="secondary"
+                center
                 style={
                   styles.loadingText
                 }
@@ -723,24 +1165,28 @@ export default function ProductServicesPicker({
             </View>
           ) : error ? (
             <View
-              style={styles.error}
+              style={
+                styles.error
+              }
             >
               <View
                 style={
                   styles.errorIcon
                 }
               >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={38}
+                <AppIcon
+                  name="error"
+                  size="lg"
                   color={
-                    WorkerColors.error
+                    Colors.error
                   }
                 />
               </View>
 
               <AppText
+                variant="heading3"
                 weight="bold"
+                center
                 style={
                   styles.errorTitle
                 }
@@ -749,6 +1195,8 @@ export default function ProductServicesPicker({
               </AppText>
 
               <AppText
+                variant="body"
+                tone="secondary"
                 center
                 style={
                   styles.errorText
@@ -757,40 +1205,57 @@ export default function ProductServicesPicker({
                 {error}
               </AppText>
 
-              <Pressable
+              <View
                 style={
-                  styles.retryButton
+                  styles.retryAction
                 }
-                onPress={() =>
-                  void loadServices()
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Try loading services again"
               >
-                <AppText
-                  weight="bold"
+                <AppButton
+                  title="Try Again"
+                  role="worker"
+                  variant="outline"
+                  leftIconName="refresh"
+                  onPress={() => {
+                    void loadServices();
+                  }}
                   style={
-                    styles.retryText
+                    styles.fullWidthButton
                   }
-                >
-                  TRY AGAIN
-                </AppText>
-              </Pressable>
+                />
+              </View>
             </View>
           ) : (
             <FlatList
               data={
                 filteredServices
               }
-              keyExtractor={(
-                item,
-              ) => item.id}
+              renderItem={
+                renderItem
+              }
+              keyExtractor={
+                item =>
+                  item.id
+              }
               showsVerticalScrollIndicator={
                 false
               }
               keyboardShouldPersistTaps="handled"
-              contentContainerStyle={
-                styles.list
+              contentContainerStyle={[
+                styles.list,
+
+                filteredServices.length ===
+                0
+                  ? styles.emptyList
+                  : null,
+              ]}
+              initialNumToRender={
+                10
+              }
+              maxToRenderPerBatch={
+                12
+              }
+              windowSize={
+                7
               }
               ListEmptyComponent={
                 <View
@@ -803,25 +1268,32 @@ export default function ProductServicesPicker({
                       styles.emptyIcon
                     }
                   >
-                    <Ionicons
-                      name="search-outline"
-                      size={46}
+                    <AppIcon
+                      name="search"
+                      role="worker"
+                      size="lg"
                       color={
-                        WorkerColors.textSecondary
+                        WorkerColors.primary
                       }
                     />
                   </View>
 
                   <AppText
+                    variant="heading3"
                     weight="bold"
+                    center
                     style={
                       styles.emptyTitle
                     }
                   >
-                    No Matching Services
+                    {search.trim()
+                      ? "No Matching Services"
+                      : "No Services Available"}
                   </AppText>
 
                   <AppText
+                    variant="body"
+                    tone="secondary"
                     center
                     style={
                       styles.emptyText
@@ -837,13 +1309,20 @@ export default function ProductServicesPicker({
                       onPress={
                         handleClearSearch
                       }
-                      style={
-                        styles.emptyClearButton
-                      }
                       accessibilityRole="button"
                       accessibilityLabel="Clear service search"
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.emptyClearButton,
+
+                        pressed
+                          ? styles.pressed
+                          : null,
+                      ]}
                     >
                       <AppText
+                        variant="caption"
                         weight="bold"
                         style={
                           styles.emptyClearText
@@ -855,136 +1334,6 @@ export default function ProductServicesPicker({
                   ) : null}
                 </View>
               }
-              renderItem={({
-                item,
-              }) => {
-                const selected =
-                  selectedIds.includes(
-                    item.id,
-                  );
-
-                const icon =
-                  getServiceIcon(
-                    item.icon,
-                  );
-
-                const iconColor =
-                  item.color ||
-                  WorkerColors.primary;
-
-                const iconBackground =
-                  item.backgroundColor ||
-                  `${WorkerColors.primary}18`;
-
-                return (
-                  <Pressable
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.row,
-                      selected &&
-                        styles.rowSelected,
-                      pressed &&
-                        styles.rowPressed,
-                    ]}
-                    onPress={() =>
-                      toggleService(
-                        item.id,
-                      )
-                    }
-                    accessibilityRole="checkbox"
-                    accessibilityState={{
-                      checked:
-                        selected,
-                    }}
-                    accessibilityLabel={`Select ${item.name}`}
-                  >
-                    {/* ICON */}
-
-                    <View
-                      style={[
-                        styles.iconBox,
-                        {
-                          backgroundColor:
-                            selected
-                              ? WorkerColors.primary
-                              : iconBackground,
-                        },
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        name={
-                          selected
-                            ? "check"
-                            : icon
-                        }
-                        size={23}
-                        color={
-                          selected
-                            ? WorkerColors.background
-                            : iconColor
-                        }
-                      />
-                    </View>
-
-                    {/* SERVICE */}
-
-                    <View
-                      style={
-                        styles.serviceContent
-                      }
-                    >
-                      <AppText
-                        weight={
-                          selected
-                            ? "bold"
-                            : undefined
-                        }
-                        style={
-                          styles.serviceName
-                        }
-                        numberOfLines={
-                          2
-                        }
-                      >
-                        {item.name}
-                      </AppText>
-
-                      <AppText
-                        style={
-                          styles.serviceDescription
-                        }
-                        numberOfLines={
-                          1
-                        }
-                      >
-                        Material can be used
-                        for this service
-                      </AppText>
-                    </View>
-
-                    {/* CHECKBOX */}
-
-                    <View
-                      style={[
-                        styles.checkbox,
-                        selected &&
-                          styles.checkboxSelected,
-                      ]}
-                    >
-                      {selected ? (
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color={
-                            WorkerColors.background
-                          }
-                        />
-                      ) : null}
-                    </View>
-                  </Pressable>
-                );
-              }}
             />
           )}
 
@@ -994,44 +1343,33 @@ export default function ProductServicesPicker({
 
           {!loading &&
           !error ? (
-            <Pressable
-              style={[
-                styles.doneButton,
-                selectedIds.length ===
-                  0 &&
-                  styles.doneButtonDisabled,
-              ]}
-              onPress={
-                handleDone
+            <View
+              style={
+                styles.applyContainer
               }
-              disabled={
-                selectedIds.length ===
-                0
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Apply selected services"
             >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color={
-                  WorkerColors.background
+              <AppButton
+                title={
+                  selectedIds.length >
+                  0
+                    ? `APPLY SERVICES (${selectedIds.length})`
+                    : "APPLY SERVICES"
+                }
+                role="worker"
+                variant="primary"
+                leftIconName="check"
+                disabled={
+                  selectedIds.length ===
+                  0
+                }
+                onPress={
+                  handleDone
+                }
+                style={
+                  styles.fullWidthButton
                 }
               />
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.doneText
-                }
-              >
-                APPLY SERVICES
-                {selectedIds.length >
-                0
-                  ? ` (${selectedIds.length})`
-                  : ""}
-              </AppText>
-            </Pressable>
+            </View>
           ) : null}
         </View>
       </View>
@@ -1039,130 +1377,157 @@ export default function ProductServicesPicker({
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    /*
-     * OVERLAY
-     */
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
     overlay: {
       flex: 1,
 
-      backgroundColor:
-        "rgba(15, 23, 42, 0.45)",
-
       justifyContent:
         "flex-end",
-    },
-
-    /*
-     * SHEET
-     */
-
-    sheet: {
-      maxHeight: "92%",
 
       backgroundColor:
-        WorkerColors.surface,
-
-      borderTopLeftRadius: 26,
-
-      borderTopRightRadius: 26,
-
-      paddingTop: 18,
-
-      paddingHorizontal: 16,
-
-      paddingBottom: 20,
+        Colors.overlayMedium,
     },
 
-    /*
-     * HEADER
-     */
+    /* ========================================================
+       SHEET
+    ======================================================== */
+
+    sheet: {
+      width: "100%",
+
+      maxHeight:
+        "92%",
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    handle: {
+      width: 42,
+
+      height: 4,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignSelf:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabled,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
-
-      marginBottom: 12,
     },
 
     headerButton: {
-      width: 40,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      height: 40,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 20,
-
-      backgroundColor:
-        WorkerColors.background,
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    headerButtonPlaceholder: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
     },
 
     headerCenter: {
       flex: 1,
 
-      paddingHorizontal: 10,
+      minWidth: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      textAlign:
-        "center",
-
-      fontSize: 20,
-
       color:
-        WorkerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-
-      textAlign:
-        "center",
-
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       lineHeight: 18,
 
       color:
-        WorkerColors.textSecondary,
+        Colors.textSecondary,
     },
 
-    /*
-     * SEARCH
-     */
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
     searchContainer: {
-      height: 50,
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 14,
-
-      borderRadius: 15,
-
-      backgroundColor:
-        WorkerColors.background,
-
-      borderWidth: 1,
-
-      borderColor:
-        WorkerColors.border,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
@@ -1170,28 +1535,53 @@ const styles =
       alignItems:
         "center",
 
-      elevation: 1,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    searchContainerFocused: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     searchInput: {
       flex: 1,
 
-      height: "100%",
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-      marginLeft: 9,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
       paddingVertical: 0,
 
-      fontSize: 14,
+      fontSize:
+        Typography.fontSize.md,
 
       color:
-        WorkerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     searchClearButton: {
-      width: 30,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      height: 30,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginRight:
+        -FixxamTokens.spacing.sm,
 
       alignItems:
         "center",
@@ -1200,21 +1590,18 @@ const styles =
         "center",
     },
 
-    /*
-     * SELECTION BAR
-     */
+    /* ========================================================
+       SELECTION
+    ======================================================== */
 
     selectionBar: {
-      minHeight: 66,
+      minHeight: 72,
 
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      padding: 10,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        `${WorkerColors.secondary}12`,
+      padding:
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -1224,10 +1611,26 @@ const styles =
 
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     selectionInfo: {
       flex: 1,
+
+      minWidth: 0,
 
       flexDirection:
         "row",
@@ -1237,14 +1640,57 @@ const styles =
     },
 
     selectionIcon: {
-      width: 42,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      height: 42,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 13,
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        `${WorkerColors.secondary}22`,
+        Colors.surface,
+    },
+
+    selectionText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    selectionTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    selectionDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    clearButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       alignItems:
         "center",
@@ -1253,64 +1699,31 @@ const styles =
         "center",
     },
 
-    selectionText: {
-      flex: 1,
-
-      marginLeft: 10,
-    },
-
-    selectionTitle: {
-      fontSize: 13,
-
-      color:
-        WorkerColors.textPrimary,
-    },
-
-    selectionDescription: {
-      marginTop: 2,
-
-      fontSize: 11,
-
-      lineHeight: 16,
-
-      color:
-        WorkerColors.textSecondary,
-    },
-
     clearText: {
-      marginLeft: 8,
-
-      fontSize: 12,
-
       color:
         WorkerColors.primary,
     },
 
-    /*
-     * LIST
-     */
+    /* ========================================================
+       LIST
+    ======================================================== */
 
     list: {
-      paddingVertical: 6,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
-      paddingBottom: 12,
+      paddingBottom:
+        FixxamTokens.spacing.md,
     },
-
-    /*
-     * SERVICE ROW
-     */
 
     row: {
       minHeight: 70,
 
-      marginBottom: 8,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 12,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        WorkerColors.background,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
@@ -1321,86 +1734,102 @@ const styles =
       borderWidth: 1,
 
       borderColor:
-        WorkerColors.background,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     rowSelected: {
-      backgroundColor:
-        `${WorkerColors.primary}12`,
-
       borderColor:
-        `${WorkerColors.primary}45`,
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     rowPressed: {
-      opacity: 0.72,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
-    /*
-     * ICON
-     */
+    /* ========================================================
+       SERVICE ICON
+    ======================================================== */
 
     iconBox: {
-      width: 46,
+      width:
+        FixxamTokens.size.iconBox,
 
-      height: 46,
+      height:
+        FixxamTokens.size.iconBox,
 
-      borderRadius: 14,
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
-    },
 
-    /*
-     * SERVICE CONTENT
-     */
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
     serviceContent: {
       flex: 1,
 
-      marginLeft: 12,
+      minWidth: 0,
 
-      paddingRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.sm,
     },
 
     serviceName: {
-      fontSize: 15,
-
-      lineHeight: 20,
-
       color:
-        WorkerColors.textPrimary,
+        Colors.textPrimary,
+    },
+
+    serviceNameSelected: {
+      color:
+        WorkerColors.primary,
     },
 
     serviceDescription: {
-      marginTop: 3,
-
-      fontSize: 11,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       lineHeight: 16,
 
       color:
-        WorkerColors.textSecondary,
+        Colors.textSecondary,
     },
 
-    /*
-     * CHECKBOX
-     */
+    /* ========================================================
+       CHECKBOX
+    ======================================================== */
 
     checkbox: {
-      width: 25,
+      width: 26,
 
-      height: 25,
+      height: 26,
 
-      borderRadius: 8,
-
-      borderWidth: 1.5,
-
-      borderColor:
-        WorkerColors.border,
+      flexShrink: 0,
 
       alignItems:
         "center",
@@ -1408,8 +1837,16 @@ const styles =
       justifyContent:
         "center",
 
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
-        WorkerColors.background,
+        Colors.surface,
     },
 
     checkboxSelected: {
@@ -1420,53 +1857,29 @@ const styles =
         WorkerColors.primary,
     },
 
-    /*
-     * APPLY BUTTON
-     */
+    /* ========================================================
+       APPLY
+    ======================================================== */
 
-    doneButton: {
-      minHeight: 52,
-
-      marginTop: 8,
-
-      borderRadius: 15,
-
-      backgroundColor:
-        WorkerColors.primary,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap: 8,
+    applyContainer: {
+      paddingTop:
+        FixxamTokens.spacing.sm,
     },
 
-    doneButtonDisabled: {
-      backgroundColor:
-        WorkerColors.border,
+    fullWidthButton: {
+      width: "100%",
     },
 
-    doneText: {
-      fontSize: 13,
-
-      color:
-        WorkerColors.background,
-
-      letterSpacing: 0.3,
-    },
-
-    /*
-     * LOADING
-     */
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     center: {
       minHeight: 320,
 
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
 
@@ -1474,110 +1887,116 @@ const styles =
         "center",
     },
 
-    loadingText: {
-      marginTop: 10,
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-      fontSize: 13,
+      height:
+        FixxamTokens.size.avatarLg,
 
-      color:
-        WorkerColors.textSecondary,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
-    /*
-     * ERROR
-     */
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       ERROR
+    ======================================================== */
 
     error: {
       minHeight: 320,
 
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
 
       justifyContent:
         "center",
-
-      paddingHorizontal: 30,
     },
 
     errorIcon: {
-      width: 76,
+      width:
+        FixxamTokens.size.avatarLg,
 
-      height: 76,
-
-      borderRadius: 24,
-
-      backgroundColor:
-        `${WorkerColors.error}12`,
+      height:
+        FixxamTokens.size.avatarLg,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorTitle: {
-      marginTop: 14,
-
-      fontSize: 18,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        WorkerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     errorText: {
-      marginTop: 7,
+      maxWidth: 300,
 
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
 
       color:
-        WorkerColors.textSecondary,
+        Colors.textSecondary,
     },
 
-    retryButton: {
-      marginTop: 16,
+    retryAction: {
+      width: "100%",
 
-      paddingHorizontal: 20,
+      maxWidth: 220,
 
-      paddingVertical: 11,
-
-      borderRadius: 12,
-
-      backgroundColor:
-        `${WorkerColors.primary}12`,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
-    retryText: {
-      fontSize: 12,
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
-      color:
-        WorkerColors.primary,
+    emptyList: {
+      flexGrow: 1,
     },
-
-    /*
-     * EMPTY
-     */
 
     empty: {
-      paddingVertical: 70,
+      minHeight: 300,
 
-      alignItems:
-        "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-      paddingHorizontal: 25,
-    },
-
-    emptyIcon: {
-      width: 82,
-
-      height: 82,
-
-      borderRadius: 26,
-
-      backgroundColor:
-        WorkerColors.surface,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
       alignItems:
         "center",
@@ -1586,43 +2005,89 @@ const styles =
         "center",
     },
 
-    emptyTitle: {
-      marginTop: 14,
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-      fontSize: 18,
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        WorkerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 6,
+      maxWidth: 300,
 
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
 
       color:
-        WorkerColors.textSecondary,
+        Colors.textSecondary,
     },
 
     emptyClearButton: {
-      marginTop: 16,
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-      paddingHorizontal: 18,
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-      paddingVertical: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 11,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        `${WorkerColors.primary}12`,
+        WorkerColors.primarySoft,
     },
 
     emptyClearText: {
-      fontSize: 12,
-
       color:
         WorkerColors.primary,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

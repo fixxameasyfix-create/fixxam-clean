@@ -1,22 +1,26 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   TextInput,
   View,
+  type GestureResponderEvent,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
+
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -26,53 +30,96 @@ import {
   where,
 } from "firebase/firestore";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import { AppText } from "@/components/ui";
-import { db } from "@/firebase/config";
+import {
+  AppButton,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-import { CustomerColors } from "@/theme/customerColors";
-import { FixxamTokens } from "@/theme/fixxamtokens";
+import {
+  db,
+} from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type ProductStatus =
+  | "active"
+  | "out_of_stock";
 
 type Product = {
   id: string;
+
   name: string;
+
   price: number;
+
   thumbnail: string;
+
   rating: number;
+
   sold: number;
+
   stock: number;
-  status: "active" | "out_of_stock";
+
+  status: ProductStatus;
+
   category?: string;
+
   categoryId?: string;
+
   workerId?: string;
+
   storeId?: string;
+
   serviceId?: string;
+
   serviceIds?: string[];
 };
 
-type ProductWithDeal = Product & {
-  activeDeal: ActiveProductDeal | null;
+type ProductWithDeal =
+  Product & {
+    activeDeal:
+      | ActiveProductDeal
+      | null;
+  };
+
+type SparePartCardProps = {
+  product: ProductWithDeal;
+
+  onBuy: (
+    product: ProductWithDeal,
+  ) => void;
 };
 
-/*
- * ============================================================
- * HELPERS
- * ============================================================
- */
+/* ==============================================================
+   HELPERS
+============================================================== */
 
-function normalizeString(value: unknown): string {
-  if (typeof value !== "string") {
+function normalizeString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
     return "";
   }
 
@@ -84,18 +131,32 @@ function normalizeNumber(
   fallback = 0,
 ): number {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
 
-  if (typeof value === "string") {
-    const parsed = Number(
-      value.replace(/,/g, ""),
-    );
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const parsed =
+      Number(
+        value.replace(
+          /,/g,
+          "",
+        ),
+      );
 
-    if (Number.isFinite(parsed)) {
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
       return parsed;
     }
   }
@@ -106,47 +167,96 @@ function normalizeNumber(
 function normalizeStatus(
   value: unknown,
   stock: number,
-): "active" | "out_of_stock" {
-  if (value === "out_of_stock") {
+): ProductStatus {
+  if (
+    value ===
+    "out_of_stock"
+  ) {
     return "out_of_stock";
   }
 
-  if (stock <= 0) {
+  if (
+    stock <= 0
+  ) {
     return "out_of_stock";
   }
 
   return "active";
 }
 
-function normalizeSearch(value: string): string {
+function normalizeSearch(
+  value: string,
+): string {
   return value
     .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+    .toLocaleLowerCase()
+    .replace(
+      /\s+/g,
+      " ",
+    );
 }
 
-function formatPrice(value: number): string {
-  return `₦${new Intl.NumberFormat("en-NG", {
-    maximumFractionDigits: 2,
-  }).format(value)}`;
+function formatPrice(
+  value: number,
+): string {
+  return `₦${new Intl.NumberFormat(
+    "en-NG",
+    {
+      maximumFractionDigits:
+        2,
+    },
+  ).format(value)}`;
 }
 
-/*
- * ============================================================
- * VALID DEAL
- * ============================================================
- */
+function normalizeRating(
+  value: unknown,
+): number {
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      normalizeNumber(
+        value,
+        0,
+      ),
+    ),
+  );
+}
+
+function normalizeCount(
+  value: unknown,
+): number {
+  return Math.max(
+    0,
+    Math.floor(
+      normalizeNumber(
+        value,
+        0,
+      ),
+    ),
+  );
+}
+
+/* ==============================================================
+   VALID DEAL
+============================================================== */
 
 function getValidDeal(
   product: Product,
-  deal: ActiveProductDeal | null,
+  deal:
+    | ActiveProductDeal
+    | null,
 ): ActiveProductDeal | null {
-  if (!deal) {
+  if (
+    !deal
+  ) {
     return null;
   }
 
   const originalPrice =
-    normalizeNumber(product.price);
+    normalizeNumber(
+      product.price,
+    );
 
   const discountedPrice =
     normalizeNumber(
@@ -161,7 +271,8 @@ function getValidDeal(
   if (
     originalPrice <= 0 ||
     discountedPrice <= 0 ||
-    discountedPrice >= originalPrice
+    discountedPrice >=
+      originalPrice
   ) {
     return null;
   }
@@ -176,406 +287,535 @@ function getValidDeal(
   return deal;
 }
 
-/*
- * ============================================================
- * PRODUCT IMAGE
- * ============================================================
- */
+/* ==============================================================
+   PRODUCT IMAGE
+============================================================== */
 
-function ProductImage({
-  uri,
-}: {
-  uri: string;
-}) {
-  const [failed, setFailed] =
-    useState(false);
+const ProductImage =
+  memo(function ProductImage({
+    uri,
+  }: {
+    uri: string;
+  }) {
+    const [
+      failed,
+      setFailed,
+    ] =
+      useState(false);
 
-  if (!uri || failed) {
-    return (
-      <View
-        style={
-          styles.imagePlaceholder
-        }
-      >
-        <MaterialCommunityIcons
-          name="image-off-outline"
-          size={30}
-          color={
-            CustomerColors.textSecondary
+    useEffect(() => {
+      setFailed(
+        false,
+      );
+    }, [
+      uri,
+    ]);
+
+    if (
+      !uri ||
+      failed
+    ) {
+      return (
+        <View
+          style={
+            styles.imagePlaceholder
           }
-        />
-      </View>
-    );
-  }
+        >
+          {/* MaterialCommunityIcons intentionally preserved */}
+          <MaterialCommunityIcons
+            name="image-off-outline"
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            color={
+              Colors.textMuted
+            }
+          />
+        </View>
+      );
+    }
 
+    return (
+      <Image
+        source={{
+          uri,
+        }}
+        style={
+          styles.productImage
+        }
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={150}
+        accessibilityIgnoresInvertColors
+        onError={() => {
+          setFailed(
+            true,
+          );
+        }}
+      />
+    );
+  });
+
+/* ==============================================================
+   PRODUCT CARD
+============================================================== */
+
+const SparePartCard =
+  memo(function SparePartCard({
+    product,
+    onBuy,
+  }: SparePartCardProps) {
+    const inStock =
+      product.stock > 0 &&
+      product.status ===
+        "active";
+
+    const validDeal =
+      getValidDeal(
+        product,
+        product.activeDeal,
+      );
+
+    const hasDeal =
+      Boolean(
+        validDeal,
+      );
+
+    const originalPrice =
+      normalizeNumber(
+        product.price,
+      );
+
+    const discountedPrice =
+      hasDeal
+        ? normalizeNumber(
+            validDeal
+              ?.discountedPrice,
+          )
+        : originalPrice;
+
+    const discountPercentage =
+      hasDeal
+        ? normalizeNumber(
+            validDeal
+              ?.discountPercentage,
+          )
+        : 0;
+
+    /* ==========================================================
+       OPEN
+    ========================================================== */
+
+    const handleOpen =
+      useCallback(() => {
+        onBuy(
+          product,
+        );
+      }, [
+        onBuy,
+        product,
+      ]);
+
+    /* ==========================================================
+       BUY
+    ========================================================== */
+
+    const handleBuyPress =
+      useCallback(
+        (
+          event:
+            GestureResponderEvent,
+        ) => {
+          event.stopPropagation();
+
+          if (
+            !inStock
+          ) {
+            return;
+          }
+
+          onBuy(
+            product,
+          );
+        },
+        [
+          inStock,
+          onBuy,
+          product,
+        ],
+      );
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`View ${product.name}`}
+        accessibilityHint="Opens spare part details"
+        onPress={
+          handleOpen
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.productCard,
+
+          pressed
+            ? styles.productCardPressed
+            : null,
+        ]}
+      >
+        {/* ====================================================
+            IMAGE
+        ==================================================== */}
+
+        <View
+          style={
+            styles.imageContainer
+          }
+        >
+          <ProductImage
+            uri={
+              product.thumbnail
+            }
+          />
+
+          {hasDeal ? (
+            <View
+              style={
+                styles.discountBadge
+              }
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.discountText
+                }
+              >
+                -
+                {discountPercentage.toFixed(
+                  0,
+                )}
+                %
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ====================================================
+            INFORMATION
+        ==================================================== */}
+
+        <View
+          style={
+            styles.productInfo
+          }
+        >
+          {/* ==================================================
+              NAME
+          ================================================== */}
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            numberOfLines={2}
+          >
+            {product.name}
+          </AppText>
+
+          {/* ==================================================
+              RATING / STOCK
+          ================================================== */}
+
+          <View
+            style={
+              styles.metaRow
+            }
+          >
+            <View
+              style={
+                styles.ratingRow
+              }
+            >
+              <AppIcon
+                name="star"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.warning
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.ratingText
+                }
+              >
+                {product.rating.toFixed(
+                  1,
+                )}
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="muted"
+                style={
+                  styles.reviewText
+                }
+              >
+                ({product.sold})
+              </AppText>
+            </View>
+
+            <View
+              style={
+                styles.stockRow
+              }
+            >
+              <View
+                style={[
+                  styles.stockDot,
+
+                  inStock
+                    ? styles.stockDotAvailable
+                    : styles.stockDotUnavailable,
+                ]}
+              />
+
+              <AppText
+                variant="caption"
+                style={[
+                  styles.stockText,
+
+                  inStock
+                    ? styles.stockTextAvailable
+                    : styles.stockTextUnavailable,
+                ]}
+              >
+                {inStock
+                  ? "In stock"
+                  : "Out of stock"}
+              </AppText>
+            </View>
+          </View>
+
+          {/* ==================================================
+              DEAL
+          ================================================== */}
+
+          <View
+            style={[
+              styles.dealRow,
+
+              !hasDeal
+                ? styles.noDealRow
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="payment"
+              role="customer"
+              size="xs"
+              color={
+                hasDeal
+                  ? Colors.error
+                  : Colors.textMuted
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={[
+                styles.dealText,
+
+                !hasDeal
+                  ? styles.noDealText
+                  : null,
+              ]}
+            >
+              {hasDeal
+                ? `Deal -${discountPercentage.toFixed(
+                    0,
+                  )}%`
+                : "Regular price"}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              PRICE / BUY
+          ================================================== */}
+
+          <View
+            style={
+              styles.bottomRow
+            }
+          >
+            <View
+              style={
+                styles.priceContainer
+              }
+            >
+              <AppText
+                variant="bodyLarge"
+                weight="bold"
+                numberOfLines={1}
+                style={[
+                  styles.price,
+
+                  hasDeal
+                    ? styles.discountedPrice
+                    : null,
+                ]}
+              >
+                {formatPrice(
+                  hasDeal
+                    ? discountedPrice
+                    : originalPrice,
+                )}
+              </AppText>
+
+              {hasDeal ? (
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                  numberOfLines={1}
+                  style={
+                    styles.originalPrice
+                  }
+                >
+                  {formatPrice(
+                    originalPrice,
+                  )}
+                </AppText>
+              ) : null}
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Buy ${product.name}`}
+              accessibilityState={{
+                disabled:
+                  !inStock,
+              }}
+              disabled={
+                !inStock
+              }
+              onPress={
+                handleBuyPress
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.buyButton,
+
+                !inStock
+                  ? styles.buyButtonDisabled
+                  : null,
+
+                pressed &&
+                inStock
+                  ? styles.buyButtonPressed
+                  : null,
+              ]}
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.buyButtonText
+                }
+              >
+                Buy
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      </Pressable>
+    );
+  });
+
+/* ==============================================================
+   SEPARATOR
+============================================================== */
+
+function ProductSeparator() {
   return (
-    <Image
-      source={{ uri }}
+    <View
       style={
-        styles.productImage
-      }
-      resizeMode="cover"
-      onError={() =>
-        setFailed(true)
+        styles.separator
       }
     />
   );
 }
 
-/*
- * ============================================================
- * PRODUCT CARD
- * ============================================================
- */
-
-function SparePartCard({
-  product,
-  onBuy,
-}: {
-  product: ProductWithDeal;
-  onBuy: (
-    product: ProductWithDeal,
-  ) => void;
-}) {
-  const inStock =
-    product.stock > 0 &&
-    product.status === "active";
-
-  const validDeal =
-    getValidDeal(
-      product,
-      product.activeDeal,
-    );
-
-  const hasDeal =
-    Boolean(validDeal);
-
-  const originalPrice =
-    normalizeNumber(
-      product.price,
-    );
-
-  const discountedPrice =
-    hasDeal
-      ? normalizeNumber(
-          validDeal?.discountedPrice,
-        )
-      : originalPrice;
-
-  const discountPercentage =
-    hasDeal
-      ? normalizeNumber(
-          validDeal?.discountPercentage,
-        )
-      : 0;
-
-  return (
-    <Pressable
-      onPress={() =>
-        onBuy(product)
-      }
-      accessibilityRole="button"
-      accessibilityLabel={`View ${product.name}`}
-      style={({ pressed }) => [
-        styles.productCard,
-        pressed &&
-          styles.productCardPressed,
-      ]}
-    >
-      {/* ==================================================
-          IMAGE
-      ================================================== */}
-
-      <View
-        style={
-          styles.imageContainer
-        }
-      >
-        <ProductImage
-          uri={product.thumbnail}
-        />
-
-        {/* DISCOUNT PERCENTAGE */}
-
-        {hasDeal && (
-          <View
-            style={
-              styles.discountBadge
-            }
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.discountText
-              }
-            >
-              -{discountPercentage.toFixed(0)}%
-            </AppText>
-          </View>
-        )}
-      </View>
-
-      {/* ==================================================
-          INFORMATION
-      ================================================== */}
-
-      <View
-        style={
-          styles.productInfo
-        }
-      >
-        {/* PRODUCT NAME */}
-
-        <AppText
-          weight="bold"
-          numberOfLines={2}
-          style={
-            styles.productName
-          }
-        >
-          {product.name}
-        </AppText>
-
-        {/* ==================================================
-            RATING + STOCK
-        ================================================== */}
-
-        <View
-          style={
-            styles.metaRow
-          }
-        >
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <Ionicons
-              name="star"
-              size={15}
-              color="#F5B400"
-            />
-
-            <AppText
-              style={
-                styles.ratingText
-              }
-            >
-              {product.rating.toFixed(
-                1,
-              )}
-            </AppText>
-
-            <AppText
-              style={
-                styles.reviewText
-              }
-            >
-              ({product.sold})
-            </AppText>
-          </View>
-
-          <View
-            style={
-              styles.stockRow
-            }
-          >
-            <View
-              style={[
-                styles.stockDot,
-                {
-                  backgroundColor:
-                    inStock
-                      ? "#16A34A"
-                      : CustomerColors.error,
-                },
-              ]}
-            />
-
-            <AppText
-              style={[
-                styles.stockText,
-                {
-                  color:
-                    inStock
-                      ? "#64748B"
-                      : CustomerColors.error,
-                },
-              ]}
-            >
-              {inStock
-                ? "In stock"
-                : "Out of stock"}
-            </AppText>
-          </View>
-        </View>
-
-        {/* ==================================================
-            DEAL / NO DEAL
-        ================================================== */}
-
-        <View
-          style={[
-            styles.dealRow,
-            !hasDeal &&
-              styles.noDealRow,
-          ]}
-        >
-          <Ionicons
-            name={
-              hasDeal
-                ? "pricetag"
-                : "pricetag-outline"
-            }
-            size={12}
-            color={
-              hasDeal
-                ? "#DC2626"
-                : "#94A3B8"
-            }
-          />
-
-          <AppText
-            weight="bold"
-            style={[
-              styles.dealText,
-              !hasDeal &&
-                styles.noDealText,
-            ]}
-          >
-            {hasDeal
-              ? `Deal -${discountPercentage.toFixed(
-                  0,
-                )}%`
-              : "No Deal"}
-          </AppText>
-        </View>
-
-        {/* ==================================================
-            PRICE + BUY
-        ================================================== */}
-
-        <View
-          style={
-            styles.bottomRow
-          }
-        >
-          <View
-            style={
-              styles.priceContainer
-            }
-          >
-            <AppText
-              weight="bold"
-              numberOfLines={1}
-              style={[
-                styles.price,
-                hasDeal &&
-                  styles.discountedPrice,
-              ]}
-            >
-              {formatPrice(
-                hasDeal
-                  ? discountedPrice
-                  : originalPrice,
-              )}
-            </AppText>
-
-            {hasDeal && (
-              <AppText
-                numberOfLines={1}
-                style={
-                  styles.originalPrice
-                }
-              >
-                {formatPrice(
-                  originalPrice,
-                )}
-              </AppText>
-            )}
-          </View>
-
-          <Pressable
-            onPress={() =>
-              onBuy(product)
-            }
-            disabled={!inStock}
-            accessibilityRole="button"
-            accessibilityLabel={`Buy ${product.name}`}
-            accessibilityState={{
-              disabled: !inStock,
-            }}
-            onPressIn={() => {}}
-            style={({ pressed }) => [
-              styles.buyButton,
-              !inStock &&
-                styles.buyButtonDisabled,
-              pressed &&
-                inStock &&
-                styles.buyButtonPressed,
-            ]}
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.buyButtonText
-              }
-            >
-              Buy
-            </AppText>
-          </Pressable>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
-/*
- * ============================================================
- * SCREEN
- * ============================================================
- */
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function BuySparePartsScreen() {
   const [
     products,
     setProducts,
-  ] = useState<
-    ProductWithDeal[]
-  >([]);
+  ] =
+    useState<
+      ProductWithDeal[]
+    >([]);
 
   const [
     search,
     setSearch,
-  ] = useState("");
+  ] =
+    useState("");
+
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
+    useState(false);
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     refreshing,
     setRefreshing,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<
+      string | null
+    >(null);
 
   /*
-   * ==========================================================
-   * LOAD PRODUCTS + DEALS
-   * ==========================================================
+   * Prevent an older Firestore response
+   * from replacing a newer request.
    */
+  const requestIdRef =
+    useRef(0);
+
+  /* ============================================================
+     LOAD PRODUCTS + DEALS
+  ============================================================ */
 
   const loadProducts =
     useCallback(async () => {
+      const requestId =
+        ++requestIdRef.current;
+
       try {
-        setError(null);
+        setError(
+          null,
+        );
 
         const productsQuery =
           query(
@@ -611,7 +851,9 @@ export default function BuySparePartsScreen() {
                   data.name,
                 );
 
-              if (!name) {
+              if (
+                !name
+              ) {
                 return items;
               }
 
@@ -621,19 +863,15 @@ export default function BuySparePartsScreen() {
                   0,
                 );
 
-              if (price < 0) {
+              if (
+                price < 0
+              ) {
                 return items;
               }
 
               const stock =
-                Math.max(
-                  0,
-                  Math.floor(
-                    normalizeNumber(
-                      data.stock,
-                      0,
-                    ),
-                  ),
+                normalizeCount(
+                  data.stock,
                 );
 
               const status =
@@ -642,6 +880,10 @@ export default function BuySparePartsScreen() {
                   stock,
                 );
 
+              /*
+               * Current catalog only shows
+               * products customers can buy.
+               */
               if (
                 status !==
                 "active"
@@ -649,8 +891,27 @@ export default function BuySparePartsScreen() {
                 return items;
               }
 
+              const serviceIds =
+                Array.isArray(
+                  data.serviceIds,
+                )
+                  ? data.serviceIds
+                      .map(
+                        (
+                          id: unknown,
+                        ) =>
+                          normalizeString(
+                            id,
+                          ),
+                      )
+                      .filter(
+                        Boolean,
+                      )
+                  : [];
+
               items.push({
-                id: productDoc.id,
+                id:
+                  productDoc.id,
 
                 name,
 
@@ -662,15 +923,13 @@ export default function BuySparePartsScreen() {
                   ),
 
                 rating:
-                  normalizeNumber(
+                  normalizeRating(
                     data.rating,
-                    0,
                   ),
 
                 sold:
-                  normalizeNumber(
+                  normalizeCount(
                     data.sold,
-                    0,
                   ),
 
                 stock,
@@ -707,18 +966,7 @@ export default function BuySparePartsScreen() {
                   ) ||
                   undefined,
 
-                serviceIds:
-                  Array.isArray(
-                    data.serviceIds,
-                  )
-                    ? data.serviceIds.filter(
-                        (
-                          id: unknown,
-                        ): id is string =>
-                          typeof id ===
-                          "string",
-                      )
-                    : [],
+                serviceIds,
               });
 
               return items;
@@ -726,29 +974,30 @@ export default function BuySparePartsScreen() {
             [],
           );
 
-        /*
-         * Most sold first.
-         */
+        /* ======================================================
+           MOST SOLD FIRST
+        ====================================================== */
 
         activeProducts.sort(
-          (a, b) =>
-            b.sold - a.sold,
+          (
+            a,
+            b,
+          ) =>
+            b.sold -
+            a.sold,
         );
 
-        /*
-         * ======================================================
-         * LOAD ACTIVE DEALS
-         * ======================================================
-         */
+        /* ======================================================
+           DEALS
+        ====================================================== */
 
         const productIds =
-          activeProducts
-            .map((product) =>
-              String(
-                product.id,
-              ).trim(),
-            )
-            .filter(Boolean);
+          activeProducts.map(
+            (
+              product,
+            ) =>
+              product.id,
+          );
 
         let dealsByProductId =
           new Map<
@@ -757,7 +1006,8 @@ export default function BuySparePartsScreen() {
           >();
 
         if (
-          productIds.length > 0
+          productIds.length >
+          0
         ) {
           dealsByProductId =
             await getActiveProductDeals(
@@ -765,21 +1015,20 @@ export default function BuySparePartsScreen() {
             );
         }
 
-        /*
-         * ======================================================
-         * MERGE PRODUCTS + DEALS
-         * ======================================================
-         */
+        /* ======================================================
+           MERGE
+        ====================================================== */
 
         const productsWithDeals =
           activeProducts.map(
-            (product) => {
+            (
+              product,
+            ) => {
               const deal =
                 dealsByProductId.get(
-                  String(
-                    product.id,
-                  ).trim(),
-                ) ?? null;
+                  product.id,
+                ) ??
+                null;
 
               return {
                 ...product,
@@ -793,143 +1042,285 @@ export default function BuySparePartsScreen() {
             },
           );
 
+        /*
+         * Ignore stale request.
+         */
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
         setProducts(
           productsWithDeals,
         );
-      } catch (loadError) {
+      } catch (
+        loadError
+      ) {
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
         console.error(
-          "BUY SPARE PARTS LOAD ERROR:",
+          "BUY_SPARE_PARTS_LOAD_ERROR:",
           loadError,
         );
 
-        setProducts([]);
-
+        /*
+         * Do not destroy already loaded
+         * products when pull-to-refresh
+         * temporarily fails.
+         */
         setError(
           "Unable to load spare parts. Please try again.",
         );
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (
+          requestId !==
+          requestIdRef.current
+        ) {
+          return;
+        }
+
+        setLoading(
+          false,
+        );
+
+        setRefreshing(
+          false,
+        );
       }
     }, []);
 
-  /*
-   * ==========================================================
-   * INITIAL LOAD
-   * ==========================================================
-   */
+  /* ============================================================
+     INITIAL LOAD
+  ============================================================ */
 
   useEffect(() => {
     void loadProducts();
-  }, [loadProducts]);
 
-  /*
-   * ==========================================================
-   * REFRESH
-   * ==========================================================
-   */
+    return () => {
+      /*
+       * Invalidates pending request
+       * state updates after unmount.
+       */
+      requestIdRef.current +=
+        1;
+    };
+  }, [
+    loadProducts,
+  ]);
+
+  /* ============================================================
+     REFRESH
+  ============================================================ */
 
   const handleRefresh =
     useCallback(() => {
-      setRefreshing(true);
+      if (
+        refreshing
+      ) {
+        return;
+      }
+
+      setRefreshing(
+        true,
+      );
 
       void loadProducts();
-    }, [loadProducts]);
+    }, [
+      loadProducts,
+      refreshing,
+    ]);
 
-  /*
-   * ==========================================================
-   * FILTER PRODUCTS
-   * ==========================================================
-   */
+  /* ============================================================
+     SEARCH
+  ============================================================ */
+
+  const normalizedSearch =
+    normalizeSearch(
+      search,
+    );
+
+  const hasSearch =
+    normalizedSearch.length >
+    0;
 
   const filteredProducts =
     useMemo(() => {
-      const normalizedSearch =
-        normalizeSearch(search);
-
-      if (!normalizedSearch) {
+      if (
+        !normalizedSearch
+      ) {
         return products;
       }
 
       return products.filter(
-        (product) => {
+        (
+          product,
+        ) => {
           const searchableText =
             [
               product.name,
+
               product.category,
+
               product.categoryId,
             ]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
+              .filter(
+                Boolean,
+              )
+              .join(
+                " ",
+              )
+              .toLocaleLowerCase();
 
           return searchableText.includes(
             normalizedSearch,
           );
         },
       );
-    }, [products, search]);
+    }, [
+      normalizedSearch,
+      products,
+    ]);
 
-  /*
-   * ==========================================================
-   * BUY / PRODUCT DETAILS
-   * ==========================================================
-   */
+  /* ============================================================
+     PRODUCT DETAILS
+  ============================================================ */
 
   const handleBuy =
     useCallback(
       (
-        product: ProductWithDeal,
+        product:
+          ProductWithDeal,
       ) => {
         if (
-          product.stock <= 0
+          product.stock <= 0 ||
+          product.status !==
+            "active"
         ) {
           return;
         }
 
         const productId =
-          String(
-            product.id ?? "",
-          ).trim();
+          normalizeString(
+            product.id,
+          );
 
-        if (!productId) {
+        if (
+          !productId
+        ) {
           return;
         }
 
         router.push({
           pathname:
             "/(customer)/product/[id]",
+
           params: {
-            id: productId,
+            id:
+              productId,
           },
         });
       },
       [],
     );
 
-  /*
-   * ==========================================================
-   * CLEAR SEARCH
-   * ==========================================================
-   */
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/buy-spare-parts/find-part",
+      );
+    }, []);
+
+  /* ============================================================
+     CLEAR SEARCH
+  ============================================================ */
 
   const handleClearSearch =
     useCallback(() => {
-      setSearch("");
+      setSearch(
+        "",
+      );
     }, []);
 
-  /*
-   * ==========================================================
-   * LOADING
-   * ==========================================================
-   */
+  /* ============================================================
+     RETRY
+  ============================================================ */
 
-  if (loading) {
+  const handleRetry =
+    useCallback(() => {
+      if (
+        loading
+      ) {
+        return;
+      }
+
+      setLoading(
+        true,
+      );
+
+      void loadProducts();
+    }, [
+      loadProducts,
+      loading,
+    ]);
+
+  /* ============================================================
+     RENDER ITEM
+  ============================================================ */
+
+  const renderProduct =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ProductWithDeal;
+      }) => (
+        <SparePartCard
+          product={
+            item
+          }
+          onBuy={
+            handleBuy
+          }
+        />
+      ),
+      [
+        handleBuy,
+      ],
+    );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  if (
+    loading &&
+    products.length ===
+      0
+  ) {
     return (
-      <SafeAreaView
-        style={
-          styles.container
-        }
+      <AppScreen
+        role="customer"
+        padded={false}
       >
         <View
           style={
@@ -944,6 +1335,8 @@ export default function BuySparePartsScreen() {
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -951,783 +1344,1084 @@ export default function BuySparePartsScreen() {
             Loading spare parts...
           </AppText>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
-  /*
-   * ==========================================================
-   * MAIN SCREEN
-   * ==========================================================
-   */
+  /* ============================================================
+     HEADER
+  ============================================================ */
+
+  const listHeader = (
+    <>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
+          onPress={
+            handleBack
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.backButtonPressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
+            state="default"
+          />
+        </Pressable>
+
+        <View
+          style={
+            styles.headerContent
+          }
+        >
+          <AppText
+            variant="heading1"
+            weight="bold"
+            numberOfLines={1}
+          >
+            Fixxam Spare Parts
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.headerSubtitle
+            }
+          >
+            Find parts from verified
+            Fixxam stores
+          </AppText>
+        </View>
+      </View>
+
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.searchContainer,
+
+          searchFocused
+            ? styles.searchContainerFocused
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="search"
+          role="customer"
+          size="sm"
+          state={
+            searchFocused
+              ? "active"
+              : "muted"
+          }
+        />
+
+        <TextInput
+          value={
+            search
+          }
+          onChangeText={
+            setSearch
+          }
+          onFocus={() => {
+            setSearchFocused(
+              true,
+            );
+          }}
+          onBlur={() => {
+            setSearchFocused(
+              false,
+            );
+          }}
+          placeholder="Search for a spare part..."
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            CustomerColors.primary
+          }
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          accessibilityLabel="Search for a spare part"
+          style={
+            styles.searchInput
+          }
+        />
+
+        {hasSearch ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            hitSlop={8}
+            onPress={
+              handleClearSearch
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.clearButton,
+
+              pressed
+                ? styles.clearButtonPressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="close"
+              role="customer"
+              size="xs"
+              state="muted"
+            />
+          </Pressable>
+        ) : null}
+      </View>
+
+      {/* ======================================================
+          REFRESH ERROR
+      ====================================================== */}
+
+      {error &&
+      products.length >
+        0 ? (
+        <View
+          style={
+            styles.refreshError
+          }
+        >
+          <AppIcon
+            name="warning"
+            role="customer"
+            size="xs"
+            state="warning"
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.refreshErrorText
+            }
+          >
+            Couldn't refresh the latest
+            products. Showing previously
+            loaded results.
+          </AppText>
+        </View>
+      ) : null}
+    </>
+  );
+
+  /* ============================================================
+     EMPTY
+  ============================================================ */
+
+  const listEmpty =
+    error &&
+    products.length ===
+      0 ? (
+      <View
+        style={
+          styles.emptyContainer
+        }
+      >
+        <View
+          style={[
+            styles.emptyIcon,
+
+            styles.errorIcon,
+          ]}
+        >
+          <AppIcon
+            name="error"
+            role="customer"
+            size="lg"
+            state="error"
+          />
+        </View>
+
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          center
+          style={
+            styles.emptyTitle
+          }
+        >
+          Something went wrong
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.emptyDescription
+          }
+        >
+          {error}
+        </AppText>
+
+        <AppButton
+          title="Try Again"
+          role="customer"
+          leftIconName="refresh"
+          onPress={
+            handleRetry
+          }
+          style={
+            styles.emptyAction
+          }
+        />
+      </View>
+    ) : (
+      <View
+        style={
+          styles.emptyContainer
+        }
+      >
+        <View
+          style={
+            styles.emptyIcon
+          }
+        >
+          {/* MaterialCommunityIcons intentionally preserved */}
+          <MaterialCommunityIcons
+            name="package-variant-closed"
+            size={
+              FixxamTokens.size
+                .iconXl
+            }
+            color={
+              Colors.textMuted
+            }
+          />
+        </View>
+
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          center
+          style={
+            styles.emptyTitle
+          }
+        >
+          No Spare Parts Found
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.emptyDescription
+          }
+        >
+          {hasSearch
+            ? `No spare part matches "${search.trim()}".`
+            : "There are no spare parts available yet."}
+        </AppText>
+
+        {hasSearch ? (
+          <AppButton
+            title="Clear Search"
+            role="customer"
+            variant="outline"
+            leftIconName="close"
+            onPress={
+              handleClearSearch
+            }
+            style={
+              styles.emptyAction
+            }
+          />
+        ) : null}
+      </View>
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <SafeAreaView
-      style={
-        styles.container
-      }
+    <AppScreen
+      role="customer"
+      padded={false}
     >
       <FlatList
-        data={filteredProducts}
-        keyExtractor={(item) =>
+        data={
+          filteredProducts
+        }
+        keyExtractor={(
+          item,
+        ) =>
           item.id
+        }
+        renderItem={
+          renderProduct
+        }
+        ItemSeparatorComponent={
+          ProductSeparator
+        }
+        ListHeaderComponent={
+          listHeader
+        }
+        ListEmptyComponent={
+          listEmpty
         }
         showsVerticalScrollIndicator={
           false
         }
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshing={
           refreshing
         }
         onRefresh={
           handleRefresh
         }
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
         contentContainerStyle={
           styles.listContent
         }
-        ListHeaderComponent={
-          <>
-            {/* HEADER */}
-
-            <View
-              style={
-                styles.header
-              }
-            >
-              <Pressable
-                onPress={() =>
-                  router.back()
-                }
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                style={({
-                  pressed,
-                }) => [
-                  styles.backButton,
-                  pressed &&
-                    styles.backButtonPressed,
-                ]}
-              >
-                <Ionicons
-                  name="arrow-back"
-                  size={22}
-                  color={
-                    CustomerColors.textPrimary
-                  }
-                />
-              </Pressable>
-
-              <AppText
-                weight="bold"
-                numberOfLines={1}
-                style={
-                  styles.headerTitle
-                }
-              >
-                Fixxam Spare Parts
-              </AppText>
-            </View>
-
-            {/* SEARCH */}
-
-            <View
-              style={
-                styles.searchContainer
-              }
-            >
-              <Ionicons
-                name="search-outline"
-                size={23}
-                color={
-                  CustomerColors.textSecondary
-                }
-              />
-
-              <TextInput
-                value={search}
-                onChangeText={
-                  setSearch
-                }
-                placeholder="Search for a spare part..."
-                placeholderTextColor={
-                  CustomerColors.textSecondary
-                }
-                style={
-                  styles.searchInput
-                }
-                autoCorrect={
-                  false
-                }
-                autoCapitalize="none"
-                returnKeyType="search"
-                accessibilityLabel="Search for a spare part"
-              />
-
-              {search.length >
-                0 && (
-                <Pressable
-                  onPress={
-                    handleClearSearch
-                  }
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                  style={
-                    styles.clearButton
-                  }
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={
-                      CustomerColors.textSecondary
-                    }
-                  />
-                </Pressable>
-              )}
-            </View>
-          </>
-        }
-        renderItem={({
-          item,
-        }) => (
-          <SparePartCard
-            product={item}
-            onBuy={
-              handleBuy
-            }
-          />
-        )}
-        ListEmptyComponent={
-          error ? (
-            <View
-              style={
-                styles.emptyContainer
-              }
-            >
-              <View
-                style={
-                  styles.emptyIcon
-                }
-              >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={38}
-                  color={
-                    CustomerColors.error
-                  }
-                />
-              </View>
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.emptyTitle
-                }
-              >
-                Something went wrong
-              </AppText>
-
-              <AppText
-                center
-                style={
-                  styles.emptyDescription
-                }
-              >
-                {error}
-              </AppText>
-
-              <Pressable
-                onPress={() =>
-                  void loadProducts()
-                }
-                style={
-                  styles.retryButton
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Try loading spare parts again"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.retryText
-                  }
-                >
-                  TRY AGAIN
-                </AppText>
-              </Pressable>
-            </View>
-          ) : (
-            <View
-              style={
-                styles.emptyContainer
-              }
-            >
-              <View
-                style={
-                  styles.emptyIcon
-                }
-              >
-                <MaterialCommunityIcons
-                  name="package-variant-closed"
-                  size={38}
-                  color={
-                    CustomerColors.textSecondary
-                  }
-                />
-              </View>
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No Spare Parts Found
-              </AppText>
-
-              <AppText
-                center
-                style={
-                  styles.emptyDescription
-                }
-              >
-                {search.trim()
-                  ? `No spare part matches "${search.trim()}".`
-                  : "There are no spare parts available yet."}
-              </AppText>
-
-              {search.trim() && (
-                <Pressable
-                  onPress={
-                    handleClearSearch
-                  }
-                  style={
-                    styles.retryButton
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.retryText
-                    }
-                  >
-                    CLEAR SEARCH
-                  </AppText>
-                </Pressable>
-              )}
-            </View>
-          )
-        }
-        ListFooterComponent={
-          <View
-            style={
-              styles.footerSpace
-            }
-          />
+        style={
+          styles.screen
         }
       />
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
-    /*
-     * SCREEN
-     */
-
-    container: {
+    screen: {
       flex: 1,
+
       backgroundColor:
-        CustomerColors.background,
+        Colors.background,
     },
 
     listContent: {
+      flexGrow: 1,
+
       paddingHorizontal:
         FixxamTokens.spacing.lg,
-      paddingTop: 4,
-      paddingBottom: 30,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    /*
-     * HEADER
-     */
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
-      height: 54,
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      marginBottom: 14,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     backButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        CustomerColors.white,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
       borderWidth: 1,
+
       borderColor:
-        CustomerColors.border,
-      shadowColor:
-        CustomerColors.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 5,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 1,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     backButtonPressed: {
-      opacity: 0.7,
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.96,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
-    headerTitle: {
+    headerContent: {
       flex: 1,
-      marginLeft: 11,
-      fontSize: 21,
-      lineHeight: 26,
-      color:
-        CustomerColors.textPrimary,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
-    /*
-     * SEARCH
-     */
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
     searchContainer: {
-      height: 54,
-      marginBottom: 18,
-      paddingHorizontal: 14,
-      borderRadius: 18,
-      backgroundColor:
-        CustomerColors.white,
-      borderWidth: 1,
-      borderColor:
-        CustomerColors.border,
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      shadowColor:
-        CustomerColors.shadow,
-      shadowOpacity: 0.05,
-      shadowRadius: 6,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 1,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      paddingLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    searchContainerFocused: {
+      borderColor:
+        CustomerColors.primary,
     },
 
     searchInput: {
       flex: 1,
-      height: "100%",
-      marginLeft: 9,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal: 0,
+
       paddingVertical: 0,
-      fontSize: 15,
+
+      fontSize:
+        Typography.fontSize.md,
+
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
 
     clearButton: {
-      width: 28,
-      height: 28,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
     },
 
-    /*
-     * PRODUCT CARD
-     *
-     * Horizontal card.
-     */
+    clearButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    /* ========================================================
+       REFRESH ERROR
+    ======================================================== */
+
+    refreshError: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.warning,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
+    },
+
+    refreshErrorText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       PRODUCT CARD
+    ======================================================== */
 
     productCard: {
       minHeight: 158,
-      marginBottom: 12,
-      padding: 9,
-      borderRadius:
-        FixxamTokens.radius.xl,
-      backgroundColor:
-        CustomerColors.white,
-      borderWidth: 1,
-      borderColor:
-        CustomerColors.border,
+
       flexDirection:
         "row",
-      shadowColor:
-        CustomerColors.shadow,
-      shadowOpacity: 0.08,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 2,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     productCardPressed: {
-      opacity: 0.92,
+      borderColor:
+        CustomerColors.primary,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
-    /*
-     * IMAGE
-     */
+    separator: {
+      height:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       IMAGE
+    ======================================================== */
 
     imageContainer: {
       width: 130,
+
       height: 140,
-      borderRadius: 16,
-      overflow: "hidden",
+
+      flexShrink: 0,
+
+      overflow:
+        "hidden",
+
+      position:
+        "relative",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#F1F5F9",
-      position: "relative",
+        Colors.disabledBackground,
     },
 
     productImage: {
       width: "100%",
+
       height: "100%",
     },
 
     imagePlaceholder: {
       flex: 1,
-      backgroundColor:
-        "#F1F5F9",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    /*
-     * DISCOUNT BADGE
-     */
+    /* ========================================================
+       DISCOUNT
+    ======================================================== */
 
     discountBadge: {
       position:
         "absolute",
-      top: 8,
-      right: 8,
-      minWidth: 44,
-      height: 28,
-      paddingHorizontal: 7,
-      borderRadius: 9,
-      backgroundColor:
-        "#DC2626",
+
+      top:
+        FixxamTokens.spacing.sm,
+
+      right:
+        FixxamTokens.spacing.sm,
+
+      minHeight: 28,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.error,
     },
 
     discountText: {
-      fontSize: 11,
       color:
-        CustomerColors.white,
+        Colors.textInverse,
     },
 
-    /*
-     * INFORMATION
-     */
+    /* ========================================================
+       PRODUCT INFO
+    ======================================================== */
 
     productInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 12,
-      paddingVertical: 3,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
     },
 
-    productName: {
-      fontSize: 17,
-      lineHeight: 22,
-      color:
-        CustomerColors.textPrimary,
-    },
-
-    /*
-     * META
-     */
+    /* ========================================================
+       META
+    ======================================================== */
 
     metaRow: {
-      marginTop: 7,
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       flexWrap:
         "wrap",
-      gap: 7,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     ratingRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
     ratingText: {
-      marginLeft: 4,
-      fontSize: 12,
-      color:
-        CustomerColors.textSecondary,
+      marginLeft:
+        FixxamTokens.spacing.xxs,
     },
 
     reviewText: {
-      marginLeft: 2,
-      fontSize: 11,
-      color:
-        CustomerColors.textSecondary,
+      marginLeft:
+        FixxamTokens.spacing.xxs,
     },
 
     stockRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
     stockDot: {
       width: 7,
+
       height: 7,
-      borderRadius: 4,
-      marginRight: 4,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    stockDotAvailable: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    stockDotUnavailable: {
+      backgroundColor:
+        Colors.error,
     },
 
     stockText: {
-      fontSize: 11,
+      flexShrink: 0,
     },
 
-    /*
-     * DEAL / NO DEAL
-     */
+    stockTextAvailable: {
+      color:
+        Colors.textSecondary,
+    },
+
+    stockTextUnavailable: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       DEAL
+    ======================================================== */
 
     dealRow: {
       alignSelf:
         "flex-start",
-      marginTop: 6,
-      paddingHorizontal: 7,
-      paddingVertical: 3,
-      borderRadius: 7,
-      backgroundColor:
-        "#FEF2F2",
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-    },
 
-    dealText: {
-      marginLeft: 4,
-      fontSize: 9,
-      color:
-        "#DC2626",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     noDealRow: {
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
+    },
+
+    dealText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.error,
     },
 
     noDealText: {
       color:
-        "#64748B",
+        Colors.textSecondary,
     },
 
-    /*
-     * PRICE + BUY
-     */
+    /* ========================================================
+       PRICE
+    ======================================================== */
 
     bottomRow: {
       flex: 1,
-      marginTop: 6,
+
       flexDirection:
         "row",
+
       alignItems:
         "flex-end",
+
       justifyContent:
         "space-between",
-      gap: 7,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     priceContainer: {
       flex: 1,
+
       minWidth: 0,
+
       justifyContent:
         "flex-end",
     },
 
     price: {
-      fontSize: 18,
-      lineHeight: 23,
       color:
         CustomerColors.primary,
     },
 
     discountedPrice: {
       color:
-        "#DC2626",
+        Colors.error,
     },
 
     originalPrice: {
-      marginTop: 2,
-      fontSize: 11,
-      lineHeight: 15,
-      color:
-        CustomerColors.textSecondary,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       textDecorationLine:
         "line-through",
     },
 
+    /* ========================================================
+       BUY
+    ======================================================== */
+
     buyButton: {
       minWidth: 76,
-      height: 40,
-      paddingHorizontal: 15,
-      borderRadius: 20,
-      backgroundColor:
-        CustomerColors.primary,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     buyButtonPressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.96,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     buyButtonDisabled: {
       backgroundColor:
-        CustomerColors.border,
+        Colors.disabled,
     },
 
     buyButtonText: {
-      fontSize: 14,
       color:
-        CustomerColors.white,
+        Colors.textInverse,
     },
 
-    /*
-     * EMPTY / ERROR
-     */
+    /* ========================================================
+       EMPTY / ERROR
+    ======================================================== */
 
     emptyContainer: {
+      flex: 1,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 24,
-      paddingTop: 55,
-      paddingBottom: 45,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
     },
 
     emptyIcon: {
-      width: 72,
-      height: 72,
-      borderRadius: 22,
-      backgroundColor:
-        "#F1F5F9",
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    errorIcon: {
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     emptyTitle: {
-      marginTop: 14,
-      fontSize: 18,
-      color:
-        CustomerColors.textPrimary,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     emptyDescription: {
       maxWidth: 320,
-      marginTop: 7,
-      fontSize: 13,
-      lineHeight: 20,
-      color:
-        CustomerColors.textSecondary,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    retryButton: {
-      minHeight: 42,
-      marginTop: 16,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor:
-        CustomerColors.primary,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+    emptyAction: {
+      minWidth: 180,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
-    retryText: {
-      fontSize: 12,
-      color:
-        CustomerColors.white,
-    },
-
-    /*
-     * LOADING
-     */
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     loadingContainer: {
       flex: 1,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      backgroundColor:
+        Colors.background,
     },
 
     loadingText: {
-      marginTop: 12,
-      fontSize: 14,
-      color:
-        CustomerColors.textSecondary,
-    },
-
-    /*
-     * FOOTER
-     */
-
-    footerSpace: {
-      height: 24,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
   });

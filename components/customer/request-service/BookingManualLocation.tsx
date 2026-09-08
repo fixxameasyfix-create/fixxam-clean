@@ -2,6 +2,7 @@ import React, {
   memo,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -13,604 +14,1028 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+/* ==============================================================
+   TYPES
+============================================================== */
 
 export type BookingLocationSuggestion = {
   id: string;
+
   title: string;
+
   subtitle?: string;
+
   latitude: number;
+
   longitude: number;
 };
 
 type Props = {
   value: string;
 
-  onChange: (text: string) => void;
+  onChange: (
+    text: string,
+  ) => void;
 
   disabled?: boolean;
+
+  /**
+   * true:
+   * Search + suggestions are enabled.
+   *
+   * false:
+   * Customer manually enters the
+   * complete address without search.
+   */
+  searchEnabled?: boolean;
 
   suggestions?: BookingLocationSuggestion[];
 
   suggestionsLoading?: boolean;
 
-  onSearchLocation?: (query: string) => void;
+  onSearchLocation?: (
+    query: string,
+  ) => void;
 
   onSuggestionSelected?: (
     suggestion: BookingLocationSuggestion,
   ) => void;
 };
 
-/*
- * ============================================================
- * COMPONENT
- * ============================================================
- */
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MIN_SEARCH_LENGTH = 2;
+
+const MAX_ADDRESS_LENGTH = 200;
+
+const BLUR_DELAY = 150;
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function BookingManualLocation({
   value,
   onChange,
   disabled = false,
+  searchEnabled = true,
   suggestions = [],
   suggestionsLoading = false,
   onSearchLocation,
   onSuggestionSelected,
 }: Props) {
-  const [focused, setFocused] =
+  const [
+    focused,
+    setFocused,
+  ] =
     useState(false);
 
+  const blurTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
+
+  /* ============================================================
+     DERIVED STATE
+  ============================================================ */
+
+  const cleanValue =
+    value.trim();
+
   const hasValue =
-    value.trim().length > 0;
+    cleanValue.length >
+    0;
 
-  /*
-   * ==========================================================
-   * SEARCH
-   * ==========================================================
-   */
+  const canSearch =
+    cleanValue.length >=
+    MIN_SEARCH_LENGTH;
 
-  const handleChange = useCallback(
-    (text: string) => {
-      onChange(text);
+  const searchLoading =
+    searchEnabled &&
+    suggestionsLoading;
 
-      onSearchLocation?.(text);
-    },
-    [
+  const showSuggestions =
+    searchEnabled &&
+    focused &&
+    canSearch &&
+    (
+      suggestionsLoading ||
+      suggestions.length > 0
+    );
+
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
+
+  useEffect(() => {
+    return () => {
+      if (
+        blurTimerRef.current
+      ) {
+        clearTimeout(
+          blurTimerRef.current,
+        );
+
+        blurTimerRef.current =
+          null;
+      }
+    };
+  }, []);
+
+  /* ============================================================
+     CHANGE
+  ============================================================ */
+
+  const handleChange =
+    useCallback(
+      (
+        text: string,
+      ) => {
+        const nextValue =
+          text.slice(
+            0,
+            MAX_ADDRESS_LENGTH,
+          );
+
+        onChange(
+          nextValue,
+        );
+
+        if (
+          searchEnabled
+        ) {
+          onSearchLocation?.(
+            nextValue,
+          );
+        }
+      },
+      [
+        onChange,
+        onSearchLocation,
+        searchEnabled,
+      ],
+    );
+
+  /* ============================================================
+     CLEAR
+  ============================================================ */
+
+  const handleClear =
+    useCallback(() => {
+      if (
+        disabled
+      ) {
+        return;
+      }
+
+      onChange(
+        "",
+      );
+
+      if (
+        searchEnabled
+      ) {
+        onSearchLocation?.(
+          "",
+        );
+      }
+    }, [
+      disabled,
       onChange,
       onSearchLocation,
-    ],
-  );
+      searchEnabled,
+    ]);
 
-  /*
-   * ==========================================================
-   * CLEAR
-   * ==========================================================
-   */
+  /* ============================================================
+     FOCUS
+  ============================================================ */
 
-  const handleClear = useCallback(() => {
-    if (disabled) {
-      return;
-    }
+  const handleFocus =
+    useCallback(() => {
+      if (
+        blurTimerRef.current
+      ) {
+        clearTimeout(
+          blurTimerRef.current,
+        );
 
-    onChange("");
-    onSearchLocation?.("");
-  }, [
-    disabled,
-    onChange,
-    onSearchLocation,
-  ]);
+        blurTimerRef.current =
+          null;
+      }
 
-  /*
-   * ==========================================================
-   * SELECT SUGGESTION
-   * ==========================================================
-   */
+      setFocused(
+        true,
+      );
+    }, []);
+
+  /* ============================================================
+     BLUR
+  ============================================================ */
+
+  const handleBlur =
+    useCallback(() => {
+      if (
+        blurTimerRef.current
+      ) {
+        clearTimeout(
+          blurTimerRef.current,
+        );
+      }
+
+      /*
+       * Search mode needs a small delay
+       * so tapping a suggestion still
+       * works before the list disappears.
+       *
+       * Manual-only mode does not need
+       * the delay.
+       */
+      if (
+        !searchEnabled
+      ) {
+        setFocused(
+          false,
+        );
+
+        return;
+      }
+
+      blurTimerRef.current =
+        setTimeout(
+          () => {
+            setFocused(
+              false,
+            );
+
+            blurTimerRef.current =
+              null;
+          },
+          BLUR_DELAY,
+        );
+    }, [
+      searchEnabled,
+    ]);
+
+  /* ============================================================
+     SELECT SUGGESTION
+  ============================================================ */
 
   const handleSuggestionPress =
     useCallback(
       (
-        suggestion: BookingLocationSuggestion,
+        suggestion:
+          BookingLocationSuggestion,
       ) => {
-        if (disabled) {
+        if (
+          disabled ||
+          !searchEnabled
+        ) {
           return;
         }
 
-        onChange(suggestion.title);
+        if (
+          blurTimerRef.current
+        ) {
+          clearTimeout(
+            blurTimerRef.current,
+          );
+
+          blurTimerRef.current =
+            null;
+        }
+
+        onChange(
+          suggestion.title,
+        );
 
         onSuggestionSelected?.(
           suggestion,
+        );
+
+        onSearchLocation?.(
+          "",
+        );
+
+        setFocused(
+          false,
         );
       },
       [
         disabled,
         onChange,
+        onSearchLocation,
         onSuggestionSelected,
+        searchEnabled,
       ],
     );
 
-  /*
-   * ==========================================================
-   * SHOW SUGGESTIONS
-   * ==========================================================
-   */
-
-  const showSuggestions =
-    focused &&
-    value.trim().length >= 2 &&
-    (suggestionsLoading ||
-      suggestions.length > 0);
-
-  /*
-   * ==========================================================
-   * RENDER
-   * ==========================================================
-   */
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          LABEL
+      ====================================================== */}
 
-      <View style={styles.labelRow}>
-        <View style={styles.labelIcon}>
-          <Ionicons
-            name="location-outline"
-            size={17}
-            color="#2563EB"
+      <View
+        style={
+          styles.labelRow
+        }
+      >
+        <View
+          style={
+            styles.labelIcon
+          }
+        >
+          <AppIcon
+            name="location"
+            role="customer"
+            size="xs"
+            state="active"
           />
         </View>
 
-        <View style={styles.labelContent}>
+        <View
+          style={
+            styles.labelContent
+          }
+        >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.label}
           >
             Service address
           </AppText>
 
           <AppText
-            style={styles.labelHint}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.labelHint
+            }
           >
-            Search for the place where the
-            worker should come
+            {searchEnabled
+              ? "Search for where the worker should come."
+              : "Enter the complete address where the worker should come."}
           </AppText>
         </View>
       </View>
 
-      {/* INPUT */}
+      {/* ======================================================
+          INPUT
+      ====================================================== */}
 
       <View
         style={[
           styles.inputContainer,
 
           focused &&
-            !disabled &&
-            styles.inputFocused,
+          !disabled
+            ? styles.inputFocused
+            : null,
 
-          disabled &&
-            styles.inputDisabled,
+          disabled
+            ? styles.inputDisabled
+            : null,
         ]}
       >
+        {/* ====================================================
+            INPUT ICON
+        ==================================================== */}
+
         <View
           style={[
             styles.inputIcon,
 
             focused &&
-              !disabled &&
-              styles.inputIconFocused,
+            !disabled
+              ? styles.inputIconFocused
+              : null,
           ]}
         >
-          <Ionicons
-            name="search-outline"
-            size={19}
-            color={
+          <AppIcon
+            name={
+              searchEnabled
+                ? "search"
+                : "location"
+            }
+            role="customer"
+            size="sm"
+            state={
               focused
-                ? "#2563EB"
-                : "#64748B"
+                ? "active"
+                : "muted"
             }
           />
         </View>
 
+        {/* ====================================================
+            TEXT INPUT
+        ==================================================== */}
+
         <TextInput
-          value={value}
-          onChangeText={handleChange}
-          editable={!disabled}
-          placeholder="House number, street, area..."
-          placeholderTextColor="#94A3B8"
-          multiline
-          maxLength={200}
+          value={
+            value
+          }
+          onChangeText={
+            handleChange
+          }
+          onFocus={
+            handleFocus
+          }
+          onBlur={
+            handleBlur
+          }
+          editable={
+            !disabled
+          }
+          placeholder={
+            searchEnabled
+              ? "House number, street, area..."
+              : "Enter full service address..."
+          }
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            CustomerColors.primary
+          }
+          maxLength={
+            MAX_ADDRESS_LENGTH
+          }
           autoCorrect={false}
           autoCapitalize="words"
-          textAlignVertical="top"
-          style={styles.input}
-          accessibilityRole="text"
-          accessibilityLabel="Service address"
-          accessibilityHint="Search for the address where the worker should come"
-          onFocus={() =>
-            setFocused(true)
+          returnKeyType={
+            searchEnabled
+              ? "search"
+              : "done"
           }
-          onBlur={() => {
-            /*
-             * Small delay allows the customer
-             * to tap a suggestion before the
-             * suggestion list disappears.
-             */
-            setTimeout(() => {
-              setFocused(false);
-            }, 150);
-          }}
+          accessibilityLabel="Service address"
+          accessibilityHint={
+            searchEnabled
+              ? "Search for the address where the worker should come"
+              : "Enter the complete address where the worker should come"
+          }
+          style={
+            styles.input
+          }
         />
 
-        {suggestionsLoading ? (
+        {/* ====================================================
+            LOADING / CLEAR
+        ==================================================== */}
+
+        {searchLoading ? (
           <View
-            style={styles.loadingContainer}
+            style={
+              styles.trailingButton
+            }
           >
             <ActivityIndicator
               size="small"
-              color="#2563EB"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
-        ) : hasValue && !disabled ? (
+        ) : hasValue &&
+          !disabled ? (
           <Pressable
-            onPress={handleClear}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Clear service address"
-            style={({ pressed }) => [
-              styles.clearButton,
+            hitSlop={8}
+            onPress={
+              handleClear
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.trailingButton,
 
-              pressed &&
-                styles.clearPressed,
+              pressed
+                ? styles.clearPressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="close-circle"
-              size={19}
-              color="#94A3B8"
+            <AppIcon
+              name="close"
+              role="customer"
+              size="xs"
+              state="muted"
             />
           </Pressable>
         ) : null}
       </View>
 
-      {/* SUGGESTIONS */}
+      {/* ======================================================
+          SUGGESTIONS
+      ====================================================== */}
 
       {showSuggestions ? (
-        <View style={styles.suggestionsCard}>
+        <View
+          style={
+            styles.suggestionsCard
+          }
+        >
           {suggestionsLoading ? (
             <View
-              style={styles.loadingRow}
+              style={
+                styles.loadingRow
+              }
             >
               <ActivityIndicator
                 size="small"
-                color="#2563EB"
+                color={
+                  CustomerColors.primary
+                }
               />
 
               <AppText
-                style={styles.loadingText}
+                variant="caption"
+                tone="secondary"
               >
                 Finding locations...
               </AppText>
             </View>
           ) : (
             suggestions.map(
-              (suggestion) => (
-                <Pressable
-                  key={suggestion.id}
-                  onPress={() =>
-                    handleSuggestionPress(
-                      suggestion,
-                    )
-                  }
-                  disabled={disabled}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${suggestion.title}`}
-                  style={({ pressed }) => [
-                    styles.suggestionRow,
+              (
+                suggestion,
+                index,
+              ) => {
+                const isLast =
+                  index ===
+                  suggestions.length -
+                    1;
 
-                    pressed &&
-                      styles.suggestionPressed,
-                  ]}
-                >
-                  <View
-                    style={
-                      styles.suggestionIcon
+                return (
+                  <Pressable
+                    key={
+                      suggestion.id
                     }
-                  >
-                    <Ionicons
-                      name="location-outline"
-                      size={18}
-                      color="#2563EB"
-                    />
-                  </View>
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${suggestion.title}`}
+                    disabled={
+                      disabled
+                    }
+                    onPress={() =>
+                      handleSuggestionPress(
+                        suggestion,
+                      )
+                    }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.suggestionRow,
 
-                  <View
-                    style={
-                      styles.suggestionContent
-                    }
+                      !isLast
+                        ? styles.suggestionBorder
+                        : null,
+
+                      pressed &&
+                      !disabled
+                        ? styles.suggestionPressed
+                        : null,
+                    ]}
                   >
-                    <AppText
-                      weight="bold"
-                      numberOfLines={1}
+                    <View
                       style={
-                        styles.suggestionTitle
+                        styles.suggestionIcon
                       }
                     >
-                      {suggestion.title}
-                    </AppText>
+                      <AppIcon
+                        name="location"
+                        role="customer"
+                        size="xs"
+                        state="active"
+                      />
+                    </View>
 
-                    {suggestion.subtitle ? (
+                    <View
+                      style={
+                        styles.suggestionContent
+                      }
+                    >
                       <AppText
-                        numberOfLines={2}
-                        style={
-                          styles.suggestionSubtitle
-                        }
+                        variant="bodyMedium"
+                        weight="semibold"
+                        numberOfLines={1}
                       >
                         {
-                          suggestion.subtitle
+                          suggestion.title
                         }
                       </AppText>
-                    ) : null}
-                  </View>
 
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color="#94A3B8"
-                  />
-                </Pressable>
-              ),
+                      {suggestion.subtitle ? (
+                        <AppText
+                          variant="caption"
+                          tone="secondary"
+                          numberOfLines={2}
+                          style={
+                            styles.suggestionSubtitle
+                          }
+                        >
+                          {
+                            suggestion.subtitle
+                          }
+                        </AppText>
+                      ) : null}
+                    </View>
+
+                    <AppIcon
+                      name="next"
+                      role="customer"
+                      size="xs"
+                      state="muted"
+                    />
+                  </Pressable>
+                );
+              },
             )
           )}
         </View>
       ) : null}
 
-      {/* HELPER */}
+      {/* ======================================================
+          HELPER
+      ====================================================== */}
 
-      <View style={styles.helperRow}>
-        <Ionicons
-          name="information-circle-outline"
-          size={14}
-          color="#94A3B8"
+      <View
+        style={
+          styles.helperRow
+        }
+      >
+        <AppIcon
+          name="info"
+          role="customer"
+          size="xs"
+          state="muted"
         />
 
         <AppText
-          style={styles.helperText}
+          variant="caption"
+          tone="muted"
+          style={
+            styles.helperText
+          }
         >
-          Select a suggested location for
-          accurate directions, or enter the
-          address manually.
+          {searchEnabled
+            ? "Select a suggested location for the most accurate directions."
+            : "Enter the full address clearly so the worker can find the service location."}
         </AppText>
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       LABEL
+    ======================================================== */
+
+    labelRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    labelIcon: {
+      width: 36,
+
+      height: 36,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    labelContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    labelHint: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       INPUT
+    ======================================================== */
+
+    inputContainer: {
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    inputFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
+
+    inputDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    inputIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    inputIconFocused: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      paddingVertical: 0,
+
+      paddingHorizontal: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    trailingButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+    },
+
+    clearPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    /* ========================================================
+       SUGGESTIONS
+    ======================================================== */
+
+    suggestionsCard: {
+      overflow:
+        "hidden",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    loadingRow: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    suggestionRow: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    suggestionBorder: {
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
+    },
+
+    suggestionPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    suggestionIcon: {
+      width: 38,
+
+      height: 38,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    suggestionContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    suggestionSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       HELPER
+    ======================================================== */
+
+    helperRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
+    },
+
+    helperText: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+  });
+
 export default memo(
   BookingManualLocation,
 );
-
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
-
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-  },
-
-  labelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-
-  labelIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
-
-  labelContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  label: {
-    fontSize: 13.5,
-    lineHeight: 19,
-    color: "#0F172A",
-  },
-
-  labelHint: {
-    marginTop: 1,
-    fontSize: 10.5,
-    lineHeight: 15,
-    color: "#64748B",
-  },
-
-  inputContainer: {
-    minHeight: 92,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 18,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.035,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    elevation: 2,
-  },
-
-  inputFocused: {
-    borderColor: "#2563EB",
-  },
-
-  inputDisabled: {
-    backgroundColor: "#F8FAFC",
-    opacity: 0.6,
-  },
-
-  inputIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
-
-  inputIconFocused: {
-    backgroundColor: "#EFF6FF",
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
-
-  input: {
-    flex: 1,
-    minWidth: 0,
-    minHeight: 64,
-    padding: 0,
-    marginTop: 1,
-    fontSize: 13.5,
-    lineHeight: 20,
-    color: "#0F172A",
-  },
-
-  loadingContainer: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 4,
-  },
-
-  clearButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 3,
-  },
-
-  clearPressed: {
-    opacity: 0.55,
-  },
-
-  /*
-   * SUGGESTIONS
-   */
-
-  suggestionsCard: {
-    marginTop: 7,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 17,
-    overflow: "hidden",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    elevation: 3,
-  },
-
-  loadingRow: {
-    minHeight: 52,
-    paddingHorizontal: 13,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  loadingText: {
-    marginLeft: 9,
-    fontSize: 11.5,
-    color: "#64748B",
-  },
-
-  suggestionRow: {
-    minHeight: 62,
-    paddingHorizontal: 11,
-    paddingVertical: 9,
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-
-  suggestionPressed: {
-    backgroundColor: "#F8FAFC",
-  },
-
-  suggestionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  suggestionContent: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 9,
-    marginRight: 7,
-  },
-
-  suggestionTitle: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    color: "#0F172A",
-  },
-
-  suggestionSubtitle: {
-    marginTop: 2,
-    fontSize: 10,
-    lineHeight: 14,
-    color: "#64748B",
-  },
-
-  /*
-   * HELPER
-   */
-
-  helperRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 6,
-    paddingHorizontal: 2,
-  },
-
-  helperText: {
-    flex: 1,
-    marginLeft: 5,
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#94A3B8",
-  },
-});

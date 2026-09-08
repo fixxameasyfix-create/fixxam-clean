@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -7,29 +9,48 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-type IoniconName =
-  React.ComponentProps<typeof Ionicons>["name"];
-
 type HelpItem = {
   id: string;
+
   title: string;
+
   description: string;
-  icon: IoniconName;
+
+  icon: AppIconName;
+
   iconColor: string;
+
   iconBackground: string;
+};
+
+type HelpCardProps = {
+  item: HelpItem;
+
+  onPress: () => void;
 };
 
 /* ============================================================
@@ -39,57 +60,104 @@ type HelpItem = {
 const HELP_ITEMS: HelpItem[] = [
   {
     id: "prepare",
+
     title: "Prepare for a Job",
+
     description:
       "Get everything ready before you start.",
-    icon: "briefcase-outline",
-    iconColor: "#F97316",
-    iconBackground: "#FFF7ED",
+
+    icon: "jobs",
+
+    iconColor:
+      WorkerColors.primary,
+
+    iconBackground:
+      WorkerColors.primarySoft,
   },
+
   {
     id: "checklist",
+
     title: "Job Checklist",
+
     description:
       "Make sure nothing important is missed.",
-    icon: "checkbox-outline",
-    iconColor: "#2563EB",
-    iconBackground: "#EFF6FF",
+
+    icon: "check",
+
+    iconColor:
+      Colors.info,
+
+    iconBackground:
+      Colors.infoSoft,
   },
+
   {
     id: "tips",
+
     title: "Job Tips",
+
     description:
       "Practical tips to improve your work.",
-    icon: "bulb-outline",
-    iconColor: "#CA8A04",
-    iconBackground: "#FEFCE8",
+
+    icon: "info",
+
+    iconColor:
+      Colors.warning,
+
+    iconBackground:
+      Colors.warningSoft,
   },
+
   {
     id: "safety",
+
     title: "Safety",
+
     description:
       "Stay safe while working on every job.",
-    icon: "shield-checkmark-outline",
-    iconColor: "#16A34A",
-    iconBackground: "#F0FDF4",
+
+    icon: "shield",
+
+    iconColor:
+      Colors.success,
+
+    iconBackground:
+      Colors.successSoft,
   },
+
   {
     id: "pricing",
+
     title: "Pricing Guide",
+
     description:
       "Think clearly about labour and materials.",
-    icon: "cash-outline",
-    iconColor: "#0891B2",
-    iconBackground: "#ECFEFF",
+
+    icon: "payment",
+
+    iconColor:
+      Colors.info,
+
+    iconBackground:
+      Colors.infoSoft,
   },
+
   {
     id: "customer",
+
     title: "Customer Handling",
+
     description:
       "Communicate professionally with customers.",
-    icon: "people-outline",
-    iconColor: "#7C3AED",
-    iconBackground: "#F5F3FF",
+
+    icon: "users",
+
+    iconColor:
+      WorkerColors.primary,
+
+    iconBackground:
+      WorkerColors.primarySoft,
   },
 ];
 
@@ -98,33 +166,29 @@ const HELP_ITEMS: HelpItem[] = [
 ============================================================ */
 
 export default function HelpingBoxScreen() {
-  const items = useMemo(
-    () => HELP_ITEMS,
-    [],
-  );
+  const handleOpenItem =
+    (
+      item: HelpItem,
+    ) => {
+      router.push({
+        pathname:
+          "/(worker)/jobs/helping-box/[topic]",
 
-  const handleOpenItem = (
-    item: HelpItem,
-  ) => {
-    /*
-     * These routes will be created as we continue.
-     *
-     * Keeping navigation here centralized makes
-     * the Helping Box easy to extend.
-     */
-    router.push({
-      pathname:
-        "/(worker)/jobs/helping-box/[topic]",
-      params: {
-        topic: item.id,
-      },
-    });
-  };
+        params: {
+          topic:
+            item.id,
+        },
+      });
+    };
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+    >
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.container
         }
@@ -133,54 +197,93 @@ export default function HelpingBoxScreen() {
             HEADER
         ==================================================== */}
 
-        <View style={styles.header}>
+        <View
+          style={
+            styles.header
+          }
+        >
           <AppText
+            variant="heading1"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Helping Box
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Get useful guidance for every job.
           </AppText>
         </View>
 
         {/* ====================================================
-            SEARCH / INTRO
+            INTRO
         ==================================================== */}
 
-        <View style={styles.introCard}>
-          <View style={styles.introIcon}>
-            <Ionicons
-              name="construct-outline"
-              size={27}
-              color="#F97316"
+        <View
+          style={
+            styles.introCard
+          }
+        >
+          <View
+            style={
+              styles.introIcon
+            }
+          >
+            <AppIcon
+              name="professional"
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
+              }
             />
           </View>
 
-          <View style={styles.introContent}>
+          <View
+            style={
+              styles.introContent
+            }
+          >
             <AppText
+              variant="bodyLarge"
               weight="bold"
-              style={styles.introTitle}
+              style={
+                styles.introTitle
+              }
             >
               Work smarter. Work safe.
             </AppText>
 
-            <AppText style={styles.introText}>
-              Get quick guidance before, during,
-              and after every job.
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.introText
+              }
+            >
+              Get quick guidance before, during, and after every job.
             </AppText>
           </View>
         </View>
 
         {/* ====================================================
-            SECTION TITLE
+            SECTION
         ==================================================== */}
 
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.sectionTitle}
+          style={
+            styles.sectionTitle
+          }
         >
           Job Assistant
         </AppText>
@@ -189,32 +292,61 @@ export default function HelpingBoxScreen() {
             HELP GRID
         ==================================================== */}
 
-        <View style={styles.grid}>
-          {items.map((item) => (
-            <HelpCard
-              key={item.id}
-              item={item}
-              onPress={() =>
-                handleOpenItem(item)
-              }
-            />
-          ))}
+        <View
+          style={
+            styles.grid
+          }
+        >
+          {HELP_ITEMS.map(
+            item => (
+              <HelpCard
+                key={
+                  item.id
+                }
+                item={
+                  item
+                }
+                onPress={() => {
+                  handleOpenItem(
+                    item,
+                  );
+                }}
+              />
+            ),
+          )}
         </View>
 
         {/* ====================================================
             FOOTER
         ==================================================== */}
 
-        <View style={styles.footer}>
-          <Ionicons
-            name="information-circle-outline"
-            size={17}
-            color="#94A3B8"
-          />
+        <View
+          style={
+            styles.footer
+          }
+        >
+          <View
+            style={
+              styles.footerIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              size="xs"
+              color={
+                Colors.textMuted
+              }
+            />
+          </View>
 
-          <AppText style={styles.footerText}>
-            Use these guides to prepare and
-            complete your jobs professionally.
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.footerText
+            }
+          >
+            Use these guides to prepare and complete your jobs professionally.
           </AppText>
         </View>
       </ScrollView>
@@ -223,268 +355,411 @@ export default function HelpingBoxScreen() {
 }
 
 /* ============================================================
-   CARD
+   HELP CARD
 ============================================================ */
 
-type HelpCardProps = {
-  item: HelpItem;
-  onPress: () => void;
-};
+const HelpCard =
+  memo(
+    function HelpCard({
+      item,
+      onPress,
+    }: HelpCardProps) {
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            item.title
+          }
+          accessibilityHint={`Open ${item.title} guide`}
+          onPress={
+            onPress
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.card,
 
-function HelpCard({
-  item,
-  onPress,
-}: HelpCardProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={item.title}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.cardPressed,
-      ]}
-    >
-      {/* ======================================================
-          ICON
-      ====================================================== */}
-
-      <View
-        style={[
-          styles.cardIcon,
-          {
-            backgroundColor:
-              item.iconBackground,
-          },
-        ]}
-      >
-        <Ionicons
-          name={item.icon}
-          size={25}
-          color={item.iconColor}
-        />
-      </View>
-
-      {/* ======================================================
-          CONTENT
-      ====================================================== */}
-
-      <View style={styles.cardContent}>
-        <AppText
-          weight="bold"
-          style={styles.cardTitle}
+            pressed
+              ? styles.cardPressed
+              : null,
+          ]}
         >
-          {item.title}
-        </AppText>
+          {/* ==================================================
+              ICON
+          ================================================== */}
 
-        <AppText
-          style={styles.cardDescription}
-          numberOfLines={3}
-        >
-          {item.description}
-        </AppText>
-      </View>
+          <View
+            style={[
+              styles.cardIcon,
 
-      {/* ======================================================
-          ARROW
-      ====================================================== */}
+              {
+                backgroundColor:
+                  item.iconBackground,
+              },
+            ]}
+          >
+            <AppIcon
+              name={
+                item.icon
+              }
+              size="md"
+              color={
+                item.iconColor
+              }
+            />
+          </View>
 
-      <View style={styles.arrow}>
-        <Ionicons
-          name="chevron-forward"
-          size={21}
-          color="#2563EB"
-        />
-      </View>
-    </Pressable>
+          {/* ==================================================
+              CONTENT
+          ================================================== */}
+
+          <View
+            style={
+              styles.cardContent
+            }
+          >
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.cardTitle
+              }
+            >
+              {item.title}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={3}
+              style={
+                styles.cardDescription
+              }
+            >
+              {item.description}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              ACTION
+          ================================================== */}
+
+          <View
+            style={
+              styles.arrow
+            }
+          >
+            <AppIcon
+              name="next"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+        </Pressable>
+      );
+    },
   );
-}
+
+HelpCard.displayName =
+  "HelpingBoxHelpCard";
 
 /* ============================================================
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 35,
-    backgroundColor: "#F8FAFC",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
 
-  /* ==========================================================
-     HEADER
-  ========================================================== */
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  header: {
-    marginBottom: 18,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  title: {
-    fontSize: 30,
-    lineHeight: 36,
-    color: "#0F172A",
-  },
-
-  subtitle: {
-    marginTop: 5,
-    fontSize: 16,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-
-  /* ==========================================================
-     INTRO
-  ========================================================== */
-
-  introCard: {
-    minHeight: 96,
-    borderRadius: 20,
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    padding: 15,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 25,
-  },
-
-  introIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 13,
-  },
-
-  introContent: {
-    flex: 1,
-  },
-
-  introTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
-
-  introText: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#64748B",
-  },
-
-  /* ==========================================================
-     SECTION
-  ========================================================== */
-
-  sectionTitle: {
-    fontSize: 21,
-    lineHeight: 27,
-    color: "#0F172A",
-    marginBottom: 14,
-  },
-
-  /* ==========================================================
-     GRID
-  ========================================================== */
-
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-
-  /* ==========================================================
-     CARD
-  ========================================================== */
-
-  card: {
-    width: "48.2%",
-    minHeight: 235,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-    padding: 16,
-    marginBottom: 14,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  cardPressed: {
-    opacity: 0.78,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-  cardIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 19,
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  cardContent: {
-    flex: 1,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  cardTitle: {
-    fontSize: 17,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      lineHeight: 22,
 
-  cardDescription: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  arrow: {
-    alignSelf: "flex-end",
-    width: 35,
-    height: 35,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-  },
+    /* ========================================================
+       INTRO
+    ======================================================== */
 
-  /* ==========================================================
-     FOOTER
-  ========================================================== */
+    introCard: {
+      minHeight: 96,
 
-  footer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 7,
-    paddingHorizontal: 4,
-  },
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  footerText: {
-    flex: 1,
-    marginLeft: 7,
-    fontSize: 11,
-    lineHeight: 17,
-    color: "#94A3B8",
-  },
-});
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    introIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    introContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    introTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    introText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SECTION
+    ======================================================== */
+
+    sectionTitle: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       GRID
+    ======================================================== */
+
+    grid: {
+      width: "100%",
+
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      justifyContent:
+        "space-between",
+    },
+
+    /* ========================================================
+       CARD
+    ======================================================== */
+
+    card: {
+      width: "48.5%",
+
+      minHeight: 220,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    cardPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    cardIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    cardContent: {
+      flex: 1,
+    },
+
+    cardTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    cardDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 19,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    arrow: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      alignSelf:
+        "flex-end",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
+    footer: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+    },
+
+    footerIcon: {
+      width: 20,
+
+      paddingTop:
+        FixxamTokens.spacing.xxs,
+
+      alignItems:
+        "center",
+    },
+
+    footerText: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textMuted,
+    },
+  });

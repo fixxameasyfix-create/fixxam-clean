@@ -13,14 +13,21 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   useFixxamActivity,
@@ -30,6 +37,35 @@ import type {
   FixxamActivityPeriod,
   FixxamActivityPoint,
 } from "@/utils/fixxam/calculateFixxamActivity";
+
+/* ============================================================
+   DARK ANALYTICS PALETTE
+============================================================ */
+
+const ACTIVITY_COLORS = {
+  screen: "#020617",
+
+  surface: "#071426",
+  surfaceStrong: "#081426",
+  surfaceMuted: "#0B1D31",
+
+  headerButton: "#0F1D32",
+
+  border: "#183152",
+  borderSoft: "#172B49",
+
+  blueSoft: "#102A63",
+  blueSurface: "#0D2345",
+
+  textPrimary: "#F8FAFC",
+  textSecondary: "#94A3B8",
+  textMuted: "#64748B",
+
+  successSoft: "#064E3B",
+  errorSoft: "#3F1D2A",
+
+  emptyBar: "#1E293B",
+} as const;
 
 /* ============================================================
    CONSTANTS
@@ -53,6 +89,9 @@ const PERIOD_OPTIONS: Array<{
   },
 ];
 
+const CHART_MAX_BAR_HEIGHT =
+  180;
+
 /* ============================================================
    HELPERS
 ============================================================ */
@@ -75,23 +114,17 @@ function formatNaira(
 function formatPercentage(
   value: number,
 ): string {
-  if (
-    !Number.isFinite(value)
-  ) {
+  if (!Number.isFinite(value)) {
     return "0%";
   }
 
-  return `${Math.round(
-    value,
-  )}%`;
+  return `${Math.round(value)}%`;
 }
 
 function formatGrowth(
   value: number,
 ): string {
-  if (
-    !Number.isFinite(value)
-  ) {
+  if (!Number.isFinite(value)) {
     return "0%";
   }
 
@@ -139,14 +172,14 @@ function getGrowthColor(
   growth: number,
 ): string {
   if (growth > 0) {
-    return "#22C55E";
+    return Colors.success;
   }
 
   if (growth < 0) {
-    return "#F87171";
+    return Colors.error;
   }
 
-  return "#94A3B8";
+  return Colors.textMuted;
 }
 
 /* ============================================================
@@ -155,7 +188,9 @@ function getGrowthColor(
 
 type ActivityBarProps = {
   point: FixxamActivityPoint;
+
   maxValue: number;
+
   width: number;
 };
 
@@ -164,16 +199,28 @@ function ActivityBar({
   maxValue,
   width,
 }: ActivityBarProps) {
+  const safeValue =
+    Number.isFinite(
+      point.value,
+    )
+      ? Math.max(
+          0,
+          point.value,
+        )
+      : 0;
+
   const percentage =
     maxValue > 0
-      ? point.value / maxValue
+      ? safeValue /
+        maxValue
       : 0;
 
   const barHeight =
-    point.value > 0
+    safeValue > 0
       ? Math.max(
           8,
-          percentage * 180,
+          percentage *
+            CHART_MAX_BAR_HEIGHT,
         )
       : 3;
 
@@ -185,26 +232,38 @@ function ActivityBar({
           width,
         },
       ]}
+      accessible
+      accessibilityLabel={`${point.label}: ${formatNaira(
+        safeValue,
+      )}`}
     >
       <View
-        style={styles.chartBarArea}
+        style={
+          styles.chartBarArea
+        }
       >
         <View
           style={[
             styles.chartBar,
+
             {
               height:
                 barHeight,
             },
-            point.value <= 0 &&
-              styles.chartBarEmpty,
+
+            safeValue <= 0
+              ? styles.chartBarEmpty
+              : null,
           ]}
         />
       </View>
 
       <AppText
-        style={styles.chartBarLabel}
+        variant="caption"
         numberOfLines={1}
+        style={
+          styles.chartBarLabel
+        }
       >
         {point.label}
       </AppText>
@@ -224,14 +283,16 @@ export default function FixxamActivityScreen() {
     loading,
     error,
     refresh,
-  } = useFixxamActivity(
-    "30D",
-  );
+  } =
+    useFixxamActivity(
+      "30D",
+    );
 
   const [
     periodModalVisible,
     setPeriodModalVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ==========================================================
      DERIVED DATA
@@ -241,7 +302,8 @@ export default function FixxamActivityScreen() {
     activity?.volume ?? 0;
 
   const transactionCount =
-    activity?.transactions ?? 0;
+    activity?.transactions ??
+    0;
 
   const successfulTransactions =
     activity?.successfulTransactions ??
@@ -252,7 +314,8 @@ export default function FixxamActivityScreen() {
     0;
 
   const successRate =
-    activity?.successRate ?? 0;
+    activity?.successRate ??
+    0;
 
   const growth =
     activity?.growth ?? 0;
@@ -269,7 +332,9 @@ export default function FixxamActivityScreen() {
     );
 
   const growthColor =
-    getGrowthColor(growth);
+    getGrowthColor(
+      growth,
+    );
 
   /* ==========================================================
      CHART MAX
@@ -278,43 +343,50 @@ export default function FixxamActivityScreen() {
   const chartMax =
     useMemo(() => {
       if (
-        chartData.length === 0
+        chartData.length ===
+        0
       ) {
         return 0;
       }
 
       return Math.max(
+        0,
         ...chartData.map(
           (point) =>
             Number.isFinite(
               point.value,
             )
-              ? point.value
+              ? Math.max(
+                  0,
+                  point.value,
+                )
               : 0,
         ),
       );
-    }, [chartData]);
+    }, [
+      chartData,
+    ]);
 
   /* ==========================================================
-     CHART WIDTH
+     CHART BAR WIDTH
   ========================================================== */
 
   const chartBarWidth =
     useMemo(() => {
-      if (
-        period === "7D"
-      ) {
-        return 34;
-      }
+      switch (period) {
+        case "7D":
+          return 34;
 
-      if (
-        period === "30D"
-      ) {
-        return 25;
-      }
+        case "30D":
+          return 25;
 
-      return 13;
-    }, [period]);
+        case "90D":
+        default:
+          return 13;
+      }
+    }, [
+      period,
+    ]);
 
   /* ==========================================================
      PERIOD SELECT
@@ -323,7 +395,8 @@ export default function FixxamActivityScreen() {
   const handlePeriodSelect =
     useCallback(
       (
-        nextPeriod: FixxamActivityPeriod,
+        nextPeriod:
+          FixxamActivityPeriod,
       ) => {
         setPeriod(
           nextPeriod,
@@ -333,8 +406,26 @@ export default function FixxamActivityScreen() {
           false,
         );
       },
-      [setPeriod],
+      [
+        setPeriod,
+      ],
     );
+
+  /* ==========================================================
+     REFRESH
+  ========================================================== */
+
+  const handleRefresh =
+    useCallback(() => {
+      if (loading) {
+        return;
+      }
+
+      void refresh();
+    }, [
+      loading,
+      refresh,
+    ]);
 
   /* ==========================================================
      CHART CONTENT
@@ -354,10 +445,13 @@ export default function FixxamActivityScreen() {
           >
             <ActivityIndicator
               size="small"
-              color="#60A5FA"
+              color={
+                CustomerColors.primary
+              }
             />
 
             <AppText
+              variant="caption"
               style={
                 styles.chartStateText
               }
@@ -380,14 +474,17 @@ export default function FixxamActivityScreen() {
                 styles.chartStateIcon
               }
             >
-              <Ionicons
-                name="alert-circle-outline"
-                size={28}
-                color="#F87171"
+              <AppIcon
+                name="error"
+                size="lg"
+                color={
+                  Colors.error
+                }
               />
             </View>
 
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.chartStateTitle
@@ -397,31 +494,50 @@ export default function FixxamActivityScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              numberOfLines={2}
               style={
                 styles.chartStateText
               }
-              numberOfLines={2}
             >
               {error}
             </AppText>
 
             <Pressable
-              onPress={refresh}
-              style={({ pressed }) => [
-                styles.retryButton,
-                pressed &&
-                  styles.pressed,
-              ]}
+              onPress={
+                handleRefresh
+              }
+              disabled={
+                loading
+              }
               accessibilityRole="button"
               accessibilityLabel="Retry loading activity"
+              style={({
+                pressed,
+              }) => [
+                styles.retryButton,
+
+                pressed &&
+                !loading
+                  ? styles.pressed
+                  : null,
+
+                loading
+                  ? styles.disabled
+                  : null,
+              ]}
             >
-              <Ionicons
+              <AppIcon
                 name="refresh"
-                size={16}
-                color="#FFFFFF"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.retryText
@@ -434,9 +550,7 @@ export default function FixxamActivityScreen() {
         );
       }
 
-      if (
-        !hasActivity
-      ) {
+      if (!hasActivity) {
         return (
           <View
             style={
@@ -448,14 +562,17 @@ export default function FixxamActivityScreen() {
                 styles.chartStateIcon
               }
             >
-              <Ionicons
-                name="pulse-outline"
-                size={30}
-                color="#334155"
+              <AppIcon
+                name="info"
+                size="lg"
+                color={
+                  Colors.textMuted
+                }
               />
             </View>
 
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.chartStateTitle
@@ -465,13 +582,13 @@ export default function FixxamActivityScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              numberOfLines={2}
               style={
                 styles.chartStateText
               }
-              numberOfLines={2}
             >
-              You don't have any successful
-              transactions in this period.
+              You don't have any successful transactions in this period.
             </AppText>
           </View>
         );
@@ -479,35 +596,49 @@ export default function FixxamActivityScreen() {
 
       return (
         <View
-          style={styles.chartContent}
+          style={
+            styles.chartContent
+          }
         >
           {/* GRID */}
 
           <View
-            style={styles.chartGrid}
+            style={
+              styles.chartGrid
+            }
             pointerEvents="none"
           >
             <View
-              style={styles.gridLine}
+              style={
+                styles.gridLine
+              }
             />
 
             <View
-              style={styles.gridLine}
+              style={
+                styles.gridLine
+              }
             />
 
             <View
-              style={styles.gridLine}
+              style={
+                styles.gridLine
+              }
             />
 
             <View
-              style={styles.gridLine}
+              style={
+                styles.gridLine
+              }
             />
           </View>
 
           {/* BARS */}
 
           <View
-            style={styles.chartBars}
+            style={
+              styles.chartBars
+            }
           >
             {chartData.map(
               (
@@ -516,8 +647,12 @@ export default function FixxamActivityScreen() {
               ) => (
                 <ActivityBar
                   key={`${point.label}-${index}`}
-                  point={point}
-                  maxValue={chartMax}
+                  point={
+                    point
+                  }
+                  maxValue={
+                    chartMax
+                  }
                   width={
                     chartBarWidth
                   }
@@ -529,14 +664,18 @@ export default function FixxamActivityScreen() {
       );
     }, [
       activity,
-      chartData,
       chartBarWidth,
+      chartData,
       chartMax,
       error,
+      handleRefresh,
       hasActivity,
       loading,
-      refresh,
     ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <AppScreen
@@ -561,18 +700,24 @@ export default function FixxamActivityScreen() {
             onPress={() =>
               router.back()
             }
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed &&
-                styles.pressed,
-            ]}
             accessibilityRole="button"
             accessibilityLabel="Go back"
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={23}
-              color="#E2E8F0"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                ACTIVITY_COLORS.textPrimary
+              }
             />
           </Pressable>
 
@@ -582,44 +727,74 @@ export default function FixxamActivityScreen() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
+              numberOfLines={1}
               style={
                 styles.headerTitle
-              }
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={
-                0.85
               }
             >
               Fixxam Activity
             </AppText>
 
             <AppText
+              variant="caption"
+              numberOfLines={1}
               style={
                 styles.headerSubtitle
               }
-              numberOfLines={1}
             >
               Service & market transaction analysis
             </AppText>
           </View>
 
           <Pressable
-            onPress={refresh}
-            style={({ pressed }) => [
-              styles.calendarButton,
-              pressed &&
-                styles.pressed,
-            ]}
+            onPress={
+              handleRefresh
+            }
+            disabled={
+              loading
+            }
             accessibilityRole="button"
             accessibilityLabel="Refresh activity"
+            accessibilityState={{
+              busy:
+                loading,
+              disabled:
+                loading,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.calendarButton,
+
+              pressed &&
+              !loading
+                ? styles.pressed
+                : null,
+
+              loading
+                ? styles.disabled
+                : null,
+            ]}
           >
-            <Ionicons
-              name="refresh-outline"
-              size={22}
-              color="#E2E8F0"
-            />
+            {loading ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  ACTIVITY_COLORS.textPrimary
+                }
+              />
+            ) : (
+              <AppIcon
+                name="refresh"
+                role="customer"
+                size="md"
+                color={
+                  ACTIVITY_COLORS.textPrimary
+                }
+              />
+            )}
           </Pressable>
         </View>
 
@@ -628,15 +803,22 @@ export default function FixxamActivityScreen() {
         ================================================== */}
 
         <View
-          style={styles.volumeCard}
+          style={
+            styles.volumeCard
+          }
         >
           <View
-            style={styles.volumeIcon}
+            style={
+              styles.volumeIcon
+            }
           >
-            <Ionicons
-              name="pulse-outline"
-              size={27}
-              color="#60A5FA"
+            <AppIcon
+              name="payment"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
@@ -646,23 +828,21 @@ export default function FixxamActivityScreen() {
             }
           >
             <AppText
+              variant="caption"
+              numberOfLines={1}
               style={
                 styles.volumeLabel
               }
-              numberOfLines={1}
             >
               Transaction Volume
             </AppText>
 
             <AppText
+              variant="heading1"
               weight="bold"
+              numberOfLines={1}
               style={
                 styles.volumeValue
-              }
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={
-                0.65
               }
             >
               {formatNaira(
@@ -682,47 +862,82 @@ export default function FixxamActivityScreen() {
                   true,
                 )
               }
-              style={({ pressed }) => [
-                styles.periodButton,
-                pressed &&
-                  styles.pressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel={`Select activity period, currently ${getPeriodLabel(
                 period,
               )}`}
+              style={({
+                pressed,
+              }) => [
+                styles.periodButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
               <AppText
+                variant="caption"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.periodText
                 }
-                numberOfLines={1}
               >
                 {getPeriodLabel(
                   period,
                 )}
               </AppText>
 
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color="#60A5FA"
+              <AppIcon
+                name="down"
+                role="customer"
+                size="xs"
+                color={
+                  CustomerColors.primary
+                }
               />
             </Pressable>
 
             <View
-              style={styles.flatButton}
+              style={
+                styles.flatButton
+              }
             >
-              <View
-                style={styles.flatLine}
-              />
+              {growth > 0 ? (
+                <AppIcon
+                  name="arrow-up"
+                  size="xs"
+                  color={
+                    growthColor
+                  }
+                />
+              ) : growth < 0 ? (
+                <AppIcon
+                  name="down"
+                  size="xs"
+                  color={
+                    growthColor
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.flatLine
+                  }
+                />
+              )}
 
               <AppText
+                variant="caption"
                 weight="bold"
-                style={
-                  styles.flatText
-                }
+                style={[
+                  styles.flatText,
+                  {
+                    color:
+                      growthColor,
+                  },
+                ]}
               >
                 {formatGrowth(
                   growth,
@@ -734,11 +949,7 @@ export default function FixxamActivityScreen() {
                   styles.statusDot,
                   {
                     backgroundColor:
-                      growth > 0
-                        ? "#22C55E"
-                        : growth < 0
-                          ? "#F87171"
-                          : "#64748B",
+                      growthColor,
                   },
                 ]}
               />
@@ -751,13 +962,22 @@ export default function FixxamActivityScreen() {
         ================================================== */}
 
         <View
-          style={styles.chartCard}
+          style={
+            styles.chartCard
+          }
         >
           <View
-            style={styles.chartHeader}
+            style={
+              styles.chartHeader
+            }
           >
-            <View>
+            <View
+              style={
+                styles.chartHeaderContent
+              }
+            >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.chartTitle
@@ -767,6 +987,7 @@ export default function FixxamActivityScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
                 style={
                   styles.chartSubtitle
                 }
@@ -779,7 +1000,9 @@ export default function FixxamActivityScreen() {
             activity ? (
               <ActivityIndicator
                 size="small"
-                color="#60A5FA"
+                color={
+                  CustomerColors.primary
+                }
               />
             ) : null}
           </View>
@@ -797,6 +1020,7 @@ export default function FixxamActivityScreen() {
             0 ? (
               <>
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -806,6 +1030,7 @@ export default function FixxamActivityScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -820,6 +1045,7 @@ export default function FixxamActivityScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -833,6 +1059,7 @@ export default function FixxamActivityScreen() {
             ) : (
               <>
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -841,6 +1068,7 @@ export default function FixxamActivityScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -849,6 +1077,7 @@ export default function FixxamActivityScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.dateText
                   }
@@ -870,7 +1099,9 @@ export default function FixxamActivityScreen() {
           {/* TRANSACTIONS */}
 
           <View
-            style={styles.statCard}
+            style={
+              styles.statCard
+            }
           >
             <View
               style={[
@@ -878,10 +1109,13 @@ export default function FixxamActivityScreen() {
                 styles.transactionIcon,
               ]}
             >
-              <Ionicons
-                name="swap-horizontal"
-                size={26}
-                color="#60A5FA"
+              <AppIcon
+                name="payment"
+                role="customer"
+                size="lg"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
@@ -891,11 +1125,12 @@ export default function FixxamActivityScreen() {
               }
             >
               <AppText
+                variant="heading3"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.statValue
                 }
-                numberOfLines={1}
               >
                 {loading &&
                 !activity
@@ -904,19 +1139,21 @@ export default function FixxamActivityScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                numberOfLines={1}
                 style={
                   styles.statLabel
                 }
-                numberOfLines={1}
               >
                 Transactions
               </AppText>
 
               <AppText
+                variant="caption"
+                numberOfLines={2}
                 style={
                   styles.statDescription
                 }
-                numberOfLines={2}
               >
                 Successful transactions
                 {"\n"}
@@ -928,7 +1165,9 @@ export default function FixxamActivityScreen() {
           {/* SUCCESS RATE */}
 
           <View
-            style={styles.statCard}
+            style={
+              styles.statCard
+            }
           >
             <View
               style={[
@@ -936,10 +1175,12 @@ export default function FixxamActivityScreen() {
                 styles.activityIcon,
               ]}
             >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={26}
-                color="#22C55E"
+              <AppIcon
+                name="success"
+                size="lg"
+                color={
+                  Colors.success
+                }
               />
             </View>
 
@@ -949,14 +1190,11 @@ export default function FixxamActivityScreen() {
               }
             >
               <AppText
+                variant="heading3"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.statValue
-                }
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={
-                  0.7
                 }
               >
                 {loading &&
@@ -968,19 +1206,21 @@ export default function FixxamActivityScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                numberOfLines={1}
                 style={
                   styles.statLabel
                 }
-                numberOfLines={1}
               >
                 Success Rate
               </AppText>
 
               <AppText
+                variant="caption"
+                numberOfLines={2}
                 style={
                   styles.statDescription
                 }
-                numberOfLines={2}
               >
                 {successfulTransactions} successful
                 {"\n"}
@@ -995,10 +1235,14 @@ export default function FixxamActivityScreen() {
         ================================================== */}
 
         <View
-          style={styles.recentCard}
+          style={
+            styles.recentCard
+          }
         >
           <View
-            style={styles.recentHeader}
+            style={
+              styles.recentHeader
+            }
           >
             <View
               style={
@@ -1006,12 +1250,17 @@ export default function FixxamActivityScreen() {
               }
             >
               <View
-                style={styles.recentIcon}
+                style={
+                  styles.recentIcon
+                }
               >
-                <Ionicons
-                  name="list-outline"
-                  size={22}
-                  color="#60A5FA"
+                <AppIcon
+                  name="jobs"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
                 />
               </View>
 
@@ -1021,20 +1270,22 @@ export default function FixxamActivityScreen() {
                 }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
+                  numberOfLines={1}
                   style={
                     styles.recentTitle
                   }
-                  numberOfLines={1}
                 >
                   Activity Summary
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  numberOfLines={1}
                   style={
                     styles.recentSubtitle
                   }
-                  numberOfLines={1}
                 >
                   {getPeriodLabel(
                     period,
@@ -1054,13 +1305,14 @@ export default function FixxamActivityScreen() {
                   {
                     backgroundColor:
                       hasActivity
-                        ? "#22C55E"
-                        : "#64748B",
+                        ? Colors.success
+                        : Colors.textMuted,
                   },
                 ]}
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.activityBadgeText
@@ -1072,7 +1324,9 @@ export default function FixxamActivityScreen() {
           </View>
 
           <View
-            style={styles.recentDivider}
+            style={
+              styles.recentDivider
+            }
           />
 
           {loading &&
@@ -1084,10 +1338,13 @@ export default function FixxamActivityScreen() {
             >
               <ActivityIndicator
                 size="small"
-                color="#60A5FA"
+                color={
+                  CustomerColors.primary
+                }
               />
 
               <AppText
+                variant="caption"
                 style={
                   styles.loadingText
                 }
@@ -1106,14 +1363,17 @@ export default function FixxamActivityScreen() {
                   styles.emptyTransactionIcon
                 }
               >
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={30}
-                  color="#F87171"
+                <AppIcon
+                  name="error"
+                  size="lg"
+                  color={
+                    Colors.error
+                  }
                 />
               </View>
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.noTransactionTitle
@@ -1123,30 +1383,47 @@ export default function FixxamActivityScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                numberOfLines={2}
                 style={
                   styles.noTransactionText
                 }
-                numberOfLines={2}
               >
                 {error}
               </AppText>
 
               <Pressable
-                onPress={refresh}
-                style={({ pressed }) => [
+                onPress={
+                  handleRefresh
+                }
+                disabled={
+                  loading
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Try loading activity again"
+                style={({
+                  pressed,
+                }) => [
                   styles.retryButton,
                   styles.retryButtonLarge,
+
                   pressed &&
-                    styles.pressed,
+                  !loading
+                    ? styles.pressed
+                    : null,
                 ]}
               >
-                <Ionicons
+                <AppIcon
                   name="refresh"
-                  size={16}
-                  color="#FFFFFF"
+                  role="customer"
+                  size="xs"
+                  color={
+                    Colors.textInverse
+                  }
                 />
 
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.retryText
@@ -1167,14 +1444,17 @@ export default function FixxamActivityScreen() {
                   styles.emptyTransactionIcon
                 }
               >
-                <Ionicons
-                  name="document-text-outline"
-                  size={30}
-                  color="#CBD5E1"
+                <AppIcon
+                  name="file"
+                  size="lg"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </View>
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.noTransactionTitle
@@ -1184,13 +1464,13 @@ export default function FixxamActivityScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                numberOfLines={2}
                 style={
                   styles.noTransactionText
                 }
-                numberOfLines={2}
               >
-                Successful service and market
-                transactions will appear here.
+                Successful service and market transactions will appear here.
               </AppText>
             </View>
           ) : (
@@ -1199,6 +1479,8 @@ export default function FixxamActivityScreen() {
                 styles.summaryList
               }
             >
+              {/* VOLUME */}
+
               <View
                 style={
                   styles.summaryRow
@@ -1209,10 +1491,13 @@ export default function FixxamActivityScreen() {
                     styles.summaryRowIcon
                   }
                 >
-                  <Ionicons
-                    name="wallet-outline"
-                    size={20}
-                    color="#60A5FA"
+                  <AppIcon
+                    name="wallet"
+                    role="customer"
+                    size="sm"
+                    color={
+                      CustomerColors.primary
+                    }
                   />
                 </View>
 
@@ -1222,6 +1507,7 @@ export default function FixxamActivityScreen() {
                   }
                 >
                   <AppText
+                    variant="body"
                     weight="bold"
                     style={
                       styles.summaryTitle
@@ -1231,6 +1517,7 @@ export default function FixxamActivityScreen() {
                   </AppText>
 
                   <AppText
+                    variant="caption"
                     style={
                       styles.summarySubtitle
                     }
@@ -1240,7 +1527,9 @@ export default function FixxamActivityScreen() {
                 </View>
 
                 <AppText
+                  variant="body"
                   weight="bold"
+                  numberOfLines={1}
                   style={
                     styles.summaryAmount
                   }
@@ -1257,6 +1546,8 @@ export default function FixxamActivityScreen() {
                 }
               />
 
+              {/* SUCCESS */}
+
               <View
                 style={
                   styles.summaryRow
@@ -1268,10 +1559,12 @@ export default function FixxamActivityScreen() {
                     styles.successSummaryIcon,
                   ]}
                 >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={20}
-                    color="#22C55E"
+                  <AppIcon
+                    name="success"
+                    size="sm"
+                    color={
+                      Colors.success
+                    }
                   />
                 </View>
 
@@ -1281,6 +1574,7 @@ export default function FixxamActivityScreen() {
                   }
                 >
                   <AppText
+                    variant="body"
                     weight="bold"
                     style={
                       styles.summaryTitle
@@ -1290,6 +1584,7 @@ export default function FixxamActivityScreen() {
                   </AppText>
 
                   <AppText
+                    variant="caption"
                     style={
                       styles.summarySubtitle
                     }
@@ -1299,6 +1594,7 @@ export default function FixxamActivityScreen() {
                 </View>
 
                 <AppText
+                  variant="body"
                   weight="bold"
                   style={
                     styles.summaryAmount
@@ -1314,6 +1610,8 @@ export default function FixxamActivityScreen() {
                 }
               />
 
+              {/* FAILED */}
+
               <View
                 style={
                   styles.summaryRow
@@ -1325,10 +1623,12 @@ export default function FixxamActivityScreen() {
                     styles.failedSummaryIcon,
                   ]}
                 >
-                  <Ionicons
-                    name="close-circle-outline"
-                    size={20}
-                    color="#F87171"
+                  <AppIcon
+                    name="error"
+                    size="sm"
+                    color={
+                      Colors.error
+                    }
                   />
                 </View>
 
@@ -1338,6 +1638,7 @@ export default function FixxamActivityScreen() {
                   }
                 >
                   <AppText
+                    variant="body"
                     weight="bold"
                     style={
                       styles.summaryTitle
@@ -1347,6 +1648,7 @@ export default function FixxamActivityScreen() {
                   </AppText>
 
                   <AppText
+                    variant="caption"
                     style={
                       styles.summarySubtitle
                     }
@@ -1356,6 +1658,7 @@ export default function FixxamActivityScreen() {
                 </View>
 
                 <AppText
+                  variant="body"
                   weight="bold"
                   style={
                     styles.summaryAmount
@@ -1371,6 +1674,8 @@ export default function FixxamActivityScreen() {
                 }
               />
 
+              {/* GROWTH */}
+
               <View
                 style={
                   styles.summaryRow
@@ -1382,13 +1687,13 @@ export default function FixxamActivityScreen() {
                     styles.growthSummaryIcon,
                   ]}
                 >
-                  <Ionicons
+                  <AppIcon
                     name={
                       growth >= 0
-                        ? "trending-up-outline"
-                        : "trending-down-outline"
+                        ? "arrow-up"
+                        : "down"
                     }
-                    size={20}
+                    size="sm"
                     color={
                       growthColor
                     }
@@ -1401,6 +1706,7 @@ export default function FixxamActivityScreen() {
                   }
                 >
                   <AppText
+                    variant="body"
                     weight="bold"
                     style={
                       styles.summaryTitle
@@ -1410,6 +1716,7 @@ export default function FixxamActivityScreen() {
                   </AppText>
 
                   <AppText
+                    variant="caption"
                     style={
                       styles.summarySubtitle
                     }
@@ -1419,6 +1726,7 @@ export default function FixxamActivityScreen() {
                 </View>
 
                 <AppText
+                  variant="body"
                   weight="bold"
                   style={[
                     styles.summaryAmount,
@@ -1444,20 +1752,23 @@ export default function FixxamActivityScreen() {
         <View
           style={styles.infoCard}
         >
-          <Ionicons
-            name="information-circle"
-            size={20}
-            color="#60A5FA"
+          <AppIcon
+            name="info"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
-            style={styles.infoText}
+            variant="caption"
             numberOfLines={3}
+            style={
+              styles.infoText
+            }
           >
-            Activity combines successful service
-            transactions and market product
-            transactions. Market delivery fees are
-            excluded from transaction volume.
+            Activity combines successful service transactions and market product transactions. Market delivery fees are excluded from transaction volume.
           </AppText>
         </View>
       </ScrollView>
@@ -1472,6 +1783,7 @@ export default function FixxamActivityScreen() {
         }
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() =>
           setPeriodModalVisible(
             false,
@@ -1492,7 +1804,9 @@ export default function FixxamActivityScreen() {
             style={
               styles.periodModal
             }
-            onPress={(event) =>
+            onPress={(
+              event,
+            ) =>
               event.stopPropagation()
             }
           >
@@ -1501,8 +1815,13 @@ export default function FixxamActivityScreen() {
                 styles.modalHeader
               }
             >
-              <View>
+              <View
+                style={
+                  styles.modalHeaderText
+                }
+              >
                 <AppText
+                  variant="bodyLarge"
                   weight="bold"
                   style={
                     styles.modalTitle
@@ -1512,6 +1831,7 @@ export default function FixxamActivityScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.modalSubtitle
                   }
@@ -1526,18 +1846,24 @@ export default function FixxamActivityScreen() {
                     false,
                   )
                 }
-                style={({ pressed }) => [
-                  styles.modalClose,
-                  pressed &&
-                    styles.pressed,
-                ]}
                 accessibilityRole="button"
                 accessibilityLabel="Close period selector"
+                style={({
+                  pressed,
+                }) => [
+                  styles.modalClose,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
               >
-                <Ionicons
+                <AppIcon
                   name="close"
-                  size={21}
-                  color="#CBD5E1"
+                  size="sm"
+                  color={
+                    ACTIVITY_COLORS.textSecondary
+                  }
                 />
               </Pressable>
             </View>
@@ -1548,7 +1874,9 @@ export default function FixxamActivityScreen() {
               }
             >
               {PERIOD_OPTIONS.map(
-                (option) => {
+                (
+                  option,
+                ) => {
                   const selected =
                     option.value ===
                     period;
@@ -1563,35 +1891,46 @@ export default function FixxamActivityScreen() {
                           option.value,
                         )
                       }
-                      style={({ pressed }) => [
-                        styles.periodOption,
-                        selected &&
-                          styles.periodOptionSelected,
-                        pressed &&
-                          styles.periodOptionPressed,
-                      ]}
                       accessibilityRole="button"
+                      accessibilityLabel={
+                        option.label
+                      }
                       accessibilityState={{
                         selected,
                       }}
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.periodOption,
+
+                        selected
+                          ? styles.periodOptionSelected
+                          : null,
+
+                        pressed
+                          ? styles.periodOptionPressed
+                          : null,
+                      ]}
                     >
                       <View
                         style={
                           styles.periodOptionIcon
                         }
                       >
-                        <Ionicons
-                          name="calendar-outline"
-                          size={19}
+                        <AppIcon
+                          name="calendar"
+                          role="customer"
+                          size="sm"
                           color={
                             selected
-                              ? "#60A5FA"
-                              : "#94A3B8"
+                              ? CustomerColors.primary
+                              : ACTIVITY_COLORS.textSecondary
                           }
                         />
                       </View>
 
                       <AppText
+                        variant="body"
                         weight={
                           selected
                             ? "bold"
@@ -1599,26 +1938,31 @@ export default function FixxamActivityScreen() {
                         }
                         style={[
                           styles.periodOptionText,
-                          selected &&
-                            styles.periodOptionTextSelected,
+
+                          selected
+                            ? styles.periodOptionTextSelected
+                            : null,
                         ]}
                       >
-                        {
-                          option.label
-                        }
+                        {option.label}
                       </AppText>
 
                       {selected ? (
-                        <Ionicons
-                          name="checkmark-circle"
-                          size={21}
-                          color="#60A5FA"
+                        <AppIcon
+                          name="check"
+                          role="customer"
+                          size="sm"
+                          color={
+                            CustomerColors.primary
+                          }
                         />
                       ) : (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={18}
-                          color="#475569"
+                        <AppIcon
+                          name="next"
+                          size="xs"
+                          color={
+                            ACTIVITY_COLORS.textMuted
+                          }
                         />
                       )}
                     </Pressable>
@@ -1639,15 +1983,24 @@ export default function FixxamActivityScreen() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
       backgroundColor:
-        "#020617",
+        ACTIVITY_COLORS.screen,
     },
 
     container: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 30,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ========================================================
@@ -1657,27 +2010,38 @@ const styles =
     header: {
       minHeight: 70,
 
-      flexDirection: "row",
-      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-      marginBottom: 12,
+      flexDirection: "row",
+
+      alignItems: "center",
     },
 
     backButton: {
-      width: 46,
-      height: 46,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 23,
-
-      backgroundColor:
-        "#0F1D32",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 1,
+
       borderColor:
-        "#172B49",
+        ACTIVITY_COLORS.borderSoft,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        ACTIVITY_COLORS.headerButton,
     },
 
     headerText: {
@@ -1685,46 +2049,53 @@ const styles =
 
       minWidth: 0,
 
-      alignItems: "center",
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
 
-      marginHorizontal: 8,
+      alignItems: "center",
     },
 
     headerTitle: {
-      fontSize: 22,
-      lineHeight: 27,
-
-      color: "#F8FAFC",
-
       textAlign: "center",
+
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     headerSubtitle: {
-      marginTop: 2,
-
-      fontSize: 11,
-      lineHeight: 17,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       textAlign: "center",
+
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     calendarButton: {
-      width: 46,
-      height: 46,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 14,
-
-      backgroundColor:
-        "#081426",
-
-      borderWidth: 1,
-      borderColor:
-        "#1E3A66",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surfaceStrong,
     },
 
     /* ========================================================
@@ -1734,34 +2105,42 @@ const styles =
     volumeCard: {
       minHeight: 126,
 
-      padding: 14,
-
-      borderRadius: 19,
-
-      backgroundColor:
-        "#071426",
-
-      borderWidth: 1,
-      borderColor:
-        "#183152",
+      padding:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     volumeIcon: {
       width: 54,
+
       height: 54,
 
-      borderRadius: 16,
-
-      backgroundColor:
-        "#102A63",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      flexShrink: 0,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSoft,
     },
 
     volumeContent: {
@@ -1769,156 +2148,195 @@ const styles =
 
       minWidth: 0,
 
-      marginLeft: 10,
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     volumeLabel: {
-      fontSize: 12,
-      lineHeight: 17,
-
-      color: "#94A3B8",
+      color:
+        ACTIVITY_COLORS.textSecondary,
     },
 
     volumeValue: {
-      marginTop: 1,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 29,
-      lineHeight: 36,
-
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     volumeActions: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       alignItems: "flex-end",
 
-      gap: 8,
-
-      marginLeft: 7,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     periodButton: {
       width: 137,
-      height: 42,
 
-      paddingHorizontal: 11,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-      borderRadius: 13,
-
-      backgroundColor:
-        "#081426",
-
-      borderWidth: 1,
-      borderColor:
-        "#1D4ED8",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "space-between",
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surfaceStrong,
     },
 
     periodText: {
       flex: 1,
 
-      fontSize: 11.5,
+      minWidth: 0,
 
-      color: "#CBD5E1",
+      marginRight:
+        FixxamTokens.spacing.xs,
 
-      marginRight: 5,
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     flatButton: {
-      height: 36,
+      minHeight: 36,
 
-      paddingHorizontal: 11,
-
-      borderRadius: 12,
-
-      borderWidth: 1,
-      borderColor:
-        "#64748B",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
+
       alignItems: "center",
 
-      gap: 6,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.textMuted,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     flatLine: {
       width: 12,
+
       height: 2,
 
       backgroundColor:
-        "#94A3B8",
+        Colors.textMuted,
     },
 
     flatText: {
-      fontSize: 11.5,
-
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     statusDot: {
       width: 6,
+
       height: 6,
 
-      borderRadius: 3,
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     /* ========================================================
-       CHART CARD
+       CHART
     ======================================================== */
 
     chartCard: {
-      marginTop: 14,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      padding: 17,
-
-      borderRadius: 19,
-
-      backgroundColor:
-        "#071426",
+      padding:
+        FixxamTokens.spacing.lg,
 
       borderWidth: 1,
+
       borderColor:
-        "#183152",
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     chartHeader: {
-      minHeight: 45,
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       flexDirection: "row",
-      alignItems: "flex-start",
+
+      alignItems:
+        "flex-start",
+
       justifyContent:
         "space-between",
     },
 
-    chartTitle: {
-      fontSize: 15,
+    chartHeaderContent: {
+      flex: 1,
 
-      color: "#F8FAFC",
+      minWidth: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    chartTitle: {
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     chartSubtitle: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10.5,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     chart: {
       height: 245,
 
-      position: "relative",
-
-      borderWidth: 1,
-      borderColor:
-        "#172B49",
-
       overflow: "hidden",
 
-      justifyContent: "flex-end",
+      position: "relative",
+
+      justifyContent:
+        "flex-end",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.borderSoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     chartContent: {
@@ -1934,8 +2352,11 @@ const styles =
       position: "absolute",
 
       left: 0,
+
       right: 0,
+
       top: 20,
+
       bottom: 43,
 
       justifyContent:
@@ -1944,9 +2365,11 @@ const styles =
 
     gridLine: {
       width: "100%",
+
       borderTopWidth: 1,
+
       borderTopColor:
-        "#172B49",
+        ACTIVITY_COLORS.borderSoft,
 
       borderStyle: "dashed",
     },
@@ -1954,10 +2377,14 @@ const styles =
     chartBars: {
       minHeight: 205,
 
-      paddingHorizontal: 9,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
-      alignItems: "flex-end",
+
+      alignItems:
+        "flex-end",
+
       justifyContent:
         "space-around",
 
@@ -1967,11 +2394,12 @@ const styles =
     chartBarColumn: {
       height: 225,
 
+      marginHorizontal: 1,
+
       alignItems: "center",
+
       justifyContent:
         "flex-end",
-
-      marginHorizontal: 1,
     },
 
     chartBarArea: {
@@ -1980,6 +2408,7 @@ const styles =
       width: "100%",
 
       alignItems: "center",
+
       justifyContent:
         "flex-end",
     },
@@ -1991,79 +2420,91 @@ const styles =
 
       maxWidth: 25,
 
-      borderTopLeftRadius: 7,
-      borderTopRightRadius: 7,
+      borderTopLeftRadius:
+        FixxamTokens.radius.xs,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xs,
 
       backgroundColor:
-        "#3B82F6",
+        CustomerColors.primary,
     },
 
     chartBarEmpty: {
-      backgroundColor:
-        "#1E293B",
-
       opacity: 0.7,
+
+      backgroundColor:
+        ACTIVITY_COLORS.emptyBar,
     },
 
     chartBarLabel: {
       height: 27,
 
-      marginTop: 5,
-
-      fontSize: 8.5,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       textAlign: "center",
+
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     chartState: {
       flex: 1,
 
-      alignItems: "center",
-      justifyContent: "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-      paddingHorizontal: 22,
+      alignItems: "center",
+
+      justifyContent:
+        "center",
     },
 
     chartStateIcon: {
       width: 58,
+
       height: 58,
 
-      borderRadius: 29,
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#142541",
-
-      alignItems: "center",
-      justifyContent: "center",
+        ACTIVITY_COLORS.headerButton,
     },
 
     chartStateTitle: {
-      marginTop: 10,
-
-      fontSize: 15,
-
-      color: "#E2E8F0",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       textAlign: "center",
+
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     chartStateText: {
-      marginTop: 6,
+      maxWidth: 290,
 
-      fontSize: 11.5,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 18,
-
-      color: "#64748B",
 
       textAlign: "center",
 
-      maxWidth: 290,
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     dateRow: {
-      marginTop: 7,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       flexDirection: "row",
 
@@ -2072,9 +2513,8 @@ const styles =
     },
 
     dateText: {
-      fontSize: 10.5,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     /* ========================================================
@@ -2082,11 +2522,13 @@ const styles =
     ======================================================== */
 
     statsRow: {
-      marginTop: 14,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
 
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     statCard: {
@@ -2096,41 +2538,48 @@ const styles =
 
       minHeight: 166,
 
-      padding: 13,
-
-      borderRadius: 19,
-
-      backgroundColor:
-        "#071426",
-
-      borderWidth: 1,
-      borderColor:
-        "#183152",
+      padding:
+        FixxamTokens.spacing.md,
 
       alignItems:
         "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     statIcon: {
       width: 47,
+
       height: 47,
 
-      borderRadius: 15,
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      flexShrink: 0,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
     },
 
     transactionIcon: {
       backgroundColor:
-        "#102A63",
+        ACTIVITY_COLORS.blueSoft,
     },
 
     activityIcon: {
       backgroundColor:
-        "#064E3B",
+        ACTIVITY_COLORS.successSoft,
     },
 
     statContent: {
@@ -2138,38 +2587,37 @@ const styles =
 
       minWidth: 0,
 
-      marginTop: 9,
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     statValue: {
-      fontSize: 21,
-      lineHeight: 26,
-
-      color: "#F8FAFC",
-
       flexShrink: 1,
+
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     statLabel: {
-      marginTop: 1,
-
-      fontSize: 13,
-      lineHeight: 18,
-
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       flexShrink: 1,
+
+      color:
+        ACTIVITY_COLORS.textSecondary,
     },
 
     statDescription: {
-      marginTop: 11,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 10.5,
       lineHeight: 16,
 
-      color: "#64748B",
-
       flexShrink: 1,
+
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     /* ========================================================
@@ -2177,27 +2625,33 @@ const styles =
     ======================================================== */
 
     recentCard: {
-      marginTop: 14,
+      overflow: "hidden",
 
-      borderRadius: 19,
-
-      backgroundColor:
-        "#071426",
+      marginTop:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
-      borderColor:
-        "#183152",
 
-      overflow: "hidden",
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     recentHeader: {
       minHeight: 70,
 
-      paddingHorizontal: 13,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "space-between",
     },
@@ -2208,22 +2662,27 @@ const styles =
       minWidth: 0,
 
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     recentIcon: {
       width: 38,
+
       height: 38,
 
-      borderRadius: 11,
-
-      backgroundColor:
-        "#0D2345",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      flexShrink: 0,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSurface,
     },
 
     recentTitleContent: {
@@ -2231,62 +2690,70 @@ const styles =
 
       minWidth: 0,
 
-      marginLeft: 9,
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     recentTitle: {
-      fontSize: 15,
-
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     recentSubtitle: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10.5,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     activityBadge: {
-      marginLeft: 8,
+      minHeight: 30,
 
-      paddingHorizontal: 9,
-      height: 30,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-      borderRadius: 15,
-
-      backgroundColor:
-        "#0B1D31",
-
-      borderWidth: 1,
-      borderColor:
-        "#183152",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
+
       alignItems: "center",
 
-      gap: 6,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surfaceMuted,
     },
 
     badgeDot: {
       width: 6,
+
       height: 6,
 
-      borderRadius: 3,
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     activityBadgeText: {
-      fontSize: 10.5,
-
-      color: "#CBD5E1",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     recentDivider: {
       height: 1,
 
       backgroundColor:
-        "#172B49",
+        ACTIVITY_COLORS.borderSoft,
     },
 
     /* ========================================================
@@ -2294,46 +2761,53 @@ const styles =
     ======================================================== */
 
     summaryList: {
-      paddingVertical: 4,
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
     },
 
     summaryRow: {
       minHeight: 72,
 
-      paddingHorizontal: 14,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     summaryRowIcon: {
       width: 42,
+
       height: 42,
 
-      borderRadius: 12,
-
-      backgroundColor:
-        "#102A63",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      flexShrink: 0,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSoft,
     },
 
     successSummaryIcon: {
       backgroundColor:
-        "#064E3B",
+        ACTIVITY_COLORS.successSoft,
     },
 
     failedSummaryIcon: {
       backgroundColor:
-        "#3F1D2A",
+        ACTIVITY_COLORS.errorSoft,
     },
 
     growthSummaryIcon: {
       backgroundColor:
-        "#172554",
+        ACTIVITY_COLORS.blueSurface,
     },
 
     summaryRowContent: {
@@ -2341,37 +2815,41 @@ const styles =
 
       minWidth: 0,
 
-      marginLeft: 10,
-      marginRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     summaryTitle: {
-      fontSize: 12.5,
-
-      color: "#E2E8F0",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     summarySubtitle: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     summaryAmount: {
-      fontSize: 13,
+      flexShrink: 0,
 
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     summaryDivider: {
       height: 1,
 
-      marginHorizontal: 14,
+      marginHorizontal:
+        FixxamTokens.spacing.md,
 
       backgroundColor:
-        "#172B49",
+        ACTIVITY_COLORS.borderSoft,
     },
 
     /* ========================================================
@@ -2381,57 +2859,65 @@ const styles =
     emptyTransactions: {
       minHeight: 220,
 
-      paddingHorizontal: 18,
-      paddingVertical: 28,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.xl,
 
       alignItems: "center",
+
       justifyContent:
         "center",
     },
 
     emptyTransactionIcon: {
       width: 66,
+
       height: 66,
 
-      borderRadius: 33,
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#142541",
-
-      alignItems: "center",
-      justifyContent: "center",
+        ACTIVITY_COLORS.headerButton,
     },
 
     noTransactionTitle: {
-      marginTop: 14,
-
-      fontSize: 15,
-      lineHeight: 20,
-
-      color: "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.md,
 
       textAlign: "center",
+
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     noTransactionText: {
-      marginTop: 6,
+      maxWidth: 290,
 
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 19,
-
-      color: "#64748B",
 
       textAlign: "center",
 
-      maxWidth: 290,
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     loadingText: {
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 11.5,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     /* ========================================================
@@ -2439,22 +2925,31 @@ const styles =
     ======================================================== */
 
     retryButton: {
-      marginTop: 14,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-      minHeight: 38,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      paddingHorizontal: 14,
-
-      borderRadius: 12,
-
-      backgroundColor:
-        "#2563EB",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
 
-      gap: 6,
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     retryButtonLarge: {
@@ -2462,9 +2957,8 @@ const styles =
     },
 
     retryText: {
-      fontSize: 11.5,
-
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
@@ -2472,35 +2966,45 @@ const styles =
     ======================================================== */
 
     infoCard: {
-      marginTop: 14,
-
       minHeight: 70,
 
-      paddingHorizontal: 14,
-      paddingVertical: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      backgroundColor:
-        "#071426",
-
-      borderWidth: 1,
-      borderColor:
-        "#183152",
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     infoText: {
       flex: 1,
 
-      marginLeft: 9,
+      minWidth: 0,
 
-      fontSize: 11.5,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 17,
 
-      color: "#94A3B8",
+      color:
+        ACTIVITY_COLORS.textSecondary,
     },
 
     /* ========================================================
@@ -2510,149 +3014,203 @@ const styles =
     modalOverlay: {
       flex: 1,
 
-      backgroundColor:
-        "rgba(2, 6, 23, 0.78)",
+      padding:
+        FixxamTokens.spacing.lg,
 
       justifyContent:
         "flex-end",
 
-      padding: 16,
+      backgroundColor:
+        Colors.overlayStrong,
     },
 
     periodModal: {
       width: "100%",
 
-      padding: 16,
-
-      borderRadius: 22,
-
-      backgroundColor:
-        "#071426",
+      padding:
+        FixxamTokens.spacing.lg,
 
       borderWidth: 1,
+
       borderColor:
-        "#183152",
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     modalHeader: {
       minHeight: 55,
 
       flexDirection: "row",
-      alignItems: "flex-start",
+
+      alignItems:
+        "flex-start",
+
       justifyContent:
         "space-between",
     },
 
-    modalTitle: {
-      fontSize: 17,
+    modalHeaderText: {
+      flex: 1,
 
-      color: "#F8FAFC",
+      minWidth: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalTitle: {
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     modalSubtitle: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 11,
-
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS.textMuted,
     },
 
     modalClose: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 12,
-
-      backgroundColor:
-        "#0F1D32",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 1,
+
       borderColor:
-        "#172B49",
+        ACTIVITY_COLORS.borderSoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.headerButton,
     },
 
     periodOptions: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      gap: 8,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     periodOption: {
       minHeight: 58,
 
-      paddingHorizontal: 12,
-
-      borderRadius: 14,
-
-      backgroundColor:
-        "#081426",
-
-      borderWidth: 1,
-      borderColor:
-        "#172B49",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.borderSoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surfaceStrong,
     },
 
     periodOptionSelected: {
-      backgroundColor:
-        "#0D2345",
-
       borderColor:
-        "#1D4ED8",
+        CustomerColors.primary,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSurface,
     },
 
     periodOptionPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     periodOptionIcon: {
       width: 38,
+
       height: 38,
 
-      borderRadius: 11,
-
-      backgroundColor:
-        "#102A63",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSoft,
     },
 
     periodOptionText: {
       flex: 1,
 
-      marginLeft: 10,
+      minWidth: 0,
 
-      fontSize: 12.5,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-      color: "#CBD5E1",
+      color:
+        ACTIVITY_COLORS.textSecondary,
     },
 
     periodOptionTextSelected: {
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS.textPrimary,
     },
 
     /* ========================================================
-       PRESS
+       STATES
     ======================================================== */
 
     pressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

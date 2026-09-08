@@ -1,56 +1,143 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  Image,
   Pressable,
   StyleSheet,
 } from "react-native";
 
+import {
+  Image,
+} from "expo-image";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type ProductBannerProps = {
   onPress?: () => void;
+
+  accessibilityLabel?: string;
 };
 
-export default function ProductBanner({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProductBanner({
   onPress,
+  accessibilityLabel,
 }: ProductBannerProps) {
+  const interactive =
+    typeof onPress ===
+    "function";
+
   return (
     <Pressable
-      style={styles.container}
-      onPress={onPress}
-      android_ripple={{ color: "rgba(255,255,255,0.15)" }}
+      onPress={
+        onPress
+      }
+      disabled={
+        !interactive
+      }
+      accessibilityRole={
+        interactive
+          ? "button"
+          : undefined
+      }
+      accessibilityLabel={
+        interactive
+          ? accessibilityLabel ??
+            "Open promotion"
+          : undefined
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.container,
+
+        pressed &&
+        interactive
+          ? styles.pressed
+          : null,
+      ]}
     >
       <Image
         source={require("@/assets/images/banners/market-banner.png")}
-        style={styles.banner}
-        resizeMode="cover"
+        contentFit="cover"
+        transition={150}
+        style={
+          styles.banner
+        }
       />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 0,
-    marginTop: 0,
-    marginBottom: 2,
+/* ============================================================
+   MEMO
+============================================================ */
 
-    borderRadius: 29,
-    overflow: "hidden",
+const MemoizedProductBanner =
+  memo(
+    ProductBanner,
+  );
 
-    backgroundColor: "#35F5F5",
+MemoizedProductBanner.displayName =
+  "ProductBanner";
 
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    shadowOffset: {
-      width: 0,
-      height: 8,
+export default MemoizedProductBanner;
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 100,
-  },
+    banner: {
+      width: "100%",
 
-  banner: {
-    width: "100%",
-    height: 170,
-  },
-});
+      height: 170,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

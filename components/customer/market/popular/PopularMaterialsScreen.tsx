@@ -10,6 +10,7 @@ import {
   FlatList,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
 import {
@@ -17,19 +18,29 @@ import {
   router,
 } from "expo-router";
 
-import useMarket from "@/hooks/market/useMarket";
-
-import PopularMaterialsHeader from "./PopularMaterialsHeader";
-import PopularMaterialsSearch from "./PopularMaterialsSearch";
-import PopularMaterialsCategories from "./PopularMaterialsCategories";
-import PopularMaterialsLoading from "./PopularMaterialsLoading";
-import PopularMaterialsEmpty from "./PopularMaterialsEmpty";
+import {
+  AppText,
+} from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
+
+import useMarket from "@/hooks/market/useMarket";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import PopularMaterialsCategories from "./PopularMaterialsCategories";
+import PopularMaterialsEmpty from "./PopularMaterialsEmpty";
+import PopularMaterialsHeader from "./PopularMaterialsHeader";
+import PopularMaterialsLoading from "./PopularMaterialsLoading";
+import PopularMaterialsSearch from "./PopularMaterialsSearch";
 
 /* ==============================================================
    TYPES
@@ -37,13 +48,21 @@ import getActiveProductDeals, {
 
 interface MarketProduct {
   id: string;
+
   workerId?: string;
+
   storeId?: string;
+
   name: string;
+
   price: number;
+
   thumbnail: string;
+
   category: string;
+
   rating?: number;
+
   sold?: number;
 }
 
@@ -52,6 +71,49 @@ interface ProductWithDeal
   activeDeal:
     | ActiveProductDeal
     | null;
+}
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizePrice(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return 0;
+  }
+
+  return value;
+}
+
+function isValidProduct(
+  product: MarketProduct,
+): boolean {
+  return Boolean(
+    cleanString(
+      product.id,
+    ) &&
+      cleanString(
+        product.name,
+      ),
+  );
 }
 
 /* ==============================================================
@@ -75,11 +137,16 @@ export default function PopularMaterialsScreen() {
   } = useMarket();
 
   const [
-    productsWithDeals,
-    setProductsWithDeals,
+    dealsByProductId,
+    setDealsByProductId,
   ] = useState<
-    ProductWithDeal[]
-  >([]);
+    Map<
+      string,
+      ActiveProductDeal
+    >
+  >(
+    () => new Map(),
+  );
 
   const [
     dealsLoading,
@@ -87,81 +154,134 @@ export default function PopularMaterialsScreen() {
   ] = useState(false);
 
   /* ============================================================
-     FILTER PRODUCTS
+     NORMALIZE PRODUCTS
   ============================================================ */
 
-  const filteredProducts =
-    useMemo(() => {
-      const normalizedSearch =
-        search.trim().toLowerCase();
-
-      const normalizedCategory =
-        category.trim().toLowerCase();
-
-      return (
-        products as MarketProduct[]
-      ).filter((product) => {
-        const productName =
-          product.name
-            ?.toLowerCase()
-            .trim() ?? "";
-
-        const productCategory =
-          product.category
-            ?.toLowerCase()
-            .trim() ?? "";
-
-        const matchesSearch =
-          !normalizedSearch ||
-          productName.includes(
-            normalizedSearch,
-          );
-
-        const matchesCategory =
-          normalizedCategory ===
-            "all" ||
-          productCategory ===
-            normalizedCategory;
+  const marketProducts =
+    useMemo<MarketProduct[]>(
+      () => {
+        if (
+          !Array.isArray(
+            products,
+          )
+        ) {
+          return [];
+        }
 
         return (
-          matchesSearch &&
-          matchesCategory
-        );
-      });
-    }, [
-      products,
-      search,
-      category,
-    ]);
+          products as MarketProduct[]
+        )
+          .filter(
+            isValidProduct,
+          )
+          .map(
+            (
+              product,
+            ) => ({
+              ...product,
+
+              id: cleanString(
+                product.id,
+              ),
+
+              name: cleanString(
+                product.name,
+              ),
+
+              thumbnail:
+                cleanString(
+                  product.thumbnail,
+                ),
+
+              category:
+                cleanString(
+                  product.category,
+                ),
+
+              workerId:
+                cleanString(
+                  product.workerId,
+                ) ||
+                undefined,
+
+              storeId:
+                cleanString(
+                  product.storeId,
+                ) ||
+                undefined,
+
+              price:
+                normalizePrice(
+                  product.price,
+                ),
+            }),
+          );
+      },
+      [
+        products,
+      ],
+    );
+
+  /* ============================================================
+     PRODUCT IDS
+  ============================================================ */
+
+  const productIds =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            marketProducts
+              .map(
+                (
+                  product,
+                ) =>
+                  product.id,
+              )
+              .filter(
+                Boolean,
+              ),
+          ),
+        ),
+      [
+        marketProducts,
+      ],
+    );
 
   /* ============================================================
      LOAD ACTIVE DEALS
   ============================================================ */
 
-  const loadDeals =
-    useCallback(
-      async () => {
-        if (
-          filteredProducts.length ===
-          0
-        ) {
-          setProductsWithDeals([]);
-          setDealsLoading(false);
-          return;
-        }
+  useEffect(() => {
+    let cancelled =
+      false;
 
-        let cancelled = false;
+    if (
+      productIds.length ===
+      0
+    ) {
+      setDealsByProductId(
+        new Map(),
+      );
+
+      setDealsLoading(
+        false,
+      );
+
+      return () => {
+        cancelled =
+          true;
+      };
+    }
+
+    const loadDeals =
+      async () => {
+        setDealsLoading(
+          true,
+        );
 
         try {
-          setDealsLoading(true);
-
-          const productIds =
-            filteredProducts.map(
-              (product) =>
-                product.id,
-            );
-
-          const dealsByProductId =
+          const result =
             await getActiveProductDeals(
               productIds,
             );
@@ -170,172 +290,174 @@ export default function PopularMaterialsScreen() {
             return;
           }
 
-          const merged =
-            filteredProducts.map(
-              (product) => ({
-                ...product,
-
-                activeDeal:
-                  dealsByProductId.get(
-                    product.id,
-                  ) ?? null,
-              }),
-            );
-
-          setProductsWithDeals(
-            merged,
+          setDealsByProductId(
+            result instanceof Map
+              ? result
+              : new Map(),
           );
         } catch (error) {
           console.error(
-            "POPULAR MATERIALS DEAL LOAD ERROR:",
+            "POPULAR_MATERIALS_DEAL_LOAD_ERROR:",
             error,
           );
 
-          if (cancelled) {
-            return;
-          }
-
           /*
-           * Deals are optional.
-           * Products remain visible
-           * even if deal loading fails.
+           * Product browsing should continue
+           * even when deal retrieval fails.
            */
-          setProductsWithDeals(
-            filteredProducts.map(
-              (product) => ({
-                ...product,
-                activeDeal: null,
-              }),
-            ),
-          );
+          if (!cancelled) {
+            setDealsByProductId(
+              new Map(),
+            );
+          }
         } finally {
           if (!cancelled) {
-            setDealsLoading(false);
+            setDealsLoading(
+              false,
+            );
           }
         }
+      };
 
-        return () => {
-          cancelled = true;
-        };
+    void loadDeals();
+
+    return () => {
+      cancelled =
+        true;
+    };
+  }, [
+    productIds,
+  ]);
+
+  /* ============================================================
+     FILTER PRODUCTS
+  ============================================================ */
+
+  const filteredProducts =
+    useMemo<
+      MarketProduct[]
+    >(
+      () => {
+        const normalizedSearch =
+          cleanString(search)
+            .toLowerCase();
+
+        const normalizedCategory =
+          cleanString(category)
+            .toLowerCase();
+
+        return marketProducts.filter(
+          (
+            product,
+          ) => {
+            const productName =
+              product.name.toLowerCase();
+
+            const productCategory =
+              product.category.toLowerCase();
+
+            const matchesSearch =
+              !normalizedSearch ||
+              productName.includes(
+                normalizedSearch,
+              );
+
+            const matchesCategory =
+              !normalizedCategory ||
+              normalizedCategory ===
+                "all" ||
+              productCategory ===
+                normalizedCategory;
+
+            return (
+              matchesSearch &&
+              matchesCategory
+            );
+          },
+        );
       },
-      [filteredProducts],
+      [
+        category,
+        marketProducts,
+        search,
+      ],
     );
 
   /* ============================================================
-     RUN DEAL LOAD
+     DISPLAY PRODUCTS
   ============================================================ */
 
-  useEffect(() => {
-    let cancelled = false;
+  const displayProducts =
+    useMemo<
+      ProductWithDeal[]
+    >(
+      () =>
+        filteredProducts.map(
+          (
+            product,
+          ) => ({
+            ...product,
 
-    const run = async () => {
-      if (
-        filteredProducts.length ===
-        0
-      ) {
-        setProductsWithDeals([]);
-        setDealsLoading(false);
-        return;
-      }
-
-      try {
-        setDealsLoading(true);
-
-        const productIds =
-          filteredProducts.map(
-            (product) =>
-              product.id,
-          );
-
-        const dealsByProductId =
-          await getActiveProductDeals(
-            productIds,
-          );
-
-        if (cancelled) {
-          return;
-        }
-
-        setProductsWithDeals(
-          filteredProducts.map(
-            (product) => ({
-              ...product,
-
-              activeDeal:
-                dealsByProductId.get(
-                  product.id,
-                ) ?? null,
-            }),
-          ),
-        );
-      } catch (error) {
-        console.error(
-          "POPULAR MATERIALS DEAL LOAD ERROR:",
-          error,
-        );
-
-        if (!cancelled) {
-          setProductsWithDeals(
-            filteredProducts.map(
-              (product) => ({
-                ...product,
-                activeDeal: null,
-              }),
-            ),
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setDealsLoading(false);
-        }
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filteredProducts]);
+            activeDeal:
+              dealsByProductId.get(
+                product.id,
+              ) ?? null,
+          }),
+        ),
+      [
+        dealsByProductId,
+        filteredProducts,
+      ],
+    );
 
   /* ============================================================
-     PRODUCT PRESS
+     NAVIGATION
   ============================================================ */
 
   const handleProductPress =
     useCallback(
-      (id: string) => {
-        if (!id) {
+      (
+        id: string,
+      ) => {
+        const productId =
+          cleanString(id);
+
+        if (!productId) {
           return;
         }
 
         router.push({
           pathname:
             "/(customer)/product/[id]",
+
           params: {
-            id,
+            id:
+              productId,
           },
         });
       },
       [],
     );
-
-  /* ============================================================
-     BUY
-  ============================================================ */
 
   const handleBuy =
     useCallback(
-      (id: string) => {
-        if (!id) {
+      (
+        id: string,
+      ) => {
+        const productId =
+          cleanString(id);
+
+        if (!productId) {
           return;
         }
 
         router.push({
           pathname:
             "/(customer)/product/[id]",
+
           params: {
-            id,
+            id:
+              productId,
           },
         });
       },
@@ -343,21 +465,130 @@ export default function PopularMaterialsScreen() {
     );
 
   /* ============================================================
-     DISPLAY DATA
+     RENDER PRODUCT
   ============================================================ */
 
-  const displayProducts =
-    productsWithDeals.length > 0
-      ? productsWithDeals
-      : filteredProducts.map(
-          (product) => ({
-            ...product,
-            activeDeal: null,
-          }),
-        );
+  const renderProduct =
+    useCallback<
+      ListRenderItem<ProductWithDeal>
+    >(
+      ({
+        item,
+      }) => (
+        <View
+          style={
+            styles.cardWrapper
+          }
+        >
+          <ProductGridCard
+            id={
+              item.id
+            }
+            name={
+              item.name
+            }
+            price={
+              item.price
+            }
+            image={
+              item.thumbnail
+            }
+            activeDeal={
+              item.activeDeal
+            }
+            onPress={() =>
+              handleProductPress(
+                item.id,
+              )
+            }
+            onBuy={() =>
+              handleBuy(
+                item.id,
+              )
+            }
+          />
+        </View>
+      ),
+      [
+        handleBuy,
+        handleProductPress,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item:
+          ProductWithDeal,
+      ) => item.id,
+      [],
+    );
 
   /* ============================================================
-     RENDER
+     HEADER
+  ============================================================ */
+
+  const listHeader =
+    useMemo(
+      () => (
+        <>
+          <PopularMaterialsHeader />
+
+          <PopularMaterialsSearch
+            value={
+              search
+            }
+            onChangeText={
+              setSearch
+            }
+          />
+
+          <PopularMaterialsCategories
+            selected={
+              category
+            }
+            onSelect={
+              setCategory
+            }
+          />
+
+          {dealsLoading &&
+          marketProducts.length >
+            0 ? (
+            <View
+              accessibilityRole="progressbar"
+              accessibilityLabel="Updating material deals"
+              style={
+                styles.dealsLoading
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  CustomerColors.primary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+              >
+                Updating deals...
+              </AppText>
+            </View>
+          ) : null}
+        </>
+      ),
+      [
+        category,
+        dealsLoading,
+        marketProducts.length,
+        search,
+      ],
+    );
+
+  /* ============================================================
+     UI
   ============================================================ */
 
   return (
@@ -365,63 +596,42 @@ export default function PopularMaterialsScreen() {
       <Stack.Screen
         options={{
           title: "",
-          headerShown: false,
+
+          headerShown:
+            false,
         }}
       />
 
       <FlatList
-        data={displayProducts}
-        keyExtractor={(item) =>
-          item.id
+        data={
+          displayProducts
+        }
+        keyExtractor={
+          keyExtractor
+        }
+        renderItem={
+          renderProduct
         }
         numColumns={2}
         showsVerticalScrollIndicator={
           false
         }
-        style={styles.container}
-        contentContainerStyle={
-          styles.content
+        style={
+          styles.container
         }
+        contentContainerStyle={[
+          styles.content,
+
+          displayProducts.length ===
+            0
+            ? styles.emptyContent
+            : null,
+        ]}
         columnWrapperStyle={
           styles.columnWrapper
         }
         ListHeaderComponent={
-          <>
-            <PopularMaterialsHeader />
-
-            <PopularMaterialsSearch
-              value={search}
-              onChangeText={
-                setSearch
-              }
-            />
-
-            <PopularMaterialsCategories
-              selected={category}
-              onSelect={setCategory}
-            />
-
-            {dealsLoading && (
-              <View
-                style={
-                  styles.dealsLoading
-                }
-              >
-                <ActivityIndicator
-                  size="small"
-                  color="#2563EB"
-                />
-
-                <View
-                  style={
-                    styles.dealsLoadingText
-                  }
-                >
-                  {/* Small spacing container */}
-                </View>
-              </View>
-            )}
-          </>
+          listHeader
         }
         ListEmptyComponent={
           loading ? (
@@ -430,37 +640,12 @@ export default function PopularMaterialsScreen() {
             <PopularMaterialsEmpty />
           )
         }
-        renderItem={({
-          item,
-        }) => (
-          <View
-            style={
-              styles.cardWrapper
-            }
-          >
-            <ProductGridCard
-              id={item.id}
-              name={item.name}
-              price={item.price}
-              image={
-                item.thumbnail ?? ""
-              }
-              activeDeal={
-                item.activeDeal
-              }
-              onPress={() =>
-                handleProductPress(
-                  item.id,
-                )
-              }
-              onBuy={() =>
-                handleBuy(
-                  item.id,
-                )
-              }
-            />
-          </View>
-        )}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        removeClippedSubviews
       />
     </>
   );
@@ -472,34 +657,61 @@ export default function PopularMaterialsScreen() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     container: {
       flex: 1,
 
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
+      flexGrow: 1,
 
-      paddingBottom: 32,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
 
+    emptyContent: {
       flexGrow: 1,
     },
 
-    columnWrapper: {
-      justifyContent:
-        "space-between",
+    /* ========================================================
+       GRID
+    ======================================================== */
 
-      marginBottom: 14,
+    columnWrapper: {
+      gap:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     cardWrapper: {
-      width: "48.2%",
+      flex: 1,
+
+      minWidth: 0,
     },
 
+    /* ========================================================
+       DEAL LOADING
+    ======================================================== */
+
     dealsLoading: {
-      height: 20,
+      minHeight: 30,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
 
       alignItems:
         "center",
@@ -507,12 +719,7 @@ const styles =
       justifyContent:
         "center",
 
-      marginBottom: 4,
-    },
-
-    dealsLoadingText: {
-      width: 1,
-
-      height: 1,
+      gap:
+        FixxamTokens.spacing.xs,
     },
   });

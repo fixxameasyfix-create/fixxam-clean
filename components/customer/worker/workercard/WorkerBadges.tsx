@@ -1,60 +1,152 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import React, {
+  memo,
+} from "react";
 
-import { AppText } from "@/components/ui";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
-import type { WorkerCardData } from "./types";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import type {
+  WorkerCardData,
+} from "./types";
 
 type Props = {
   worker: WorkerCardData;
 };
 
-export default function WorkerBadges({ worker }: Props) {
-  return (
-    <View style={styles.container}>
-      <Badge
-        icon="briefcase-outline"
-        text={`${worker.completedJobs ?? 0} Jobs`}
-      />
+function normalizeCount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
 
-      <Badge
-        icon="ellipse"
-        text={worker.online ? "Available" : "Offline"}
-        color={worker.online ? "#22C55E" : "#94A3B8"}
-      />
-
-      <Badge
-        icon="star"
-        text={`${worker.totalReviews ?? 0} Reviews`}
-        color="#F59E0B"
-      />
-    </View>
+  return Math.max(
+    0,
+    Math.floor(value),
   );
 }
 
-type BadgeProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  text: string;
-  color?: string;
-};
+function WorkerBadges({
+  worker,
+}: Props) {
+  const completedJobs =
+    normalizeCount(
+      worker.completedJobs,
+    );
 
-function Badge({
-  icon,
-  text,
-  color = "#2563EB",
-}: BadgeProps) {
+  const totalReviews =
+    normalizeCount(
+      worker.totalReviews,
+    );
+
   return (
-    <View style={styles.badge}>
-      <Ionicons
-        name={icon}
-        size={14}
-        color={color}
-      />
+    <View style={styles.container}>
+      {/* JOBS */}
 
-      <AppText style={styles.badgeText}>
-        {text}
-      </AppText>
+      <View
+        style={[
+          styles.badge,
+          styles.jobsBadge,
+        ]}
+      >
+        <AppIcon
+          name="jobs"
+          role="customer"
+          size="xs"
+          state="active"
+        />
+
+        <AppText
+          variant="caption"
+          weight="semibold"
+          numberOfLines={1}
+          style={styles.jobsText}
+        >
+          {completedJobs}{" "}
+          {completedJobs === 1
+            ? "Job"
+            : "Jobs"}
+        </AppText>
+      </View>
+
+      {/* AVAILABILITY */}
+
+      <View
+        style={[
+          styles.badge,
+          worker.online
+            ? styles.onlineBadge
+            : styles.offlineBadge,
+        ]}
+      >
+        <View
+          style={[
+            styles.statusDot,
+            worker.online
+              ? styles.onlineDot
+              : styles.offlineDot,
+          ]}
+        />
+
+        <AppText
+          variant="caption"
+          weight="semibold"
+          numberOfLines={1}
+          style={
+            worker.online
+              ? styles.onlineText
+              : styles.offlineText
+          }
+        >
+          {worker.online
+            ? "Available"
+            : "Offline"}
+        </AppText>
+      </View>
+
+      {/* REVIEWS */}
+
+      <View
+        style={[
+          styles.badge,
+          styles.reviewsBadge,
+        ]}
+      >
+        <AppIcon
+          name="star"
+          role="customer"
+          size="xs"
+          color={Colors.warning}
+        />
+
+        <AppText
+          variant="caption"
+          weight="semibold"
+          numberOfLines={1}
+          style={styles.reviewsText}
+        >
+          {totalReviews}{" "}
+          {totalReviews === 1
+            ? "Review"
+            : "Reviews"}
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -63,33 +155,126 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    marginTop: 14,
+
+    gap:
+      FixxamTokens.spacing.xs,
+
+    marginTop:
+      FixxamTokens.spacing.md,
   },
 
   badge: {
+    flex: 1,
+
+    minWidth: 0,
+    minHeight: 32,
+
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
 
-    flex: 1,
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
 
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-
-    borderRadius: 999,
-
-    backgroundColor: "#F8FAFC",
+    paddingVertical:
+      FixxamTokens.spacing.xs,
 
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderRadius:
+      FixxamTokens.radius.chip,
   },
 
-  badgeText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: "600",
+  /* JOBS */
+
+  jobsBadge: {
+    borderColor:
+      Colors.border,
+
+    backgroundColor:
+      CustomerColors.primarySoft,
+  },
+
+  jobsText: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    color:
+      CustomerColors.primary,
+  },
+
+  /* ONLINE */
+
+  onlineBadge: {
+    borderColor:
+      Colors.successSoft,
+
+    backgroundColor:
+      Colors.successSoft,
+  },
+
+  onlineText: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    color:
+      Colors.success,
+  },
+
+  onlineDot: {
+    backgroundColor:
+      Colors.success,
+  },
+
+  /* OFFLINE */
+
+  offlineBadge: {
+    borderColor:
+      Colors.border,
+
+    backgroundColor:
+      Colors.disabledBackground,
+  },
+
+  offlineText: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    color:
+      Colors.textSecondary,
+  },
+
+  offlineDot: {
+    backgroundColor:
+      Colors.textMuted,
+  },
+
+  statusDot: {
+    width: 8,
+    height: 8,
+
+    borderRadius:
+      FixxamTokens.radius.full,
+  },
+
+  /* REVIEWS */
+
+  reviewsBadge: {
+    borderColor:
+      Colors.border,
+
+    backgroundColor:
+      Colors.warningSoft,
+  },
+
+  reviewsText: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    color:
+      Colors.textPrimary,
   },
 });
+
+export default memo(
+  WorkerBadges,
+);

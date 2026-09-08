@@ -1,15 +1,24 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Modal,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -17,8 +26,11 @@ import { AppText } from "@/components/ui";
 
 interface ClearChatModalProps {
   visible: boolean;
+
   deleting: boolean;
+
   onCancel: () => void;
+
   onDelete: () => void;
 }
 
@@ -26,7 +38,7 @@ interface ClearChatModalProps {
    COMPONENT
 ============================================================== */
 
-export default function ClearChatModal({
+function ClearChatModal({
   visible,
   deleting,
   onCancel,
@@ -39,113 +51,108 @@ export default function ClearChatModal({
       animationType="fade"
       statusBarTranslucent
       onRequestClose={
-        deleting ? undefined : onCancel
+        deleting
+          ? undefined
+          : onCancel
       }
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          {/* ====================================================
+      <View
+        style={
+          styles.overlay
+        }
+      >
+        <AppCard
+          variant="elevated"
+          style={styles.modal}
+        >
+          {/* ==================================================
               ICON
-          ==================================================== */}
+          ================================================== */}
 
-          <View style={styles.iconContainer}>
-            <Ionicons
-              name="trash-outline"
-              size={38}
-              color="#DC2626"
+          <View
+            style={
+              styles.iconContainer
+            }
+          >
+            <AppIcon
+              name="delete"
+              role="customer"
+              size="xl"
+              state="error"
             />
           </View>
 
-          {/* ====================================================
+          {/* ==================================================
               TITLE
-          ==================================================== */}
+          ================================================== */}
 
           <AppText
-            weight="bold"
-            style={styles.title}
+            variant="heading2"
+            weight="semibold"
+            center
           >
             Clear Chat?
           </AppText>
 
-          {/* ====================================================
+          {/* ==================================================
               MESSAGE
-          ==================================================== */}
+          ================================================== */}
 
-          <AppText style={styles.message}>
-            Are you sure you want to clear this
-            chat? This action cannot be undone.
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.message
+            }
+          >
+            Are you sure you want to
+            clear this chat? This action
+            cannot be undone.
           </AppText>
 
-          {/* ====================================================
+          {/* ==================================================
               ACTIONS
-          ==================================================== */}
+          ================================================== */}
 
-          <View style={styles.actions}>
-            {/* CANCEL */}
-
-            <Pressable
+          <View
+            style={
+              styles.actions
+            }
+          >
+            <AppButton
+              title="Cancel"
+              role="customer"
+              variant="outline"
               disabled={deleting}
               onPress={onCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel clearing chat"
-              style={({ pressed }) => [
-                styles.cancelButton,
+              style={
+                styles.actionButton
+              }
+            />
 
-                pressed &&
-                  !deleting &&
-                  styles.cancelPressed,
-
-                deleting &&
-                  styles.disabledButton,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={styles.cancelText}
-              >
-                Cancel
-              </AppText>
-            </Pressable>
-
-            {/* DELETE */}
-
-            <Pressable
+            <AppButton
+              title={
+                deleting
+                  ? "Deleting..."
+                  : "Delete"
+              }
+              role="customer"
+              variant="danger"
+              leftIconName={
+                deleting
+                  ? undefined
+                  : "delete"
+              }
+              loading={deleting}
               disabled={deleting}
               onPress={onDelete}
-              accessibilityRole="button"
-              accessibilityLabel="Delete chat"
-              style={({ pressed }) => [
-                styles.deleteButton,
-
-                pressed &&
-                  !deleting &&
-                  styles.deletePressed,
-
-                deleting &&
-                  styles.disabledDeleteButton,
-              ]}
-            >
-              <Ionicons
-                name={
-                  deleting
-                    ? "hourglass-outline"
-                    : "trash-outline"
-                }
-                size={18}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={styles.deleteText}
-              >
-                {deleting
-                  ? "Deleting..."
-                  : "Delete"}
-              </AppText>
-            </Pressable>
+              style={
+                styles.actionButton
+              }
+            />
           </View>
-        </View>
+        </AppCard>
       </View>
     </Modal>
   );
@@ -155,156 +162,80 @@ export default function ClearChatModal({
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
 
-    backgroundColor:
-      "rgba(15, 23, 42, 0.55)",
+      alignItems: "center",
 
-    alignItems: "center",
+      justifyContent:
+        "center",
 
-    justifyContent: "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
 
-    paddingHorizontal: 30,
-  },
-
-  modal: {
-    width: "100%",
-
-    maxWidth: 390,
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 26,
-
-    paddingTop: 28,
-
-    paddingHorizontal: 24,
-
-    paddingBottom: 22,
-
-    alignItems: "center",
-
-    shadowColor: "#000000",
-
-    shadowOffset: {
-      width: 0,
-      height: 10,
+      backgroundColor:
+        Colors.overlayStrong,
     },
 
-    shadowOpacity: 0.2,
+    modal: {
+      width: "100%",
 
-    shadowRadius: 20,
+      maxWidth: 390,
 
-    elevation: 14,
-  },
+      alignItems: "center",
 
-  iconContainer: {
-    width: 72,
+      padding:
+        FixxamTokens.spacing.xxl,
+    },
 
-    height: 72,
+    iconContainer: {
+      width:
+        FixxamTokens.size.fabLarge,
 
-    borderRadius: 22,
+      height:
+        FixxamTokens.size.fabLarge,
 
-    backgroundColor: "#FEF2F2",
+      alignItems: "center",
 
-    alignItems: "center",
+      justifyContent:
+        "center",
 
-    justifyContent: "center",
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    marginBottom: 18,
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  title: {
-    fontSize: 22,
+      backgroundColor:
+        Colors.errorSoft,
+    },
 
-    lineHeight: 28,
+    message: {
+      maxWidth: 310,
 
-    color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-    textAlign: "center",
-  },
+    actions: {
+      width: "100%",
 
-  message: {
-    marginTop: 9,
+      flexDirection: "row",
 
-    fontSize: 15,
+      gap:
+        FixxamTokens.spacing.sm,
 
-    lineHeight: 22,
+      marginTop:
+        FixxamTokens.spacing.xxl,
+    },
 
-    color: "#64748B",
+    actionButton: {
+      flex: 1,
+    },
+  });
 
-    textAlign: "center",
-  },
-
-  actions: {
-    width: "100%",
-
-    flexDirection: "row",
-
-    gap: 10,
-
-    marginTop: 26,
-  },
-
-  cancelButton: {
-    flex: 1,
-
-    minHeight: 48,
-
-    borderRadius: 13,
-
-    backgroundColor: "#F1F5F9",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-  },
-
-  cancelPressed: {
-    backgroundColor: "#E2E8F0",
-  },
-
-  cancelText: {
-    fontSize: 15,
-
-    color: "#475569",
-  },
-
-  deleteButton: {
-    flex: 1,
-
-    minHeight: 48,
-
-    borderRadius: 13,
-
-    backgroundColor: "#DC2626",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    justifyContent: "center",
-
-    gap: 7,
-  },
-
-  deletePressed: {
-    backgroundColor: "#B91C1C",
-  },
-
-  deleteText: {
-    fontSize: 15,
-
-    color: "#FFFFFF",
-  },
-
-  disabledButton: {
-    opacity: 0.55,
-  },
-
-  disabledDeleteButton: {
-    opacity: 0.65,
-  },
-});
+export default memo(
+  ClearChatModal,
+);

@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -9,16 +10,21 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   TextInput,
   View,
+  type ListRenderItem,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
+
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
   collection,
@@ -27,29 +33,66 @@ import {
   query,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
-import { AppText } from "@/components/ui";
-import { CustomerColors } from "@/theme/customerColors";
+import Toast from "react-native-toast-message";
+
 import {
-  FixxamColors,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  db,
+} from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
   FixxamTokens,
-} from "@/theme/fixxamtokens";
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Service = {
   id: string;
+
   name: string;
+
   icon?: string;
+
   color?: string;
+
   backgroundColor?: string;
+
   aliases?: string[];
+
   keywords?: string[];
+
   tags?: string[];
 };
+
+type LoadMode =
+  | "initial"
+  | "refresh"
+  | "retry";
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
+/* ==============================================================
+   HELPERS
+============================================================== */
 
 function normalizeSearchText(
   value: unknown,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
@@ -57,14 +100,34 @@ function normalizeSearchText(
     .normalize("NFKC")
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ");
+    .replace(
+      /[^\p{L}\p{N}\s]/gu,
+      " ",
+    )
+    .replace(
+      /\s+/g,
+      " ",
+    );
+}
+
+function normalizeString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
 }
 
 function normalizeStringArray(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(value)
+  ) {
     return [];
   }
 
@@ -72,10 +135,15 @@ function normalizeStringArray(
     new Set(
       value
         .filter(
-          (item): item is string =>
-            typeof item === "string",
+          (
+            item,
+          ): item is string =>
+            typeof item ===
+            "string",
         )
-        .map(normalizeSearchText)
+        .map(
+          normalizeSearchText,
+        )
         .filter(Boolean),
     ),
   );
@@ -83,12 +151,13 @@ function normalizeStringArray(
 
 function getServiceIcon(
   icon?: string,
-): keyof typeof MaterialCommunityIcons.glyphMap {
+): MaterialIconName {
   if (
     icon &&
-    icon in MaterialCommunityIcons.glyphMap
+    icon in
+      MaterialCommunityIcons.glyphMap
   ) {
-    return icon as keyof typeof MaterialCommunityIcons.glyphMap;
+    return icon as MaterialIconName;
   }
 
   return "tools";
@@ -99,10 +168,13 @@ function getSearchTokens(
 ): string[] {
   return Array.from(
     new Set(
-      normalizeSearchText(value)
+      normalizeSearchText(
+        value,
+      )
         .split(" ")
         .filter(
-          (token) => token.length >= 2,
+          (token) =>
+            token.length >= 2,
         ),
     ),
   );
@@ -113,21 +185,32 @@ function matchesService(
   searchQuery: string,
 ): boolean {
   const normalizedQuery =
-    normalizeSearchText(searchQuery);
+    normalizeSearchText(
+      searchQuery,
+    );
 
   if (!normalizedQuery) {
     return true;
   }
 
-  const searchableText = [
-    service.name,
-    service.aliases?.join(" "),
-    service.keywords?.join(" "),
-    service.tags?.join(" "),
-  ]
-    .map(normalizeSearchText)
-    .filter(Boolean)
-    .join(" ");
+  const searchableText =
+    [
+      service.name,
+      service.aliases?.join(
+        " ",
+      ),
+      service.keywords?.join(
+        " ",
+      ),
+      service.tags?.join(
+        " ",
+      ),
+    ]
+      .map(
+        normalizeSearchText,
+      )
+      .filter(Boolean)
+      .join(" ");
 
   if (
     searchableText.includes(
@@ -138,143 +221,276 @@ function matchesService(
   }
 
   const tokens =
-    getSearchTokens(normalizedQuery);
+    getSearchTokens(
+      normalizedQuery,
+    );
 
-  if (!tokens.length) {
+  if (
+    tokens.length === 0
+  ) {
     return false;
   }
 
-  return tokens.every((token) =>
-    searchableText.includes(token),
+  return tokens.every(
+    (token) =>
+      searchableText.includes(
+        token,
+      ),
   );
 }
 
+/* ==============================================================
+   SCREEN
+============================================================== */
+
 export default function FindMaterialsServicesScreen() {
-  const [services, setServices] =
+  const [
+    services,
+    setServices,
+  ] =
     useState<Service[]>([]);
 
-  const [searchQuery, setSearchQuery] =
+  const [
+    searchQuery,
+    setSearchQuery,
+  ] =
     useState("");
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [refreshing, setRefreshing] =
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
     useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const requestIdRef =
+    useRef(0);
+
+  /* ============================================================
+     LOAD SERVICES
+  ============================================================ */
 
   const loadServices =
-    useCallback(async () => {
-      try {
-        setError(null);
+    useCallback(
+      async (
+        mode: LoadMode =
+          "initial",
+      ) => {
+        const requestId =
+          ++requestIdRef.current;
 
-        const servicesQuery = query(
-          collection(db, "services"),
-          orderBy("name", "asc"),
-        );
+        if (
+          mode === "initial"
+        ) {
+          setLoading(true);
+        }
 
-        const snapshot =
-          await getDocs(
-            servicesQuery,
-          );
+        if (
+          mode === "refresh"
+        ) {
+          setRefreshing(true);
+        }
 
-        const result =
-          snapshot.docs.reduce<
-            Service[]
-          >(
-            (items, doc) => {
-              const data =
-                doc.data();
+        if (
+          mode !== "refresh"
+        ) {
+          setError(null);
+        }
 
-              const name =
-                typeof data.name ===
-                "string"
-                  ? data.name.trim()
-                  : "";
+        try {
+          const servicesQuery =
+            query(
+              collection(
+                db,
+                "services",
+              ),
+              orderBy(
+                "name",
+                "asc",
+              ),
+            );
 
-              if (!name) {
+          const snapshot =
+            await getDocs(
+              servicesQuery,
+            );
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          const result =
+            snapshot.docs.reduce<
+              Service[]
+            >(
+              (
+                items,
+                document,
+              ) => {
+                const data =
+                  document.data();
+
+                const name =
+                  normalizeString(
+                    data.name,
+                  );
+
+                if (!name) {
+                  return items;
+                }
+
+                items.push({
+                  id:
+                    document.id,
+
+                  name,
+
+                  icon:
+                    normalizeString(
+                      data.icon,
+                    ) ||
+                    undefined,
+
+                  color:
+                    normalizeString(
+                      data.color,
+                    ) ||
+                    undefined,
+
+                  backgroundColor:
+                    normalizeString(
+                      data.backgroundColor,
+                    ) ||
+                    undefined,
+
+                  aliases:
+                    normalizeStringArray(
+                      data.aliases,
+                    ),
+
+                  keywords:
+                    normalizeStringArray(
+                      data.keywords,
+                    ),
+
+                  tags:
+                    normalizeStringArray(
+                      data.tags,
+                    ),
+                });
+
                 return items;
-              }
+              },
+              [],
+            );
 
-              items.push({
-                id: doc.id,
-                name,
-
-                icon:
-                  typeof data.icon ===
-                    "string" &&
-                  data.icon.trim()
-                    ? data.icon.trim()
-                    : undefined,
-
-                color:
-                  typeof data.color ===
-                    "string" &&
-                  data.color.trim()
-                    ? data.color.trim()
-                    : undefined,
-
-                backgroundColor:
-                  typeof data.backgroundColor ===
-                    "string" &&
-                  data.backgroundColor.trim()
-                    ? data.backgroundColor.trim()
-                    : undefined,
-
-                aliases:
-                  normalizeStringArray(
-                    data.aliases,
-                  ),
-
-                keywords:
-                  normalizeStringArray(
-                    data.keywords,
-                  ),
-
-                tags:
-                  normalizeStringArray(
-                    data.tags,
-                  ),
-              });
-
-              return items;
-            },
-            [],
+          setServices(
+            result,
           );
 
-        setServices(result);
-      } catch (loadError) {
-        console.error(
-          "FindMaterials services:",
-          loadError,
-        );
+          setError(null);
+        } catch (
+          loadError
+        ) {
+          console.error(
+            "FIND_MATERIALS_SERVICES_LOAD_ERROR:",
+            loadError,
+          );
 
-        setServices([]);
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
 
-        setError(
-          "Unable to load services. Please try again.",
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }, []);
+          if (
+            mode ===
+              "refresh" &&
+            services.length > 0
+          ) {
+            Toast.show({
+              type: "error",
+              text1:
+                "Unable to refresh services",
+              text2:
+                "Please try again.",
+            });
+
+            return;
+          }
+
+          setServices([]);
+
+          setError(
+            "Unable to load services. Please try again.",
+          );
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setLoading(false);
+
+            setRefreshing(
+              false,
+            );
+          }
+        }
+      },
+      [
+        services.length,
+      ],
+    );
+
+  /* ============================================================
+     INITIAL LOAD
+  ============================================================ */
 
   useEffect(() => {
-    void loadServices();
-  }, [loadServices]);
+    void loadServices(
+      "initial",
+    );
 
-  const handleRefresh =
-    useCallback(() => {
-      setRefreshing(true);
-      void loadServices();
-    }, [loadServices]);
+    return () => {
+      requestIdRef.current +=
+        1;
+    };
+  }, [
+    loadServices,
+  ]);
+
+  /* ============================================================
+     FILTER
+  ============================================================ */
 
   const filteredServices =
     useMemo(() => {
-      if (!searchQuery.trim()) {
+      if (
+        !searchQuery.trim()
+      ) {
         return services;
       }
 
@@ -286,8 +502,39 @@ export default function FindMaterialsServicesScreen() {
           ),
       );
     }, [
-      services,
       searchQuery,
+      services,
+    ]);
+
+  /* ============================================================
+     ACTIONS
+  ============================================================ */
+
+  const handleRefresh =
+    useCallback(() => {
+      if (
+        refreshing ||
+        loading
+      ) {
+        return;
+      }
+
+      void loadServices(
+        "refresh",
+      );
+    }, [
+      loadServices,
+      loading,
+      refreshing,
+    ]);
+
+  const handleRetry =
+    useCallback(() => {
+      void loadServices(
+        "retry",
+      );
+    }, [
+      loadServices,
     ]);
 
   const handleClearSearch =
@@ -297,32 +544,247 @@ export default function FindMaterialsServicesScreen() {
 
   const handleServicePress =
     useCallback(
-      (service: Service) => {
+      (
+        service: Service,
+      ) => {
         router.push({
           pathname:
             "/(customer)/find-materials/[serviceId]",
+
           params: {
-            serviceId: service.id,
-            serviceName: service.name,
+            serviceId:
+              service.id,
+
+            serviceName:
+              service.name,
           },
         });
       },
       [],
     );
 
+  /* ============================================================
+     LIST HEADER
+  ============================================================ */
+
+  const listHeader =
+    useMemo(
+      () => (
+        <View
+          style={
+            styles.listHeader
+          }
+        >
+          <View
+            style={
+              styles.listHeaderIcon
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="md"
+              state="active"
+            />
+          </View>
+
+          <View
+            style={
+              styles.listHeaderText
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={
+                styles.listHeaderTitle
+              }
+            >
+              {searchQuery.trim()
+                ? `${
+                    filteredServices.length
+                  } ${
+                    filteredServices.length ===
+                    1
+                      ? "Service"
+                      : "Services"
+                  } Found`
+                : "Available Services"}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.listHeaderDescription
+              }
+            >
+              {searchQuery.trim()
+                ? `Results for "${searchQuery.trim()}"`
+                : "Choose a service to see matching materials."}
+            </AppText>
+          </View>
+        </View>
+      ),
+      [
+        filteredServices.length,
+        searchQuery,
+      ],
+    );
+
+  /* ============================================================
+     RENDER SERVICE
+  ============================================================ */
+
+  const renderService =
+    useCallback<
+      ListRenderItem<Service>
+    >(
+      ({
+        item,
+      }) => {
+        const icon =
+          getServiceIcon(
+            item.icon,
+          );
+
+        const iconColor =
+          item.color ||
+          CustomerColors.primary;
+
+        const iconBackground =
+          item.backgroundColor ||
+          CustomerColors.primarySoft;
+
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Find materials for ${item.name}`}
+            onPress={() =>
+              handleServicePress(
+                item,
+              )
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.serviceCard,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            {/* Exact Firebase service icon preserved */}
+            <View
+              style={[
+                styles.serviceIcon,
+                {
+                  backgroundColor:
+                    iconBackground,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={icon}
+                size={25}
+                color={
+                  iconColor
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.serviceContent
+              }
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                numberOfLines={2}
+                style={
+                  styles.serviceName
+                }
+              >
+                {item.name}
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.serviceDescription
+                }
+              >
+                View materials available for this service
+              </AppText>
+            </View>
+
+            <View
+              style={
+                styles.arrowButton
+              }
+            >
+              <AppIcon
+                name="next"
+                role="customer"
+                size="xs"
+                state="active"
+              />
+            </View>
+          </Pressable>
+        );
+      },
+      [
+        handleServicePress,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: Service,
+      ) => item.id,
+      [],
+    );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
   if (loading) {
     return (
       <SafeAreaView
-        style={styles.container}
+        style={
+          styles.container
+        }
+        edges={[
+          "top",
+          "bottom",
+        ]}
       >
-        <View style={styles.center}>
+        <View
+          accessibilityRole="progressbar"
+          accessibilityLabel="Loading services"
+          style={
+            styles.center
+          }
+        >
           <ActivityIndicator
             size="large"
-            color={FixxamColors.customer}
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
-            style={styles.loadingText}
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
           >
             Loading services...
           </AppText>
@@ -331,136 +793,259 @@ export default function FindMaterialsServicesScreen() {
     );
   }
 
+  /* ============================================================
+     MAIN
+  ============================================================ */
+
   return (
     <SafeAreaView
-      style={styles.container}
+      style={
+        styles.container
+      }
+      edges={[
+        "top",
+        "bottom",
+      ]}
     >
-      <View style={styles.header}>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
         <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          hitSlop={6}
+          onPress={() =>
+            router.back()
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={23}
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
             color={
-              CustomerColors.textPrimary
+              Colors.textPrimary
             }
           />
         </Pressable>
 
-        <View style={styles.headerText}>
+        <View
+          style={
+            styles.headerText
+          }
+        >
           <AppText
+            variant="heading2"
             weight="bold"
-            style={styles.title}
+            numberOfLines={1}
+            style={
+              styles.title
+            }
           >
             Choose a Service
           </AppText>
 
           <AppText
-            style={styles.subtitle}
+            variant="body"
+            tone="secondary"
+            numberOfLines={2}
+            style={
+              styles.subtitle
+            }
           >
-            Select the service you need
-            materials for.
+            Select the service you need materials for.
           </AppText>
         </View>
-
-        <View
-          style={styles.headerPlaceholder}
-        />
       </View>
 
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
+
       <View
-        style={styles.searchContainer}
+        style={[
+          styles.searchContainer,
+
+          searchFocused
+            ? styles.searchFocused
+            : null,
+        ]}
       >
-        <Ionicons
-          name="search-outline"
-          size={21}
-          color="#94A3B8"
+        <AppIcon
+          name="search"
+          role="customer"
+          size="sm"
+          color={
+            searchFocused
+              ? CustomerColors.primary
+              : Colors.textMuted
+          }
         />
 
         <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          value={
+            searchQuery
+          }
+          onChangeText={
+            setSearchQuery
+          }
+          onFocus={() =>
+            setSearchFocused(
+              true,
+            )
+          }
+          onBlur={() =>
+            setSearchFocused(
+              false,
+            )
+          }
           placeholder="Search services..."
-          placeholderTextColor="#94A3B8"
-          style={styles.searchInput}
-          autoCorrect={false}
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          style={
+            styles.searchInput
+          }
+          autoCorrect={
+            false
+          }
           autoCapitalize="none"
           returnKeyType="search"
           accessibilityLabel="Search services"
         />
 
-        {searchQuery.length > 0 ? (
+        {searchQuery.length >
+        0 ? (
           <Pressable
-            onPress={handleClearSearch}
-            style={styles.clearButton}
-            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Clear search"
+            hitSlop={6}
+            onPress={
+              handleClearSearch
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.clearButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="close-circle"
-              size={21}
-              color="#94A3B8"
+            <AppIcon
+              name="close"
+              role="customer"
+              size="sm"
+              state="muted"
             />
           </Pressable>
         ) : null}
       </View>
 
+      {/* ======================================================
+          ERROR
+      ====================================================== */}
+
       {error ? (
         <View
-          style={styles.errorContainer}
+          style={
+            styles.errorContainer
+          }
         >
-          <View style={styles.errorIcon}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={42}
-              color={CustomerColors.error}
+          <View
+            style={
+              styles.errorIcon
+            }
+          >
+            <AppIcon
+              name="error"
+              role="customer"
+              size="xl"
+              state="error"
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.errorTitle}
+            center
+            style={
+              styles.errorTitle
+            }
           >
             Something went wrong
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
-            style={styles.errorText}
+            style={
+              styles.errorText
+            }
           >
             {error}
           </AppText>
 
           <Pressable
-            style={styles.retryButton}
-            onPress={() =>
-              void loadServices()
-            }
             accessibilityRole="button"
             accessibilityLabel="Try again"
+            onPress={
+              handleRetry
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.retryButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
-              style={styles.retryText}
+              style={
+                styles.actionText
+              }
             >
-              TRY AGAIN
+              Try Again
             </AppText>
           </Pressable>
         </View>
       ) : (
         <FlatList
-          data={filteredServices}
-          keyExtractor={(item) =>
-            item.id
+          data={
+            filteredServices
           }
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
+          keyExtractor={
+            keyExtractor
+          }
+          renderItem={
+            renderService
+          }
+          refreshing={
+            refreshing
+          }
+          onRefresh={
+            handleRefresh
+          }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={
             false
@@ -469,152 +1054,38 @@ export default function FindMaterialsServicesScreen() {
             styles.list
           }
           ListHeaderComponent={
+            listHeader
+          }
+          ListEmptyComponent={
             <View
-              style={styles.listHeader}
+              style={
+                styles.empty
+              }
             >
               <View
-                style={styles.listHeaderIcon}
-              >
-                <Ionicons
-                  name="construct-outline"
-                  size={24}
-                  color={
-                    FixxamColors.customer
-                  }
-                />
-              </View>
-
-              <View
-                style={styles.listHeaderText}
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.listHeaderTitle
-                  }
-                >
-                  {searchQuery.trim()
-                    ? `${filteredServices.length} ${
-                        filteredServices.length ===
-                        1
-                          ? "Service"
-                          : "Services"
-                      } Found`
-                    : "Available Services"}
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.listHeaderDescription
-                  }
-                >
-                  {searchQuery.trim()
-                    ? `Results for "${searchQuery.trim()}"`
-                    : "Choose a service to see matching materials."}
-                </AppText>
-              </View>
-            </View>
-          }
-          renderItem={({ item }) => {
-            const icon =
-              getServiceIcon(item.icon);
-
-            const iconColor =
-              item.color ||
-              FixxamColors.customer;
-
-            const iconBackground =
-              item.backgroundColor ||
-              CustomerColors.diagnosisBackground;
-
-            return (
-              <Pressable
-                onPress={() =>
-                  handleServicePress(
-                    item,
-                  )
+                style={
+                  styles.emptyIcon
                 }
-                style={({ pressed }) => [
-                  styles.serviceCard,
-                  pressed &&
-                    styles.serviceCardPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Find materials for ${item.name}`}
               >
-                <View
-                  style={[
-                    styles.serviceIcon,
-                    {
-                      backgroundColor:
-                        iconBackground,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={icon}
-                    size={25}
-                    color={iconColor}
-                  />
-                </View>
-
-                <View
-                  style={styles.serviceContent}
-                >
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.serviceName
-                    }
-                    numberOfLines={2}
-                  >
-                    {item.name}
-                  </AppText>
-
-                  <AppText
-                    style={
-                      styles.serviceDescription
-                    }
-                    numberOfLines={1}
-                  >
-                    View materials available
-                    for this service
-                  </AppText>
-                </View>
-
-                <View
-                  style={styles.arrowButton}
-                >
-                  <Ionicons
-                    name="chevron-forward"
-                    size={19}
-                    color={
-                      FixxamColors.customer
-                    }
-                  />
-                </View>
-              </Pressable>
-            );
-          }}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <View
-                style={styles.emptyIcon}
-              >
-                <Ionicons
+                <AppIcon
                   name={
                     searchQuery.trim()
-                      ? "search-outline"
-                      : "construct-outline"
+                      ? "search"
+                      : "service"
                   }
-                  size={46}
-                  color="#94A3B8"
+                  role="customer"
+                  size="xl"
+                  state="muted"
                 />
               </View>
 
               <AppText
+                variant="heading3"
                 weight="bold"
-                style={styles.emptyTitle}
+                center
+                style={
+                  styles.emptyTitle
+                }
               >
                 {searchQuery.trim()
                   ? "No Matching Services"
@@ -622,8 +1093,12 @@ export default function FindMaterialsServicesScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                tone="secondary"
                 center
-                style={styles.emptyText}
+                style={
+                  styles.emptyText
+                }
               >
                 {searchQuery.trim()
                   ? `We couldn't find a service matching "${searchQuery.trim()}".`
@@ -632,345 +1107,561 @@ export default function FindMaterialsServicesScreen() {
 
               {searchQuery.trim() ? (
                 <Pressable
-                  style={
-                    styles.clearSearchButton
-                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
                   onPress={
                     handleClearSearch
                   }
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.clearSearchButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
                 >
                   <AppText
+                    variant="bodyMedium"
                     weight="bold"
                     style={
-                      styles.clearSearchText
+                      styles.actionText
                     }
                   >
-                    CLEAR SEARCH
+                    Clear Search
                   </AppText>
                 </Pressable>
               ) : null}
             </View>
           }
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
         />
       )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor:
-      CustomerColors.surface,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal:
-      FixxamTokens.spacing.lg,
-    paddingTop:
-      FixxamTokens.spacing.sm,
-    paddingBottom:
-      FixxamTokens.spacing.md,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
 
-  backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor:
-      CustomerColors.card,
-    alignItems: "center",
-    justifyContent: "center",
-    ...FixxamTokens.shadow.card,
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  headerText: {
-    flex: 1,
-    marginHorizontal:
-      FixxamTokens.spacing.md,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  title: {
-    fontSize: 21,
-    color:
-      CustomerColors.textPrimary,
-  },
+    header: {
+      flexDirection:
+        "row",
 
-  subtitle: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 19,
-    color:
-      CustomerColors.textSecondary,
-  },
+      alignItems:
+        "center",
 
-  headerPlaceholder: {
-    width: 42,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  searchContainer: {
-    height: 50,
-    marginHorizontal:
-      FixxamTokens.spacing.lg,
-    marginBottom:
-      FixxamTokens.spacing.md,
-    paddingHorizontal:
-      FixxamTokens.spacing.md,
-    borderRadius:
-      FixxamTokens.radius.md,
-    backgroundColor:
-      CustomerColors.card,
-    borderWidth: 1,
-    borderColor:
-      CustomerColors.border,
-    flexDirection: "row",
-    alignItems: "center",
-    ...FixxamTokens.shadow.card,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  searchInput: {
-    flex: 1,
-    height: "100%",
-    marginLeft: 9,
-    paddingVertical: 0,
-    fontSize: 14,
-    color:
-      CustomerColors.textPrimary,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  clearButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  list: {
-    paddingHorizontal:
-      FixxamTokens.spacing.lg,
-    paddingBottom: 40,
-    flexGrow: 1,
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  listHeader: {
-    marginBottom:
-      FixxamTokens.spacing.md,
-    padding:
-      FixxamTokens.spacing.md,
-    borderRadius:
-      FixxamTokens.radius.lg,
-    backgroundColor:
-      CustomerColors.diagnosisBackground,
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      alignItems:
+        "center",
 
-  listHeaderIcon: {
-    width: 44,
-    height: 44,
-    borderRadius:
-      FixxamTokens.radius.sm,
-    backgroundColor:
-      CustomerColors.diagnosisBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      justifyContent:
+        "center",
 
-  listHeaderText: {
-    flex: 1,
-    marginLeft:
-      FixxamTokens.spacing.sm,
-  },
+      borderWidth: 1,
 
-  listHeaderTitle: {
-    fontSize: 15,
-    color:
-      CustomerColors.textPrimary,
-  },
+      borderColor:
+        Colors.border,
 
-  listHeaderDescription: {
-    marginTop: 3,
-    fontSize: 12,
-    lineHeight: 18,
-    color:
-      CustomerColors.textSecondary,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  serviceCard: {
-    minHeight: 68,
-    marginBottom:
-      FixxamTokens.spacing.sm,
-    paddingHorizontal:
-      FixxamTokens.spacing.md,
-    paddingVertical: 9,
-    borderRadius:
-      FixxamTokens.radius.md,
-    backgroundColor:
-      CustomerColors.card,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-    ...FixxamTokens.shadow.card,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  serviceCardPressed: {
-    opacity: 0.72,
-    transform: [{ scale: 0.99 }],
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  serviceIcon: {
-    width: 46,
-    height: 46,
-    borderRadius:
-      FixxamTokens.radius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+    headerText: {
+      flex: 1,
 
-  serviceContent: {
-    flex: 1,
-    marginLeft:
-      FixxamTokens.spacing.md,
-    paddingRight: 6,
-  },
+      minWidth: 0,
 
-  serviceName: {
-    fontSize: 15,
-    lineHeight: 19,
-    color:
-      CustomerColors.textPrimary,
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  serviceDescription: {
-    marginTop: 2,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color:
-      CustomerColors.textSecondary,
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  arrowButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor:
-      CustomerColors.diagnosisBackground,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-    paddingTop: 70,
-  },
+      lineHeight: 19,
+    },
 
-  emptyIcon: {
-    width: 82,
-    height: 82,
-    borderRadius: 26,
-    backgroundColor:
-      CustomerColors.iconBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
-  emptyTitle: {
-    marginTop: 18,
-    fontSize: 19,
-    color:
-      CustomerColors.textPrimary,
-  },
+    searchContainer: {
+      height:
+        FixxamTokens.size
+          .inputHeight,
 
-  emptyText: {
-    marginTop: 7,
-    fontSize: 13,
-    lineHeight: 20,
-    color:
-      CustomerColors.textSecondary,
-  },
+      flexDirection:
+        "row",
 
-  clearSearchButton: {
-    marginTop: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius:
-      FixxamTokens.radius.sm,
-    backgroundColor:
-      FixxamColors.customer,
-  },
+      alignItems:
+        "center",
 
-  clearSearchText: {
-    fontSize: 12,
-    color: CustomerColors.white,
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  errorIcon: {
-    width: 82,
-    height: 82,
-    borderRadius: 26,
-    backgroundColor:
-      CustomerColors.emergencyBackground,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  errorTitle: {
-    marginTop: 16,
-    fontSize: 19,
-    color:
-      CustomerColors.textPrimary,
-  },
+      borderWidth: 1,
 
-  errorText: {
-    marginTop: 7,
-    fontSize: 13,
-    lineHeight: 20,
-    color:
-      CustomerColors.textSecondary,
-  },
+      borderColor:
+        Colors.border,
 
-  retryButton: {
-    marginTop: 18,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
-    borderRadius:
-      FixxamTokens.radius.sm,
-    backgroundColor:
-      FixxamColors.customer,
-  },
+      borderRadius:
+        FixxamTokens.radius.search,
 
-  retryText: {
-    fontSize: 12,
-    color: CustomerColors.white,
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    searchFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
 
-  loadingText: {
-    marginTop: 10,
-    fontSize: 13,
-    color:
-      CustomerColors.textSecondary,
-  },
-});
+    searchInput: {
+      flex: 1,
+
+      minWidth: 0,
+
+      height: "100%",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    clearButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
+
+    list: {
+      flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
+
+    listHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    listHeaderIcon: {
+      width: 44,
+
+      height: 44,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    listHeaderText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    listHeaderTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    listHeaderDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 18,
+    },
+
+    /* ========================================================
+       SERVICE CARD
+    ======================================================== */
+
+    serviceCard: {
+      minHeight: 72,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    serviceIcon: {
+      width: 48,
+
+      height: 48,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    serviceContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+    },
+
+    serviceName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    serviceDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 17,
+    },
+
+    arrowButton: {
+      width: 36,
+
+      height: 36,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    empty: {
+      minHeight: 360,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+    },
+
+    emptyIcon: {
+      width: 82,
+
+      height: 82,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    emptyText: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+    },
+
+    clearSearchButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       ERROR
+    ======================================================== */
+
+    errorContainer: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+    },
+
+    errorIcon: {
+      width: 82,
+
+      height: 82,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    errorTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    errorText: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+    },
+
+    retryButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    actionText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    center: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

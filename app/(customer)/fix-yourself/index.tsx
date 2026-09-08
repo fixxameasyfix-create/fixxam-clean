@@ -1,28 +1,37 @@
-import React, { useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
-
-import { getAuth } from "firebase/auth";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
 import {
-  AppScreen,
-  AppInput,
+  getAuth,
+} from "firebase/auth";
+
+import Toast from "react-native-toast-message";
+
+import {
   AppButton,
+  AppIcon,
+  AppInput,
+  AppScreen,
   AppText,
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
@@ -31,20 +40,24 @@ import {
    CONSTANTS
 ============================================================== */
 
+const MIN_PROBLEM_LENGTH = 5;
+
 const EXAMPLES = [
   "My TV won't turn on",
   "My car is smoking",
   "AC is not cooling",
   "Water is leaking",
-];
+] as const;
 
 /* ==============================================================
    SCREEN
 ============================================================== */
 
 export default function FixYourselfScreen() {
-  const [problem, setProblem] =
-    useState("");
+  const [
+    problem,
+    setProblem,
+  ] = useState("");
 
   const [
     loginModalVisible,
@@ -52,82 +65,139 @@ export default function FixYourselfScreen() {
   ] = useState(false);
 
   /* ============================================================
-     OPEN LOGIN MODAL
+     VALIDATION
   ============================================================ */
 
-  const openLoginModal = () => {
-    setLoginModalVisible(true);
-  };
+  const normalizedProblem =
+    useMemo(
+      () =>
+        problem.trim(),
+      [
+        problem,
+      ],
+    );
+
+  const canSearch =
+    normalizedProblem.length >=
+    MIN_PROBLEM_LENGTH;
 
   /* ============================================================
-     CLOSE LOGIN MODAL
+     LOGIN MODAL
   ============================================================ */
 
-  const closeLoginModal = () => {
-    setLoginModalVisible(false);
-  };
+  const openLoginModal =
+    useCallback(() => {
+      setLoginModalVisible(
+        true,
+      );
+    }, []);
+
+  const closeLoginModal =
+    useCallback(() => {
+      setLoginModalVisible(
+        false,
+      );
+    }, []);
 
   /* ============================================================
      LOGIN
   ============================================================ */
 
-  const handleLogin = () => {
-    setLoginModalVisible(false);
+  const handleLogin =
+    useCallback(() => {
+      setLoginModalVisible(
+        false,
+      );
 
-    router.push(
-      "/(auth)/login",
+      router.push(
+        "/(auth)/login",
+      );
+    }, []);
+
+  /* ============================================================
+     EXAMPLE
+  ============================================================ */
+
+  const handleExamplePress =
+    useCallback(
+      (
+        example: string,
+      ) => {
+        setProblem(example);
+      },
+      [],
     );
-  };
 
   /* ============================================================
      SEARCH
   ============================================================ */
 
-  const handleSearch = () => {
-    const query =
-      problem.trim();
+  const handleSearch =
+    useCallback(() => {
+      const query =
+        problem.trim();
 
-    /* ----------------------------------------------------------
-       VALIDATION
-    ---------------------------------------------------------- */
+      /* --------------------------------------------------------
+         VALIDATION
+      -------------------------------------------------------- */
 
-    if (query.length < 5) {
-      return;
-    }
+      if (
+        query.length <
+        MIN_PROBLEM_LENGTH
+      ) {
+        Toast.show({
+          type: "error",
 
-    /* ----------------------------------------------------------
-       AUTHENTICATION
-    ---------------------------------------------------------- */
+          text1:
+            "Describe the problem",
 
-    const auth =
-      getAuth();
+          text2:
+            "Please enter at least 5 characters.",
+        });
 
-    if (!auth.currentUser) {
-      openLoginModal();
-      return;
-    }
+        return;
+      }
 
-    /* ----------------------------------------------------------
-       AUTHENTICATED USER
-    ---------------------------------------------------------- */
+      /* --------------------------------------------------------
+         AUTHENTICATION
+      -------------------------------------------------------- */
 
-    router.push({
-      pathname:
-        "/(customer)/fix-yourself/loading",
+      const auth =
+        getAuth();
 
-      params: {
-        query,
+      if (
+        !auth.currentUser
+      ) {
+        openLoginModal();
 
-        messages:
-          JSON.stringify([
-            {
-              role: "user",
-              content: query,
-            },
-          ]),
-      },
-    });
-  };
+        return;
+      }
+
+      /* --------------------------------------------------------
+         CONTINUE
+      -------------------------------------------------------- */
+
+      router.push({
+        pathname:
+          "/(customer)/fix-yourself/loading",
+
+        params: {
+          query,
+
+          messages:
+            JSON.stringify([
+              {
+                role: "user",
+                content:
+                  query,
+              },
+            ]),
+        },
+      });
+    }, [
+      openLoginModal,
+      problem,
+    ]);
 
   /* ============================================================
      UI
@@ -135,78 +205,107 @@ export default function FixYourselfScreen() {
 
   return (
     <>
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <ScrollView
           showsVerticalScrollIndicator={
             false
           }
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={
             styles.container
           }
-          keyboardShouldPersistTaps="handled"
         >
           {/* ==================================================
-              TITLE
+              INTRO
           ================================================== */}
 
-          <AppText
-            size="xl"
-            weight="bold"
-          >
-            Fix Yourself
-          </AppText>
-
-          <AppText
+          <View
             style={
-              styles.subtitle
-            }
-            color={
-              CustomerColors.textSecondary
+              styles.intro
             }
           >
-            How can Fixxam help you
-            today?
-          </AppText>
+            <View
+              style={
+                styles.iconBox
+              }
+            >
+              <AppIcon
+                name="help"
+                role="customer"
+                size="lg"
+                state="active"
+              />
+            </View>
 
-          {/* ==================================================
-              DESCRIPTION
-          ================================================== */}
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
+              Fix Yourself
+            </AppText>
 
-          <AppText
-            size="sm"
-            color={
-              CustomerColors.textSecondary
-            }
-            style={
-              styles.description
-            }
-          >
-            Describe what's wrong
-            with your car, TV, AC,
-            plumbing, electrical,
-            generator or any other
-            problem.
-          </AppText>
+            <AppText
+              variant="bodyLarge"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              How can Fixxam help you today?
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.description
+              }
+            >
+              Describe what's wrong with your car, TV, AC, plumbing, electrical, generator or any other problem.
+            </AppText>
+          </View>
 
           {/* ==================================================
               PROBLEM INPUT
           ================================================== */}
 
-          <AppInput
-            placeholder="Describe your problem in detail..."
-            value={problem}
-            onChangeText={
-              setProblem
+          <View
+            style={
+              styles.inputSection
             }
-            leftIcon="search"
-            multiline
-            numberOfLines={5}
-            returnKeyType="done"
-            blurOnSubmit={false}
-            onSubmitEditing={
-              handleSearch
-            }
-          />
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={
+                styles.sectionTitle
+              }
+            >
+              What's the problem?
+            </AppText>
+
+            <AppInput
+              placeholder="Describe your problem in detail..."
+              value={problem}
+              onChangeText={
+                setProblem
+              }
+              leftIcon="search"
+              multiline
+              numberOfLines={5}
+              returnKeyType="done"
+              blurOnSubmit={false}
+              onSubmitEditing={
+                handleSearch
+              }
+            />
+          </View>
 
           {/* ==================================================
               EXAMPLES
@@ -218,12 +317,13 @@ export default function FixYourselfScreen() {
             }
           >
             <AppText
-              weight="semibold"
+              variant="bodyMedium"
+              weight="bold"
               style={
-                styles.examplesTitle
+                styles.sectionTitle
               }
             >
-              Examples
+              Try an example
             </AppText>
 
             <View
@@ -232,44 +332,58 @@ export default function FixYourselfScreen() {
               }
             >
               {EXAMPLES.map(
-                (item) => (
-                  <TouchableOpacity
+                (
+                  item,
+                ) => (
+                  <Pressable
                     key={item}
-                    activeOpacity={
-                      0.8
-                    }
-                    style={
-                      styles.chip
-                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use example: ${item}`}
                     onPress={() =>
-                      setProblem(
+                      handleExamplePress(
                         item,
                       )
                     }
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.chip,
+
+                      pressed
+                        ? styles.pressed
+                        : null,
+                    ]}
                   >
                     <AppText
-                      size="sm"
+                      variant="caption"
+                      weight="medium"
+                      style={
+                        styles.chipText
+                      }
                     >
                       {item}
                     </AppText>
-                  </TouchableOpacity>
+                  </Pressable>
                 ),
               )}
             </View>
           </View>
 
           {/* ==================================================
-              SEARCH BUTTON
+              SEARCH
           ================================================== */}
 
           <AppButton
             title="Search Problem"
+            role="customer"
+            variant="primary"
             onPress={
               handleSearch
             }
             disabled={
-              !problem.trim()
+              !canSearch
             }
+            leftIconName="search"
             style={
               styles.searchButton
             }
@@ -285,8 +399,9 @@ export default function FixYourselfScreen() {
         visible={
           loginModalVisible
         }
-        transparent={true}
+        transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={
           closeLoginModal
         }
@@ -296,49 +411,42 @@ export default function FixYourselfScreen() {
             styles.modalOverlay
           }
         >
-          {/* ----------------------------------------------------
-              BACKDROP
-          ---------------------------------------------------- */}
+          {/* BACKDROP */}
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close login dialog"
             style={
               StyleSheet.absoluteFill
             }
             onPress={
               closeLoginModal
-          }
+            }
           />
 
-          {/* ----------------------------------------------------
-              MODAL CARD
-          ---------------------------------------------------- */}
+          {/* MODAL */}
 
           <View
+            accessibilityViewIsModal
             style={
               styles.modalCard
             }
           >
-            {/* --------------------------------------------------
-                ICON
-            -------------------------------------------------- */}
-
             <View
               style={
                 styles.modalIcon
               }
             >
-              <Ionicons
-                name="person-outline"
-                size={28}
-                color="#2563EB"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="lg"
+                state="active"
               />
             </View>
 
-            {/* --------------------------------------------------
-                TITLE
-            -------------------------------------------------- */}
-
             <AppText
+              variant="heading3"
               weight="bold"
               style={
                 styles.modalTitle
@@ -347,75 +455,50 @@ export default function FixYourselfScreen() {
               Login required
             </AppText>
 
-            {/* --------------------------------------------------
-                MESSAGE
-            -------------------------------------------------- */}
-
             <AppText
+              variant="body"
+              tone="secondary"
               style={
                 styles.modalMessage
               }
             >
-              Please login to use
-              Fix Yourself.
+              Please login to use Fix Yourself and continue with smart troubleshooting.
             </AppText>
-
-            {/* --------------------------------------------------
-                ACTIONS
-            -------------------------------------------------- */}
 
             <View
               style={
                 styles.modalActions
               }
             >
-              {/* CANCEL */}
-
-              <Pressable
-                onPress={
-                  closeLoginModal
+              <View
+                style={
+                  styles.modalAction
                 }
-                accessibilityRole="button"
-                accessibilityLabel="Cancel login"
-                style={({ pressed }) => [
-                  styles.modalButton,
-                  pressed &&
-                    styles.modalButtonPressed,
-                ]}
               >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.cancelText
+                <AppButton
+                  title="Cancel"
+                  role="customer"
+                  variant="outline"
+                  onPress={
+                    closeLoginModal
                   }
-                >
-                  CANCEL
-                </AppText>
-              </Pressable>
+                />
+              </View>
 
-              {/* LOGIN */}
-
-              <Pressable
-                onPress={
-                  handleLogin
+              <View
+                style={
+                  styles.modalAction
                 }
-                accessibilityRole="button"
-                accessibilityLabel="Login"
-                style={({ pressed }) => [
-                  styles.modalButton,
-                  pressed &&
-                    styles.modalButtonPressed,
-                ]}
               >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.loginText
+                <AppButton
+                  title="Login"
+                  role="customer"
+                  variant="primary"
+                  onPress={
+                    handleLogin
                   }
-                >
-                  LOGIN
-                </AppText>
-              </Pressable>
+                />
+              </View>
             </View>
           </View>
         </View>
@@ -430,232 +513,258 @@ export default function FixYourselfScreen() {
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
+    /* ========================================================
        SCREEN
-    ========================================================== */
+    ======================================================== */
 
     container: {
-      padding:
+      flexGrow: 1,
+
+      paddingHorizontal:
         FixxamTokens.spacing.lg,
 
-      paddingBottom: 40,
+      paddingTop:
+        FixxamTokens.spacing.lg,
 
-      gap: 20,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
+
+    /* ========================================================
+       INTRO
+    ======================================================== */
+
+    intro: {
+      alignItems:
+        "flex-start",
+    },
+
+    iconBox: {
+      width: 56,
+
+      height: 56,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: -8,
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     description: {
-      marginTop: -12,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      maxWidth: 520,
 
       lineHeight: 22,
     },
 
-    /* ==========================================================
-       EXAMPLES
-    ========================================================== */
+    /* ========================================================
+       INPUT
+    ======================================================== */
 
-    examplesContainer: {
-      gap: 12,
+    inputSection: {
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    examplesTitle: {
-      fontSize: 15,
+    sectionTitle: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       EXAMPLES
+    ======================================================== */
+
+    examplesContainer: {
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     chips: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      flexWrap: "wrap",
+      flexWrap:
+        "wrap",
 
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     chip: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
 
-      borderRadius: 20,
-
-      paddingHorizontal: 14,
-
-      paddingVertical: 10,
+      borderRadius:
+        FixxamTokens.radius.chip,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
     },
 
-    /* ==========================================================
-       SEARCH BUTTON
-    ========================================================== */
+    chipText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
     searchButton: {
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    /* ==========================================================
-       LOGIN MODAL OVERLAY
-    ========================================================== */
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
     modalOverlay: {
       flex: 1,
 
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       backgroundColor:
-        "rgba(15, 23, 42, 0.58)",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      paddingHorizontal: 28,
+        Colors.overlayStrong,
     },
-
-    /* ==========================================================
-       LOGIN MODAL CARD
-    ========================================================== */
 
     modalCard: {
       width: "100%",
 
       maxWidth: 420,
 
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      borderRadius: 24,
-
-      paddingHorizontal: 22,
-
-      paddingTop: 24,
-
-      paddingBottom: 14,
-
-      shadowColor:
-        "#000000",
-
-      shadowOpacity: 0.2,
-
-      shadowRadius: 24,
-
-      shadowOffset: {
-        width: 0,
-        height: 10,
-      },
-
-      elevation: 12,
+      ...FixxamTokens.shadow.card,
     },
-
-    /* ==========================================================
-       MODAL ICON
-    ========================================================== */
 
     modalIcon: {
-      width: 54,
+      width: 56,
 
-      height: 54,
+      height: 56,
 
-      borderRadius: 18,
-
-      backgroundColor:
-        "#EFF6FF",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      marginBottom: 16,
-    },
-
-    /* ==========================================================
-       MODAL TITLE
-    ========================================================== */
-
-    modalTitle: {
-      fontSize: 22,
-
-      lineHeight: 28,
-
-      color: "#0F172A",
-    },
-
-    /* ==========================================================
-       MODAL MESSAGE
-    ========================================================== */
-
-    modalMessage: {
-      marginTop: 8,
-
-      fontSize: 15,
-
-      lineHeight: 22,
-
-      color: "#64748B",
-
-      maxWidth: 330,
-    },
-
-    /* ==========================================================
-       MODAL ACTIONS
-    ========================================================== */
-
-    modalActions: {
-      marginTop: 22,
-
-      flexDirection: "row",
-
-      justifyContent:
-        "flex-end",
-
-      alignItems: "center",
-
-      gap: 4,
-    },
-
-    modalButton: {
-      minHeight: 44,
-
-      paddingHorizontal: 14,
-
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderRadius: 12,
-    },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    modalButtonPressed: {
       backgroundColor:
-        "#F8FAFC",
-
-      opacity: 0.75,
+        CustomerColors.primarySoft,
     },
 
-    /* ==========================================================
-       CANCEL
-    ========================================================== */
+    modalTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-    cancelText: {
-      fontSize: 14,
-
-      letterSpacing: 0.8,
-
-      color: "#64748B",
+      color:
+        Colors.textPrimary,
     },
 
-    /* ==========================================================
-       LOGIN
-    ========================================================== */
+    modalMessage: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    loginText: {
-      fontSize: 14,
+      maxWidth: 340,
 
-      letterSpacing: 0.8,
+      lineHeight: 22,
+    },
 
-      color: "#2563EB",
+    modalActions: {
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
+
+    modalAction: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

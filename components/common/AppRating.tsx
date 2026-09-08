@@ -1,44 +1,77 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-type Props = {
+export interface AppRatingProps {
   rating: number;
-  reviews?: number;
-  size?: number;
-};
 
-export default function AppRating({
+  reviews?: number;
+
+  /*
+   * Number remains supported
+   * for existing screens.
+   */
+  size?: number;
+}
+
+function AppRating({
   rating,
   reviews,
-  size = 16,
-}: Props) {
+  size = FixxamTokens.size.iconXs,
+}: AppRatingProps) {
+  const safeRating = Number.isFinite(rating)
+    ? Math.min(5, Math.max(0, rating))
+    : 0;
+
+  const safeReviews =
+    reviews !== undefined
+      ? Math.max(0, Math.floor(reviews))
+      : undefined;
+
+  const accessibilityLabel =
+    safeReviews !== undefined
+      ? `${safeRating.toFixed(1)} out of 5 stars, ${safeReviews} reviews`
+      : `${safeRating.toFixed(1)} out of 5 stars`;
+
   return (
-    <View style={styles.container}>
-      <MaterialCommunityIcons
+    <View
+      accessible
+      accessibilityLabel={accessibilityLabel}
+      style={styles.container}
+    >
+      <AppIcon
         name="star"
         size={size}
-        color="#F59E0B"
+        color={Colors.warning}
+        strokeWidth="strong"
       />
 
       <AppText
-        weight="bold"
+        variant="bodyMedium"
         style={styles.rating}
       >
-        {rating.toFixed(1)}
+        {safeRating.toFixed(1)}
       </AppText>
 
-      {reviews !== undefined && (
-        <AppText style={styles.reviews}>
-          ({reviews})
+      {safeReviews !== undefined ? (
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={styles.reviews}
+        >
+          ({safeReviews})
         </AppText>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -50,14 +83,14 @@ const styles = StyleSheet.create({
   },
 
   rating: {
-    marginLeft: 6,
-    fontSize: 14,
-    color: "#0F172A",
+    marginLeft:
+      FixxamTokens.spacing.xs,
   },
 
   reviews: {
-    marginLeft: 4,
-    fontSize: 13,
-    color: "#64748B",
+    marginLeft:
+      FixxamTokens.spacing.xs,
   },
 });
+
+export default memo(AppRating);

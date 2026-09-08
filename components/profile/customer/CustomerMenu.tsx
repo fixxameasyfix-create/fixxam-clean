@@ -1,13 +1,13 @@
 import React from "react";
 
-import ProfileSection
-from "@/components/profile/shared/ProfileSection";
+import ProfileMenuItem from "@/components/profile/shared/ProfileMenuItem";
+import ProfileSection from "@/components/profile/shared/ProfileSection";
 
-import ProfileMenuItem
-from "@/components/profile/shared/ProfileMenuItem";
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
-
   onOrders?: () => void;
 
   onSaved?: () => void;
@@ -23,35 +23,24 @@ type Props = {
   onSupport?: () => void;
 
   onSettings?: () => void;
-
 };
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function CustomerMenu({
-
   onOrders,
-
   onSaved,
-
   onAddresses,
-
   onPayments,
-
   onNotifications,
-
   onReviews,
-
   onSupport,
-
   onSettings,
-
 }: Props) {
-
   return (
-
-    <ProfileSection
-      title="Account"
-    >
-
+    <ProfileSection title="Account">
       <ProfileMenuItem
         title="Orders"
         icon="document-text-outline"
@@ -99,9 +88,6 @@ export default function CustomerMenu({
         icon="settings-outline"
         onPress={onSettings}
       />
-
     </ProfileSection>
-
   );
-
 }

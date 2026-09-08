@@ -8,25 +8,172 @@ import type {
 } from "@/components/customer/worker/types";
 
 /* ============================================================
-   HELPERS
+   TYPES
+============================================================ */
+
+type ImageSource = {
+  source: string;
+
+  value: unknown;
+};
+
+/* ============================================================
+   STRING
 ============================================================ */
 
 function normalizeString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
+
+/* ============================================================
+   NUMBER
+============================================================ */
 
 function normalizeNumber(
   value: unknown,
   fallback = 0,
 ): number {
-  return typeof value === "number" &&
-    Number.isFinite(value)
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  )
     ? value
     : fallback;
+}
+
+/* ============================================================
+   NULLABLE NUMBER
+============================================================ */
+
+/**
+ * Location values must remain null
+ * when they do not exist.
+ *
+ * Returning 0 would incorrectly place
+ * a worker at coordinates 0, 0.
+ */
+function normalizeNullableNumber(
+  value: unknown,
+): number | null {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  )
+    ? value
+    : null;
+}
+
+/* ============================================================
+   RATING
+============================================================ */
+
+function normalizeRating(
+  value: unknown,
+): number {
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      normalizeNumber(
+        value,
+      ),
+    ),
+  );
+}
+
+/* ============================================================
+   IMAGE URL
+============================================================ */
+
+/**
+ * Public worker image values leaving
+ * this mapper must be valid HTTPS URLs.
+ *
+ * Rejected:
+ *
+ * - file://
+ * - content://
+ * - gs://
+ * - http://
+ * - empty values
+ */
+function normalizeImageUrl(
+  value: unknown,
+): string {
+  const url =
+    normalizeString(
+      value,
+    );
+
+  if (
+    !url
+  ) {
+    return "";
+  }
+
+  if (
+    !url.startsWith(
+      "https://",
+    )
+  ) {
+    return "";
+  }
+
+  return url;
+}
+
+/* ============================================================
+   RESOLVE IMAGE URL
+============================================================ */
+
+/**
+ * Resolve the first valid HTTPS image URL.
+ */
+function resolveImageUrl(
+  ...values: ImageSource[]
+): {
+  url: string;
+
+  source: string;
+} {
+  for (
+    const item of
+    values
+  ) {
+    const url =
+      normalizeImageUrl(
+        item.value,
+      );
+
+    if (
+      url
+    ) {
+      return {
+        url,
+
+        source:
+          item.source,
+      };
+    }
+  }
+
+  return {
+    url: "",
+
+    source:
+      "none",
+  };
 }
 
 /* ============================================================
@@ -37,40 +184,67 @@ function extractServiceReferences(
   value: unknown,
 ): {
   ids: string[];
+
   services: WorkerService[];
 } {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return {
       ids: [],
+
       services: [],
     };
   }
 
-  const ids: string[] = [];
-  const services: WorkerService[] = [];
+  const ids:
+    string[] =
+    [];
 
-  for (const item of value) {
-    /*
-     * STRING SERVICE ID
-     */
+  const services:
+    WorkerService[] =
+    [];
 
-    if (typeof item === "string") {
-      const id = item.trim();
+  for (
+    const item of
+    value
+  ) {
+    /* --------------------------------------------------------
+       STRING SERVICE ID
+    -------------------------------------------------------- */
 
-      if (id) {
-        ids.push(id);
+    if (
+      typeof item ===
+      "string"
+    ) {
+      const id =
+        item.trim();
+
+      if (
+        id
+      ) {
+        ids.push(
+          id,
+        );
       }
 
       continue;
     }
 
-    /*
-     * SERVICE OBJECT
-     */
+    /* --------------------------------------------------------
+       SERVICE OBJECT
+    -------------------------------------------------------- */
 
     if (
-      typeof item !== "object" ||
-      item === null
+      typeof item !==
+        "object" ||
+      item ===
+        null ||
+      Array.isArray(
+        item,
+      )
     ) {
       continue;
     }
@@ -78,57 +252,84 @@ function extractServiceReferences(
     const service =
       item as {
         id?: unknown;
+
         serviceId?: unknown;
+
         name?: unknown;
+
         serviceName?: unknown;
+
         icon?: unknown;
+
         color?: unknown;
+
         backgroundColor?: unknown;
       };
 
     const id =
-      normalizeString(service.id) ||
+      normalizeString(
+        service.id,
+      ) ||
       normalizeString(
         service.serviceId,
       );
 
     const name =
-      normalizeString(service.name) ||
+      normalizeString(
+        service.name,
+      ) ||
       normalizeString(
         service.serviceName,
       );
 
-    if (id) {
-      ids.push(id);
+    if (
+      id
+    ) {
+      ids.push(
+        id,
+      );
     }
 
-    if (name) {
+    if (
+      name
+    ) {
       services.push({
-        ...(id ? { id } : {}),
+        ...(id
+          ? {
+              id,
+            }
+          : {}),
+
         name,
 
         icon:
           normalizeString(
             service.icon,
-          ) || undefined,
+          ) ||
+          undefined,
 
         color:
           normalizeString(
             service.color,
-          ) || undefined,
+          ) ||
+          undefined,
 
         backgroundColor:
           normalizeString(
             service.backgroundColor,
-          ) || undefined,
+          ) ||
+          undefined,
       });
     }
   }
 
   return {
-    ids: Array.from(
-      new Set(ids),
-    ),
+    ids:
+      Array.from(
+        new Set(
+          ids,
+        ),
+      ),
 
     services,
   };
@@ -141,12 +342,20 @@ function extractServiceReferences(
 export function workerMapper(
   doc: QueryDocumentSnapshot,
 ): WorkerCardData {
-  const data = doc.data();
+  const data =
+    doc.data();
+
+  /* ==========================================================
+     WORKER PROFILE
+  ========================================================== */
 
   const workerProfile =
     data.workerProfile &&
     typeof data.workerProfile ===
-      "object"
+      "object" &&
+    !Array.isArray(
+      data.workerProfile,
+    )
       ? data.workerProfile
       : {};
 
@@ -154,7 +363,7 @@ export function workerMapper(
      FULL NAME
   ========================================================== */
 
-  const fullName =
+  const suppliedFullName =
     normalizeString(
       data.fullName,
     ) ||
@@ -163,74 +372,227 @@ export function workerMapper(
     ) ||
     normalizeString(
       data.displayName,
+    ) ||
+    normalizeString(
+      data.name,
     );
+
+  const rootFirstName =
+    normalizeString(
+      data.firstName,
+    );
+
+  const rootOtherName =
+    normalizeString(
+      data.otherName,
+    );
+
+  const rootSurname =
+    normalizeString(
+      data.surname,
+    );
+
+  const generatedFullName =
+    [
+      rootFirstName,
+      rootOtherName,
+      rootSurname,
+    ]
+      .filter(
+        Boolean,
+      )
+      .join(
+        " ",
+      )
+      .trim();
+
+  const fullName =
+    suppliedFullName ||
+    generatedFullName;
 
   const nameParts =
     fullName
-      .split(/\s+/)
-      .filter(Boolean);
+      .split(
+        /\s+/,
+      )
+      .filter(
+        Boolean,
+      );
 
   const firstName =
     fullName
-      ? nameParts[0] ?? ""
-      : normalizeString(
-          data.firstName,
-        );
+      ? nameParts[0] ??
+        ""
+      : rootFirstName;
 
   const surname =
     fullName
       ? nameParts
-          .slice(1)
-          .join(" ")
-      : normalizeString(
-          data.surname,
-        );
+          .slice(
+            1,
+          )
+          .join(
+            " ",
+          )
+      : rootSurname;
 
   /* ==========================================================
      PROFILE PHOTO
   ========================================================== */
 
-  const photoUrl =
-    normalizeString(
-      workerProfile.photoUrl,
-    ) ||
-    normalizeString(
-      workerProfile.photoURL,
-    ) ||
-    normalizeString(
-      data.photoURL,
-    ) ||
-    normalizeString(
-      data.photoUrl,
+  const photoResult =
+    resolveImageUrl(
+      {
+        source:
+          "workerProfile.photoUrl",
+
+        value:
+          workerProfile.photoUrl,
+      },
+
+      {
+        source:
+          "workerProfile.photoURL",
+
+        value:
+          workerProfile.photoURL,
+      },
+
+      {
+        source:
+          "root.photoURL",
+
+        value:
+          data.photoURL,
+      },
+
+      {
+        source:
+          "root.photoUrl",
+
+        value:
+          data.photoUrl,
+      },
     );
+
+  const photoUrl =
+    photoResult.url;
+
+  const photoSource =
+    photoResult.source;
 
   /* ==========================================================
-     PHONE NUMBER
+     DEVELOPMENT IMAGE DIAGNOSTICS
   ========================================================== */
 
-  /*
-   * Build Your Profile saves:
-   *
-   * phoneNumber
-   *
-   * at the root of:
-   *
-   * workerPublicProfiles/{uid}
-   */
+  if (
+    __DEV__
+  ) {
+    const rawPhotoSources:
+      ImageSource[] =
+      [
+        {
+          source:
+            "workerProfile.photoUrl",
 
-  const phoneNumber =
-    normalizeString(
-      data.phoneNumber,
-    ) ||
-    normalizeString(
-      workerProfile.phoneNumber,
-    ) ||
-    normalizeString(
-      data.phone,
-    ) ||
-    normalizeString(
-      workerProfile.phone,
+          value:
+            workerProfile.photoUrl,
+        },
+
+        {
+          source:
+            "workerProfile.photoURL",
+
+          value:
+            workerProfile.photoURL,
+        },
+
+        {
+          source:
+            "root.photoURL",
+
+          value:
+            data.photoURL,
+        },
+
+        {
+          source:
+            "root.photoUrl",
+
+          value:
+            data.photoUrl,
+        },
+      ];
+
+    const rejected =
+      rawPhotoSources.filter(
+        (
+          item,
+        ) => {
+          const value =
+            normalizeString(
+              item.value,
+            );
+
+          return (
+            value.length >
+              0 &&
+            !normalizeImageUrl(
+              value,
+            )
+          );
+        },
+      );
+
+    if (
+      rejected.length >
+      0
+    ) {
+      console.warn(
+        "WORKER_INVALID_IMAGE_URL_REJECTED:",
+        {
+          workerId:
+            doc.id,
+
+          values:
+            rejected.map(
+              (
+                item,
+              ) => ({
+                source:
+                  item.source,
+
+                value:
+                  normalizeString(
+                    item.value,
+                  ),
+              }),
+            ),
+        },
+      );
+    }
+
+    console.log(
+      "WORKER_MAPPER_IMAGE:",
+      {
+        workerId:
+          doc.id,
+
+        workerName:
+          fullName ||
+          "Worker",
+
+        photoUrl,
+
+        photoSource,
+
+        hasImage:
+          Boolean(
+            photoUrl,
+          ),
+      },
     );
+  }
 
   /* ==========================================================
      HOURLY RATE
@@ -287,9 +649,13 @@ export function workerMapper(
     Array.from(
       new Set([
         ...selectedServices.ids,
+
         ...workerServices.ids,
+
         ...profileServiceDetails.ids,
+
         ...rootSelectedServices.ids,
+
         ...rootServiceIds.ids,
       ]),
     );
@@ -299,27 +665,50 @@ export function workerMapper(
   ========================================================== */
 
   const serviceMap =
-    new Map<string, WorkerService>();
+    new Map<
+      string,
+      WorkerService
+    >();
 
-  for (const service of [
-    ...selectedServices.services,
-    ...workerServices.services,
-    ...profileServiceDetails.services,
-    ...rootSelectedServices.services,
-    ...rootServiceIds.services,
-  ]) {
+  for (
+    const service of
+    [
+      ...selectedServices.services,
+
+      ...workerServices.services,
+
+      ...profileServiceDetails.services,
+
+      ...rootSelectedServices.services,
+
+      ...rootServiceIds.services,
+    ]
+  ) {
     const key =
-      service.id?.trim() ||
+      service.id
+        ?.trim() ||
       service.name.trim();
 
-    if (!key) {
+    if (
+      !key
+    ) {
       continue;
     }
 
-    serviceMap.set(
-      key,
-      service,
-    );
+    /*
+     * Preserve only one service for
+     * each ID/name.
+     */
+    if (
+      !serviceMap.has(
+        key,
+      )
+    ) {
+      serviceMap.set(
+        key,
+        service,
+      );
+    }
   }
 
   const services =
@@ -328,25 +717,79 @@ export function workerMapper(
     );
 
   /* ==========================================================
+     LOCATION
+  ========================================================== */
+
+  const nestedLatitude =
+    normalizeNullableNumber(
+      workerProfile.latitude,
+    );
+
+  const nestedLongitude =
+    normalizeNullableNumber(
+      workerProfile.longitude,
+    );
+
+  const rootLatitude =
+    normalizeNullableNumber(
+      data.latitude,
+    );
+
+  const rootLongitude =
+    normalizeNullableNumber(
+      data.longitude,
+    );
+
+  const latitude =
+    nestedLatitude ??
+    rootLatitude;
+
+  const longitude =
+    nestedLongitude ??
+    rootLongitude;
+
+  /* ==========================================================
+     LOCATION VALIDATION
+  ========================================================== */
+
+  const validLatitude =
+    latitude !==
+      null &&
+    latitude >=
+      -90 &&
+    latitude <=
+      90
+      ? latitude
+      : null;
+
+  const validLongitude =
+    longitude !==
+      null &&
+    longitude >=
+      -180 &&
+    longitude <=
+      180
+      ? longitude
+      : null;
+
+  /* ==========================================================
      RETURN
   ========================================================== */
 
   return {
-    id: doc.id,
+    id:
+      doc.id,
 
-    /*
-     * Build Your Profile name.
-     */
-    fullName,
+    fullName:
+      fullName ||
+      "Worker",
 
-    /*
-     * Existing compatibility.
-     */
     firstName,
+
     surname,
 
     rating:
-      normalizeNumber(
+      normalizeRating(
         data.rating,
       ),
 
@@ -356,10 +799,12 @@ export function workerMapper(
       ),
 
     online:
-      data.online === true,
+      data.online ===
+      true,
 
     verified:
-      data.verified === true,
+      data.verified ===
+      true,
 
     completedJobs:
       normalizeNumber(
@@ -387,12 +832,16 @@ export function workerMapper(
     serviceIds,
 
     workerProfile: {
+      /*
+       * Public mapper exposes only
+       * HTTPS worker profile images.
+       */
       photoUrl,
 
       /*
-       * Worker phone number.
+       * Phone number intentionally
+       * does NOT leave this mapper.
        */
-      phoneNumber,
 
       experience:
         normalizeString(
@@ -405,37 +854,46 @@ export function workerMapper(
       state:
         normalizeString(
           workerProfile.state,
+        ) ||
+        normalizeString(
+          data.state,
         ),
 
       lga:
         normalizeString(
           workerProfile.lga,
+        ) ||
+        normalizeString(
+          data.lga,
         ),
 
       hourlyRate,
 
       latitude:
-        normalizeNumber(
-          workerProfile.latitude,
-        ),
+        validLatitude,
 
       longitude:
-        normalizeNumber(
-          workerProfile.longitude,
-        ),
+        validLongitude,
 
       geoPoint:
         workerProfile.geoPoint ??
+        data.geoPoint ??
         null,
 
       geoHash:
         normalizeString(
           workerProfile.geoHash,
+        ) ||
+        normalizeString(
+          data.geoHash,
         ),
 
       address:
         normalizeString(
           workerProfile.address,
+        ) ||
+        normalizeString(
+          data.address,
         ),
     },
   };

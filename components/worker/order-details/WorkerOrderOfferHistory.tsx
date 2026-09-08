@@ -1,7 +1,9 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  FlatList,
   StyleSheet,
   View,
 } from "react-native";
@@ -10,210 +12,498 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
 import type {
   BookingOffer,
 } from "@/firebase/queries/bookings/listenOffers";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   offers?: BookingOffer[];
 };
 
-export default function WorkerOrderOfferHistory({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafeMoney(
+  value: unknown,
+): number {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return Math.max(
+      0,
+      value,
+    );
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    const cleaned =
+      value
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
+        .trim();
+
+    if (!cleaned) {
+      return 0;
+    }
+
+    const parsed =
+      Number(cleaned);
+
+    return Number.isFinite(
+      parsed,
+    )
+      ? Math.max(
+          0,
+          parsed,
+        )
+      : 0;
+  }
+
+  return 0;
+}
+
+function getSafeText(
+  value: unknown,
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    return value.trim();
+  }
+
+  return "";
+}
+
+function formatMoney(
+  value: number,
+): string {
+  return `₦${value.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+/* ============================================================
+   OFFER ITEM
+============================================================ */
+
+const OfferItem =
+  memo(
+    function OfferItem({
+      offer,
+      index,
+    }: {
+      offer: BookingOffer;
+      index: number;
+    }) {
+      const sender =
+        getSafeText(
+          offer.sender,
+        ).toLowerCase();
+
+      const isWorker =
+        sender ===
+        "worker";
+
+      const amount =
+        getSafeMoney(
+          offer.amount,
+        );
+
+      const message =
+        getSafeText(
+          offer.message,
+        );
+
+      return (
+        <View
+          style={[
+            styles.bubble,
+
+            isWorker
+              ? styles.workerBubble
+              : styles.customerBubble,
+
+            index > 0
+              ? styles.bubbleSpacing
+              : null,
+          ]}
+        >
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <View
+            style={
+              styles.header
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.sender
+              }
+            >
+              {isWorker
+                ? "You"
+                : "Customer"}
+            </AppText>
+
+            <View
+              style={[
+                styles.senderBadge,
+
+                isWorker
+                  ? styles.workerBadge
+                  : styles.customerBadge,
+              ]}
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={[
+                  styles.senderBadgeText,
+
+                  isWorker
+                    ? styles.workerBadgeText
+                    : styles.customerBadgeText,
+                ]}
+              >
+                {isWorker
+                  ? "WORKER"
+                  : "CUSTOMER"}
+              </AppText>
+            </View>
+          </View>
+
+          {/* ==================================================
+              AMOUNT
+          ================================================== */}
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            numberOfLines={1}
+            style={[
+              styles.amount,
+
+              isWorker
+                ? styles.workerAmount
+                : styles.customerAmount,
+            ]}
+          >
+            {formatMoney(
+              amount,
+            )}
+          </AppText>
+
+          {/* ==================================================
+              MESSAGE
+          ================================================== */}
+
+          {message ? (
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.message
+              }
+            >
+              {message}
+            </AppText>
+          ) : null}
+        </View>
+      );
+    },
+  );
+
+OfferItem.displayName =
+  "WorkerOrderOfferHistoryItem";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerOrderOfferHistory({
   offers = [],
 }: Props) {
-  if (offers.length === 0) {
+  const validOffers =
+    useMemo(
+      () =>
+        offers.filter(
+          offer =>
+            offer != null,
+        ),
+      [offers],
+    );
+
+  if (
+    validOffers.length === 0
+  ) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Offer History
       </AppText>
 
-      <FlatList
-        data={offers}
-        keyExtractor={(
-          item,
-          index,
-        ) =>
-          item.id ??
-          `${item.sender}-${item.amount}-${index}`
-        }
-        scrollEnabled={false}
-        renderItem={({ item }) => {
-          const isWorker =
-            item.sender === "worker";
+      {/* ======================================================
+          OFFERS
+      ====================================================== */}
 
-          const amount = Number(
-            item.amount ?? 0,
-          );
+      <View>
+        {validOffers.map(
+          (
+            offer,
+            index,
+          ) => {
+            const key =
+              getSafeText(
+                offer.id,
+              ) ||
+              `${getSafeText(
+                offer.sender,
+              )}-${getSafeMoney(
+                offer.amount,
+              )}-${index}`;
 
-          const message =
-            typeof item.message ===
-            "string"
-              ? item.message.trim()
-              : "";
-
-          return (
-            <View
-              style={[
-                styles.bubble,
-                isWorker
-                  ? styles.workerBubble
-                  : styles.customerBubble,
-              ]}
-            >
-              <View
-                style={
-                  styles.header
+            return (
+              <OfferItem
+                key={key}
+                offer={
+                  offer
                 }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.sender
-                  }
-                >
-                  {isWorker
-                    ? "You"
-                    : "Customer"}
-                </AppText>
-
-                <View
-                  style={[
-                    styles.senderBadge,
-                    isWorker
-                      ? styles.workerBadge
-                      : styles.customerBadge,
-                  ]}
-                >
-                  <AppText
-                    weight="bold"
-                    style={[
-                      styles.senderBadgeText,
-                      isWorker
-                        ? styles.workerBadgeText
-                        : styles.customerBadgeText,
-                    ]}
-                  >
-                    {isWorker
-                      ? "WORKER"
-                      : "CUSTOMER"}
-                  </AppText>
-                </View>
-              </View>
-
-              <AppText
-                weight="bold"
-                style={styles.amount}
-              >
-                ₦
-                {Number.isFinite(
-                  amount,
-                )
-                  ? amount.toLocaleString()
-                  : "0"}
-              </AppText>
-
-              {message ? (
-                <AppText
-                  style={
-                    styles.message
-                  }
-                >
-                  {message}
-                </AppText>
-              ) : null}
-            </View>
-          );
-        }}
-      />
+                index={
+                  index
+                }
+              />
+            );
+          },
+        )}
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 18,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  title: {
-    fontSize: 18,
-    color: "#0F172A",
-    marginBottom: 16,
-  },
+WorkerOrderOfferHistory.displayName =
+  "WorkerOrderOfferHistory";
 
-  bubble: {
-    width: "88%",
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
-  },
+export default memo(
+  WorkerOrderOfferHistory,
+);
 
-  workerBubble: {
-    backgroundColor: "#FFF7ED",
-    alignSelf: "flex-end",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  customerBubble: {
-    backgroundColor: "#EFF6FF",
-    alignSelf: "flex-start",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 7,
-  },
+    container: {
+      width: "100%",
 
-  sender: {
-    color: "#0F172A",
-    fontSize: 13,
-  },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  senderBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-  },
+      padding:
+        FixxamTokens.spacing.lg,
 
-  workerBadge: {
-    backgroundColor: "#FFEDD5",
-  },
+      borderWidth: 1,
 
-  customerBadge: {
-    backgroundColor: "#DBEAFE",
-  },
+      borderColor:
+        Colors.border,
 
-  senderBadgeText: {
-    fontSize: 9,
-  },
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-  workerBadgeText: {
-    color: "#C2410C",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  customerBadgeText: {
-    color: "#1D4ED8",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  amount: {
-    color: "#FF6B00",
-    fontSize: 18,
-    marginBottom: 6,
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  message: {
-    color: "#475569",
-    fontSize: 13,
-    lineHeight: 20,
-  },
-});
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       OFFER BUBBLE
+    ======================================================== */
+
+    bubble: {
+      width: "88%",
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    bubbleSpacing: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    workerBubble: {
+      alignSelf:
+        "flex-end",
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    customerBubble: {
+      alignSelf:
+        "flex-start",
+
+      borderColor:
+        CustomerColors.primarySoft,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    sender: {
+      flexShrink: 1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    senderBadge: {
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    workerBadge: {
+      backgroundColor:
+        Colors.surface,
+    },
+
+    customerBadge: {
+      backgroundColor:
+        Colors.surface,
+    },
+
+    senderBadgeText: {
+      fontSize: 9,
+    },
+
+    workerBadgeText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    customerBadgeText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       OFFER CONTENT
+    ======================================================== */
+
+    amount: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
+
+    workerAmount: {
+      color:
+        WorkerColors.primary,
+    },
+
+    customerAmount: {
+      color:
+        CustomerColors.primary,
+    },
+
+    message: {
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

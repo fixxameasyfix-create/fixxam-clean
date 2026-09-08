@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useMemo,
 } from "react";
 
 import {
@@ -9,27 +10,93 @@ import {
   StyleSheet,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   phone?: string;
 };
 
+/* ============================================================
+   TOAST
+============================================================ */
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 function MarketOrderCall({
   phone,
 }: Props) {
+  const cleanPhone =
+    useMemo(() => {
+      if (
+        typeof phone !== "string"
+      ) {
+        return "";
+      }
+
+      return phone
+        .trim()
+        .replace(
+          /[^+\d]/g,
+          "",
+        );
+    }, [
+      phone,
+    ]);
+
+  const disabled =
+    cleanPhone.length === 0;
+
+  /* ==========================================================
+     CALL STORE
+  ========================================================== */
+
   const handleCall =
     useCallback(async () => {
-      const cleanPhone =
-        typeof phone === "string"
-          ? phone.trim()
-          : "";
-
       if (!cleanPhone) {
+        showInfoToast(
+          "Phone unavailable",
+          "The store phone number is not available.",
+        );
+
         return;
       }
 
@@ -43,56 +110,86 @@ function MarketOrderCall({
           );
 
         if (!supported) {
+          showErrorToast(
+            "Calling unavailable",
+            "Your device cannot make phone calls.",
+          );
+
           return;
         }
 
         await Linking.openURL(
           url,
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.error(
           "MARKET_ORDER_CALL_STORE_ERROR:",
           error,
         );
-      }
-    }, [phone]);
 
-  const disabled =
-    !phone?.trim();
+        showErrorToast(
+          "Unable to call store",
+          "Please try again.",
+        );
+      }
+    }, [
+      cleanPhone,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Pressable
       onPress={
         handleCall
       }
-      disabled={disabled}
+      disabled={
+        disabled
+      }
       accessibilityRole="button"
       accessibilityLabel="Call store"
-      style={({ pressed }) => [
+      accessibilityState={{
+        disabled,
+      }}
+      style={({
+        pressed,
+      }) => [
         styles.button,
-        disabled &&
-          styles.disabled,
+
+        disabled
+          ? styles.disabled
+          : null,
+
         pressed &&
-          !disabled &&
-          styles.pressed,
+        !disabled
+          ? styles.pressed
+          : null,
       ]}
     >
-      <Ionicons
-        name="call-outline"
-        size={19}
+      <AppIcon
+        name="phone"
+        role="customer"
+        size="sm"
         color={
           disabled
-            ? "#94A3B8"
-            : "#2563EB"
+            ? Colors.textMuted
+            : CustomerColors.primary
         }
       />
 
       <AppText
+        variant="caption"
         weight="bold"
         style={[
           styles.text,
-          disabled &&
-            styles.disabledText,
+
+          disabled
+            ? styles.disabledText
+            : null,
         ]}
       >
         CALL STORE
@@ -101,48 +198,87 @@ function MarketOrderCall({
   );
 }
 
-export default memo(
-  MarketOrderCall,
-);
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedMarketOrderCall =
+  memo(
+    MarketOrderCall,
+  );
+
+MemoizedMarketOrderCall.displayName =
+  "MarketOrderCall";
+
+export default MemoizedMarketOrderCall;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
     button: {
-      minHeight: 48,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
-      borderWidth: 1,
-      borderColor:
-        "#BFDBFE",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     text: {
-      fontSize: 10,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     disabled: {
-      backgroundColor:
-        "#F8FAFC",
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     disabledText: {
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     pressed: {
-      opacity: 0.8,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

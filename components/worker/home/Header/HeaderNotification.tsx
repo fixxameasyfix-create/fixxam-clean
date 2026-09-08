@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,90 +9,255 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   count?: number;
+
   onPress?: () => void;
 };
 
-export default function HeaderNotification({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafeCount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function HeaderNotification({
   count = 0,
   onPress,
 }: Props) {
+  const safeCount =
+    useMemo(
+      () =>
+        getSafeCount(
+          count,
+        ),
+      [count],
+    );
+
+  const badgeText =
+    safeCount > 99
+      ? "99+"
+      : String(
+          safeCount,
+        );
+
+  const accessibilityLabel =
+    safeCount > 0
+      ? `${safeCount} unread notifications`
+      : "Notifications";
+
   return (
     <Pressable
-      onPress={onPress}
-      style={styles.container}
+      onPress={
+        onPress
+      }
+      disabled={
+        !onPress
+      }
+      hitSlop={6}
+      accessibilityRole={
+        onPress
+          ? "button"
+          : undefined
+      }
+      accessibilityLabel={
+        accessibilityLabel
+      }
+      accessibilityHint={
+        onPress
+          ? "Open worker notifications"
+          : undefined
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.container,
+
+        pressed &&
+        onPress
+          ? styles.pressed
+          : null,
+      ]}
     >
-      <Ionicons
-        name="notifications-outline"
-        size={24}
-        color="#0F172A"
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
+      <AppIcon
+        name="notifications"
+        role="worker"
+        size="md"
+        color={
+          WorkerColors.primary
+        }
       />
 
-      {count > 0 && (
-        <View style={styles.badge}>
-          <AppText style={styles.badgeText}>
-            {count > 9 ? "9+" : count}
+      {/* ======================================================
+          BADGE
+      ====================================================== */}
+
+      {safeCount > 0 ? (
+        <View
+          style={
+            styles.badge
+          }
+        >
+          <AppText
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.badgeText
+            }
+          >
+            {badgeText}
           </AppText>
         </View>
-      )}
+      ) : null}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
+/* ============================================================
+   MEMO
+============================================================ */
 
-    backgroundColor: "#FFFFFF",
+HeaderNotification.displayName =
+  "HeaderNotification";
 
-    justifyContent: "center",
-    alignItems: "center",
+export default memo(
+  HeaderNotification,
+);
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+const styles =
+  StyleSheet.create({
+    container: {
+      width:
+        FixxamTokens.size.buttonHeight,
+
+      height:
+        FixxamTokens.size.buttonHeight,
+
+      position:
+        "relative",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 4,
-  },
+    /* ========================================================
+       BADGE
+    ======================================================== */
 
-  badge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
+    badge: {
+      position:
+        "absolute",
 
-    minWidth: 20,
-    height: 20,
+      top: -4,
 
-    borderRadius: 10,
+      right: -4,
 
-    backgroundColor: "#EF4444",
+      minWidth: 20,
 
-    justifyContent: "center",
-    alignItems: "center",
+      height: 20,
 
-    paddingHorizontal: 5,
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
+      alignItems:
+        "center",
 
-  badgeText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-});
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    badgeText: {
+      fontSize: 9,
+
+      lineHeight: 11,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

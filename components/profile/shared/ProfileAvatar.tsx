@@ -1,110 +1,337 @@
-import React from "react";
+import React, {
+  useEffect,
+  useState,
+} from "react";
+
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   photoUrl?: string;
+
   size?: number;
+
   editable?: boolean;
+
+  role?: FixxamRole;
+
   onPress?: () => void;
 };
 
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const DEFAULT_SIZE =
+  FixxamTokens.size.avatarXl;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function ProfileAvatar({
   photoUrl,
-  size = 72,
+  size = DEFAULT_SIZE,
   editable = false,
+  role = "customer",
   onPress,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  /* ==========================================================
+     SAFE VALUES
+  ========================================================== */
+
+  const safePhotoUrl =
+    typeof photoUrl === "string"
+      ? photoUrl.trim()
+      : "";
+
+  const safeSize =
+    Number.isFinite(size) &&
+    size > 0
+      ? size
+      : DEFAULT_SIZE;
+
+  const roleColors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const canEdit =
+    editable &&
+    typeof onPress ===
+      "function";
+
+  const showImage =
+    Boolean(safePhotoUrl) &&
+    !imageFailed;
+
+  const cameraSize =
+    Math.max(
+      24,
+      Math.min(
+        30,
+        Math.round(
+          safeSize * 0.34,
+        ),
+      ),
+    );
+
+  const profileIconSize =
+    safeSize >= 68
+      ? "lg"
+      : safeSize >= 48
+        ? "md"
+        : "sm";
+
+  /* ==========================================================
+     RESET IMAGE ERROR
+  ========================================================== */
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [safePhotoUrl]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <Pressable
-      disabled={!editable}
-      onPress={onPress}
-      style={styles.container}
+      onPress={
+        canEdit
+          ? onPress
+          : undefined
+      }
+      disabled={!canEdit}
+      accessibilityRole={
+        canEdit
+          ? "button"
+          : "image"
+      }
+      accessibilityLabel={
+        canEdit
+          ? "Change profile photo"
+          : "Profile photo"
+      }
+      accessibilityState={
+        canEdit
+          ? undefined
+          : {
+              disabled: true,
+            }
+      }
+      style={({ pressed }) => [
+        styles.container,
+
+        {
+          width:
+            safeSize,
+
+          height:
+            safeSize,
+        },
+
+        pressed &&
+        canEdit
+          ? styles.pressed
+          : null,
+      ]}
     >
-      {photoUrl ? (
-        <Image
-          source={{ uri: photoUrl }}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-          }}
-        />
-      ) : (
+      {/* ====================================================
+          PHOTO / PLACEHOLDER
+      ==================================================== */}
+
+      <View
+        style={[
+          styles.avatarContainer,
+
+          {
+            width:
+              safeSize,
+
+            height:
+              safeSize,
+
+            backgroundColor:
+              roleColors.primarySoft,
+          },
+        ]}
+      >
+        {showImage ? (
+          <Image
+            source={{
+              uri:
+                safePhotoUrl,
+            }}
+            style={
+              styles.image
+            }
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            onError={() =>
+              setImageFailed(
+                true,
+              )
+            }
+          />
+        ) : (
+          <AppIcon
+            name="profile"
+            role={role}
+            size={
+              profileIconSize
+            }
+            color={
+              roleColors.primary
+            }
+          />
+        )}
+      </View>
+
+      {/* ====================================================
+          EDIT CAMERA
+      ==================================================== */}
+
+      {canEdit ? (
         <View
+          pointerEvents="none"
           style={[
-            styles.placeholder,
+            styles.camera,
+
             {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
+              width:
+                cameraSize,
+
+              height:
+                cameraSize,
+
+              backgroundColor:
+                roleColors.primary,
             },
           ]}
         >
-          <Ionicons
-            name="person"
-            size={size * 0.4}
-            color="#94A3B8"
-          />
-        </View>
-      )}
-
-      {editable && (
-        <View style={styles.camera}>
-          <Ionicons
+          <AppIcon
             name="camera"
-            size={14}
-            color="#FFFFFF"
+            role={role}
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
-      )}
+      ) : null}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignSelf: "center",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  placeholder: {
-    backgroundColor: "#E2E8F0",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  camera: {
-    position: "absolute",
+    container: {
+      position: "relative",
 
-    right: -2,
-    bottom: -2,
+      flexShrink: 0,
 
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-
-    backgroundColor: "#2563EB",
-
-    justifyContent: "center",
-    alignItems: "center",
-
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      alignSelf: "center",
     },
 
-    elevation: 3,
-  },
-});
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       AVATAR
+    ======================================================== */
+
+    avatarContainer: {
+      overflow: "hidden",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    image: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    /* ========================================================
+       CAMERA
+    ======================================================== */
+
+    camera: {
+      position: "absolute",
+
+      right: -2,
+
+      bottom: -2,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      ...FixxamTokens.shadow.card,
+    },
+  });

@@ -6,26 +6,45 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import ProfileAvatar from "@/components/profile/shared/ProfileAvatar";
-
 import ProfileBadge from "@/components/profile/shared/ProfileBadge";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   name: string;
+
   phone: string;
+
   email: string;
+
   photoUrl?: string;
+
   verified?: boolean;
+
   onEditPhoto?: () => void;
+
   onNotifications?: () => void;
+
   onSettings?: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function CustomerProfileHeader({
   name,
@@ -37,50 +56,105 @@ export default function CustomerProfileHeader({
   onNotifications,
   onSettings,
 }: Props) {
+  const hasPhone =
+    Boolean(phone?.trim());
+
+  const hasEmail =
+    Boolean(email?.trim());
+
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+    >
       {/* =====================================================
           HEADER
       ===================================================== */}
 
-      <View style={styles.topRow}>
+      <View
+        style={styles.topRow}
+      >
         <AppText
+          variant="heading3"
           weight="bold"
           style={styles.title}
         >
           Profile
         </AppText>
 
-        <View style={styles.actions}>
+        <View
+          style={styles.actions}
+        >
+          {/* NOTIFICATIONS */}
+
           <Pressable
-            onPress={onNotifications}
+            onPress={
+              onNotifications
+            }
+            disabled={
+              !onNotifications
+            }
             accessibilityRole="button"
             accessibilityLabel="Notifications"
-            style={({ pressed }) => [
+            accessibilityState={{
+              disabled:
+                !onNotifications,
+            }}
+            hitSlop={4}
+            style={({
+              pressed,
+            }) => [
               styles.iconButton,
-              pressed && styles.pressed,
+
+              pressed &&
+              onNotifications
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="notifications-outline"
-              size={19}
-              color="#0F172A"
+            <AppIcon
+              name="notifications"
+              role="customer"
+              size="sm"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
+          {/* SETTINGS */}
+
           <Pressable
-            onPress={onSettings}
+            onPress={
+              onSettings
+            }
+            disabled={
+              !onSettings
+            }
             accessibilityRole="button"
             accessibilityLabel="Settings"
-            style={({ pressed }) => [
+            accessibilityState={{
+              disabled:
+                !onSettings,
+            }}
+            hitSlop={4}
+            style={({
+              pressed,
+            }) => [
               styles.iconButton,
-              pressed && styles.pressed,
+
+              pressed &&
+              onSettings
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="settings-outline"
-              size={19}
-              color="#0F172A"
+            <AppIcon
+              name="settings"
+              role="customer"
+              size="sm"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
         </View>
@@ -90,16 +164,33 @@ export default function CustomerProfileHeader({
           PROFILE
       ===================================================== */}
 
-      <View style={styles.profileRow}>
+      <View
+        style={styles.profileRow}
+      >
         <ProfileAvatar
-          photoUrl={photoUrl}
-          size={68}
-          editable
-          onPress={onEditPhoto}
+          photoUrl={
+            photoUrl
+          }
+          size={
+            FixxamTokens.size.avatarXl
+          }
+          editable={
+            Boolean(
+              onEditPhoto,
+            )
+          }
+          onPress={
+            onEditPhoto
+          }
         />
 
-        <View style={styles.info}>
+        <View
+          style={styles.info}
+        >
+          {/* NAME */}
+
           <AppText
+            variant="bodyLarge"
             weight="bold"
             numberOfLines={1}
             style={styles.name}
@@ -107,46 +198,78 @@ export default function CustomerProfileHeader({
             {name}
           </AppText>
 
-          <View style={styles.badge}>
+          {/* BADGE */}
+
+          <View
+            style={styles.badge}
+          >
             <ProfileBadge
               role="customer"
-              verified={verified}
+              verified={
+                verified
+              }
             />
           </View>
 
           {/* PHONE */}
 
-          <View style={styles.detailRow}>
-            <Ionicons
-              name="call-outline"
-              size={14}
-              color="#64748B"
-            />
-
-            <AppText
-              numberOfLines={1}
-              style={styles.detail}
+          {hasPhone ? (
+            <View
+              style={
+                styles.detailRow
+              }
             >
-              {phone}
-            </AppText>
-          </View>
+              <AppIcon
+                name="phone"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.detail
+                }
+              >
+                {phone}
+              </AppText>
+            </View>
+          ) : null}
 
           {/* EMAIL */}
 
-          <View style={styles.detailRow}>
-            <Ionicons
-              name="mail-outline"
-              size={14}
-              color="#64748B"
-            />
-
-            <AppText
-              numberOfLines={1}
-              style={styles.detail}
+          {hasEmail ? (
+            <View
+              style={
+                styles.detailRow
+              }
             >
-              {email}
-            </AppText>
-          </View>
+              <AppIcon
+                name="mail"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.detail
+                }
+              >
+                {email}
+              </AppText>
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
@@ -157,113 +280,164 @@ export default function CustomerProfileHeader({
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CONTAINER
-  ========================================================== */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  container: {
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    backgroundColor: "#FFFFFF",
-  },
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  /* ==========================================================
-     HEADER
-  ========================================================== */
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-  topRow: {
-    minHeight: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 9,
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  title: {
-    fontSize: 17,
-    lineHeight: 21,
-    color: "#0F172A",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  actions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+    topRow: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  iconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  pressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.96,
-      },
-    ],
-  },
+      flexDirection: "row",
 
-  /* ==========================================================
-     PROFILE ROW
-  ========================================================== */
+      alignItems: "center",
 
-  profileRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      justifyContent:
+        "space-between",
+    },
 
-  /* ==========================================================
-     PROFILE INFO
-  ========================================================== */
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  info: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 11,
-  },
+    actions: {
+      flexDirection: "row",
 
-  name: {
-    fontSize: 18,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      alignItems: "center",
 
-  /* ==========================================================
-     BADGE
-  ========================================================== */
+      gap:
+        FixxamTokens.spacing.xs,
+    },
 
-  badge: {
-    alignSelf: "flex-start",
-    marginTop: 3,
-    marginBottom: 3,
-  },
+    iconButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  /* ==========================================================
-     CONTACT ROW
-  ========================================================== */
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minWidth: 0,
-    marginTop: 2,
-  },
+      alignItems: "center",
 
-  detail: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 6,
-    fontSize: 9.5,
-    lineHeight: 13,
-    color: "#64748B",
-  },
-});
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       PROFILE ROW
+    ======================================================== */
+
+    profileRow: {
+      flexDirection: "row",
+
+      alignItems: "center",
+    },
+
+    /* ========================================================
+       PROFILE INFO
+    ======================================================== */
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    name: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       BADGE
+    ======================================================== */
+
+    badge: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       CONTACT
+    ======================================================== */
+
+    detailRow: {
+      minWidth: 0,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+    },
+
+    detail: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

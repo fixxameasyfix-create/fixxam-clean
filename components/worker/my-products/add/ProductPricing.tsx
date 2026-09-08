@@ -1,15 +1,26 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppInput,
+} from "@/components/ui";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
-
   price: string;
 
   stock: string;
@@ -21,130 +32,217 @@ type Props = {
   onChangeStock: (
     value: string,
   ) => void;
-
 };
 
-export default function ProductPricing({
+/* ============================================================
+   HELPERS
+============================================================ */
 
+function sanitizePrice(
+  value: string,
+): string {
+  const cleaned =
+    value.replace(
+      /[^0-9.]/g,
+      "",
+    );
+
+  const [
+    integerPart = "",
+    ...decimalParts
+  ] =
+    cleaned.split(".");
+
+  if (
+    decimalParts.length === 0
+  ) {
+    return integerPart;
+  }
+
+  const decimalPart =
+    decimalParts
+      .join("")
+      .slice(
+        0,
+        2,
+      );
+
+  return `${integerPart}.${decimalPart}`;
+}
+
+function sanitizeStock(
+  value: string,
+): string {
+  return value.replace(
+    /[^0-9]/g,
+    "",
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProductPricing({
   price,
-
   stock,
-
   onChangePrice,
-
   onChangeStock,
-
 }: Props) {
+  /* ==========================================================
+     PRICE
+  ========================================================== */
+
+  const handlePriceChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        onChangePrice(
+          sanitizePrice(
+            value,
+          ),
+        );
+      },
+      [
+        onChangePrice,
+      ],
+    );
+
+  /* ==========================================================
+     STOCK
+  ========================================================== */
+
+  const handleStockChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        onChangeStock(
+          sanitizeStock(
+            value,
+          ),
+        );
+      },
+      [
+        onChangeStock,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.row
+        }
+      >
+        {/* ====================================================
+            PRICE
+        ==================================================== */}
 
-    <View style={styles.container}>
-
-      <View style={styles.row}>
-
-        <View style={styles.column}>
-
-          <AppText
-            weight="bold"
-            style={styles.label}
-          >
-            Price (₦)
-          </AppText>
-
-          <TextInput
-            value={price}
-            onChangeText={
-              onChangePrice
-            }
-            keyboardType="numeric"
+        <View
+          style={
+            styles.column
+          }
+        >
+          <AppInput
+            role="worker"
+            label="Price (₦)"
             placeholder="0"
-            placeholderTextColor="#94A3B8"
-            style={styles.input}
+            value={
+              price
+            }
+            onChangeText={
+              handlePriceChange
+            }
+            keyboardType="decimal-pad"
+            inputMode="decimal"
+            returnKeyType="next"
+            accessibilityLabel="Product price"
           />
-
         </View>
 
-        <View style={styles.column}>
+        {/* ====================================================
+            STOCK
+        ==================================================== */}
 
-          <AppText
-            weight="bold"
-            style={styles.label}
-          >
-            Stock
-          </AppText>
-
-          <TextInput
-            value={stock}
-            onChangeText={
-              onChangeStock
-            }
-            keyboardType="numeric"
+        <View
+          style={
+            styles.column
+          }
+        >
+          <AppInput
+            role="worker"
+            label="Stock"
             placeholder="0"
-            placeholderTextColor="#94A3B8"
-            style={styles.input}
+            value={
+              stock
+            }
+            onChangeText={
+              handleStockChange
+            }
+            keyboardType="number-pad"
+            inputMode="numeric"
+            returnKeyType="done"
+            accessibilityLabel="Product stock quantity"
           />
-
         </View>
-
       </View>
-
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductPricing =
+  memo(
+    ProductPricing,
   );
 
-}
+MemoizedProductPricing.displayName =
+  "ProductPricing";
+
+export default MemoizedProductPricing;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     container: {
+      width: "100%",
 
-      marginBottom: 24,
-
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
     row: {
+      width: "100%",
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      gap: 14,
+      alignItems:
+        "flex-start",
 
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     column: {
-
       flex: 1,
 
+      minWidth: 0,
     },
-
-    label: {
-
-      marginBottom: 8,
-
-      fontSize: 15,
-
-    },
-
-    input: {
-
-      height: 56,
-
-      backgroundColor:
-        "#FFFFFF",
-
-      borderRadius: 16,
-
-      borderWidth: 1,
-
-      borderColor:
-        "#E2E8F0",
-
-      paddingHorizontal: 16,
-
-      fontSize: 15,
-
-      color: "#0F172A",
-
-    },
-
   });

@@ -1,9 +1,11 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -16,207 +18,386 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-const QUICK_ACTIONS = [
-  {
-    icon: "flash",
-    title: "Electrical",
-  },
-  {
-    icon: "water",
-    title: "Plumbing",
-  },
-  {
-    icon: "car",
-    title: "Auto Repair",
-  },
-  {
-    icon: "air-conditioner",
-    title: "Air Conditioner",
-  },
-  {
-    icon: "engine",
-    title: "Generator",
-  },
-  {
-    icon: "home-city",
-    title: "Building",
-  },
-  {
-    icon: "sofa",
-    title: "Furniture",
-  },
-];
+/* ==============================================================
+   TYPES
+============================================================== */
 
-export default function AiWelcome() {
+type MaterialIconName =
+  keyof typeof MaterialCommunityIcons.glyphMap;
+
+type QuickAction = {
+  icon: MaterialIconName;
+  title: string;
+};
+
+interface AiWelcomeProps {
+  onQuickActionPress?: (
+    action: string,
+  ) => void;
+}
+
+/* ==============================================================
+   QUICK ACTIONS
+============================================================== */
+
+const QUICK_ACTIONS =
+  [
+    {
+      icon: "flash",
+      title: "Electrical",
+    },
+    {
+      icon: "water",
+      title: "Plumbing",
+    },
+    {
+      icon: "car",
+      title: "Auto Repair",
+    },
+    {
+      icon: "air-conditioner",
+      title: "Air Conditioner",
+    },
+    {
+      icon: "engine",
+      title: "Generator",
+    },
+    {
+      icon: "home-city",
+      title: "Building",
+    },
+    {
+      icon: "sofa",
+      title: "Furniture",
+    },
+  ] as const satisfies readonly QuickAction[];
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function AiWelcome({
+  onQuickActionPress,
+}: AiWelcomeProps) {
+  const interactive =
+    Boolean(
+      onQuickActionPress,
+    );
+
   return (
-    <View style={styles.container}>
-      <View style={styles.logo}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          ASSISTANT ICON
+      ====================================================== */}
+
+      <View
+        style={
+          styles.logo
+        }
+      >
         <MaterialCommunityIcons
           name="headset"
-          size={34}
-          color="#F97316"
+          size={
+            FixxamTokens.size
+              .iconXl
+          }
+          color={
+            CustomerColors.primary
+          }
         />
       </View>
 
+      {/* ======================================================
+          INTRO
+      ====================================================== */}
+
       <AppText
+        variant="heading1"
         weight="bold"
-        size="xl"
-        style={styles.title}
+        center
+        style={
+          styles.title
+        }
       >
         What needs fixing today?
       </AppText>
 
-      <AppText style={styles.description}>
-        Describe any repair problem in any language.
-        {"\n"}
-        Fixxam Smarter will analyze the issue,
-        explain possible causes and guide you
-        with the best repair solution.
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.description
+        }
+      >
+        Describe any repair problem
+        in any language. Fixxam
+        Smarter will analyze the
+        issue, explain possible
+        causes and guide you toward
+        the best repair solution.
       </AppText>
+
+      {/* ======================================================
+          QUICK ACTIONS
+      ====================================================== */}
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+        showsHorizontalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
+        style={
+          styles.chipsScroll
+        }
         contentContainerStyle={
           styles.chipsContainer
         }
       >
-        {QUICK_ACTIONS.map((item) => (
-          <TouchableOpacity
-            key={item.title}
-            activeOpacity={0.85}
-            style={styles.chip}
-          >
-            <MaterialCommunityIcons
-              name={item.icon as any}
-              size={18}
-              color={
-                CustomerColors.primary
+        {QUICK_ACTIONS.map(
+          (item) => (
+            <Pressable
+              key={
+                item.title
               }
-            />
+              accessibilityRole={
+                interactive
+                  ? "button"
+                  : undefined
+              }
+              accessibilityLabel={
+                interactive
+                  ? `Ask about ${item.title}`
+                  : undefined
+              }
+              accessibilityState={{
+                disabled:
+                  !interactive,
+              }}
+              disabled={
+                !interactive
+              }
+              onPress={() => {
+                onQuickActionPress?.(
+                  item.title,
+                );
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.chip,
 
-            <AppText
-              weight="semibold"
-              style={styles.chipText}
+                pressed &&
+                interactive
+                  ? styles.chipPressed
+                  : null,
+              ]}
             >
-              {item.title}
-            </AppText>
-          </TouchableOpacity>
-        ))}
+              <MaterialCommunityIcons
+                name={
+                  item.icon
+                }
+                size={
+                  FixxamTokens.size
+                    .iconXs
+                }
+                color={
+                  CustomerColors.primary
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                numberOfLines={1}
+                style={
+                  styles.chipText
+                }
+              >
+                {item.title}
+              </AppText>
+            </Pressable>
+          ),
+        )}
       </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    justifyContent: "center",
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
 
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    paddingHorizontal:
-      FixxamTokens.spacing.xl,
-  },
+      justifyContent:
+        "center",
 
-  logo: {
-    width: 82,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-    height: 82,
-
-    borderRadius: 24,
-
-    backgroundColor: "#FFF7ED",
-
-    borderWidth: 1,
-
-    borderColor: "#FED7AA",
-
-    justifyContent: "center",
-
-    alignItems: "center",
-
-    marginBottom: 26,
-
-    shadowColor: "#FB923C",
-
-    shadowOpacity: 0.12,
-
-    shadowRadius: 12,
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
     },
 
-    elevation: 4,
-  },
+    /* ========================================================
+       LOGO
+    ======================================================== */
 
-  title: {
-    textAlign: "center",
+    logo: {
+      width:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    color:
-      CustomerColors.textPrimary,
+      height:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    fontSize: 32,
+      alignItems:
+        "center",
 
-    lineHeight: 40,
-  },
+      justifyContent:
+        "center",
 
-  description: {
-    marginTop: 14,
+      marginBottom:
+        FixxamTokens.spacing.xxl,
 
-    textAlign: "center",
+      borderWidth: 1,
 
-    lineHeight: 28,
+      borderColor:
+        CustomerColors.primaryLight,
 
-    fontSize: 16,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-    color:
-      CustomerColors.textSecondary,
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-    maxWidth: 340,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  chipsContainer: {
-    marginTop: 36,
+    /* ========================================================
+       INTRO
+    ======================================================== */
 
-    paddingHorizontal: 4,
-  },
+    title: {
+      maxWidth: 340,
+    },
 
-  chip: {
-    flexDirection: "row",
+    description: {
+      maxWidth: 360,
 
-    alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
 
-    height: 46,
+    /* ========================================================
+       QUICK ACTIONS
+    ======================================================== */
 
-    paddingHorizontal: 18,
+    chipsScroll: {
+      width: "100%",
 
-    marginRight: 12,
+      flexGrow: 0,
 
-    borderRadius: 999,
+      flexShrink: 0,
 
-    backgroundColor:
-      CustomerColors.card,
+      marginTop:
+        FixxamTokens.spacing.xxxl,
+    },
 
-    borderWidth: 1,
+    chipsContainer: {
+      alignItems:
+        "center",
 
-    borderColor:
-      CustomerColors.border,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-  chipText: {
-    marginLeft: 8,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+    },
 
-    fontSize: 15,
+    chip: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    color:
-      CustomerColors.textPrimary,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      flexShrink: 0,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primaryLight,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    chipText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    chipPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  AiWelcome,
+);

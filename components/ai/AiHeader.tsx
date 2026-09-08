@@ -1,159 +1,336 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
-  Platform,
-  StatusBar,
+  Pressable,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import {
+  StatusBar,
+} from "expo-status-bar";
 
 import {
+  router,
+} from "expo-router";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 interface Props {
   onMenuPress?: () => void;
 }
 
-export default function AiHeader({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AiHeader({
   onMenuPress,
 }: Props) {
-  const router = useRouter();
+  const insets =
+    useSafeAreaInsets();
+
+  /* ==========================================================
+     BACK
+  ========================================================== */
+
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/(tabs)/home",
+      );
+    }, []);
+
+  /* ==========================================================
+     UI
+  ========================================================== */
 
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={[
+        styles.wrapper,
+        {
+          paddingTop:
+            insets.top,
+        },
+      ]}
+    >
       <StatusBar
-        translucent
-        backgroundColor="transparent"
-        barStyle="dark-content"
+        style="dark"
       />
 
-      <View style={styles.container}>
-        {/* Back */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.sideButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={CustomerColors.textPrimary}
-          />
-        </TouchableOpacity>
+      <View
+        style={
+          styles.container
+        }
+      >
+        {/* ====================================================
+            BACK
+        ==================================================== */}
 
-        {/* Center */}
-        <View style={styles.center}>
-          <Text
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
+          onPress={
+            handleBack
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.sideButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="back"
+            role="customer"
+            size="md"
+          />
+        </Pressable>
+
+        {/* ====================================================
+            TITLE
+        ==================================================== */}
+
+        <View
+          style={
+            styles.center
+          }
+        >
+          <AppText
+            variant="heading3"
+            weight="semibold"
             numberOfLines={1}
-            style={styles.title}
+            center
           >
             Fixxam Smarter
-          </Text>
+          </AppText>
 
-          <Text
+          <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
-            style={styles.subtitle}
+            center
+            style={
+              styles.subtitle
+            }
           >
             Smart Repair Assistant
-          </Text>
+          </AppText>
         </View>
 
-        {/* Menu */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.sideButton}
-          onPress={onMenuPress}
-        >
-          <Ionicons
-            name="menu"
-            size={28}
-            color={CustomerColors.textPrimary}
+        {/* ====================================================
+            MENU
+        ==================================================== */}
+
+        {onMenuPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open assistant menu"
+            hitSlop={8}
+            onPress={
+              onMenuPress
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.sideButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="menu"
+              role="customer"
+              size="md"
+            />
+          </Pressable>
+        ) : (
+          <View
+            style={
+              styles.sideSpacer
+            }
           />
-        </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    backgroundColor: "#FFFFFF",
+export default memo(
+  AiHeader,
+);
 
-    paddingTop:
-      Platform.OS === "android"
-        ? StatusBar.currentHeight
-        : 50,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+const styles =
+  StyleSheet.create({
+    wrapper: {
+      width:
+        "100%",
 
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      backgroundColor:
+        Colors.surface,
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        Colors.divider,
+
+      /*
+       * FixxamTokens.shadow.sm
+       * does not exist in the current theme.
+       *
+       * card is an existing production token.
+       */
+      ...FixxamTokens
+        .shadow
+        .card,
     },
 
-    elevation: 4,
-  },
+    container: {
+      minHeight:
+        FixxamTokens
+          .size
+          .headerHeight,
 
-  container: {
-    height: 68,
+      /*
+       * screenPadding does not exist
+       * in the current spacing tokens.
+       *
+       * lg matches the horizontal spacing
+       * used across the customer UI.
+       */
+      paddingHorizontal:
+        FixxamTokens
+          .spacing
+          .lg,
 
-    paddingHorizontal:
-      FixxamTokens.spacing.md,
+      flexDirection:
+        "row",
 
-    flexDirection: "row",
+      alignItems:
+        "center",
+    },
 
-    alignItems: "center",
-  },
+    sideButton: {
+      width:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
 
-  sideButton: {
-    width: 42,
+      height:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
 
-    height: 42,
+      flexShrink:
+        0,
 
-    borderRadius: 21,
+      alignItems:
+        "center",
 
-    justifyContent: "center",
+      justifyContent:
+        "center",
 
-    alignItems: "center",
-  },
+      borderRadius:
+        FixxamTokens
+          .radius
+          .iconButton,
+    },
 
-  center: {
-    flex: 1,
+    sideSpacer: {
+      width:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
 
-    alignItems: "center",
+      height:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
+    },
 
-    justifyContent: "center",
+    center: {
+      flex:
+        1,
 
-    paddingHorizontal: 10,
-  },
+      minWidth:
+        0,
 
-  title: {
-    fontSize: 21,
+      alignItems:
+        "center",
 
-    fontWeight: "800",
+      justifyContent:
+        "center",
 
-    color:
-      CustomerColors.textPrimary,
+      paddingHorizontal:
+        FixxamTokens
+          .spacing
+          .sm,
+    },
 
-    letterSpacing: 0.2,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens
+          .spacing
+          .xxs,
+    },
 
-  subtitle: {
-    marginTop: 2,
+    pressed: {
+      backgroundColor:
+        CustomerColors
+          .primarySoft,
 
-    fontSize: 13,
+      opacity:
+        FixxamTokens
+          .motion
+          .pressedOpacity,
 
-    color:
-      CustomerColors.textSecondary,
-  },
-});
+      transform: [
+        {
+          scale:
+            FixxamTokens
+              .motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

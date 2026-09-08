@@ -1,22 +1,40 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import type {
   WorkerOrderCounts,
 } from "@/types/workerOrders";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   counts: WorkerOrderCounts;
+
   onManage: () => void;
 };
 
@@ -28,138 +46,280 @@ type StatTone =
 
 type OverviewStatProps = {
   label: string;
+
   count: number;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  icon: AppIconName;
+
   tone: StatTone;
 };
 
-const OverviewStat = memo(
-  function OverviewStat({
-    label,
-    count,
-    icon,
-    tone,
-  }: OverviewStatProps) {
-    const iconColor =
-      tone === "pending"
-        ? "#D97706"
-        : tone === "active"
-          ? "#2563EB"
-          : tone === "completed"
-            ? "#16A34A"
-            : "#DC2626";
+type StatConfig = {
+  color: string;
 
-    return (
-      <View style={styles.stat}>
+  backgroundColor: string;
+};
+
+/* ==============================================================
+   STAT CONFIG
+============================================================== */
+
+function getStatConfig(
+  tone: StatTone,
+): StatConfig {
+  switch (tone) {
+    case "pending":
+      return {
+        color:
+          Colors.warning,
+
+        backgroundColor:
+          Colors.warningSoft,
+      };
+
+    case "active":
+      return {
+        color:
+          Colors.info,
+
+        backgroundColor:
+          Colors.infoSoft,
+      };
+
+    case "completed":
+      return {
+        color:
+          Colors.success,
+
+        backgroundColor:
+          Colors.successSoft,
+      };
+
+    case "cancelled":
+    default:
+      return {
+        color:
+          Colors.error,
+
+        backgroundColor:
+          Colors.errorSoft,
+      };
+  }
+}
+
+/* ==============================================================
+   OVERVIEW STAT
+============================================================== */
+
+const OverviewStat =
+  memo(
+    function OverviewStat({
+      label,
+      count,
+      icon,
+      tone,
+    }: OverviewStatProps) {
+      const config =
+        useMemo(
+          () =>
+            getStatConfig(
+              tone,
+            ),
+          [
+            tone,
+          ],
+        );
+
+      return (
         <View
-          style={[
-            styles.statIcon,
-            tone === "pending" &&
-              styles.statPending,
-            tone === "active" &&
-              styles.statActive,
-            tone === "completed" &&
-              styles.statCompleted,
-            tone === "cancelled" &&
-              styles.statCancelled,
-          ]}
+          style={
+            styles.stat
+          }
+          accessibilityLabel={`${label}: ${count}`}
         >
-          <Ionicons
-            name={icon}
-            size={17}
-            color={iconColor}
-          />
+          <View
+            style={[
+              styles.statIcon,
+
+              {
+                backgroundColor:
+                  config.backgroundColor,
+              },
+            ]}
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              size="sm"
+              color={
+                config.color
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.statContent
+            }
+          >
+            <AppText
+              variant="heading3"
+              weight="bold"
+              style={
+                styles.statValue
+              }
+            >
+              {count}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.statLabel
+              }
+            >
+              {label}
+            </AppText>
+          </View>
         </View>
+      );
+    },
+  );
 
-        <AppText
-          weight="bold"
-          style={styles.statValue}
-        >
-          {count}
-        </AppText>
+OverviewStat.displayName =
+  "WorkerOrdersOverviewStat";
 
-        <AppText
-          numberOfLines={1}
-          style={styles.statLabel}
-        >
-          {label}
-        </AppText>
-      </View>
-    );
-  },
-);
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function WorkerOrdersOverview({
   counts,
   onManage,
 }: Props) {
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerContent
+          }
+        >
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Job overview
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Your service activity
           </AppText>
         </View>
 
         <Pressable
-          onPress={onManage}
+          onPress={
+            onManage
+          }
           accessibilityRole="button"
           accessibilityLabel="Manage jobs"
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.manageButton,
-            pressed &&
-              styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="settings-outline"
-            size={17}
-            color="#2563EB"
+          <AppIcon
+            name="settings"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.manageText}
+            style={
+              styles.manageText
+            }
           >
             MANAGE
           </AppText>
         </Pressable>
       </View>
 
-      <View style={styles.stats}>
+      {/* ========================================================
+          STATS
+      ======================================================== */}
+
+      <View
+        style={
+          styles.stats
+        }
+      >
         <OverviewStat
           label="Requests"
-          count={counts.pending}
-          icon="time-outline"
+          count={
+            counts.pending
+          }
+          icon="clock"
           tone="pending"
         />
 
         <OverviewStat
           label="Active"
-          count={counts.active}
-          icon="play-circle-outline"
+          count={
+            counts.active
+          }
+          icon="jobs"
           tone="active"
         />
 
         <OverviewStat
           label="Done"
-          count={counts.completed}
-          icon="checkmark-circle-outline"
+          count={
+            counts.completed
+          }
+          icon="success"
           tone="completed"
         />
 
         <OverviewStat
           label="Cancelled"
-          count={counts.cancelled}
-          icon="close-circle-outline"
+          count={
+            counts.cancelled
+          }
+          icon="error"
           tone="cancelled"
         />
       </View>
@@ -167,110 +327,219 @@ function WorkerOrdersOverview({
   );
 }
 
+/* ==============================================================
+   MEMO
+============================================================== */
+
+WorkerOrdersOverview.displayName =
+  "WorkerOrdersOverview";
+
 export default memo(
   WorkerOrdersOverview,
 );
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 12,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+const styles =
+  StyleSheet.create({
+    /* ==========================================================
+       CONTAINER
+    ========================================================== */
 
-  title: {
-    fontSize: 15,
-    color: "#0F172A",
-  },
+    container: {
+      width: "100%",
 
-  subtitle: {
-    marginTop: 1,
-    fontSize: 9,
-    color: "#94A3B8",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  manageButton: {
-    height: 37,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+      borderWidth: 1,
 
-  manageText: {
-    fontSize: 9,
-    color: "#2563EB",
-  },
+      borderColor:
+        Colors.border,
 
-  stats: {
-    flexDirection: "row",
-    gap: 7,
-    marginTop: 11,
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  stat: {
-    flex: 1,
-    minHeight: 77,
-    paddingVertical: 8,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  statIcon: {
-    width: 31,
-    height: 31,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  statPending: {
-    backgroundColor: "#FFF7E8",
-  },
+    /* ==========================================================
+       HEADER
+    ========================================================== */
 
-  statActive: {
-    backgroundColor: "#EFF6FF",
-  },
+    header: {
+      flexDirection:
+        "row",
 
-  statCompleted: {
-    backgroundColor: "#ECFDF5",
-  },
+      alignItems:
+        "center",
 
-  statCancelled: {
-    backgroundColor: "#FEF2F2",
-  },
+      justifyContent:
+        "space-between",
 
-  statValue: {
-    marginTop: 4,
-    fontSize: 16,
-    lineHeight: 19,
-    color: "#0F172A",
-  },
+      gap:
+        FixxamTokens.spacing.md,
+    },
 
-  statLabel: {
-    marginTop: 1,
-    fontSize: 8.5,
-    color: "#94A3B8",
-  },
+    headerContent: {
+      flex: 1,
 
-  pressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+      minWidth: 0,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
+    },
+
+    manageButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    manageText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ==========================================================
+       STATS
+    ========================================================== */
+
+    stats: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    stat: {
+      flexGrow: 1,
+
+      flexBasis: "47%",
+
+      minHeight: 72,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    statIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    statContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    statValue: {
+      color:
+        Colors.textPrimary,
+    },
+
+    statLabel: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
+    },
+
+    /* ==========================================================
+       STATES
+    ========================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

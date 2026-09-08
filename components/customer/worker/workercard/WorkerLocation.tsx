@@ -1,5 +1,7 @@
 import React, {
+  memo,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -9,19 +11,83 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-import { calculateArrivalTime } from "@/utils/location/calculateArrivalTime";
+import {
+  calculateArrivalTime,
+} from "@/utils/location/calculateArrivalTime";
 
-import { resolvePlaceName } from "@/services/location/resolvePlaceName";
+import {
+  resolvePlaceName,
+} from "@/services/location/resolvePlaceName";
 
-import type { WorkerCardData } from "./types";
+import type {
+  WorkerCardData,
+} from "./types";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   worker: WorkerCardData;
 };
+
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   VALID COORDINATES
+============================================================== */
+
+function getValidCoordinates(
+  latitude: unknown,
+  longitude: unknown,
+): Coordinates | null {
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
+}
 
 function getFallbackLocation(
   worker: WorkerCardData,
@@ -29,164 +95,354 @@ function getFallbackLocation(
   const profile =
     worker.workerProfile;
 
-  const fallback = [
-    profile.lga,
-    profile.state,
+  const location = [
+    cleanString(
+      profile.lga,
+    ),
+    cleanString(
+      profile.state,
+    ),
   ]
-    .map((value) =>
-      typeof value === "string"
-        ? value.trim()
-        : "",
-    )
     .filter(Boolean)
     .join(", ");
 
   return (
-    fallback ||
-    profile.address?.trim() ||
+    location ||
+    cleanString(
+      profile.address,
+    ) ||
     "Location unavailable"
   );
 }
 
-export default function WorkerLocation({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerLocation({
   worker,
 }: Props) {
-  const latitude =
-    worker.workerProfile.latitude;
+  /* ============================================================
+     COORDINATES
+  ============================================================ */
 
-  const longitude =
-    worker.workerProfile.longitude;
+  const coordinates =
+    useMemo(
+      () =>
+        getValidCoordinates(
+          worker.workerProfile
+            .latitude,
+          worker.workerProfile
+            .longitude,
+        ),
+      [
+        worker.workerProfile
+          .latitude,
+        worker.workerProfile
+          .longitude,
+      ],
+    );
+
+  /* ============================================================
+     STATE
+  ============================================================ */
 
   const [
     placeName,
     setPlaceName,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      false,
+    );
+
+  /* ============================================================
+     RESOLVE PLACE NAME
+  ============================================================ */
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled =
+      false;
+
+    if (
+      !coordinates
+    ) {
+      setPlaceName(
+        null,
+      );
+
+      setLoading(
+        false,
+      );
+
+      return () => {
+        cancelled =
+          true;
+      };
+    }
+
+    const {
+      latitude,
+      longitude,
+    } = coordinates;
 
     async function loadPlaceName() {
-      setLoading(true);
+      try {
+        setLoading(
+          true,
+        );
 
-      const resolved =
-        await resolvePlaceName({
-          latitude,
-          longitude,
-        });
+        const resolved =
+          await resolvePlaceName({
+            latitude,
+            longitude,
+          });
 
-      if (cancelled) {
-        return;
+        if (
+          cancelled
+        ) {
+          return;
+        }
+
+        setPlaceName(
+          cleanString(
+            resolved,
+          ) ||
+            null,
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          "RESOLVE_WORKER_LOCATION_ERROR:",
+          error,
+        );
+
+        if (
+          !cancelled
+        ) {
+          setPlaceName(
+            null,
+          );
+        }
+      } finally {
+        if (
+          !cancelled
+        ) {
+          setLoading(
+            false,
+          );
+        }
       }
-
-      setPlaceName(resolved);
-
-      setLoading(false);
     }
 
     void loadPlaceName();
 
     return () => {
-      cancelled = true;
+      cancelled =
+        true;
     };
   }, [
-    latitude,
-    longitude,
+    coordinates,
   ]);
 
-  const location =
-    placeName ||
-    getFallbackLocation(worker);
+  /* ============================================================
+     LOCATION
+  ============================================================ */
 
-  const arrival =
-    worker.distance != null
-      ? calculateArrivalTime(
-          worker.distance,
-        )
+  const location =
+    useMemo(
+      () =>
+        cleanString(
+          placeName,
+        ) ||
+        getFallbackLocation(
+          worker,
+        ),
+      [
+        placeName,
+        worker,
+      ],
+    );
+
+  /* ============================================================
+     DISTANCE / ARRIVAL
+  ============================================================ */
+
+  const safeDistance =
+    typeof worker.distance ===
+      "number" &&
+    Number.isFinite(
+      worker.distance,
+    ) &&
+    worker.distance >= 0
+      ? worker.distance
       : null;
 
+  const arrival =
+    useMemo(
+      () =>
+        safeDistance !== null
+          ? calculateArrivalTime(
+              safeDistance,
+            )
+          : null,
+      [
+        safeDistance,
+      ],
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
-        <Ionicons
-          name="location-outline"
-          size={18}
-          color="#64748B"
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          LOCATION
+      ====================================================== */}
+
+      <View
+        style={
+          styles.row
+        }
+      >
+        <AppIcon
+          name="location"
+          role="customer"
+          size="sm"
+          state="muted"
         />
 
         {loading ? (
           <ActivityIndicator
             size="small"
-            color="#64748B"
-            style={styles.loader}
+            color={
+              Colors.textMuted
+            }
+            style={
+              styles.loader
+            }
           />
         ) : (
           <AppText
+            variant="body"
+            tone="secondary"
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={styles.text}
+            style={
+              styles.text
+            }
           >
             {location}
           </AppText>
         )}
       </View>
 
-      {arrival && (
-        <View style={styles.row}>
-          <Ionicons
-            name="time-outline"
-            size={18}
-            color="#F97316"
+      {/* ======================================================
+          ARRIVAL
+      ====================================================== */}
+
+      {arrival ? (
+        <View
+          style={
+            styles.row
+          }
+        >
+          <AppIcon
+            name="clock"
+            role="customer"
+            size="sm"
+            color={
+              Colors.info
+            }
           />
 
           <AppText
-            style={styles.arrival}
+            variant="body"
+            weight="semibold"
+            numberOfLines={1}
+            style={
+              styles.arrival
+            }
           >
             {arrival}
-            {worker.distance != null &&
-              ` • ${worker.distance.toFixed(
-                1,
-              )} km`}
+
+            {safeDistance !==
+            null
+              ? ` • ${safeDistance.toFixed(
+                  1,
+                )} km`
+              : ""}
           </AppText>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 12,
-    gap: 8,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 20,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  loader: {
-    marginLeft: 8,
-  },
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-  text: {
-    flex: 1,
-    marginLeft: 8,
-    color: "#475569",
-    fontSize: 14,
-  },
+    row: {
+      minHeight: 20,
 
-  arrival: {
-    marginLeft: 8,
-    color: "#F97316",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    loader: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    text: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    arrival: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.info,
+    },
+  });
+
+export default memo(
+  WorkerLocation,
+);

@@ -1,40 +1,72 @@
 import React, {
+  memo,
+  useCallback,
   useState,
 } from "react";
 
 import {
-  Image,
+  Pressable,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 
 import {
-  Ionicons,
-} from "@expo/vector-icons";
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
+} from "@/components/ui";
+
+import {
+  Colors,
   CustomerColors,
   FixxamTokens,
+  Typography,
 } from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MIN_INPUT_HEIGHT = 24;
+const MAX_INPUT_HEIGHT = 140;
+const IMAGE_PREVIEW_SIZE = 104;
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface AiComposerProps {
   value: string;
-  onChangeText: (text: string) => void;
+
+  onChangeText: (
+    text: string,
+  ) => void;
+
   onSend: () => void;
 
   onCameraPress: () => void;
+
   onGalleryPress: () => void;
 
-  selectedImage?: string | null;
+  selectedImage?:
+    | string
+    | null;
+
   onRemoveImage?: () => void;
 
   disabled?: boolean;
+
   isSending?: boolean;
 }
 
-export default function AiComposer({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function AiComposer({
   value,
   onChangeText,
   onSend,
@@ -45,261 +77,575 @@ export default function AiComposer({
   disabled = false,
   isSending = false,
 }: AiComposerProps) {
-  const [inputHeight, setInputHeight] =
-    useState(24);
+  const [
+    inputHeight,
+    setInputHeight,
+  ] = useState(
+    MIN_INPUT_HEIGHT,
+  );
 
-const canSend =
-  (
-    value.trim().length > 0 ||
-    !!selectedImage
-  ) &&
-  !disabled &&
-  !isSending;
+  const hasMessage =
+    value.trim().length > 0;
+
+  const hasImage =
+    Boolean(selectedImage);
+
+  const canSend =
+    (hasMessage ||
+      hasImage) &&
+    !disabled &&
+    !isSending;
+
+  const actionsDisabled =
+    disabled ||
+    isSending;
+
+  /* ============================================================
+     SEND
+  ============================================================ */
+
+  const handleSend =
+    useCallback(() => {
+      if (!canSend) {
+        return;
+      }
+
+      onSend();
+    }, [
+      canSend,
+      onSend,
+    ]);
+
+  /* ============================================================
+     INPUT HEIGHT
+  ============================================================ */
+
+  const handleContentSizeChange =
+    useCallback(
+      (
+        height: number,
+      ) => {
+        const nextHeight =
+          Math.min(
+            MAX_INPUT_HEIGHT,
+
+            Math.max(
+              MIN_INPUT_HEIGHT,
+              height,
+            ),
+          );
+
+        setInputHeight(
+          nextHeight,
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
-    <View style={styles.wrapper}>
-      <View style={styles.container}>
-
-{selectedImage && (
-  <View style={styles.previewContainer}>
-    <Image
-      source={{
-        uri: selectedImage,
-      }}
-      style={styles.previewImage}
-    />
-
-    <TouchableOpacity
-      onPress={onRemoveImage}
-      style={styles.removeButton}
-      activeOpacity={0.8}
+    <View
+      style={
+        styles.wrapper
+      }
     >
-      <Ionicons
-        name="close"
-        size={18}
-        color="#FFFFFF"
-      />
-    </TouchableOpacity>
-  </View>
-)}
+      <View
+        style={
+          styles.container
+        }
+      >
+        {/* ====================================================
+            IMAGE PREVIEW
+        ==================================================== */}
 
+        {selectedImage ? (
+          <View
+            style={
+              styles.previewContainer
+            }
+          >
+            <Image
+              source={{
+                uri: selectedImage,
+              }}
+              style={
+                styles.previewImage
+              }
+              contentFit="cover"
+              transition={
+                FixxamTokens.motion.fast
+              }
+              cachePolicy="memory-disk"
+              accessibilityLabel="Selected repair image"
+            />
+
+            {onRemoveImage ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remove selected image"
+                hitSlop={8}
+                onPress={
+                  onRemoveImage
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.removeButton,
+
+                  pressed
+                    ? styles.actionPressed
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name="close"
+                  role="customer"
+                  size="xs"
+                  color={
+                    Colors.textInverse
+                  }
+                  strokeWidth="strong"
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* ====================================================
+            MESSAGE INPUT
+        ==================================================== */}
 
         <TextInput
           value={value}
-          onChangeText={onChangeText}
-          placeholder="Ask Fixxam Smarter..."
-          placeholderTextColor={
-            CustomerColors.textSecondary
+          onChangeText={
+            onChangeText
+          }
+          editable={
+            !disabled
           }
           multiline
           textAlignVertical="top"
           scrollEnabled={
-            inputHeight >= 140
+            inputHeight >=
+            MAX_INPUT_HEIGHT
           }
+          placeholder="Ask Fixxam Smarter..."
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            CustomerColors.primary
+          }
+          accessibilityLabel="Message Fixxam Smarter"
+          accessibilityHint="Type your repair question here"
           onContentSizeChange={(
             event,
           ) =>
-            setInputHeight(
-              Math.min(
-                140,
-                Math.max(
-                  24,
-                  event.nativeEvent
-                    .contentSize.height,
-                ),
-              ),
+            handleContentSizeChange(
+              event.nativeEvent
+                .contentSize.height,
             )
           }
           style={[
             styles.input,
+
             {
-              height: inputHeight,
+              height:
+                inputHeight,
             },
           ]}
         />
 
-        <View style={styles.bottomRow}>
-          <View style={styles.leftActions}>
-           <TouchableOpacity
-  activeOpacity={0.7}
-  style={styles.iconButton}
-  onPress={onCameraPress}
->
-              <Ionicons
-                name="camera-outline"
-                size={22}
-                color={
-                  CustomerColors.textSecondary
-                }
-              />
-            </TouchableOpacity>
+        {/* ====================================================
+            ACTIONS
+        ==================================================== */}
 
-           <TouchableOpacity
-  activeOpacity={0.7}
-  style={styles.iconButton}
-  onPress={onGalleryPress}
->
-              <Ionicons
-                name="image-outline"
-                size={22}
-                color={
-                  CustomerColors.textSecondary
-                }
-              />
-            </TouchableOpacity>
+        <View
+          style={
+            styles.bottomRow
+          }
+        >
+          <View
+            style={
+              styles.leftActions
+            }
+          >
+            <ComposerAction
+              icon="camera"
+              label="Take a photo"
+              disabled={
+                actionsDisabled
+              }
+              onPress={
+                onCameraPress
+              }
+            />
+
+            <ComposerAction
+              icon="image"
+              label="Choose image from gallery"
+              disabled={
+                actionsDisabled
+              }
+              onPress={
+                onGalleryPress
+              }
+            />
           </View>
 
-          <TouchableOpacity
-  activeOpacity={0.8}
-  disabled={!canSend}
-  onPress={() => {
-    if (canSend) {
-      onSend();
-    }
-  }}
-            style={[
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isSending
+                ? "Sending message"
+                : "Send message"
+            }
+            accessibilityState={{
+              disabled:
+                !canSend,
+              busy:
+                isSending,
+            }}
+            disabled={!canSend}
+            hitSlop={6}
+            onPress={
+              handleSend
+            }
+            style={({
+              pressed,
+            }) => [
               styles.sendButton,
-              !canSend &&
-                styles.sendDisabled,
+
+              !canSend
+                ? styles.sendDisabled
+                : null,
+
+              pressed &&
+              canSend
+                ? styles.sendPressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="arrow-up"
-              size={22}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
+           <AppIcon
+  name={
+    isSending
+      ? "refresh"
+      : "arrow-up"
+  }
+  role="customer"
+  size="md"
+  color={
+    Colors.textInverse
+  }
+  strokeWidth="strong"
+/>
+          </Pressable>
         </View>
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   ACTION BUTTON
+============================================================== */
+
+function ComposerAction({
+  icon,
+  label,
+  disabled,
+  onPress,
+}: {
+  icon:
+    | "camera"
+    | "image";
+
+  label: string;
+
+  disabled: boolean;
+
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        label
+      }
+      accessibilityState={{
+        disabled,
+      }}
+      disabled={disabled}
+      hitSlop={6}
+      onPress={onPress}
+      style={({
+        pressed,
+      }) => [
+        styles.iconButton,
+
+        disabled
+          ? styles.actionDisabled
+          : null,
+
+        pressed &&
+        !disabled
+          ? styles.actionPressed
+          : null,
+      ]}
+    >
+      <AppIcon
+        name={icon}
+        role="customer"
+        size="sm"
+        state={
+          disabled
+            ? "muted"
+            : "default"
+        }
+      />
+    </Pressable>
+  );
+}
+
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     wrapper: {
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.lg,
 
-      paddingTop: 8,
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-      paddingBottom: 14,
+      paddingBottom:
+        FixxamTokens.spacing.lg,
 
       backgroundColor:
-        CustomerColors.background,
+        Colors.background,
     },
 
     container: {
-      borderRadius: 26,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      backgroundColor: "#FFFFFF",
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
 
-      paddingHorizontal: 16,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      paddingTop: 12,
-
-      paddingBottom: 10,
+      backgroundColor:
+        Colors.surface,
 
       ...FixxamTokens.shadow.card,
     },
 
-    input: {
-      minHeight: 24,
+    /* ========================================================
+       INPUT
+    ======================================================== */
+input: {
+  minHeight:
+    MIN_INPUT_HEIGHT,
 
-      maxHeight: 140,
+  maxHeight:
+    MAX_INPUT_HEIGHT,
 
-      fontSize: 16,
+  padding: 0,
 
-      lineHeight: 24,
+  fontSize:
+    Typography.fontSize.md,
 
-      color:
-        CustomerColors.textPrimary,
+  color:
+    Colors.textPrimary,
+},
 
-      padding: 0,
-    },
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
 
     bottomRow: {
       flexDirection: "row",
 
+      alignItems: "center",
+
       justifyContent:
         "space-between",
 
-      alignItems: "center",
-
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     leftActions: {
       flexDirection: "row",
 
       alignItems: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     iconButton: {
-      width: 38,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      height: 38,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 19,
+      alignItems: "center",
 
       justifyContent:
         "center",
 
-      alignItems: "center",
-
-      marginRight: 4,
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
     },
 
+    actionDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    actionPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       SEND
+    ======================================================== */
+
     sendButton: {
-      width: 42,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      height: 42,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 21,
+      flexShrink: 0,
+
+      alignItems: "center",
 
       justifyContent:
         "center",
 
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
         CustomerColors.primary,
     },
 
     sendDisabled: {
-      opacity: 0.35,
+      backgroundColor:
+        CustomerColors
+          .primaryDisabled,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
-previewContainer: {
-  marginBottom: 12,
-  alignSelf: "flex-start",
-},
+    sendPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-previewImage: {
-  width: 110,
-  height: 110,
-  borderRadius: 16,
-},
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-removeButton: {
-  position: "absolute",
-  right: -6,
-  top: -6,
+    /* ========================================================
+       IMAGE PREVIEW
+    ======================================================== */
 
-  width: 28,
-  height: 28,
+    previewContainer: {
+      alignSelf:
+        "flex-start",
 
-  borderRadius: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  justifyContent: "center",
-  alignItems: "center",
+    previewImage: {
+      width:
+        IMAGE_PREVIEW_SIZE,
 
-  backgroundColor: "#EF4444",
-},
+      height:
+        IMAGE_PREVIEW_SIZE,
 
+      borderRadius:
+        FixxamTokens.radius.image,
+
+      backgroundColor:
+        Colors.iconBackground,
+    },
+
+    removeButton: {
+      position: "absolute",
+
+      top: -6,
+
+      right: -6,
+
+      width: 28,
+
+      height: 28,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      backgroundColor:
+        Colors.error,
+    },
   });
+
+export default memo(
+  AiComposer,
+);

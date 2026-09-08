@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -7,15 +9,33 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   granted: boolean;
+
   loading?: boolean;
+
   onRequestPermission: () => void;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function BookingLocationPermission({
   granted,
@@ -27,33 +47,56 @@ function BookingLocationPermission({
   }
 
   return (
-    <View style={styles.container}>
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.container
+      }
+    >
       {/* ======================================================
-          INFO
+          ICON
       ====================================================== */}
 
-      <View style={styles.iconBox}>
-        <Ionicons
-          name="location-outline"
-          size={19}
-          color="#D97706"
+      <View
+        style={
+          styles.iconBox
+        }
+      >
+        <AppIcon
+          name="location"
+          role="customer"
+          size="sm"
+          state="active"
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
         >
           Location access needed
         </AppText>
 
         <AppText
-          style={styles.description}
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.description
+          }
         >
           Allow Fixxam to access your
-          location so we can find where
-          the worker should come.
+          location so we can identify
+          where the worker should come.
         </AppText>
       </View>
 
@@ -62,148 +105,187 @@ function BookingLocationPermission({
       ====================================================== */}
 
       <Pressable
-        onPress={onRequestPermission}
-        disabled={loading}
         accessibilityRole="button"
         accessibilityLabel="Allow location access"
+        accessibilityHint="Requests permission for Fixxam to use your location"
         accessibilityState={{
-          disabled: loading,
+          disabled:
+            loading,
+          busy:
+            loading,
         }}
-        style={({ pressed }) => [
+        disabled={
+          loading
+        }
+        hitSlop={6}
+        onPress={
+          onRequestPermission
+        }
+        style={({
+          pressed,
+        }) => [
           styles.button,
 
-          loading &&
-            styles.buttonDisabled,
+          loading
+            ? styles.buttonDisabled
+            : null,
 
           pressed &&
-            !loading &&
-            styles.buttonPressed,
+          !loading
+            ? styles.buttonPressed
+            : null,
         ]}
       >
         {loading ? (
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
         ) : (
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#2563EB"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="sm"
+            state="active"
           />
         )}
       </Pressable>
-    </View>
+    </AppCard>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       ACTION
+    ======================================================== */
+
+    button: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    buttonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    buttonDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+
+      borderColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+  });
 
 export default memo(
   BookingLocationPermission,
 );
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    marginTop: 11,
-
-    padding: 12,
-
-    borderRadius: 17,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-
-    borderColor: "#E2E8F0",
-
-    shadowColor: "#0F172A",
-
-    shadowOpacity: 0.025,
-
-    shadowRadius: 8,
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-
-    elevation: 1,
-  },
-
-  iconBox: {
-    width: 42,
-    height: 42,
-
-    borderRadius: 13,
-
-    backgroundColor: "#FFF7ED",
-
-    borderWidth: 1,
-
-    borderColor: "#FED7AA",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  content: {
-    flex: 1,
-
-    minWidth: 0,
-
-    marginLeft: 10,
-
-    marginRight: 8,
-  },
-
-  title: {
-    fontSize: 12.5,
-
-    lineHeight: 18,
-
-    color: "#0F172A",
-  },
-
-  description: {
-    marginTop: 3,
-
-    fontSize: 10.5,
-
-    lineHeight: 15,
-
-    color: "#64748B",
-  },
-
-  button: {
-    width: 36,
-    height: 36,
-
-    borderRadius: 11,
-
-    backgroundColor: "#EFF6FF",
-
-    borderWidth: 1,
-
-    borderColor: "#DBEAFE",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  buttonDisabled: {
-    opacity: 0.45,
-  },
-
-  buttonPressed: {
-    opacity: 0.65,
-
-    transform: [
-      {
-        scale: 0.95,
-      },
-    ],
-  },
-});

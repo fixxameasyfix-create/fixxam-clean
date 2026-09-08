@@ -1,46 +1,94 @@
-import React from "react";
+import React, { memo } from "react";
 
 import {
-  ActivityIndicator,
+  StyleProp,
   StyleSheet,
   View,
+  ViewStyle,
 } from "react-native";
 
-import { CustomerColors } from "@/theme";
+import AppLoader from "./AppLoader";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface LoadingOverlayProps {
   visible: boolean;
-};
 
-export default function LoadingOverlay({
+  role?: FixxamRole;
+
+  message?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function LoadingOverlay({
   visible,
-}: Props) {
-  if (!visible) return null;
+  role = "customer",
+  message = "Please wait...",
+  style,
+}: LoadingOverlayProps) {
+  if (!visible) {
+    return null;
+  }
 
   return (
-    <View style={styles.overlay}>
-      <ActivityIndicator
-        size="large"
-        color={CustomerColors.primary}
-      />
+    <View
+      accessibilityViewIsModal
+      style={[
+        styles.overlay,
+        style,
+      ]}
+    >
+      <View style={styles.loaderCard}>
+        <AppLoader
+          role={role}
+          size="md"
+          fullScreen={false}
+          message={message}
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position: "absolute",
+    ...StyleSheet.absoluteFillObject,
 
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    zIndex: 999,
 
-    backgroundColor: "rgba(255,255,255,0.75)",
-
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
 
-    zIndex: 9999,
+    backgroundColor:
+      Colors.overlayMedium,
+
+    padding:
+      FixxamTokens.spacing.xl,
+  },
+
+  loaderCard: {
+    minWidth: 180,
+    maxWidth: 280,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.xl,
+
+    paddingVertical:
+      FixxamTokens.spacing.md,
+
+    backgroundColor:
+      Colors.surface,
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    ...FixxamTokens.shadow.floating,
   },
 });
+
+export default memo(LoadingOverlay);

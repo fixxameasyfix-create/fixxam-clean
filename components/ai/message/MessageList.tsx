@@ -1,4 +1,6 @@
 import React, {
+  memo,
+  useCallback,
   useEffect,
   useRef,
 } from "react";
@@ -9,14 +11,25 @@ import {
 
 import {
   FlashList,
-  FlashListRef,
+  type FlashListRef,
+  type ListRenderItemInfo,
 } from "@shopify/flash-list";
 
-import { AiMessage } from "../types";
+import type {
+  AiMessage,
+} from "../types";
 
 import AssistantBubble from "./AssistantBubble";
 import UserBubble from "./UserBubble";
 import AiTypingIndicator from "./AiTypingIndicator";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface MessageListProps {
   messages: AiMessage[];
@@ -28,7 +41,11 @@ interface MessageListProps {
   ) => void;
 }
 
-export default function MessageList({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function MessageList({
   messages,
   isTyping = false,
   onCopy,
@@ -38,44 +55,48 @@ export default function MessageList({
       FlashListRef<AiMessage>
     >(null);
 
+  /* ============================================================
+     AUTO SCROLL
+  ============================================================ */
+
   useEffect(() => {
     if (
-      !listRef.current ||
-      messages.length === 0
+      messages.length === 0 &&
+      !isTyping
     ) {
       return;
     }
 
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToEnd({
-        animated: true,
-      });
-    });
+    const frame =
+      requestAnimationFrame(
+        () => {
+          listRef.current
+            ?.scrollToEnd({
+              animated: true,
+            });
+        },
+      );
+
+    return () => {
+      cancelAnimationFrame(
+        frame,
+      );
+    };
   }, [
-    messages,
+    messages.length,
     isTyping,
   ]);
 
-  return (
-    <FlashList
-      ref={listRef}
-      data={messages}
-      keyExtractor={(item) =>
-        item.id
-      }
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      showsVerticalScrollIndicator={
-        false
-      }
+  /* ============================================================
+     RENDER MESSAGE
+  ============================================================ */
 
-      contentContainerStyle={
-        styles.content
-      }
-      renderItem={({
+  const renderItem =
+    useCallback(
+      ({
         item,
         index,
-      }) => {
+      }: ListRenderItemInfo<AiMessage>) => {
         if (
           item.role ===
           "assistant"
@@ -113,28 +134,76 @@ export default function MessageList({
         }
 
         return null;
-      }}
+      },
+      [
+        messages,
+        onCopy,
+      ],
+    );
+
+  /* ============================================================
+     KEY
+  ============================================================ */
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: AiMessage,
+      ) => item.id,
+      [],
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
+  return (
+    <FlashList
+      ref={listRef}
+      data={messages}
+      keyExtractor={
+        keyExtractor
+      }
+      renderItem={
+        renderItem
+      }
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      showsVerticalScrollIndicator={
+        false
+      }
+      contentContainerStyle={
+        styles.content
+      }
       ListFooterComponent={
-        isTyping ? (
-          <AiTypingIndicator />
-        ) : (
-          <></>
-        )
+        isTyping
+          ? AiTypingIndicator
+          : null
       }
     />
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
     content: {
       flexGrow: 1,
 
-      paddingTop: 18,
-
-      paddingBottom: 120,
-
       justifyContent:
         "flex-end",
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
     },
   });
+
+export default memo(
+  MessageList,
+);

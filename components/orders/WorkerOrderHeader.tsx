@@ -1,13 +1,22 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   BookingStatus,
@@ -19,8 +28,20 @@ import type {
 
 type Props = {
   orderId: string;
+
   status: BookingStatus;
+
   onBack: () => void;
+};
+
+type StatusConfig = {
+  label: string;
+
+  backgroundColor: string;
+
+  dotColor: string;
+
+  textColor: string;
 };
 
 /* ==============================================================
@@ -29,55 +50,73 @@ type Props = {
 
 function getStatusConfig(
   status: BookingStatus,
-) {
+): StatusConfig {
   switch (status) {
     case "accepted":
       return {
         label: "ACCEPTED",
-        background: styles.statusAccepted,
-        dot: styles.dotAccepted,
-        text: styles.textAccepted,
+        backgroundColor:
+          Colors.infoSoft,
+        dotColor:
+          Colors.info,
+        textColor:
+          Colors.info,
       };
 
     case "in-progress":
       return {
         label: "IN PROGRESS",
-        background: styles.statusProgress,
-        dot: styles.dotProgress,
-        text: styles.textProgress,
+        backgroundColor:
+          Colors.infoSoft,
+        dotColor:
+          Colors.info,
+        textColor:
+          Colors.info,
       };
 
     case "completed":
       return {
         label: "COMPLETED",
-        background: styles.statusCompleted,
-        dot: styles.dotCompleted,
-        text: styles.textCompleted,
+        backgroundColor:
+          Colors.successSoft,
+        dotColor:
+          Colors.success,
+        textColor:
+          Colors.success,
       };
 
     case "cancelled":
       return {
         label: "CANCELLED",
-        background: styles.statusCancelled,
-        dot: styles.dotCancelled,
-        text: styles.textCancelled,
+        backgroundColor:
+          Colors.errorSoft,
+        dotColor:
+          Colors.error,
+        textColor:
+          Colors.error,
       };
 
     case "expired":
       return {
         label: "EXPIRED",
-        background: styles.statusExpired,
-        dot: styles.dotExpired,
-        text: styles.textExpired,
+        backgroundColor:
+          Colors.disabledBackground,
+        dotColor:
+          Colors.textSecondary,
+        textColor:
+          Colors.textSecondary,
       };
 
     case "pending":
     default:
       return {
         label: "PENDING",
-        background: styles.statusPending,
-        dot: styles.dotPending,
-        text: styles.textPending,
+        backgroundColor:
+          Colors.warningSoft,
+        dotColor:
+          Colors.warning,
+        textColor:
+          Colors.warning,
       };
   }
 }
@@ -97,23 +136,36 @@ const StatusBadge = memo(
 
     return (
       <View
+        accessible
+        accessibilityLabel={`Order status ${config.label}`}
         style={[
           styles.statusBadge,
-          config.background,
+          {
+            backgroundColor:
+              config.backgroundColor,
+          },
         ]}
       >
         <View
           style={[
             styles.statusDot,
-            config.dot,
+            {
+              backgroundColor:
+                config.dotColor,
+            },
           ]}
         />
 
         <AppText
+          variant="caption"
           weight="bold"
+          numberOfLines={1}
           style={[
             styles.statusBadgeText,
-            config.text,
+            {
+              color:
+                config.textColor,
+            },
           ]}
         >
           {config.label}
@@ -122,6 +174,9 @@ const StatusBadge = memo(
     );
   },
 );
+
+StatusBadge.displayName =
+  "StatusBadge";
 
 /* ==============================================================
    COMPONENT
@@ -133,8 +188,19 @@ const WorkerOrderHeader = memo(
     status,
     onBack,
   }: Props) {
+    const safeOrderId =
+      typeof orderId === "string"
+        ? orderId.trim()
+        : "";
+
     return (
-      <View style={styles.header}>
+      <View
+        style={styles.header}
+      >
+        {/* ====================================================
+            BACK
+        ==================================================== */}
+
         <Pressable
           onPress={onBack}
           accessibilityRole="button"
@@ -142,31 +208,56 @@ const WorkerOrderHeader = memo(
           hitSlop={8}
           style={({ pressed }) => [
             styles.backButton,
-            pressed && styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="chevron-back"
-            size={21}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            size="sm"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
 
-        <View style={styles.headerText}>
+        {/* ====================================================
+            TITLE
+        ==================================================== */}
+
+        <View
+          style={styles.headerText}
+        >
           <AppText
+            variant="heading3"
             weight="bold"
-            style={styles.headerTitle}
+            numberOfLines={1}
+            style={
+              styles.headerTitle
+            }
           >
             Order Details
           </AppText>
 
-          <AppText
-            style={styles.headerSubtitle}
-            numberOfLines={1}
-          >
-            #{orderId}
-          </AppText>
+          {safeOrderId ? (
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.headerSubtitle
+              }
+            >
+              #{safeOrderId}
+            </AppText>
+          ) : null}
         </View>
+
+        {/* ====================================================
+            STATUS
+        ==================================================== */}
 
         <StatusBadge
           status={status}
@@ -176,6 +267,9 @@ const WorkerOrderHeader = memo(
   },
 );
 
+WorkerOrderHeader.displayName =
+  "WorkerOrderHeader";
+
 export default WorkerOrderHeader;
 
 /* ==============================================================
@@ -184,172 +278,121 @@ export default WorkerOrderHeader;
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
-      minHeight: 60,
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 11,
-      marginRight: 8,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     headerTitle: {
-      fontSize: 19,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     headerSubtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    /* ==========================================================
+    /* ========================================================
        STATUS
-    ========================================================== */
+    ======================================================== */
 
     statusBadge: {
+      flexShrink: 0,
+
       flexDirection: "row",
+
       alignItems: "center",
-      gap: 5,
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-      borderRadius: 9,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
 
     statusDot: {
       width: 7,
+
       height: 7,
-      borderRadius: 4,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusBadgeText: {
-      fontSize: 7.5,
+      letterSpacing: 0.3,
     },
 
-    /* ==========================================================
-       PENDING
-    ========================================================== */
-
-    statusPending: {
-      backgroundColor: "#FFF7E8",
-    },
-
-    dotPending: {
-      backgroundColor: "#F59E0B",
-    },
-
-    textPending: {
-      color: "#D97706",
-    },
-
-    /* ==========================================================
-       ACCEPTED
-    ========================================================== */
-
-    statusAccepted: {
-      backgroundColor: "#EFF6FF",
-    },
-
-    dotAccepted: {
-      backgroundColor: "#2563EB",
-    },
-
-    textAccepted: {
-      color: "#1D4ED8",
-    },
-
-    /* ==========================================================
-       IN PROGRESS
-    ========================================================== */
-
-    statusProgress: {
-      backgroundColor: "#F3E8FF",
-    },
-
-    dotProgress: {
-      backgroundColor: "#7C3AED",
-    },
-
-    textProgress: {
-      color: "#6D28D9",
-    },
-
-    /* ==========================================================
-       COMPLETED
-    ========================================================== */
-
-    statusCompleted: {
-      backgroundColor: "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor: "#16A34A",
-    },
-
-    textCompleted: {
-      color: "#15803D",
-    },
-
-    /* ==========================================================
-       CANCELLED
-    ========================================================== */
-
-    statusCancelled: {
-      backgroundColor: "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor: "#DC2626",
-    },
-
-    textCancelled: {
-      color: "#B91C1C",
-    },
-
-    /* ==========================================================
-       EXPIRED
-    ========================================================== */
-
-    statusExpired: {
-      backgroundColor: "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor: "#64748B",
-    },
-
-    textExpired: {
-      color: "#475569",
-    },
-
-    /* ==========================================================
+    /* ========================================================
        PRESS
-    ========================================================== */
+    ======================================================== */
 
     pressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.97,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

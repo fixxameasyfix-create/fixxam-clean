@@ -1,44 +1,75 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-/* ============================================================
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Props = {
   workerName: string;
 };
 
-/* ============================================================
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
 function CustomerServiceProgressCard({
   workerName,
 }: Props) {
+  const safeWorkerName =
+    cleanText(workerName) ||
+    "Your worker";
+
   return (
     <View
       style={styles.container}
+      accessible
       accessibilityRole="summary"
-      accessibilityLabel="Service in progress"
+      accessibilityLabel={`Service in progress. ${safeWorkerName} has started working on your service.`}
     >
       {/* ======================================================
           ICON
       ====================================================== */}
 
-      <View style={styles.iconContainer}>
-        <Ionicons
-          name="construct-outline"
-          size={25}
-          color="#16A34A"
+      <View
+        style={
+          styles.iconContainer
+        }
+      >
+        <AppIcon
+          name="service"
+          size="md"
+          color={
+            Colors.success
+          }
         />
       </View>
 
@@ -46,26 +77,42 @@ function CustomerServiceProgressCard({
           CONTENT
       ====================================================== */}
 
-      <View style={styles.content}>
-        <View style={styles.titleRow}>
+      <View
+        style={styles.content}
+      >
+        <View
+          style={styles.titleRow}
+        >
           <AppText
+            variant="caption"
             weight="bold"
             style={styles.title}
           >
             SERVICE IN PROGRESS
           </AppText>
 
-          <View style={styles.statusDot} />
+          <View
+            style={
+              styles.statusDot
+            }
+          />
         </View>
 
-        <AppText style={styles.description}>
-          {workerName} has started working
-          on your service.
+        <AppText
+          variant="caption"
+          style={
+            styles.description
+          }
+        >
+          {safeWorkerName} has started working on your service.
         </AppText>
 
-        <AppText style={styles.helper}>
-          You can contact the worker if you
-          need to discuss anything.
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={styles.helper}
+        >
+          You can contact the worker if you need to discuss anything.
         </AppText>
       </View>
     </View>
@@ -76,66 +123,114 @@ export default memo(
   CustomerServiceProgressCard,
 );
 
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#F0FDF4",
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  iconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  content: {
-    flex: 1,
-    marginLeft: 12,
-  },
+      flexDirection: "row",
 
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      alignItems: "center",
 
-  title: {
-    fontSize: 11.5,
-    letterSpacing: 0.3,
-    color: "#15803D",
-  },
+      borderWidth: 1,
 
-  statusDot: {
-    width: 7,
-    height: 7,
-    marginLeft: 7,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
+      borderColor:
+        Colors.success,
 
-  description: {
-    marginTop: 4,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#334155",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  helper: {
-    marginTop: 3,
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#64748B",
-  },
-});
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconContainer: {
+      width: 52,
+
+      height: 52,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    titleRow: {
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      flexWrap: "wrap",
+    },
+
+    title: {
+      letterSpacing: 0.3,
+
+      color:
+        Colors.success,
+    },
+
+    statusDot: {
+      width: 7,
+
+      height: 7,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    helper: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+    },
+  });

@@ -1,101 +1,263 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   WorkerCardData,
 } from "../types";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   worker: WorkerCardData;
+
   onProfilePress: () => void;
 };
 
-export default function WorkerHeader({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerHeader({
   worker,
   onProfilePress,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     NAME
+  ============================================================ */
+
   const workerName =
-    worker.fullName?.trim() ||
-    `${worker.firstName} ${worker.surname}`
-      .replace(/\s+/g, " ")
-      .trim() ||
-    "Worker";
+    useMemo(() => {
+      const fullName =
+        cleanString(
+          worker.fullName,
+        );
+
+      if (
+        fullName
+      ) {
+        return fullName;
+      }
+
+      const individualName =
+        [
+          cleanString(
+            worker.firstName,
+          ),
+          cleanString(
+            worker.surname,
+          ),
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(" ")
+          .trim();
+
+      return (
+        individualName ||
+        "Worker"
+      );
+    }, [
+      worker.firstName,
+      worker.fullName,
+      worker.surname,
+    ]);
+
+  /* ============================================================
+     PHOTO
+  ============================================================ */
 
   const photoUrl =
-    worker.workerProfile?.photoUrl?.trim() ||
-    "";
+    cleanString(
+      worker.workerProfile
+        ?.photoUrl,
+    );
 
-  const categoryText = [
-    worker.category,
-    worker.subcategory,
-  ]
-    .filter(
-      (
-        value,
-      ): value is string =>
-        typeof value === "string" &&
-        value.trim().length > 0,
-    )
-    .join(" • ");
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+  }, [
+    photoUrl,
+  ]);
+
+  const showPhoto =
+    Boolean(
+      photoUrl,
+    ) &&
+    !imageFailed;
+
+  /* ============================================================
+     CATEGORY
+  ============================================================ */
+
+  const categoryText =
+    useMemo(() => {
+      const values = [
+        cleanString(
+          worker.category,
+        ),
+        cleanString(
+          worker.subcategory,
+        ),
+      ].filter(
+        Boolean,
+      );
+
+      return (
+        values.join(" • ") ||
+        "Service Provider"
+      );
+    }, [
+      worker.category,
+      worker.subcategory,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* ======================================================
           PHOTO
       ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.avatarContainer,
-          pressed && styles.avatarPressed,
-        ]}
-        onPress={onProfilePress}
         accessibilityRole="button"
         accessibilityLabel={`View ${workerName} profile`}
+        accessibilityHint="Opens the worker profile"
+        onPress={
+          onProfilePress
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.avatarContainer,
+
+          pressed
+            ? styles.avatarPressed
+            : null,
+        ]}
       >
-        {photoUrl ? (
+        {showPhoto ? (
           <Image
             source={{
-              uri: photoUrl,
+              uri:
+                photoUrl,
             }}
-            style={styles.avatar}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={
+              FixxamTokens.motion.fast
+            }
+            style={
+              styles.avatar
+            }
+            accessibilityLabel={`${workerName} profile photo`}
+            onError={() =>
+              setImageFailed(
+                true,
+              )
+            }
           />
         ) : (
           <View
-            style={styles.avatarPlaceholder}
+            style={
+              styles.avatarPlaceholder
+            }
           >
-            <Ionicons
-              name="person-outline"
-              size={34}
-              color="#94A3B8"
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="lg"
+              state="muted"
             />
           </View>
         )}
 
-        {worker.online && (
+        {/* ====================================================
+            ONLINE
+        ==================================================== */}
+
+        {worker.online ? (
           <View
-            style={styles.onlineDot}
+            accessibilityLabel="Worker is online"
+            style={
+              styles.onlineDot
+            }
           />
-        )}
+        ) : null}
+
+        {/* ====================================================
+            PROFILE AFFORDANCE
+        ==================================================== */}
 
         <View
-          style={styles.profileBadge}
+          style={
+            styles.profileBadge
+          }
         >
-          <Ionicons
-            name="add"
-            size={14}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
       </Pressable>
@@ -104,111 +266,212 @@ export default function WorkerHeader({
           NAME + CATEGORY
       ====================================================== */}
 
-      <View style={styles.content}>
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={styles.name}
         >
           {workerName}
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={styles.category}
+          style={
+            styles.category
+          }
         >
-          {categoryText ||
-            "Service Provider"}
+          {categoryText}
         </AppText>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  avatarContainer: {
-    position: "relative",
-    width: 72,
-    height: 72,
-    marginRight: 16,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#E5E7EB",
-  },
+      flexDirection:
+        "row",
 
-  avatarPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      alignItems:
+        "flex-start",
+    },
 
-  avatarPressed: {
-    opacity: 0.85,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
+    /* ========================================================
+       AVATAR
+    ======================================================== */
 
-  onlineDot: {
-    position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#22C55E",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
+    avatarContainer: {
+      position:
+        "relative",
 
-  profileBadge: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#2563EB",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 4,
-  },
+      width:
+        FixxamTokens.size
+          .avatarXl,
 
-  content: {
-    flex: 1,
-    minWidth: 0,
-    paddingTop: 2,
-  },
+      height:
+        FixxamTokens.size
+          .avatarXl,
 
-  name: {
-    fontSize: 18,
-    lineHeight: 23,
-    color: "#0F172A",
-  },
+      flexShrink: 0,
 
-  category: {
-    marginTop: 4,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
-  },
-});
+      marginRight:
+        FixxamTokens.spacing.md,
+    },
+
+    avatar: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    avatarPlaceholder: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    avatarPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       ONLINE
+    ======================================================== */
+
+    onlineDot: {
+      position:
+        "absolute",
+
+      right: 1,
+
+      bottom: 1,
+
+      width: 16,
+
+      height: 16,
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    /* ========================================================
+       PROFILE BADGE
+    ======================================================== */
+
+    profileBadge: {
+      position:
+        "absolute",
+
+      right: -4,
+
+      bottom: -4,
+
+      width: 24,
+
+      height: 24,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      paddingTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    category: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+  });
+
+export default memo(
+  WorkerHeader,
+);

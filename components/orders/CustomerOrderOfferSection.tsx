@@ -1,12 +1,12 @@
 import React, {
   memo,
   useCallback,
+  useMemo,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,24 +16,38 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import Toast from "react-native-toast-message";
 
 import {
   doc,
+  runTransaction,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import {
   auth,
   db,
 } from "@/firebase/config";
 
-/* ============================================================
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type OfferStatus =
   | "none"
@@ -68,59 +82,127 @@ type Props = {
 
   counterOfferBy?: CounterOfferBy;
 
-  /* ==========================================================
-     NEGOTIATION
-  ========================================================== */
-
   offerRound?: number;
+
   maxNegotiationRounds?: number;
 
   workerName: string;
 
   onAcceptOffer: () => void;
+
   onCounterOffer?: () => void;
+
   onDeclineOffer: () => void;
 };
 
-/* ============================================================
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_MESSAGE_LENGTH = 300;
+const MIN_MESSAGE_LENGTH = 3;
+const MAX_AMOUNT = 999_999_999;
+
+const FIRST_WORKER_OFFER_ROUND = 1;
+const CUSTOMER_COUNTER_ROUND = 2;
+
+/* ==============================================================
    HELPERS
-============================================================ */
+============================================================== */
 
 function formatAmount(
   value?: number | null,
 ): string {
   if (
     typeof value !== "number" ||
-    !Number.isFinite(value)
+    !Number.isFinite(value) ||
+    value < 0
   ) {
     return "₦0";
   }
 
-  return `₦${value.toLocaleString("en-NG")}`;
+  return `₦${Math.round(
+    value,
+  ).toLocaleString("en-NG")}`;
 }
 
-/* ============================================================
-   COMPONENT
-============================================================ */
+function normalizeRound(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function showError(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccess(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ==============================================================
+   MAIN COMPONENT
+============================================================== */
 
 function CustomerOrderOfferSection({
   bookingId,
+
   offerStatus,
   offerAmount,
   offerMessage,
+
   counterOfferAmount,
   counterOfferMessage,
   counterOfferStatus,
   counterOfferBy,
 
-  offerRound = 1,
+  offerRound =
+    FIRST_WORKER_OFFER_ROUND,
+
   maxNegotiationRounds = 3,
 
   workerName,
+
   onAcceptOffer,
   onCounterOffer,
   onDeclineOffer,
 }: Props) {
+  /* ==========================================================
+     STATE
+  ========================================================== */
+
   const [
     counterVisible,
     setCounterVisible,
@@ -142,16 +224,50 @@ function CustomerOrderOfferSection({
   ] = useState(false);
 
   /* ==========================================================
-     NEGOTIATION STATE
+     SAFE VALUES
+  ========================================================== */
+
+  const safeWorkerName =
+    useMemo(
+      () =>
+        cleanText(
+          workerName,
+        ) || "the worker",
+      [workerName],
+    );
+
+  const safeOfferMessage =
+    useMemo(
+      () =>
+        cleanText(
+          offerMessage,
+        ),
+      [offerMessage],
+    );
+
+  const safeCounterMessage =
+    useMemo(
+      () =>
+        cleanText(
+          counterOfferMessage,
+        ),
+      [
+        counterOfferMessage,
+      ],
+    );
+
+  /* ==========================================================
+     NEGOTIATION
   ========================================================== */
 
   const safeOfferRound =
-    Number.isFinite(offerRound) &&
-    offerRound > 0
-      ? Math.floor(offerRound)
-      : 1;
+    normalizeRound(
+      offerRound,
+    );
 
   const safeMaxRounds =
+    typeof maxNegotiationRounds ===
+      "number" &&
     Number.isFinite(
       maxNegotiationRounds,
     ) &&
@@ -162,16 +278,27 @@ function CustomerOrderOfferSection({
       : 3;
 
   const maxRoundReached =
-    safeOfferRound >= safeMaxRounds;
+    safeOfferRound >=
+    safeMaxRounds;
+
+  const activeWorkerAmount =
+    counterOfferBy === "worker" &&
+    counterOfferStatus === "sent"
+      ? counterOfferAmount
+      : offerAmount;
 
   /* ==========================================================
-     OPEN COUNTER MODAL
+     OPEN COUNTER
   ========================================================== */
 
   const handleOpenCounter =
     useCallback(() => {
+      if (submitting) {
+        return;
+      }
+
       if (maxRoundReached) {
-        Alert.alert(
+        showError(
           "Negotiation limit reached",
           `You have reached the maximum of ${safeMaxRounds} negotiation rounds. You can still accept or decline the current offer.`,
         );
@@ -179,17 +306,15 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      const currentAmount =
-        counterOfferBy === "worker"
-          ? counterOfferAmount
-          : offerAmount;
-
       if (
-        typeof currentAmount !==
+        typeof activeWorkerAmount !==
           "number" ||
-        currentAmount <= 0
+        !Number.isFinite(
+          activeWorkerAmount,
+        ) ||
+        activeWorkerAmount <= 0
       ) {
-        Alert.alert(
+        showError(
           "Offer unavailable",
           "The current worker offer is not available.",
         );
@@ -203,16 +328,15 @@ function CustomerOrderOfferSection({
 
       onCounterOffer?.();
     }, [
-      counterOfferAmount,
-      counterOfferBy,
+      activeWorkerAmount,
       maxRoundReached,
-      offerAmount,
       onCounterOffer,
       safeMaxRounds,
+      submitting,
     ]);
 
   /* ==========================================================
-     CLOSE COUNTER MODAL
+     CLOSE COUNTER
   ========================================================== */
 
   const handleCloseCounter =
@@ -227,16 +351,45 @@ function CustomerOrderOfferSection({
     }, [submitting]);
 
   /* ==========================================================
+     AMOUNT INPUT
+  ========================================================== */
+
+  const handleAmountChange =
+    useCallback(
+      (value: string) => {
+        const digits =
+          value.replace(
+            /[^\d]/g,
+            "",
+          );
+
+        setAmountText(
+          digits.slice(
+            0,
+            String(
+              MAX_AMOUNT,
+            ).length,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
      SEND CUSTOMER COUNTER
   ========================================================== */
 
   const handleSendCounter =
     useCallback(async () => {
+      if (submitting) {
+        return;
+      }
+
       const customerId =
-        auth.currentUser?.uid;
+        auth.currentUser?.uid?.trim();
 
       if (!customerId) {
-        Alert.alert(
+        showError(
           "Sign in required",
           "Please sign in before sending a counter offer.",
         );
@@ -244,8 +397,11 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      if (!bookingId.trim()) {
-        Alert.alert(
+      const cleanBookingId =
+        bookingId.trim();
+
+      if (!cleanBookingId) {
+        showError(
           "Order unavailable",
           "This order could not be identified.",
         );
@@ -253,37 +409,35 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      if (maxRoundReached) {
-        Alert.alert(
-          "Negotiation limit reached",
-          `You have reached the maximum of ${safeMaxRounds} negotiation rounds.`,
-        );
-
-        return;
-      }
+      /* ======================================================
+         AMOUNT
+      ====================================================== */
 
       const cleanAmount =
         amountText
-          .replace(/,/g, "")
-          .replace(/₦/gi, "")
+          .replace(
+            /,/g,
+            "",
+          )
+          .replace(
+            /₦/gi,
+            "",
+          )
           .trim();
 
       const amount =
-        Number(cleanAmount);
-
-      const cleanMessage =
-        message.trim();
-
-      /* --------------------------------------------------------
-         AMOUNT VALIDATION
-      -------------------------------------------------------- */
+        Number(
+          cleanAmount,
+        );
 
       if (
         !cleanAmount ||
-        !Number.isFinite(amount) ||
+        !Number.isFinite(
+          amount,
+        ) ||
         amount <= 0
       ) {
-        Alert.alert(
+        showError(
           "Invalid amount",
           "Please enter a valid counter offer amount.",
         );
@@ -291,8 +445,12 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      if (!Number.isInteger(amount)) {
-        Alert.alert(
+      if (
+        !Number.isInteger(
+          amount,
+        )
+      ) {
+        showError(
           "Invalid amount",
           "Please enter a whole number amount.",
         );
@@ -300,54 +458,56 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      /* --------------------------------------------------------
-         COMPARE CURRENT OFFER
-      -------------------------------------------------------- */
-
-      const currentAmount =
-        counterOfferBy === "worker"
-          ? counterOfferAmount
-          : offerAmount;
-
       if (
-        typeof currentAmount ===
-          "number" &&
-        amount === currentAmount
+        amount >
+        MAX_AMOUNT
       ) {
-        Alert.alert(
-          "Same amount",
-          "Your counter offer must be different from the current offer.",
+        showError(
+          "Invalid amount",
+          `Please enter an amount no higher than ${formatAmount(
+            MAX_AMOUNT,
+          )}.`,
         );
 
         return;
       }
 
-      /* --------------------------------------------------------
+      /* ======================================================
          MESSAGE
-      -------------------------------------------------------- */
+      ====================================================== */
+
+      const cleanMessage =
+        message.trim();
 
       if (
-        cleanMessage.length > 300
+        cleanMessage.length >
+        MAX_MESSAGE_LENGTH
       ) {
-        Alert.alert(
+        showError(
           "Message too long",
-          "Your message cannot be more than 300 characters.",
+          `Your message cannot be more than ${MAX_MESSAGE_LENGTH} characters.`,
         );
 
         return;
       }
 
-      /* --------------------------------------------------------
-         ORDER STATE
-      -------------------------------------------------------- */
-
       if (
-        offerStatus !== "sent" &&
-        offerStatus !== "countered"
+        cleanMessage.length > 0 &&
+        cleanMessage.length <
+          MIN_MESSAGE_LENGTH
       ) {
-        Alert.alert(
-          "Offer unavailable",
-          "This offer is no longer available for negotiation.",
+        showError(
+          "Message too short",
+          `Please enter at least ${MIN_MESSAGE_LENGTH} characters or leave the message empty.`,
+        );
+
+        return;
+      }
+
+      if (maxRoundReached) {
+        showError(
+          "Negotiation limit reached",
+          `You have reached the maximum of ${safeMaxRounds} negotiation rounds.`,
         );
 
         return;
@@ -360,73 +520,179 @@ function CustomerOrderOfferSection({
           doc(
             db,
             "bookings",
-            bookingId,
+            cleanBookingId,
           );
 
-        await updateDoc(
-  bookingRef,
-  {
-    /*
-     * Keep worker's original offer.
-     */
-    offerAmount:
-      offerAmount ?? null,
+        await runTransaction(
+          db,
+          async (
+            transaction,
+          ) => {
+            const snapshot =
+              await transaction.get(
+                bookingRef,
+              );
 
-    offerMessage:
-      offerMessage ?? null,
+            if (
+              !snapshot.exists()
+            ) {
+              throw new Error(
+                "ORDER_NOT_FOUND",
+              );
+            }
 
-    /*
-     * CUSTOMER COUNTER
-     */
-    counterOfferAmount:
-      amount,
+            const data =
+              snapshot.data();
 
-    counterOfferMessage:
-      cleanMessage || null,
+            /* ==================================================
+               CUSTOMER OWNERSHIP
+            ================================================== */
 
-    counterOfferStatus:
-      "sent",
+            const bookingCustomerId =
+              typeof data.customerId ===
+              "string"
+                ? data.customerId.trim()
+                : "";
 
-    counterOfferBy:
-      "customer",
+            if (
+              !bookingCustomerId ||
+              bookingCustomerId !==
+                customerId
+            ) {
+              throw new Error(
+                "ACCESS_DENIED",
+              );
+            }
 
-    counterOfferSentAt:
-      serverTimestamp(),
+            /* ==================================================
+               OFFER STATUS
+            ================================================== */
 
-    counterOfferRespondedAt:
-      null,
+            if (
+              data.offerStatus !==
+              "sent"
+            ) {
+              throw new Error(
+                "OFFER_NOT_AVAILABLE",
+              );
+            }
 
-    /*
-     * Negotiation state
-     *
-     * Example:
-     * 1 = worker first offer
-     * 2 = customer counter
-     * 3 = worker counter
-     */
-    offerRound:
-      Math.min(
-        safeMaxRounds,
-        safeOfferRound + 1,
-      ),
+            /* ==================================================
+               CURRENT ROUND
+            ================================================== */
 
-    offerStatus:
-      "countered",
+            const currentRound =
+              normalizeRound(
+                data.offerRound,
+              );
 
-    updatedAt:
-      serverTimestamp(),
-  },
-);
+            if (
+              currentRound !==
+              FIRST_WORKER_OFFER_ROUND
+            ) {
+              throw new Error(
+                "INVALID_OFFER_ROUND",
+              );
+            }
+
+            if (
+              currentRound >=
+              safeMaxRounds
+            ) {
+              throw new Error(
+                "MAX_ROUNDS_REACHED",
+              );
+            }
+
+            /* ==================================================
+               EXISTING COUNTER
+            ================================================== */
+
+            const currentCounterStatus =
+              data.counterOfferStatus ??
+              "none";
+
+            if (
+              currentCounterStatus !==
+              "none"
+            ) {
+              throw new Error(
+                "COUNTER_ALREADY_EXISTS",
+              );
+            }
+
+            /* ==================================================
+               WORKER OFFER
+            ================================================== */
+
+            const workerOfferAmount =
+              typeof data.offerAmount ===
+                "number" &&
+              Number.isFinite(
+                data.offerAmount,
+              )
+                ? data.offerAmount
+                : null;
+
+            if (
+              workerOfferAmount !==
+                null &&
+              amount ===
+                workerOfferAmount
+            ) {
+              throw new Error(
+                "SAME_AMOUNT",
+              );
+            }
+
+            /* ==================================================
+               WRITE CUSTOMER COUNTER
+            ================================================== */
+
+            transaction.update(
+              bookingRef,
+              {
+                counterOfferAmount:
+                  amount,
+
+                counterOfferMessage:
+                  cleanMessage ||
+                  null,
+
+                counterOfferStatus:
+                  "sent",
+
+                counterOfferBy:
+                  "customer",
+
+                counterOfferSentAt:
+                  serverTimestamp(),
+
+                counterOfferRespondedAt:
+                  null,
+
+                offerRound:
+                  CUSTOMER_COUNTER_ROUND,
+
+                offerStatus:
+                  "countered",
+
+                updatedAt:
+                  serverTimestamp(),
+              },
+            );
+          },
+        );
 
         setCounterVisible(false);
         setAmountText("");
         setMessage("");
 
-        Alert.alert(
+        showSuccess(
           "Counter offer sent",
           `Your counter offer of ${formatAmount(
             amount,
-          )} has been sent to ${workerName}.`,
+          )} has been sent to ${safeWorkerName}.`,
         );
       } catch (error) {
         console.error(
@@ -434,117 +700,247 @@ function CustomerOrderOfferSection({
           error,
         );
 
-        Alert.alert(
-          "Unable to send",
-          "We could not send your counter offer. Please try again.",
-        );
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "";
+
+        const firebaseCode =
+          (
+            error as {
+              code?: string;
+            }
+          )?.code;
+
+        switch (
+          errorMessage
+        ) {
+          case "ORDER_NOT_FOUND":
+            showError(
+              "Order not found",
+              "This order no longer exists.",
+            );
+            break;
+
+          case "ACCESS_DENIED":
+            showError(
+              "Access denied",
+              "You cannot send a counter offer for this order.",
+            );
+            break;
+
+          case "OFFER_NOT_AVAILABLE":
+            showError(
+              "Offer unavailable",
+              "The worker offer is no longer available.",
+            );
+            break;
+
+          case "INVALID_OFFER_ROUND":
+            showError(
+              "Negotiation unavailable",
+              "This order has already moved to another negotiation round.",
+            );
+            break;
+
+          case "MAX_ROUNDS_REACHED":
+            showError(
+              "Negotiation limit reached",
+              `You have reached the maximum of ${safeMaxRounds} negotiation rounds.`,
+            );
+            break;
+
+          case "COUNTER_ALREADY_EXISTS":
+            showError(
+              "Counter offer already sent",
+              "A counter offer is already waiting for the worker.",
+            );
+            break;
+
+          case "SAME_AMOUNT":
+            showError(
+              "Same amount",
+              "Your counter offer must be different from the worker's current offer.",
+            );
+            break;
+
+          default:
+            if (
+              firebaseCode ===
+              "permission-denied"
+            ) {
+              showError(
+                "Permission denied",
+                "This counter offer could not be submitted.",
+              );
+            } else {
+              showError(
+                "Unable to send",
+                "We could not send your counter offer. Please try again.",
+              );
+            }
+
+            break;
+        }
       } finally {
         setSubmitting(false);
       }
     }, [
       amountText,
       bookingId,
-      counterOfferAmount,
-      counterOfferBy,
-      message,
       maxRoundReached,
-      offerAmount,
-      offerMessage,
-      offerStatus,
+      message,
       safeMaxRounds,
-      workerName,
+      safeWorkerName,
+      submitting,
     ]);
+
+  /* ==========================================================
+     ACCEPTED
+  ========================================================== */
+
+  if (
+    offerStatus ===
+      "accepted" ||
+    counterOfferStatus ===
+      "accepted"
+  ) {
+    return (
+      <StatusCard
+        icon="success"
+        title="OFFER ACCEPTED"
+        description="The negotiated offer has been accepted."
+        tone="success"
+      />
+    );
+  }
+
+  /* ==========================================================
+     DECLINED
+  ========================================================== */
+
+  if (
+    offerStatus ===
+      "declined" ||
+    counterOfferStatus ===
+      "declined"
+  ) {
+    return (
+      <StatusCard
+        icon="error"
+        title="OFFER DECLINED"
+        description="This offer is no longer active."
+        tone="error"
+      />
+    );
+  }
 
   /* ==========================================================
      CUSTOMER COUNTER SENT
   ========================================================== */
 
   const customerCounterSent =
-    counterOfferBy === "customer" &&
-    counterOfferStatus === "sent" &&
+    counterOfferBy ===
+      "customer" &&
+    counterOfferStatus ===
+      "sent" &&
     typeof counterOfferAmount ===
       "number" &&
+    Number.isFinite(
+      counterOfferAmount,
+    ) &&
     counterOfferAmount > 0;
 
-  if (customerCounterSent) {
+  if (
+    customerCounterSent
+  ) {
     return (
-      <View style={styles.section}>
-        <View style={styles.sentCard}>
-          <View style={styles.header}>
-            <View style={styles.sentIcon}>
-              <Ionicons
-                name="swap-horizontal-outline"
-                size={24}
-                color="#7C3AED"
+      <View
+        style={styles.section}
+      >
+        <View
+          style={styles.card}
+        >
+          <View
+            style={styles.header}
+          >
+            <View
+              style={
+                styles.primaryIcon
+              }
+            >
+              <AppIcon
+                name="refresh"
+                role="customer"
+                size="md"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
-            <View style={styles.headerContent}>
+            <View
+              style={
+                styles.headerContent
+              }
+            >
               <AppText
+                variant="caption"
                 weight="bold"
-                style={styles.sentTitle}
+                style={
+                  styles.primaryTitle
+                }
               >
                 COUNTER OFFER SENT
               </AppText>
 
               <AppText
-                style={styles.sentSubtitle}
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.headerSubtitle
+                }
               >
                 Your counter offer is waiting for{" "}
-                {workerName}.
+                {safeWorkerName}.
               </AppText>
             </View>
           </View>
+
+          <AmountBox
+            label="YOUR COUNTER OFFER"
+            amount={
+              counterOfferAmount
+            }
+          />
+
+          {safeCounterMessage ? (
+            <MessageBox
+              message={
+                safeCounterMessage
+              }
+            />
+          ) : null}
 
           <View
             style={
-              styles.counterAmountContainer
+              styles.waitingBox
             }
           >
-            <AppText
-              style={styles.amountLabel}
-            >
-              YOUR COUNTER OFFER
-            </AppText>
-
-            <AppText
-              weight="bold"
-              style={styles.amount}
-            >
-              {formatAmount(
-                counterOfferAmount,
-              )}
-            </AppText>
-          </View>
-
-          {counterOfferMessage ? (
-            <View
-              style={styles.messageContainer}
-            >
-              <Ionicons
-                name="chatbubble-outline"
-                size={17}
-                color="#64748B"
-              />
-
-              <AppText
-                style={styles.messageText}
-              >
-                "{counterOfferMessage}"
-              </AppText>
-            </View>
-          ) : null}
-
-          <View style={styles.waitingBox}>
-            <Ionicons
-              name="time-outline"
-              size={18}
-              color="#D97706"
+            <AppIcon
+              name="clock"
+              size="xs"
+              color={
+                Colors.warning
+              }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.waitingBoxText}
+              style={
+                styles.waitingBoxText
+              }
             >
               WAITING FOR WORKER
             </AppText>
@@ -558,28 +954,53 @@ function CustomerOrderOfferSection({
      NO OFFER
   ========================================================== */
 
-  if (offerStatus === "none") {
+  if (
+    offerStatus === "none"
+  ) {
     return (
-      <View style={styles.section}>
-        <View style={styles.waitingCard}>
-          <View style={styles.waitingIcon}>
-            <Ionicons
-              name="time-outline"
-              size={24}
-              color="#D97706"
+      <View
+        style={styles.section}
+      >
+        <View
+          style={
+            styles.waitingCard
+          }
+        >
+          <View
+            style={
+              styles.warningIcon
+            }
+          >
+            <AppIcon
+              name="clock"
+              size="md"
+              color={
+                Colors.warning
+              }
             />
           </View>
 
-          <View style={styles.waitingContent}>
+          <View
+            style={
+              styles.waitingContent
+            }
+          >
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.waitingTitle}
+              style={
+                styles.waitingTitle
+              }
             >
               WAITING FOR WORKER OFFER
             </AppText>
 
             <AppText
-              style={styles.waitingText}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.waitingText
+              }
             >
               The worker will review your request and send you an offer.
             </AppText>
@@ -593,571 +1014,695 @@ function CustomerOrderOfferSection({
      WORKER COUNTER RECEIVED
   ========================================================== */
 
-  if (
-    offerStatus === "countered" &&
-    counterOfferBy === "worker" &&
-    counterOfferStatus === "sent" &&
+  const workerCounterReceived =
+    counterOfferBy ===
+      "worker" &&
+    counterOfferStatus ===
+      "sent" &&
     typeof counterOfferAmount ===
-      "number"
+      "number" &&
+    Number.isFinite(
+      counterOfferAmount,
+    ) &&
+    counterOfferAmount > 0;
+
+  if (
+    workerCounterReceived
   ) {
     return (
       <>
-        <View style={styles.section}>
-          <View style={styles.counterCard}>
-            <View style={styles.header}>
-              <View style={styles.counterIcon}>
-                <Ionicons
-                  name="swap-horizontal-outline"
-                  size={24}
-                  color="#7C3AED"
-                />
-              </View>
-
-              <View style={styles.headerContent}>
-                <AppText
-                  weight="bold"
-                  style={styles.counterTitle}
-                >
-                  COUNTER OFFER RECEIVED
-                </AppText>
-
-                <AppText
-                  style={styles.counterSubtitle}
-                >
-                  {workerName} has responded with a new offer.
-                </AppText>
-              </View>
-            </View>
-
-            <View style={styles.amountContainer}>
-              <AppText
-                style={styles.amountLabel}
-              >
-                WORKER COUNTER OFFER
-              </AppText>
-
-              <AppText
-                weight="bold"
-                style={styles.amount}
-              >
-                {formatAmount(
-                  counterOfferAmount,
-                )}
-              </AppText>
-            </View>
-
-            {counterOfferMessage ? (
-              <View
-                style={
-                  styles.messageContainer
-                }
-              >
-                <AppText
-                  style={styles.messageText}
-                >
-                  "{counterOfferMessage}"
-                </AppText>
-              </View>
-            ) : null}
-
-            <Pressable
-              onPress={onAcceptOffer}
-              accessibilityRole="button"
-              accessibilityLabel={`Accept ${formatAmount(
-                counterOfferAmount,
-              )} counter offer`}
-              style={({ pressed }) => [
-                styles.acceptButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={styles.acceptText}
-              >
-                ACCEPT{" "}
-                {formatAmount(
-                  counterOfferAmount,
-                )}
-              </AppText>
-            </Pressable>
-
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={
-                  maxRoundReached
-                    ? undefined
-                    : handleOpenCounter
-                }
-                disabled={
-                  maxRoundReached
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Make another counter offer"
-                accessibilityState={{
-                  disabled:
-                    maxRoundReached,
-                }}
-                style={({ pressed }) => [
-                  styles.counterButton,
-                  maxRoundReached &&
-                    styles.counterButtonDisabled,
-                  pressed &&
-                    !maxRoundReached &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="swap-horizontal-outline"
-                  size={18}
-                  color={
-                    maxRoundReached
-                      ? "#94A3B8"
-                      : "#2563EB"
-                  }
-                />
-
-                <AppText
-                  weight="bold"
-                  style={[
-                    styles.counterButtonText,
-                    maxRoundReached &&
-                      styles.disabledActionText,
-                  ]}
-                >
-                  COUNTER
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={onDeclineOffer}
-                accessibilityRole="button"
-                accessibilityLabel="Decline counter offer"
-                style={({ pressed }) => [
-                  styles.declineButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="close-circle-outline"
-                  size={18}
-                  color="#DC2626"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.declineButtonText
-                  }
-                >
-                  DECLINE
-                </AppText>
-              </Pressable>
-            </View>
-
-            {maxRoundReached ? (
-              <View style={styles.roundLimitBox}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={16}
-                  color="#64748B"
-                />
-
-                <AppText
-                  style={styles.roundLimitText}
-                >
-                  Maximum negotiation rounds reached. You can still accept or decline this offer.
-                </AppText>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        <CounterOfferModal
-          visible={counterVisible}
-          workerName={workerName}
-          currentOffer={
+        <OfferCard
+          title="COUNTER OFFER RECEIVED"
+          subtitle={`${safeWorkerName} has responded to your offer.`}
+          label="WORKER COUNTER OFFER"
+          amount={
             counterOfferAmount
           }
-          amountText={amountText}
-          message={message}
-          submitting={submitting}
-          onChangeAmount={
-            setAmountText
+          message={
+            safeCounterMessage
           }
-          onChangeMessage={
+          maxRoundReached={
+            maxRoundReached
+          }
+          disabled={
+            submitting
+          }
+          onAccept={
+            onAcceptOffer
+          }
+          onCounter={
+            handleOpenCounter
+          }
+          onDecline={
+            onDeclineOffer
+          }
+        />
+
+        <CounterOfferModal
+          visible={
+            counterVisible
+          }
+          amountText={
+            amountText
+          }
+          message={message}
+          submitting={
+            submitting
+          }
+          currentAmount={
+            counterOfferAmount
+          }
+          onAmountChange={
+            handleAmountChange
+          }
+          onMessageChange={
             setMessage
           }
           onClose={
             handleCloseCounter
           }
-          onSubmit={
-            handleSendCounter
-          }
+          onSubmit={() => {
+            void handleSendCounter();
+          }}
         />
       </>
     );
   }
 
   /* ==========================================================
-     WORKER OFFER RECEIVED
+     INITIAL WORKER OFFER
   ========================================================== */
 
-  if (
+  const workerOfferReceived =
     offerStatus === "sent" &&
-    typeof offerAmount === "number"
+    typeof offerAmount ===
+      "number" &&
+    Number.isFinite(
+      offerAmount,
+    ) &&
+    offerAmount > 0;
+
+  if (
+    workerOfferReceived
   ) {
     return (
       <>
-        <View style={styles.section}>
-          <View style={styles.offerCard}>
-            <View style={styles.header}>
-              <View style={styles.offerIcon}>
-                <Ionicons
-                  name="cash-outline"
-                  size={24}
-                  color="#2563EB"
-                />
-              </View>
-
-              <View style={styles.headerContent}>
-                <AppText
-                  weight="bold"
-                  style={styles.offerTitle}
-                >
-                  OFFER RECEIVED
-                </AppText>
-
-                <AppText
-                  style={styles.offerSubtitle}
-                >
-                  {workerName} has sent you an offer.
-                </AppText>
-              </View>
-            </View>
-
-            <View style={styles.amountContainer}>
-              <AppText
-                style={styles.amountLabel}
-              >
-                WORKER OFFER
-              </AppText>
-
-              <AppText
-                weight="bold"
-                style={styles.amount}
-              >
-                {formatAmount(
-                  offerAmount,
-                )}
-              </AppText>
-            </View>
-
-            {offerMessage ? (
-              <View
-                style={
-                  styles.messageContainer
-                }
-              >
-                <AppText
-                  style={styles.messageText}
-                >
-                  "{offerMessage}"
-                </AppText>
-              </View>
-            ) : null}
-
-            <Pressable
-              onPress={onAcceptOffer}
-              accessibilityRole="button"
-              accessibilityLabel={`Accept ${formatAmount(
-                offerAmount,
-              )} worker offer`}
-              style={({ pressed }) => [
-                styles.acceptButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={styles.acceptText}
-              >
-                ACCEPT{" "}
-                {formatAmount(
-                  offerAmount,
-                )}
-              </AppText>
-            </Pressable>
-
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={
-                  maxRoundReached
-                    ? undefined
-                    : handleOpenCounter
-                }
-                disabled={
-                  maxRoundReached
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Counter worker offer"
-                accessibilityState={{
-                  disabled:
-                    maxRoundReached,
-                }}
-                style={({ pressed }) => [
-                  styles.counterButton,
-                  maxRoundReached &&
-                    styles.counterButtonDisabled,
-                  pressed &&
-                    !maxRoundReached &&
-                    styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="swap-horizontal-outline"
-                  size={18}
-                  color={
-                    maxRoundReached
-                      ? "#94A3B8"
-                      : "#2563EB"
-                  }
-                />
-
-                <AppText
-                  weight="bold"
-                  style={[
-                    styles.counterButtonText,
-                    maxRoundReached &&
-                      styles.disabledActionText,
-                  ]}
-                >
-                  COUNTER
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={onDeclineOffer}
-                accessibilityRole="button"
-                accessibilityLabel="Decline worker offer"
-                style={({ pressed }) => [
-                  styles.declineButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="close-circle-outline"
-                  size={18}
-                  color="#DC2626"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.declineButtonText
-                  }
-                >
-                  DECLINE
-                </AppText>
-              </Pressable>
-            </View>
-
-            {maxRoundReached ? (
-              <View style={styles.roundLimitBox}>
-                <Ionicons
-                  name="information-circle-outline"
-                  size={16}
-                  color="#64748B"
-                />
-
-                <AppText
-                  style={styles.roundLimitText}
-                >
-                  Maximum negotiation rounds reached. You can still accept or decline this offer.
-                </AppText>
-              </View>
-            ) : null}
-          </View>
-        </View>
+        <OfferCard
+          title="WORKER OFFER RECEIVED"
+          subtitle={`${safeWorkerName} has sent you an offer.`}
+          label="WORKER OFFER"
+          amount={
+            offerAmount
+          }
+          message={
+            safeOfferMessage
+          }
+          maxRoundReached={
+            maxRoundReached
+          }
+          disabled={
+            submitting
+          }
+          onAccept={
+            onAcceptOffer
+          }
+          onCounter={
+            handleOpenCounter
+          }
+          onDecline={
+            onDeclineOffer
+          }
+        />
 
         <CounterOfferModal
-          visible={counterVisible}
-          workerName={workerName}
-          currentOffer={offerAmount}
-          amountText={amountText}
-          message={message}
-          submitting={submitting}
-          onChangeAmount={
-            setAmountText
+          visible={
+            counterVisible
           }
-          onChangeMessage={
+          amountText={
+            amountText
+          }
+          message={message}
+          submitting={
+            submitting
+          }
+          currentAmount={
+            offerAmount
+          }
+          onAmountChange={
+            handleAmountChange
+          }
+          onMessageChange={
             setMessage
           }
           onClose={
             handleCloseCounter
           }
-          onSubmit={
-            handleSendCounter
-          }
+          onSubmit={() => {
+            void handleSendCounter();
+          }}
         />
       </>
     );
   }
 
   /* ==========================================================
-     ACCEPTED
+     FALLBACK
   ========================================================== */
 
-  if (offerStatus === "accepted") {
-    const acceptedAmount =
-      counterOfferAmount ??
-      offerAmount;
-
-    return (
-      <View style={styles.section}>
-        <View style={styles.acceptedCard}>
-          <View style={styles.acceptedIcon}>
-            <Ionicons
-              name="checkmark-circle"
-              size={25}
-              color="#16A34A"
-            />
-          </View>
-
-          <View style={styles.acceptedContent}>
-            <AppText
-              weight="bold"
-              style={styles.acceptedTitle}
-            >
-              OFFER ACCEPTED
-            </AppText>
-
-            <AppText
-              style={styles.acceptedText}
-            >
-              {acceptedAmount != null
-                ? `${formatAmount(
-                    acceptedAmount,
-                  )} accepted.`
-                : "The worker offer has been accepted."}
-            </AppText>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  /* ==========================================================
-     DECLINED
-  ========================================================== */
-
-  if (offerStatus === "declined") {
-    return (
-      <View style={styles.section}>
-        <View style={styles.declinedCard}>
-          <View style={styles.declinedIcon}>
-            <Ionicons
-              name="close-circle-outline"
-              size={24}
-              color="#DC2626"
-            />
-          </View>
-
-          <View style={styles.declinedContent}>
-            <AppText
-              weight="bold"
-              style={styles.declinedTitle}
-            >
-              OFFER DECLINED
-            </AppText>
-
-            <AppText
-              style={styles.declinedText}
-            >
-              This worker offer was declined.
-            </AppText>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  return null;
+  return (
+    <StatusCard
+      icon="info"
+      title="NEGOTIATION UPDATE"
+      description="The offer status is being updated."
+      tone="info"
+    />
+  );
 }
 
-export default memo(
-  CustomerOrderOfferSection,
-);
+/* ==============================================================
+   OFFER CARD
+============================================================== */
 
-/* ============================================================
+type OfferCardProps = {
+  title: string;
+
+  subtitle: string;
+
+  label: string;
+
+  amount: number;
+
+  message?: string;
+
+  maxRoundReached: boolean;
+
+  disabled: boolean;
+
+  onAccept: () => void;
+
+  onCounter: () => void;
+
+  onDecline: () => void;
+};
+
+function OfferCard({
+  title,
+  subtitle,
+  label,
+  amount,
+  message,
+  maxRoundReached,
+  disabled,
+  onAccept,
+  onCounter,
+  onDecline,
+}: OfferCardProps) {
+  return (
+    <View
+      style={styles.section}
+    >
+      <View
+        style={styles.card}
+      >
+        <View
+          style={styles.header}
+        >
+          <View
+            style={
+              styles.primaryIcon
+            }
+          >
+            <AppIcon
+              name="refresh"
+              role="customer"
+              size="md"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.headerContent
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.primaryTitle
+              }
+            >
+              {title}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.headerSubtitle
+              }
+            >
+              {subtitle}
+            </AppText>
+          </View>
+        </View>
+
+        <AmountBox
+          label={label}
+          amount={amount}
+        />
+
+        {message ? (
+          <MessageBox
+            message={message}
+          />
+        ) : null}
+
+        {maxRoundReached ? (
+          <View
+            style={
+              styles.limitBox
+            }
+          >
+            <AppIcon
+              name="info"
+              size="xs"
+              color={
+                Colors.warning
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.limitText
+              }
+            >
+              Negotiation limit reached. You can still accept or decline this offer.
+            </AppText>
+          </View>
+        ) : null}
+
+        {/* ==================================================
+            ACCEPT
+        ================================================== */}
+
+        <Pressable
+          onPress={onAccept}
+          disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel={`Accept ${formatAmount(
+            amount,
+          )}`}
+          accessibilityState={{
+            disabled,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.acceptButton,
+
+            disabled
+              ? styles.disabled
+              : null,
+
+            pressed &&
+            !disabled
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="success"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.acceptText
+            }
+          >
+            ACCEPT{" "}
+            {formatAmount(
+              amount,
+            )}
+          </AppText>
+        </Pressable>
+
+        {/* ==================================================
+            SECONDARY ACTIONS
+        ================================================== */}
+
+        <View
+          style={styles.actions}
+        >
+          <Pressable
+            onPress={onCounter}
+            disabled={
+              disabled
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Send counter offer"
+            accessibilityState={{
+              disabled,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.counterButton,
+
+              disabled
+                ? styles.disabled
+                : null,
+
+              pressed &&
+              !disabled
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="refresh"
+              role="customer"
+              size="xs"
+              color={
+                CustomerColors.primary
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.counterText
+              }
+            >
+              COUNTER
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={onDecline}
+            disabled={
+              disabled
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Decline worker offer"
+            accessibilityState={{
+              disabled,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.declineButton,
+
+              disabled
+                ? styles.disabled
+                : null,
+
+              pressed &&
+              !disabled
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="error"
+              size="xs"
+              color={
+                Colors.error
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.declineText
+              }
+            >
+              DECLINE
+            </AppText>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ==============================================================
+   AMOUNT BOX
+============================================================== */
+
+function AmountBox({
+  label,
+  amount,
+}: {
+  label: string;
+
+  amount: number;
+}) {
+  return (
+    <View
+      style={
+        styles.amountContainer
+      }
+    >
+      <AppText
+        variant="caption"
+        tone="muted"
+        weight="semibold"
+        style={
+          styles.amountLabel
+        }
+      >
+        {label}
+      </AppText>
+
+      <AppText
+        variant="heading2"
+        weight="bold"
+        style={styles.amount}
+      >
+        {formatAmount(
+          amount,
+        )}
+      </AppText>
+    </View>
+  );
+}
+
+/* ==============================================================
+   MESSAGE BOX
+============================================================== */
+
+function MessageBox({
+  message,
+}: {
+  message: string;
+}) {
+  return (
+    <View
+      style={
+        styles.messageContainer
+      }
+    >
+      <AppIcon
+        name="messages"
+        size="xs"
+        color={
+          Colors.textSecondary
+        }
+      />
+
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.messageText
+        }
+      >
+        {message}
+      </AppText>
+    </View>
+  );
+}
+
+/* ==============================================================
+   STATUS CARD
+============================================================== */
+
+type StatusTone =
+  | "success"
+  | "error"
+  | "info";
+
+type StatusCardProps = {
+  icon:
+    | "success"
+    | "error"
+    | "info";
+
+  title: string;
+
+  description: string;
+
+  tone: StatusTone;
+};
+
+function StatusCard({
+  icon,
+  title,
+  description,
+  tone,
+}: StatusCardProps) {
+  const config =
+    tone === "success"
+      ? {
+          color:
+            Colors.success,
+
+          background:
+            Colors.successSoft,
+        }
+      : tone === "error"
+        ? {
+            color:
+              Colors.error,
+
+            background:
+              Colors.errorSoft,
+          }
+        : {
+            color:
+              Colors.info,
+
+            background:
+              Colors.infoSoft,
+          };
+
+  return (
+    <View
+      style={styles.section}
+    >
+      <View
+        style={
+          styles.statusCard
+        }
+      >
+        <View
+          style={[
+            styles.statusIcon,
+
+            {
+              backgroundColor:
+                config.background,
+            },
+          ]}
+        >
+          <AppIcon
+            name={icon}
+            size="md"
+            color={
+              config.color
+            }
+          />
+        </View>
+
+        <View
+          style={
+            styles.statusContent
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={{
+              color:
+                config.color,
+            }}
+          >
+            {title}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.statusDescription
+            }
+          >
+            {description}
+          </AppText>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/* ==============================================================
    COUNTER OFFER MODAL
-============================================================ */
+============================================================== */
+
+type CounterOfferModalProps = {
+  visible: boolean;
+
+  amountText: string;
+
+  message: string;
+
+  submitting: boolean;
+
+  currentAmount?: number | null;
+
+  onAmountChange: (
+    value: string,
+  ) => void;
+
+  onMessageChange: (
+    value: string,
+  ) => void;
+
+  onClose: () => void;
+
+  onSubmit: () => void;
+};
 
 function CounterOfferModal({
   visible,
-  workerName,
-  currentOffer,
   amountText,
   message,
   submitting,
-  onChangeAmount,
-  onChangeMessage,
+  currentAmount,
+  onAmountChange,
+  onMessageChange,
   onClose,
   onSubmit,
-}: {
-  visible: boolean;
-  workerName: string;
-  currentOffer?: number | null;
-  amountText: string;
-  message: string;
-  submitting: boolean;
-  onChangeAmount: (
-    value: string,
-  ) => void;
-  onChangeMessage: (
-    value: string,
-  ) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
-  const cleanAmount =
-    amountText
-      .replace(/,/g, "")
-      .replace(/₦/gi, "")
-      .trim();
-
-  const numericAmount =
-    Number(cleanAmount);
-
-  const canSubmit =
-    cleanAmount.length > 0 &&
-    Number.isFinite(numericAmount) &&
-    numericAmount > 0 &&
-    Number.isInteger(numericAmount) &&
-    !submitting;
+}: CounterOfferModalProps) {
+  const insets =
+    useSafeAreaInsets();
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={
+        onClose
+      }
     >
       <KeyboardAvoidingView
-        style={styles.modalRoot}
+        style={
+          styles.modalRoot
+        }
         behavior={
           Platform.OS === "ios"
             ? "padding"
@@ -1165,420 +1710,400 @@ function CounterOfferModal({
         }
       >
         <Pressable
-          style={styles.modalBackdrop}
-          onPress={
-            submitting
-              ? undefined
-              : onClose
+          style={
+            styles.backdrop
           }
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close counter offer"
         />
 
-        <View style={styles.modalCard}>
-          <View style={styles.modalHandle} />
+        <View
+          style={[
+            styles.modalCard,
 
-          <View style={styles.modalHeader}>
-            <View
-              style={
-                styles.modalTitleContainer
-              }
-            >
-              <AppText
-                weight="bold"
-                style={styles.modalTitle}
-              >
-                Counter Offer
-              </AppText>
-
-              <AppText
-                style={styles.modalSubtitle}
-              >
-                Make a new offer to the worker
-              </AppText>
-            </View>
-
-            <Pressable
-              onPress={onClose}
-              disabled={submitting}
-              style={styles.closeButton}
-            >
-              <Ionicons
-                name="close"
-                size={21}
-                color="#0F172A"
-              />
-            </Pressable>
-          </View>
-
-          <View style={styles.modalHero}>
-            <View
-              style={
-                styles.modalHeroIcon
-              }
-            >
-              <Ionicons
-                name="swap-horizontal-outline"
-                size={29}
-                color="#2563EB"
-              />
-            </View>
-
-            <AppText
-              weight="bold"
-              style={styles.modalHeroTitle}
-            >
-              Negotiate the price
-            </AppText>
-
-            <AppText
-              center
-              style={styles.modalHeroText}
-            >
-              Enter the amount you are willing to pay for this service.
-            </AppText>
-          </View>
+            {
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens
+                    .spacing.lg,
+                ),
+            },
+          ]}
+        >
+          {/* ==================================================
+              HEADER
+          ================================================== */}
 
           <View
             style={
-              styles.currentOfferCard
+              styles.modalHeader
             }
           >
             <View
               style={
-                styles.currentOfferIcon
-              }
-            >
-              <Ionicons
-                name="person-outline"
-                size={22}
-                color="#2563EB"
-              />
-            </View>
-
-            <View
-              style={
-                styles.currentOfferInfo
+                styles.modalHeaderContent
               }
             >
               <AppText
-                style={
-                  styles.currentOfferLabel
-                }
-              >
-                WORKER OFFER
-              </AppText>
-
-              <AppText
+                variant="bodyLarge"
                 weight="bold"
-                style={
-                  styles.currentWorkerName
-                }
-                numberOfLines={1}
               >
-                {workerName}
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.currentAmountContainer
-              }
-            >
-              <AppText
-                style={
-                  styles.currentAmountLabel
-                }
-              >
-                CURRENT
+                Send Counter Offer
               </AppText>
 
-              <AppText
-                weight="bold"
-                style={
-                  styles.currentAmount
-                }
-              >
-                {formatAmount(
-                  currentOffer,
-                )}
-              </AppText>
-            </View>
-          </View>
-
-          <View
-            style={styles.formSection}
-          >
-            <AppText
-              weight="bold"
-              style={styles.formLabel}
-            >
-              Your Counter Offer
-            </AppText>
-
-            <View
-              style={
-                styles.amountInputContainer
-              }
-            >
-              <View
-                style={
-                  styles.nairaContainer
-                }
-              >
+              {typeof currentAmount ===
+                "number" &&
+              Number.isFinite(
+                currentAmount,
+              ) &&
+              currentAmount >
+                0 ? (
                 <AppText
-                  weight="bold"
+                  variant="caption"
+                  tone="secondary"
                   style={
-                    styles.nairaText
+                    styles.modalSubtitle
                   }
                 >
-                  ₦
+                  Current offer:{" "}
+                  {formatAmount(
+                    currentAmount,
+                  )}
                 </AppText>
-              </View>
+              ) : null}
+            </View>
 
-              <TextInput
-                value={amountText}
-                onChangeText={
-                  onChangeAmount
-                }
-                keyboardType="number-pad"
-                placeholder="Enter amount"
-                placeholderTextColor="#94A3B8"
-                editable={!submitting}
-                maxLength={10}
-                style={
-                  styles.amountInput
+            <Pressable
+              onPress={onClose}
+              disabled={
+                submitting
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed &&
+                !submitting
+                  ? styles.pressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="close"
+                size="sm"
+                color={
+                  Colors.textPrimary
                 }
               />
-            </View>
+            </Pressable>
           </View>
+
+          {/* ==================================================
+              AMOUNT
+          ================================================== */}
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            style={
+              styles.inputLabel
+            }
+          >
+            Counter amount
+          </AppText>
 
           <View
-            style={styles.formSection}
+            style={
+              styles.amountInputContainer
+            }
           >
-            <View
-              style={
-                styles.messageLabelRow
-              }
-            >
-              <AppText
-                weight="bold"
-                style={styles.formLabel}
-              >
-                Message to Worker
-              </AppText>
-
-              <AppText
-                style={
-                  styles.characterCount
-                }
-              >
-                {message.length}/300
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.messageInputContainer
-              }
-            >
-              <Ionicons
-                name="chatbubble-outline"
-                size={20}
-                color="#2563EB"
-                style={
-                  styles.messageInputIcon
-                }
-              />
-
-              <TextInput
-                value={message}
-                onChangeText={
-                  onChangeMessage
-                }
-                placeholder="Write a message to the worker..."
-                placeholderTextColor="#94A3B8"
-                multiline
-                maxLength={300}
-                editable={!submitting}
-                textAlignVertical="top"
-                style={
-                  styles.messageInput
-                }
-              />
-            </View>
-
             <AppText
-              style={styles.helperText}
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.currency
+              }
             >
-              Explain your counter offer briefly.
+              ₦
             </AppText>
-          </View>
 
-          <View style={styles.infoBox}>
-            <Ionicons
-              name="information-circle-outline"
-              size={18}
-              color="#64748B"
+            <TextInput
+              value={
+                amountText
+              }
+              onChangeText={
+                onAmountChange
+              }
+              keyboardType="number-pad"
+              returnKeyType="done"
+              placeholder="Enter amount"
+              placeholderTextColor={
+                Colors.textMuted
+              }
+              editable={
+                !submitting
+              }
+              maxLength={
+                String(
+                  MAX_AMOUNT,
+                ).length
+              }
+              style={
+                styles.amountInput
+              }
+              accessibilityLabel="Counter offer amount"
             />
+          </View>
+
+          {/* ==================================================
+              MESSAGE
+          ================================================== */}
+
+          <View
+            style={
+              styles.messageHeader
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="semibold"
+            >
+              Message
+            </AppText>
 
             <AppText
-              style={styles.infoText}
+              variant="caption"
+              tone="muted"
             >
-              The worker will receive your counter offer and can accept, decline, or respond with another offer.
+              {message.length}/
+              {MAX_MESSAGE_LENGTH}
             </AppText>
           </View>
 
-          <Pressable
-            onPress={onSubmit}
-            disabled={!canSubmit}
-            style={({ pressed }) => [
-              styles.sendButton,
-              !canSubmit &&
-                styles.sendButtonDisabled,
-              pressed &&
-                canSubmit &&
-                styles.pressed,
-            ]}
-          >
-            {submitting ? (
-              <ActivityIndicator
-                size="small"
-                color="#FFFFFF"
-              />
-            ) : (
-              <>
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.sendButtonText
-                  }
-                >
-                  SEND COUNTER OFFER
-                </AppText>
+          <TextInput
+            value={message}
+            onChangeText={
+              onMessageChange
+            }
+            editable={
+              !submitting
+            }
+            multiline
+            maxLength={
+              MAX_MESSAGE_LENGTH
+            }
+            textAlignVertical="top"
+            placeholder="Add a short message (optional)"
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            style={
+              styles.messageInput
+            }
+            accessibilityLabel="Counter offer message"
+          />
 
-                <Ionicons
-                  name="arrow-forward"
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </>
-            )}
-          </Pressable>
+          {/* ==================================================
+              ACTIONS
+          ================================================== */}
 
-          <Pressable
-            onPress={onClose}
-            disabled={submitting}
-            style={styles.cancelButton}
+          <View
+            style={
+              styles.modalActions
+            }
           >
-            <AppText
-              weight="bold"
-              style={
-                styles.cancelButtonText
+            <Pressable
+              onPress={onClose}
+              disabled={
+                submitting
               }
+              accessibilityRole="button"
+              accessibilityLabel="Cancel counter offer"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.modalCancel,
+
+                submitting
+                  ? styles.disabled
+                  : null,
+
+                pressed &&
+                !submitting
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              CANCEL
-            </AppText>
-          </Pressable>
+              <AppText
+                variant="body"
+                weight="semibold"
+                tone="secondary"
+              >
+                Cancel
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={onSubmit}
+              disabled={
+                submitting
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Send counter offer"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.modalSubmit,
+
+                submitting
+                  ? styles.disabled
+                  : null,
+
+                pressed &&
+                !submitting
+                  ? styles.pressed
+                  : null,
+              ]}
+            >
+              {submitting ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+              ) : (
+                <>
+                  <AppIcon
+                    name="refresh"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+
+                  <AppText
+                    variant="body"
+                    weight="bold"
+                    style={
+                      styles.modalSubmitText
+                    }
+                  >
+                    Send Counter
+                  </AppText>
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-/* ============================================================
+/* ==============================================================
+   EXPORT
+============================================================== */
+
+export default memo(
+  CustomerOrderOfferSection,
+);
+
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     section: {
-      marginTop: 18,
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.md,
     },
+
+    card: {
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
       flexDirection: "row",
+
       alignItems: "center",
+    },
+
+    primaryIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     headerContent: {
       flex: 1,
-      marginLeft: 11,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
-    pressed: {
-      opacity: 0.8,
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
+    primaryTitle: {
+      color:
+        CustomerColors.primary,
     },
 
-    /* ========================================================
-       OFFER
-    ======================================================== */
-
-    offerCard: {
-      padding: 15,
-      borderRadius: 20,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#BFDBFE",
-    },
-
-    offerIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 16,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    offerTitle: {
-      fontSize: 12,
-      color: "#2563EB",
-      letterSpacing: 0.3,
-    },
-
-    offerSubtitle: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
-    },
-
-    /* ========================================================
-       COUNTER RECEIVED
-    ======================================================== */
-
-    counterCard: {
-      padding: 15,
-      borderRadius: 20,
-      backgroundColor: "#FAF8FF",
-      borderWidth: 1,
-      borderColor: "#DDD6FE",
-    },
-
-    counterIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 16,
-      backgroundColor: "#EDE9FE",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    counterTitle: {
-      fontSize: 12,
-      color: "#7C3AED",
-      letterSpacing: 0.3,
-    },
-
-    counterSubtitle: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
@@ -1586,31 +2111,34 @@ const styles =
     ======================================================== */
 
     amountContainer: {
-      marginTop: 15,
-      padding: 13,
-      borderRadius: 15,
-      backgroundColor: "#F8FAFC",
-    },
+      marginTop:
+        FixxamTokens.spacing.md,
 
-    counterAmountContainer: {
-      marginTop: 15,
-      padding: 15,
-      borderRadius: 16,
-      backgroundColor: "#FFFFFF",
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
-      borderColor: "#E9D5FF",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     amountLabel: {
-      fontSize: 8,
-      letterSpacing: 1,
-      color: "#94A3B8",
+      letterSpacing: 0.6,
     },
 
     amount: {
-      marginTop: 3,
-      fontSize: 28,
-      color: "#2563EB",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -1618,113 +2146,30 @@ const styles =
     ======================================================== */
 
     messageContainer: {
-      marginTop: 10,
-      padding: 11,
-      borderRadius: 14,
-      backgroundColor: "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 7,
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
     },
 
     messageText: {
       flex: 1,
-      fontSize: 11,
-      lineHeight: 18,
-      color: "#334155",
-    },
 
-    /* ========================================================
-       ACCEPT
-    ======================================================== */
-
-    acceptButton: {
-      minHeight: 48,
-      marginTop: 14,
-      borderRadius: 14,
-      backgroundColor: "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
-    },
-
-    acceptText: {
-      fontSize: 11,
-      color: "#FFFFFF",
-    },
-
-    /* ========================================================
-       ACTIONS
-    ======================================================== */
-
-    actionsRow: {
-      marginTop: 9,
-      flexDirection: "row",
-      gap: 9,
-    },
-
-    counterButton: {
-      flex: 1,
-      minHeight: 45,
-      borderRadius: 13,
-      backgroundColor: "#EFF6FF",
-      borderWidth: 1,
-      borderColor: "#BFDBFE",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-    },
-
-    counterButtonDisabled: {
-      backgroundColor: "#F1F5F9",
-      borderColor: "#E2E8F0",
-    },
-
-    counterButtonText: {
-      fontSize: 10,
-      color: "#2563EB",
-    },
-
-    disabledActionText: {
-      color: "#94A3B8",
-    },
-
-    declineButton: {
-      flex: 1,
-      minHeight: 45,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#FECACA",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-    },
-
-    declineButtonText: {
-      fontSize: 10,
-      color: "#DC2626",
-    },
-
-    roundLimitBox: {
-      marginTop: 10,
-      paddingHorizontal: 11,
-      paddingVertical: 9,
-      borderRadius: 12,
-      backgroundColor: "#F8FAFC",
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 7,
-    },
-
-    roundLimitText: {
-      flex: 1,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#64748B",
+      minWidth: 0,
     },
 
     /* ========================================================
@@ -1732,169 +2177,302 @@ const styles =
     ======================================================== */
 
     waitingCard: {
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor: "#FFF7E8",
-      borderWidth: 1,
-      borderColor: "#FDE68A",
+      minHeight: 80,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    waitingIcon: {
-      width: 47,
-      height: 47,
-      borderRadius: 15,
-      backgroundColor: "#FEF3C7",
+    warningIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     waitingContent: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     waitingTitle: {
-      fontSize: 11,
-      color: "#92400E",
+      color:
+        Colors.warning,
     },
 
     waitingText: {
-      marginTop: 4,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#A16207",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     waitingBox: {
-      marginTop: 12,
-      minHeight: 47,
-      borderRadius: 14,
-      backgroundColor: "#FFF7E8",
-      alignItems: "center",
-      justifyContent: "center",
+      minHeight: 40,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
-      gap: 7,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     waitingBoxText: {
-      fontSize: 10,
-      color: "#D97706",
+      color:
+        Colors.warning,
     },
 
-    /* ========================================================
-       SENT
-    ======================================================== */
+    limitBox: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    sentCard: {
-      padding: 15,
-      borderRadius: 20,
-      backgroundColor: "#FFFBEB",
-      borderWidth: 1,
-      borderColor: "#FDE68A",
-    },
+      padding:
+        FixxamTokens.spacing.sm,
 
-    sentIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 16,
-      backgroundColor: "#F3E8FF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    sentTitle: {
-      fontSize: 12,
-      color: "#7C3AED",
-      letterSpacing: 0.3,
-    },
-
-    sentSubtitle: {
-      marginTop: 4,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
-    },
-
-    /* ========================================================
-       ACCEPTED
-    ======================================================== */
-
-    acceptedCard: {
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor: "#ECFDF5",
-      borderWidth: 1,
-      borderColor: "#BBF7D0",
       flexDirection: "row",
-      alignItems: "center",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
-    acceptedIcon: {
-      width: 47,
-      height: 47,
-      borderRadius: 15,
-      backgroundColor: "#DCFCE7",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    acceptedContent: {
+    limitText: {
       flex: 1,
-      marginLeft: 10,
-    },
 
-    acceptedTitle: {
-      fontSize: 11,
-      color: "#15803D",
-    },
-
-    acceptedText: {
-      marginTop: 4,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#166534",
+      color:
+        Colors.warning,
     },
 
     /* ========================================================
-       DECLINED
+       ACTIONS
     ======================================================== */
 
-    declinedCard: {
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor: "#FEF2F2",
-      borderWidth: 1,
-      borderColor: "#FECACA",
+    acceptButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
-    declinedIcon: {
-      width: 47,
-      height: 47,
-      borderRadius: 15,
-      backgroundColor: "#FEE2E2",
-      alignItems: "center",
-      justifyContent: "center",
+    acceptText: {
+      color:
+        Colors.textInverse,
     },
 
-    declinedContent: {
+    actions: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    counterButton: {
       flex: 1,
-      marginLeft: 10,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    declinedTitle: {
-      fontSize: 11,
-      color: "#B91C1C",
+    counterText: {
+      color:
+        CustomerColors.primary,
     },
 
-    declinedText: {
-      marginTop: 4,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#991B1B",
+    declineButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    declineText: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
+    statusCard: {
+      minHeight: 76,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    statusIcon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    statusContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    statusDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
@@ -1903,302 +2481,258 @@ const styles =
 
     modalRoot: {
       flex: 1,
-      justifyContent: "flex-end",
+
+      justifyContent:
+        "flex-end",
     },
 
-    modalBackdrop: {
+    backdrop: {
       ...StyleSheet.absoluteFillObject,
+
       backgroundColor:
-        "rgba(15, 23, 42, 0.45)",
+        Colors.overlayMedium,
     },
 
     modalCard: {
-      maxHeight: "92%",
-      paddingHorizontal: 18,
-      paddingTop: 10,
-      paddingBottom:
-        Platform.OS === "ios"
-          ? 28
-          : 18,
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
-      backgroundColor: "#FFFFFF",
-    },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    modalHandle: {
-      alignSelf: "center",
-      width: 42,
-      height: 4,
-      borderRadius: 4,
-      backgroundColor: "#CBD5E1",
-      marginBottom: 12,
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     modalHeader: {
       flexDirection: "row",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
+
+      alignItems:
+        "flex-start",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
-    modalTitleContainer: {
+    modalHeaderContent: {
       flex: 1,
-    },
 
-    modalTitle: {
-      fontSize: 21,
-      color: "#0F172A",
+      minWidth: 0,
     },
 
     modalSubtitle: {
-      marginTop: 3,
-      fontSize: 11,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     closeButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: "#F8FAFC",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    /* ========================================================
-       HERO
-    ======================================================== */
+    inputLabel: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-    modalHero: {
-      marginTop: 13,
-      alignItems: "center",
-    },
-
-    modalHeroIcon: {
-      width: 65,
-      height: 65,
-      borderRadius: 20,
-      backgroundColor: "#EFF6FF",
-      borderWidth: 1,
-      borderColor: "#DBEAFE",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    modalHeroTitle: {
-      marginTop: 10,
-      fontSize: 20,
-      color: "#0F172A",
-    },
-
-    modalHeroText: {
-      marginTop: 4,
-      maxWidth: 320,
-      fontSize: 10.5,
-      lineHeight: 16,
-      color: "#64748B",
-      textAlign: "center",
-    },
-
-    /* ========================================================
-       CURRENT OFFER
-    ======================================================== */
-
-    currentOfferCard: {
-      marginTop: 15,
-      padding: 12,
-      borderRadius: 17,
-      backgroundColor: "#EFF6FF",
-      borderWidth: 1,
-      borderColor: "#BFDBFE",
-      flexDirection: "row",
-      alignItems: "center",
-    },
-
-    currentOfferIcon: {
-      width: 45,
-      height: 45,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    currentOfferInfo: {
-      flex: 1,
-      marginLeft: 9,
-    },
-
-    currentOfferLabel: {
-      fontSize: 8,
-      letterSpacing: 0.8,
-      color: "#64748B",
-    },
-
-    currentWorkerName: {
-      marginTop: 2,
-      fontSize: 12,
-      color: "#0F172A",
-    },
-
-    currentAmountContainer: {
-      alignItems: "flex-end",
-      marginLeft: 8,
-    },
-
-    currentAmountLabel: {
-      fontSize: 7.5,
-      color: "#64748B",
-    },
-
-    currentAmount: {
-      marginTop: 2,
-      fontSize: 15,
-      color: "#2563EB",
-    },
-
-    /* ========================================================
-       FORM
-    ======================================================== */
-
-    formSection: {
-      marginTop: 12,
-    },
-
-    formLabel: {
-      fontSize: 11.5,
-      color: "#0F172A",
+      marginBottom:
+        FixxamTokens.spacing.xs,
     },
 
     amountInputContainer: {
-      height: 56,
-      marginTop: 7,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: "#CBD5E1",
-      backgroundColor: "#FFFFFF",
+      height:
+        FixxamTokens.size
+          .inputHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
-      overflow: "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    nairaContainer: {
-      width: 53,
-      height: "100%",
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    currency: {
+      marginRight:
+        FixxamTokens.spacing.xs,
 
-    nairaText: {
-      fontSize: 22,
-      color: "#2563EB",
+      color:
+        Colors.textPrimary,
     },
 
     amountInput: {
       flex: 1,
+
       height: "100%",
-      paddingHorizontal: 13,
-      fontSize: 17,
-      fontWeight: "600",
-      color: "#0F172A",
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
     },
 
-    messageLabelRow: {
+    messageHeader: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "space-between",
-    },
 
-    characterCount: {
-      fontSize: 9,
-      color: "#94A3B8",
-    },
-
-    messageInputContainer: {
-      minHeight: 92,
-      marginTop: 7,
-      padding: 11,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: "#CBD5E1",
-      backgroundColor: "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "flex-start",
-    },
-
-    messageInputIcon: {
-      marginTop: 2,
+      justifyContent:
+        "space-between",
     },
 
     messageInput: {
-      flex: 1,
-      minHeight: 70,
-      marginLeft: 8,
-      padding: 0,
-      fontSize: 12,
-      lineHeight: 18,
-      color: "#0F172A",
+      minHeight: 108,
+
+      maxHeight: 150,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
+      backgroundColor:
+        Colors.surface,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
     },
 
-    helperText: {
-      marginTop: 4,
-      fontSize: 9,
-      color: "#94A3B8",
+    modalActions: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      flexDirection: "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalCancel: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalSubmit: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    modalSubmitText: {
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
-       INFO
+       STATES
     ======================================================== */
 
-    infoBox: {
-      marginTop: 11,
-      padding: 10,
-      borderRadius: 13,
-      backgroundColor: "#F8FAFC",
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: 7,
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
-    infoText: {
-      flex: 1,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#64748B",
-    },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    /* ========================================================
-       SEND
-    ======================================================== */
-
-    sendButton: {
-      minHeight: 54,
-      marginTop: 14,
-      borderRadius: 16,
-      backgroundColor: "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
-      flexDirection: "row",
-      gap: 8,
-    },
-
-    sendButtonDisabled: {
-      backgroundColor: "#A5BDF3",
-    },
-
-    sendButtonText: {
-      fontSize: 10.5,
-      color: "#FFFFFF",
-    },
-
-    cancelButton: {
-      minHeight: 40,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    cancelButtonText: {
-      fontSize: 10.5,
-      color: "#64748B",
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

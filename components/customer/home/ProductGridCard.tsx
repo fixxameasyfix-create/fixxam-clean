@@ -1,359 +1,590 @@
 import React, {
+  memo,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Dimensions,
-  Image,
-  Modal,
   Pressable,
   StyleSheet,
   View,
-  type GestureResponderEvent,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import type {
   ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 export interface ProductGridCardProps {
   id: string;
+
   name: string;
+
   price: number;
+
   image: string;
-  activeDeal?: ActiveProductDeal | null;
+
+  activeDeal?:
+    | ActiveProductDeal
+    | null;
+
+  /**
+   * Optional real product rating.
+   * Do not pass fake/default ratings.
+   */
+  rating?: number;
+
+  /**
+   * Optional real review count.
+   */
+  reviews?: number;
+
+  /**
+   * Controlled favorite state.
+   */
+  favorite?: boolean;
+
+  /**
+   * Only provide this when favorite
+   * persistence is actually implemented.
+   */
+  onFavoritePress?: () => void;
+
   onPress: () => void;
+
   onBuy: () => void;
 }
 
-const MODAL_WIDTH = 190;
-const MODAL_HEIGHT = 112;
-const SCREEN_PADDING = 8;
+/* ==============================================================
+   HELPERS
+============================================================== */
 
-export default function ProductGridCard({
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizePrice(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed < 0
+  ) {
+    return 0;
+  }
+
+  return parsed;
+}
+
+function normalizeCount(
+  value: unknown,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
+}
+
+function normalizeRating(
+  value: unknown,
+): number | null {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return null;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      parsed,
+    ),
+  );
+}
+
+function getRemoteImageUrl(
+  value: unknown,
+): string {
+  const url =
+    cleanString(value);
+
+  if (
+    url.startsWith(
+      "https://",
+    ) ||
+    url.startsWith(
+      "http://",
+    )
+  ) {
+    return url;
+  }
+
+  return "";
+}
+
+function formatPrice(
+  value: number,
+): string {
+  return value.toLocaleString(
+    "en-NG",
+    {
+      minimumFractionDigits:
+        value % 1 === 0
+          ? 0
+          : 2,
+
+      maximumFractionDigits: 2,
+    },
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ProductGridCard({
   name,
   price,
   image,
   activeDeal,
+  rating,
+  reviews,
+  favorite = false,
+  onFavoritePress,
   onPress,
   onBuy,
 }: ProductGridCardProps) {
-  const [detailsVisible, setDetailsVisible] =
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
     useState(false);
 
-  const [modalPosition, setModalPosition] =
-    useState({ x: 0, y: 0 });
+  /* ============================================================
+     PRODUCT DATA
+  ============================================================ */
 
-  const [isFavorite, setIsFavorite] =
-    useState(false);
+  const productName =
+    cleanString(name) ||
+    "Product";
 
-  const [favoriteCount, setFavoriteCount] =
-    useState(27);
+  const imageUrl =
+    getRemoteImageUrl(
+      image,
+    );
 
-  const [hasRated, setHasRated] =
-    useState(false);
-
-  const [ratingCount, setRatingCount] =
-    useState(23);
-
-  const originalPrice = useMemo(
-    () => Number(price),
-    [price],
-  );
-
-  const dealPrice = useMemo(
-    () =>
-      Number(
-        activeDeal?.discountedPrice,
-      ),
-    [activeDeal],
-  );
-
-  const discountPercentage = useMemo(
-    () =>
-      Number(
-        activeDeal?.discountPercentage,
-      ),
-    [activeDeal],
-  );
-
-  const hasDeal = useMemo(() => {
-    return (
-      !!activeDeal &&
-      Number.isFinite(originalPrice) &&
-      originalPrice > 0 &&
-      Number.isFinite(dealPrice) &&
-      dealPrice > 0 &&
-      dealPrice < originalPrice &&
-      Number.isFinite(discountPercentage) &&
-      discountPercentage > 0 &&
-      discountPercentage < 100
+  useEffect(() => {
+    setImageFailed(
+      false,
     );
   }, [
-    activeDeal,
-    originalPrice,
-    dealPrice,
-    discountPercentage,
+    imageUrl,
   ]);
 
-  const formattedOriginalPrice = useMemo(
-    () =>
-      originalPrice.toLocaleString("en-NG"),
-    [originalPrice],
-  );
+  const showImage =
+    Boolean(imageUrl) &&
+    !imageFailed;
 
-  const formattedDealPrice = useMemo(
-    () =>
-      dealPrice.toLocaleString("en-NG"),
-    [dealPrice],
-  );
+  /* ============================================================
+     PRICE + DEAL
+  ============================================================ */
 
-  const hasImage =
-    typeof image === "string" &&
-    image.trim().length > 0;
-
-  const handleFavorite = () => {
-    setIsFavorite((current) => {
-      setFavoriteCount((count) =>
-        current
-          ? Math.max(0, count - 1)
-          : count + 1,
-      );
-
-      return !current;
-    });
-  };
-
-  const handleRating = () => {
-    setHasRated((current) => {
-      setRatingCount((count) =>
-        current
-          ? Math.max(0, count - 1)
-          : count + 1,
-      );
-
-      return !current;
-    });
-  };
-
-  const openFavoriteModal = (
-    event: GestureResponderEvent,
-  ) => {
-    const {
-      pageX,
-      pageY,
-    } = event.nativeEvent;
-
-    const {
-      width,
-      height,
-    } = Dimensions.get("window");
-
-    let x =
-      pageX -
-      MODAL_WIDTH +
-      18;
-
-    let y =
-      pageY -
-      MODAL_HEIGHT / 2;
-
-    x = Math.max(
-      SCREEN_PADDING,
-      Math.min(
-        x,
-        width -
-          MODAL_WIDTH -
-          SCREEN_PADDING,
-      ),
+  const originalPrice =
+    normalizePrice(
+      price,
     );
 
-    y = Math.max(
-      SCREEN_PADDING,
-      Math.min(
-        y,
-        height -
-          MODAL_HEIGHT -
-          SCREEN_PADDING,
-      ),
+  const dealPrice =
+    normalizePrice(
+      activeDeal
+        ?.discountedPrice,
     );
 
-    setModalPosition({ x, y });
-    setDetailsVisible(true);
+  const parsedDiscount =
+    Number(
+      activeDeal
+        ?.discountPercentage,
+    );
 
-    handleFavorite();
-  };
+  const hasDeal =
+    Boolean(activeDeal) &&
+    originalPrice > 0 &&
+    dealPrice > 0 &&
+    dealPrice <
+      originalPrice &&
+    Number.isFinite(
+      parsedDiscount,
+    ) &&
+    parsedDiscount > 0 &&
+    parsedDiscount < 100;
+
+  const discountPercentage =
+    hasDeal
+      ? Math.round(
+          parsedDiscount,
+        )
+      : 0;
+
+  const displayPrice =
+    hasDeal
+      ? dealPrice
+      : originalPrice;
+
+  /* ============================================================
+     RATING
+  ============================================================ */
+
+  const safeRating =
+    useMemo(
+      () =>
+        normalizeRating(
+          rating,
+        ),
+      [
+        rating,
+      ],
+    );
+
+  const safeReviews =
+    normalizeCount(
+      reviews,
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.card}>
+    <View
+      style={
+        styles.card
+      }
+    >
       <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.productPressable,
-          pressed &&
-            styles.productPressed,
-        ]}
         accessibilityRole="button"
-        accessibilityLabel={`View ${name}`}
+        accessibilityLabel={`View ${productName}`}
+        onPress={
+          onPress
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.productPressable,
+
+          pressed
+            ? styles.productPressed
+            : null,
+        ]}
       >
+        {/* ====================================================
+            IMAGE
+        ==================================================== */}
+
         <View
-          style={styles.imageContainer}
+          style={
+            styles.imageContainer
+          }
         >
-          {hasImage ? (
+          {showImage ? (
             <Image
               source={{
-                uri: image.trim(),
+                uri:
+                  imageUrl,
               }}
-              style={styles.image}
-              resizeMode="cover"
+              style={
+                styles.image
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              accessibilityLabel={`${productName} product image`}
+              onError={() =>
+                setImageFailed(
+                  true,
+                )
+              }
             />
           ) : (
             <View
-              style={styles.imagePlaceholder}
+              style={
+                styles.imagePlaceholder
+              }
             >
-              <Ionicons
-                name="cube-outline"
-                size={28}
-                color="#94A3B8"
+              <AppIcon
+                name="package"
+                role="customer"
+                size="xl"
+                state="muted"
               />
             </View>
           )}
 
-          {hasDeal && (
-            <View
-              style={styles.discountBadge}
-            >
-              <AppText
-                weight="bold"
-                style={styles.discountText}
-              >
-                -
-                {Math.round(
-                  discountPercentage,
-                )}
-                %
-              </AppText>
-            </View>
-          )}
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.favorite,
-              isFavorite &&
-                styles.favoriteActive,
-              pressed &&
-                styles.favoritePressed,
-            ]}
-            onPress={(event) => {
-              event.stopPropagation();
-              openFavoriteModal(event);
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isFavorite
-                ? "Remove favorite"
-                : "Add favorite"
-            }
-          >
-            <Ionicons
-              name={
-                isFavorite
-                  ? "heart"
-                  : "heart-outline"
-              }
-              size={17}
-              color={
-                isFavorite
-                  ? "#DC2626"
-                  : "#64748B"
-              }
-            />
-          </Pressable>
-        </View>
-
-        <View style={styles.content}>
-          <AppText
-            weight="semibold"
-            numberOfLines={2}
-            style={styles.name}
-          >
-            {name}
-          </AppText>
-
-          <View style={styles.cardRating}>
-            <Ionicons
-              name="star"
-              size={14}
-              color="#F59E0B"
-            />
-
-            <AppText
-              weight="semibold"
-              style={styles.rating}
-            >
-              {ratingCount}
-            </AppText>
-          </View>
+          {/* ==================================================
+              DISCOUNT
+          ================================================== */}
 
           {hasDeal ? (
             <View
-              style={styles.dealPriceRow}
+              style={
+                styles.discountBadge
+              }
             >
               <AppText
+                variant="caption"
                 weight="bold"
-                style={styles.dealPrice}
-                numberOfLines={1}
+                style={
+                  styles.discountText
+                }
               >
-                ₦{formattedDealPrice}
-              </AppText>
-
-              <AppText
-                style={styles.originalPrice}
-                numberOfLines={1}
-              >
-                ₦{formattedOriginalPrice}
+                -{discountPercentage}%
               </AppText>
             </View>
-          ) : (
-            <AppText
-              weight="bold"
-              style={styles.price}
-              numberOfLines={1}
-            >
-              ₦{formattedOriginalPrice}
-            </AppText>
-          )}
+          ) : null}
 
-          <View style={styles.bottomRow}>
-            <View style={styles.dealStatus}>
-              <Ionicons
+          {/* ==================================================
+              FAVORITE
+          ================================================== */}
+
+          {onFavoritePress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                favorite
+                  ? `Remove ${productName} from favorites`
+                  : `Add ${productName} to favorites`
+              }
+              accessibilityState={{
+                selected:
+                  favorite,
+              }}
+              hitSlop={6}
+              onPress={(
+                event,
+              ) => {
+                event.stopPropagation();
+
+                onFavoritePress();
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.favoriteButton,
+
+                favorite
+                  ? styles.favoriteActive
+                  : null,
+
+                pressed
+                  ? styles.favoritePressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="heart"
+                role="customer"
+                size="sm"
+                color={
+                  favorite
+                    ? Colors.error
+                    : Colors.textSecondary
+                }
+              />
+            </Pressable>
+          ) : null}
+        </View>
+
+        {/* ====================================================
+            CONTENT
+        ==================================================== */}
+
+        <View
+          style={
+            styles.content
+          }
+        >
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={2}
+            style={
+              styles.name
+            }
+          >
+            {productName}
+          </AppText>
+
+          {/* ==================================================
+              RATING
+          ================================================== */}
+
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="xs"
+              color={
+                Colors.warning
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.rating
+              }
+            >
+              {safeRating !==
+              null
+                ? safeRating.toFixed(
+                    1,
+                  )
+                : "New"}
+            </AppText>
+
+            {safeReviews >
+            0 ? (
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.reviews
+                }
+              >
+                ({safeReviews})
+              </AppText>
+            ) : null}
+          </View>
+
+          {/* ==================================================
+              PRICE
+          ================================================== */}
+
+          <View
+            style={
+              styles.priceRow
+            }
+          >
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.price
+              }
+            >
+              ₦
+              {formatPrice(
+                displayPrice,
+              )}
+            </AppText>
+
+            {hasDeal ? (
+              <AppText
+                variant="caption"
+                numberOfLines={1}
+                style={
+                  styles.originalPrice
+                }
+              >
+                ₦
+                {formatPrice(
+                  originalPrice,
+                )}
+              </AppText>
+            ) : null}
+          </View>
+
+          {/* ==================================================
+              BOTTOM
+          ================================================== */}
+
+          <View
+            style={
+              styles.bottomRow
+            }
+          >
+            <View
+              style={[
+                styles.dealStatus,
+
+                hasDeal
+                  ? styles.activeDealStatus
+                  : styles.noDealStatus,
+              ]}
+            >
+              <AppIcon
                 name={
                   hasDeal
-                    ? "pricetag"
-                    : "pricetag-outline"
+                    ? "payment"
+                    : "info"
                 }
-                size={12}
+                role="customer"
+                size="xs"
                 color={
                   hasDeal
-                    ? "#2563EB"
-                    : "#94A3B8"
+                    ? CustomerColors.primary
+                    : Colors.textMuted
                 }
               />
 
               <AppText
-                weight="semibold"
+                variant="caption"
+                weight="bold"
+                numberOfLines={1}
                 style={[
                   styles.dealStatusText,
-                  hasDeal &&
-                    styles.dealActiveText,
+
+                  hasDeal
+                    ? styles.dealActiveText
+                    : null,
                 ]}
-                numberOfLines={1}
               >
                 {hasDeal
                   ? "Deal"
@@ -362,19 +593,32 @@ export default function ProductGridCard({
             </View>
 
             <Pressable
-              onPress={onBuy}
-              style={({ pressed }) => [
-                styles.buyButton,
-                pressed &&
-                  styles.buyPressed,
-              ]}
               accessibilityRole="button"
-              accessibilityLabel={`Buy ${name}`}
+              accessibilityLabel={`Buy ${productName}`}
               hitSlop={4}
+              onPress={(
+                event,
+              ) => {
+                event.stopPropagation();
+
+                onBuy();
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.buyButton,
+
+                pressed
+                  ? styles.buyPressed
+                  : null,
+              ]}
             >
               <AppText
+                variant="caption"
                 weight="bold"
-                style={styles.buyText}
+                style={
+                  styles.buyText
+                }
               >
                 Buy
               </AppText>
@@ -382,394 +626,394 @@ export default function ProductGridCard({
           </View>
         </View>
       </Pressable>
-
-      <Modal
-        visible={detailsVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() =>
-          setDetailsVisible(false)
-        }
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() =>
-            setDetailsVisible(false)
-          }
-        >
-          <View
-            style={[
-              styles.modalContent,
-              {
-                left: modalPosition.x,
-                top: modalPosition.y,
-              },
-            ]}
-          >
-            <Pressable
-              style={styles.modalClose}
-              onPress={() =>
-                setDetailsVisible(false)
-              }
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-            >
-              <Ionicons
-                name="close"
-                size={17}
-                color="#64748B"
-              />
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionRow,
-                pressed &&
-                  styles.actionPressed,
-              ]}
-              onPress={handleFavorite}
-              accessibilityRole="button"
-            >
-              <Ionicons
-                name={
-                  isFavorite
-                    ? "heart"
-                    : "heart-outline"
-                }
-                size={21}
-                color={
-                  isFavorite
-                    ? "#DC2626"
-                    : "#64748B"
-                }
-              />
-
-              <AppText
-                weight="semibold"
-                style={styles.actionLabel}
-              >
-                Favor
-              </AppText>
-
-              <AppText
-                weight="bold"
-                style={styles.actionCount}
-              >
-                {favoriteCount}
-              </AppText>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionRow,
-                pressed &&
-                  styles.actionPressed,
-              ]}
-              onPress={handleRating}
-              accessibilityRole="button"
-            >
-              <Ionicons
-                name="star"
-                size={21}
-                color={
-                  hasRated
-                    ? "#F59E0B"
-                    : "#FFFFFF"
-                }
-                style={
-                  !hasRated &&
-                  styles.starOutline
-                }
-              />
-
-              <AppText
-                weight="semibold"
-                style={styles.actionLabel}
-              >
-                Rating
-              </AppText>
-
-              <AppText
-                weight="bold"
-                style={styles.actionCount}
-              >
-                {ratingCount}
-              </AppText>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
       width: "100%",
-      backgroundColor: "#FFFFFF",
-      borderRadius: 15,
-      overflow: "hidden",
+
+      overflow:
+        "hidden",
+
       borderWidth: 1,
-      borderColor: "#EEF2F7",
-      shadowColor: "#000000",
-      shadowOpacity: 0.05,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 2,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     productPressable: {
-      backgroundColor: "#FFFFFF",
+      backgroundColor:
+        Colors.surface,
     },
 
     productPressed: {
-      opacity: 0.88,
-      transform: [{ scale: 0.985 }],
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
+    /* ========================================================
+       IMAGE
+    ======================================================== */
+
     imageContainer: {
+      position:
+        "relative",
+
       width: "100%",
+
       aspectRatio: 1,
-      position: "relative",
-      backgroundColor: "#F8FAFC",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     image: {
       width: "100%",
+
       height: "100%",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     imagePlaceholder: {
       flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#F8FAFC",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
+    /* ========================================================
+       DISCOUNT
+    ======================================================== */
+
     discountBadge: {
-      position: "absolute",
-      top: 8,
-      left: 8,
+      position:
+        "absolute",
+
+      top:
+        FixxamTokens.spacing.sm,
+
+      left:
+        FixxamTokens.spacing.sm,
+
       minWidth: 46,
-      height: 26,
-      paddingHorizontal: 8,
-      borderRadius: 8,
-      backgroundColor: "#DC2626",
-      alignItems: "center",
-      justifyContent: "center",
-      elevation: 2,
+
+      minHeight: 28,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        Colors.error,
     },
 
     discountText: {
-      fontSize: 10,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
-    favorite: {
-      position: "absolute",
-      top: 8,
-      right: 8,
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.07,
-      shadowRadius: 4,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
+    /* ========================================================
+       FAVORITE
+    ======================================================== */
+
+    favoriteButton: {
+      position:
+        "absolute",
+
+      top:
+        FixxamTokens.spacing.sm,
+
+      right:
+        FixxamTokens.spacing.sm,
+
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     favoriteActive: {
-      backgroundColor: "#FEF2F2",
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     favoritePressed: {
-      transform: [{ scale: 0.9 }],
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     content: {
-      paddingHorizontal: 9,
-      paddingTop: 8,
-      paddingBottom: 8,
+      padding:
+        FixxamTokens.spacing.sm,
     },
 
     name: {
       minHeight: 36,
-      fontSize: 13,
-      lineHeight: 18,
-      color: "#0F172A",
+
+      color:
+        Colors.textPrimary,
     },
 
-    cardRating: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 3,
+    /* ========================================================
+       RATING
+    ======================================================== */
+
+    ratingRow: {
+      minHeight: 20,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     rating: {
-      marginLeft: 4,
-      fontSize: 11,
-      color: "#64748B",
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    reviews: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       PRICE
+    ======================================================== */
+
+    priceRow: {
+      minHeight: 24,
+
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      alignItems:
+        "baseline",
+
+      columnGap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     price: {
-      marginTop: 5,
-      fontSize: 15,
-      color: "#2563EB",
-    },
-
-    dealPriceRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 5,
-      minWidth: 0,
-    },
-
-    dealPrice: {
-      flexShrink: 1,
-      fontSize: 15,
-      color: "#2563EB",
-      marginRight: 6,
+      color:
+        CustomerColors.primary,
     },
 
     originalPrice: {
-      flexShrink: 1,
-      fontSize: 10,
-      color: "#94A3B8",
-      textDecorationLine: "line-through",
+      color:
+        Colors.textMuted,
+
+      textDecorationLine:
+        "line-through",
     },
 
+    /* ========================================================
+       BOTTOM
+    ======================================================== */
+
     bottomRow: {
-      minHeight: 32,
-      marginTop: 6,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     dealStatus: {
       flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      marginRight: 5,
+
       minWidth: 0,
+
+      minHeight: 26,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      alignSelf:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+    },
+
+    activeDealStatus: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    noDealStatus: {
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     dealStatusText: {
-      marginLeft: 4,
-      fontSize: 10,
-      color: "#94A3B8",
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textMuted,
     },
 
     dealActiveText: {
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
+    /* ========================================================
+       BUY
+    ======================================================== */
+
     buyButton: {
-      height: 30,
-      minWidth: 52,
-      paddingHorizontal: 10,
-      borderRadius: 9,
-      backgroundColor: "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
+      minWidth: 58,
+
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     buyText: {
-      fontSize: 11,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     buyPressed: {
-      opacity: 0.78,
-      transform: [{ scale: 0.95 }],
-    },
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    modalOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.12)",
-    },
-
-    modalContent: {
-      position: "absolute",
-      width: MODAL_WIDTH,
-      height: MODAL_HEIGHT,
-      paddingTop: 8,
-      paddingBottom: 7,
-      paddingHorizontal: 8,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      shadowColor: "#000000",
-      shadowOpacity: 0.16,
-      shadowRadius: 12,
-      shadowOffset: {
-        width: 0,
-        height: 5,
-      },
-      elevation: 10,
-    },
-
-    modalClose: {
-      position: "absolute",
-      top: 6,
-      right: 6,
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      backgroundColor: "#F8FAFC",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 10,
-    },
-
-    actionRow: {
-      minHeight: 45,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 7,
-      paddingRight: 4,
-      borderRadius: 10,
-      marginVertical: 2,
-    },
-
-    actionPressed: {
-      backgroundColor: "#F8FAFC",
-      transform: [{ scale: 0.98 }],
-    },
-
-    actionLabel: {
-      flex: 1,
-      marginLeft: 10,
-      fontSize: 13,
-      color: "#334155",
-    },
-
-    actionCount: {
-      minWidth: 28,
-      textAlign: "right",
-      fontSize: 14,
-      color: "#0F172A",
-    },
-
-    starOutline: {
-      textShadowColor: "#94A3B8",
-      textShadowOffset: {
-        width: 0,
-        height: 0,
-      },
-      textShadowRadius: 1.5,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });
+
+export default memo(
+  ProductGridCard,
+);

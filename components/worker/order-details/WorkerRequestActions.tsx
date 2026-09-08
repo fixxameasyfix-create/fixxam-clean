@@ -1,187 +1,197 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
-  ActivityIndicator,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppButton,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   loading?: boolean;
+
   onAccept: () => void;
+
   onDecline: () => void;
 };
 
-export default function WorkerRequestActions({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerRequestActions({
   loading = false,
   onAccept,
   onDecline,
 }: Props) {
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         New Service Request
       </AppText>
 
       <AppText
-        style={styles.description}
+        variant="body"
+        tone="secondary"
+        style={
+          styles.description
+        }
       >
-        Review the customer request before
-        accepting the job.
+        Review the customer request before accepting the job.
       </AppText>
 
-      <View style={styles.actions}>
-        <Pressable
-          onPress={onDecline}
-          disabled={loading}
-          style={[
-            styles.declineButton,
-            loading &&
-              styles.disabledButton,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Decline service request"
-          accessibilityState={{
-            disabled: loading,
-            busy: loading,
-          }}
+      {/* ======================================================
+          ACTIONS
+      ====================================================== */}
+
+      <View
+        style={
+          styles.actions
+        }
+      >
+        <View
+          style={
+            styles.action
+          }
         >
-          {loading ? (
-            <ActivityIndicator
-              size="small"
-              color="#DC2626"
-            />
-          ) : (
-            <>
-              <Ionicons
-                name="close-circle-outline"
-                size={20}
-                color="#DC2626"
-              />
+          <AppButton
+            title="Decline"
+            role="worker"
+            variant="danger"
+            leftIconName="close"
+            loading={
+              loading
+            }
+            disabled={
+              loading
+            }
+            onPress={
+              onDecline
+            }
+          />
+        </View>
 
-              <AppText
-                weight="bold"
-                style={styles.declineText}
-              >
-                DECLINE
-              </AppText>
-            </>
-          )}
-        </Pressable>
-
-        <Pressable
-          onPress={onAccept}
-          disabled={loading}
-          style={[
-            styles.acceptButton,
-            loading &&
-              styles.disabledButton,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Accept service request"
-          accessibilityState={{
-            disabled: loading,
-            busy: loading,
-          }}
+        <View
+          style={
+            styles.action
+          }
         >
-          {loading ? (
-            <ActivityIndicator
-              size="small"
-              color="#FFFFFF"
-            />
-          ) : (
-            <>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={20}
-                color="#FFFFFF"
-              />
-
-              <AppText
-                weight="bold"
-                style={styles.acceptText}
-              >
-                ACCEPT REQUEST
-              </AppText>
-            </>
-          )}
-        </Pressable>
+          <AppButton
+            title="Accept Request"
+            role="worker"
+            variant="primary"
+            leftIconName="check"
+            loading={
+              loading
+            }
+            disabled={
+              loading
+            }
+            onPress={
+              onAccept
+            }
+          />
+        </View>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 20,
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  title: {
-    fontSize: 17,
-    color: "#0F172A",
-  },
+WorkerRequestActions.displayName =
+  "WorkerRequestActions";
 
-  description: {
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
+export default memo(
+  WorkerRequestActions,
+);
 
-  actions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  declineButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 15,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  acceptButton: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 15,
-    backgroundColor: "#16A34A",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-  declineText: {
-    fontSize: 12,
-    color: "#DC2626",
-  },
+      padding:
+        FixxamTokens.spacing.lg,
 
-  acceptText: {
-    fontSize: 12,
-    color: "#FFFFFF",
-  },
+      borderWidth: 1,
 
-  disabledButton: {
-    opacity: 0.6,
-  },
-});
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    actions: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    action: {
+      flex: 1,
+    },
+  });

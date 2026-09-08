@@ -1,122 +1,276 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type WorkerOrdersHeaderProps = {
   onBack: () => void;
+
   onManage: () => void;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function WorkerOrdersHeader({
   onBack,
   onManage,
 }: WorkerOrdersHeaderProps) {
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          BACK
+      ======================================================== */}
+
       <Pressable
-        onPress={onBack}
+        onPress={
+          onBack
+        }
         accessibilityRole="button"
         accessibilityLabel="Go back"
-        style={({ pressed }) => [
+        hitSlop={6}
+        style={({
+          pressed,
+        }) => [
           styles.iconButton,
-          pressed && styles.pressed,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="chevron-back"
-          size={20}
-          color="#0F172A"
+        <AppIcon
+          name="back"
+          size="sm"
+          color={
+            Colors.textPrimary
+          }
         />
       </Pressable>
 
-      <View style={styles.titleContainer}>
+      {/* ========================================================
+          TITLE
+      ======================================================== */}
+
+      <View
+        style={
+          styles.titleContainer
+        }
+      >
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.title}
+          numberOfLines={1}
+          style={
+            styles.title
+          }
         >
           My Jobs
         </AppText>
 
-        <AppText style={styles.subtitle}>
-          Track and manage your service requests
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={1}
+          style={
+            styles.subtitle
+          }
+        >
+          Track and manage your jobs and orders
         </AppText>
       </View>
 
+      {/* ========================================================
+          MANAGE
+      ======================================================== */}
+
       <Pressable
-        onPress={onManage}
+        onPress={
+          onManage
+        }
         accessibilityRole="button"
         accessibilityLabel="Manage jobs"
-        style={({ pressed }) => [
-          styles.iconButton,
-          pressed && styles.pressed,
+        hitSlop={6}
+        style={({
+          pressed,
+        }) => [
+          styles.manageButton,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="options-outline"
-          size={20}
-          color="#0F172A"
+        <AppIcon
+          name="settings"
+          role="worker"
+          size="sm"
+          color={
+            WorkerColors.primary
+          }
         />
       </Pressable>
     </View>
   );
 }
 
-export default memo(WorkerOrdersHeader);
+/* ==============================================================
+   MEMO
+============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    paddingTop: 5,
-    paddingBottom: 10,
-  },
+WorkerOrdersHeader.displayName =
+  "WorkerOrdersHeader";
 
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+export default memo(
+  WorkerOrdersHeader,
+);
 
-  titleContainer: {
-    flex: 1,
-    minWidth: 0,
-    marginHorizontal: 10,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  title: {
-    fontSize: 22,
-    lineHeight: 26,
-    color: "#0F172A",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  subtitle: {
-    marginTop: 1,
-    fontSize: 10,
-    lineHeight: 14,
-    color: "#64748B",
-  },
+      minHeight:
+        FixxamTokens.size.headerHeight,
 
-  pressed: {
-    opacity: 0.7,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    /* ==========================================================
+       BUTTONS
+    ========================================================== */
+
+    iconButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    manageButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    /* ==========================================================
+       TITLE
+    ========================================================== */
+
+    titleContainer: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       STATE
+    ========================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

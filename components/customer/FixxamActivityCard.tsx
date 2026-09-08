@@ -9,12 +9,17 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -33,14 +38,32 @@ export type FixxamActivityData = {
   chartData: FixxamActivityPoint[];
 };
 
+type ActivityPeriod =
+  | "7D"
+  | "30D"
+  | "90D";
+
 type Props = {
   data: FixxamActivityData;
-  period?: "7D" | "30D" | "90D";
+
+  period?: ActivityPeriod;
+
   onPeriodChange?: (
-    period: "7D" | "30D" | "90D",
+    period: ActivityPeriod,
   ) => void;
+
   onPress?: () => void;
 };
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const PERIODS: ActivityPeriod[] = [
+  "7D",
+  "30D",
+  "90D",
+];
 
 /* ============================================================
    HELPERS
@@ -91,13 +114,18 @@ function formatNumber(
 function clampPercentage(
   value: number,
 ): number {
-  if (!Number.isFinite(value)) {
+  if (
+    !Number.isFinite(value)
+  ) {
     return 0;
   }
 
   return Math.min(
     100,
-    Math.max(0, value),
+    Math.max(
+      0,
+      value,
+    ),
   );
 }
 
@@ -105,220 +133,231 @@ function clampPercentage(
    MINI LINE CHART
 ============================================================ */
 
-const ActivityChart = memo(
-  ({
-    data,
-  }: {
-    data: FixxamActivityPoint[];
-  }) => {
-    const points = useMemo(() => {
-      const safeData =
-        data.filter(
-          (item) =>
-            Number.isFinite(
-              item.value,
-            ) &&
-            item.value >= 0,
-        );
+const ActivityChart =
+  memo(
+    function ActivityChart({
+      data,
+    }: {
+      data: FixxamActivityPoint[];
+    }) {
+      const points =
+        useMemo(() => {
+          const safeData =
+            data.filter(
+              (item) =>
+                Number.isFinite(
+                  item.value,
+                ) &&
+                item.value >= 0,
+            );
+
+          if (
+            safeData.length ===
+            0
+          ) {
+            return [];
+          }
+
+          const max =
+            Math.max(
+              ...safeData.map(
+                (item) =>
+                  item.value,
+              ),
+              1,
+            );
+
+          const min =
+            Math.min(
+              ...safeData.map(
+                (item) =>
+                  item.value,
+              ),
+            );
+
+          const range =
+            Math.max(
+              max - min,
+              1,
+            );
+
+          return safeData.map(
+            (
+              item,
+              index,
+            ) => {
+              const x =
+                safeData.length ===
+                1
+                  ? 50
+                  : (index /
+                      (safeData.length -
+                        1)) *
+                    100;
+
+              const normalized =
+                (item.value -
+                  min) /
+                range;
+
+              const y =
+                88 -
+                normalized *
+                  68;
+
+              return {
+                ...item,
+                x,
+                y,
+              };
+            },
+          );
+        }, [data]);
 
       if (
-        safeData.length === 0
+        points.length < 2
       ) {
-        return [];
+        return (
+          <View
+            style={
+              styles.chartEmpty
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.chartEmptyText
+              }
+            >
+              Not enough activity data
+            </AppText>
+          </View>
+        );
       }
 
-      const max = Math.max(
-        ...safeData.map(
-          (item) => item.value,
-        ),
-        1,
-      );
-
-      const min = Math.min(
-        ...safeData.map(
-          (item) => item.value,
-        ),
-      );
-
-      const range =
-        Math.max(
-          max - min,
-          1,
-        );
-
-      return safeData.map(
-        (
-          item,
-          index,
-        ) => {
-          const x =
-            safeData.length === 1
-              ? 50
-              : (index /
-                  (safeData.length -
-                    1)) *
-                100;
-
-          const normalized =
-            (item.value -
-              min) /
-            range;
-
-          const y =
-            88 -
-            normalized * 68;
-
-          return {
-            ...item,
-            x,
-            y,
-          };
-        },
-      );
-    }, [data]);
-
-    if (points.length < 2) {
       return (
         <View
           style={
-            styles.chartEmpty
+            styles.chartContainer
           }
         >
-          <AppText
+          <View
+            style={[
+              styles.gridLine,
+              styles.gridLineTop,
+            ]}
+          />
+
+          <View
+            style={[
+              styles.gridLine,
+              styles.gridLineMiddle,
+            ]}
+          />
+
+          <View
+            style={[
+              styles.gridLine,
+              styles.gridLineBottom,
+            ]}
+          />
+
+          <View
             style={
-              styles.chartEmptyText
+              styles.chartArea
             }
           >
-            Not enough activity data
-          </AppText>
-        </View>
-      );
-    }
+            {points.map(
+              (
+                point,
+                index,
+              ) => {
+                if (
+                  index ===
+                  points.length - 1
+                ) {
+                  return null;
+                }
 
-    return (
-      <View
-        style={
-          styles.chartContainer
-        }
-      >
-        {/* GRID */}
+                const next =
+                  points[
+                    index + 1
+                  ];
 
-        <View
-          style={[
-            styles.gridLine,
-            { top: "25%" },
-          ]}
-        />
+                const dx =
+                  next.x -
+                  point.x;
 
-        <View
-          style={[
-            styles.gridLine,
-            { top: "50%" },
-          ]}
-        />
+                const dy =
+                  next.y -
+                  point.y;
 
-        <View
-          style={[
-            styles.gridLine,
-            { top: "75%" },
-          ]}
-        />
+                const length =
+                  Math.sqrt(
+                    dx * dx +
+                      dy * dy,
+                  );
 
-        {/* GRAPH */}
+                const angle =
+                  Math.atan2(
+                    dy,
+                    dx,
+                  ) *
+                  (180 /
+                    Math.PI);
 
-        <View
-          style={
-            styles.chartArea
-          }
-        >
-          {points.map(
-            (
-              point,
-              index,
-            ) => {
-              if (
-                index ===
-                points.length -
-                  1
-              ) {
-                return null;
-              }
-
-              const next =
-                points[
-                  index + 1
-                ];
-
-              const dx =
-                next.x -
-                point.x;
-
-              const dy =
-                next.y -
-                point.y;
-
-              const length =
-                Math.sqrt(
-                  dx * dx +
-                    dy * dy,
+                return (
+                  <View
+                    key={`line-${point.label}-${index}`}
+                    style={[
+                      styles.chartLine,
+                      {
+                        width:
+                          `${length}%`,
+                        left:
+                          `${point.x}%`,
+                        top:
+                          `${point.y}%`,
+                        transform: [
+                          {
+                            rotate: `${angle}deg`,
+                          },
+                        ],
+                      },
+                    ]}
+                  />
                 );
+              },
+            )}
 
-              const angle =
-                Math.atan2(
-                  dy,
-                  dx,
-                ) *
-                (180 /
-                  Math.PI);
-
-              return (
+            {points.map(
+              (
+                point,
+                index,
+              ) => (
                 <View
-                  key={`line-${index}`}
+                  key={`point-${point.label}-${index}`}
                   style={[
-                    styles.chartLine,
+                    styles.chartPoint,
                     {
-                      width:
-                        `${length}%`,
                       left:
                         `${point.x}%`,
                       top:
                         `${point.y}%`,
-                      transform: [
-                        {
-                          rotate: `${angle}deg`,
-                        },
-                      ],
                     },
                   ]}
                 />
-              );
-            },
-          )}
-
-          {points.map(
-            (
-              point,
-              index,
-            ) => (
-              <View
-                key={`point-${index}`}
-                style={[
-                  styles.chartPoint,
-                  {
-                    left:
-                      `${point.x}%`,
-                    top:
-                      `${point.y}%`,
-                  },
-                ]}
-              />
-            ),
-          )}
+              ),
+            )}
+          </View>
         </View>
-      </View>
-    );
-  },
-);
+      );
+    },
+  );
+
+ActivityChart.displayName =
+  "ActivityChart";
 
 /* ============================================================
    MAIN COMPONENT
@@ -352,24 +391,53 @@ function FixxamActivityCard({
       ? data.chartData
       : [];
 
+  const firstLabel =
+    chartData[0]
+      ?.label ?? "";
+
+  const lastLabel =
+    chartData[
+      chartData.length -
+        1
+    ]?.label ?? "";
+
   return (
     <Pressable
-      onPress={onPress}
-      disabled={!onPress}
+      disabled={
+        !onPress
+      }
       accessibilityRole={
-        onPress ? "button" : undefined
+        onPress
+          ? "button"
+          : undefined
+      }
+      accessibilityLabel={
+        onPress
+          ? "Open Fixxam activity details"
+          : undefined
       }
       accessibilityState={{
-        disabled: !onPress,
+        disabled:
+          !onPress,
       }}
-      style={({ pressed }) => [
+      onPress={
+        onPress
+      }
+      style={({
+        pressed,
+      }) => [
         pressed &&
-          onPress &&
-          styles.cardPressed,
+        onPress
+          ? styles.cardPressed
+          : null,
       ]}
     >
       <AppCard
-        style={styles.card}
+        role="customer"
+        variant="outlined"
+        style={
+          styles.card
+        }
       >
         {/* ======================================================
             HEADER
@@ -390,16 +458,23 @@ function FixxamActivityCard({
                 styles.activityIcon
               }
             >
-              <Ionicons
-                name="pulse-outline"
-                size={17}
-                color="#2563EB"
+              <AppIcon
+                name="info"
+                role="customer"
+                size="sm"
+                state="active"
               />
             </View>
 
-            <View>
+            <View
+              style={
+                styles.headerText
+              }
+            >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.title
                 }
@@ -408,6 +483,9 @@ function FixxamActivityCard({
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
                 style={
                   styles.subtitle
                 }
@@ -417,7 +495,9 @@ function FixxamActivityCard({
             </View>
           </View>
 
-          {/* PERIOD */}
+          {/* ====================================================
+              PERIOD
+          ==================================================== */}
 
           {onPeriodChange ? (
             <View
@@ -425,41 +505,58 @@ function FixxamActivityCard({
                 styles.periodContainer
               }
             >
-              {(
-                [
-                  "7D",
-                  "30D",
-                  "90D",
-                ] as const
-              ).map(
-                (item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() =>
-                      onPeriodChange(
-                        item,
-                      )
-                    }
-                    style={[
-                      styles.periodButton,
-                      period ===
-                        item &&
-                        styles.periodButtonActive,
-                    ]}
-                  >
-                    <AppText
-                      weight="bold"
-                      style={[
-                        styles.periodText,
-                        period ===
-                          item &&
-                          styles.periodTextActive,
+              {PERIODS.map(
+                (item) => {
+                  const active =
+                    period ===
+                    item;
+
+                  return (
+                    <Pressable
+                      key={
+                        item
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`Show ${item} activity`}
+                      accessibilityState={{
+                        selected:
+                          active,
+                      }}
+                      onPress={() =>
+                        onPeriodChange(
+                          item,
+                        )
+                      }
+                      style={({
+                        pressed,
+                      }) => [
+                        styles.periodButton,
+
+                        active
+                          ? styles.periodButtonActive
+                          : null,
+
+                        pressed
+                          ? styles.periodPressed
+                          : null,
                       ]}
                     >
-                      {item}
-                    </AppText>
-                  </Pressable>
-                ),
+                      <AppText
+                        variant="caption"
+                        weight="bold"
+                        style={[
+                          styles.periodText,
+
+                          active
+                            ? styles.periodTextActive
+                            : null,
+                        ]}
+                      >
+                        {item}
+                      </AppText>
+                    </Pressable>
+                  );
+                },
               )}
             </View>
           ) : (
@@ -469,6 +566,7 @@ function FixxamActivityCard({
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.singlePeriodText
@@ -490,6 +588,8 @@ function FixxamActivityCard({
           }
         >
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.volumeLabel
             }
@@ -498,7 +598,9 @@ function FixxamActivityCard({
           </AppText>
 
           <AppText
+            variant="heading1"
             weight="bold"
+            numberOfLines={1}
             style={
               styles.volumeValue
             }
@@ -514,7 +616,9 @@ function FixxamActivityCard({
         ====================================================== */}
 
         <ActivityChart
-          data={chartData}
+          data={
+            chartData
+          }
         />
 
         {/* ======================================================
@@ -522,35 +626,35 @@ function FixxamActivityCard({
         ====================================================== */}
 
         {chartData.length >=
-          2 && (
+        2 ? (
           <View
             style={
               styles.chartLabels
             }
           >
             <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
               style={
                 styles.chartLabel
               }
             >
-              {chartData[0]
-                ?.label ?? ""}
+              {firstLabel}
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
               style={
                 styles.chartLabel
               }
             >
-              {
-                chartData[
-                  chartData.length -
-                    1
-                ]?.label
-              }
+              {lastLabel}
             </AppText>
           </View>
-        )}
+        ) : null}
 
         {/* ======================================================
             STATS
@@ -561,14 +665,13 @@ function FixxamActivityCard({
             styles.statsContainer
           }
         >
-          {/* TRANSACTIONS */}
-
           <View
             style={
               styles.stat
             }
           >
             <AppText
+              variant="bodyLarge"
               weight="bold"
               style={
                 styles.statValue
@@ -580,6 +683,8 @@ function FixxamActivityCard({
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.statLabel
               }
@@ -594,14 +699,13 @@ function FixxamActivityCard({
             }
           />
 
-          {/* SUCCESS */}
-
           <View
             style={
               styles.stat
             }
           >
             <AppText
+              variant="bodyLarge"
               weight="bold"
               style={
                 styles.statValue
@@ -614,6 +718,8 @@ function FixxamActivityCard({
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.statLabel
               }
@@ -628,8 +734,6 @@ function FixxamActivityCard({
             }
           />
 
-          {/* GROWTH */}
-
           <View
             style={
               styles.stat
@@ -640,29 +744,31 @@ function FixxamActivityCard({
                 styles.growthRow
               }
             >
-              <Ionicons
+              <AppIcon
                 name={
                   isPositive
-                    ? "trending-up-outline"
-                    : "trending-down-outline"
+                    ? "arrow-up"
+                    : "down"
                 }
-                size={15}
-                color={
+                role="customer"
+                size="xs"
+                state={
                   isPositive
-                    ? "#16A34A"
-                    : "#DC2626"
+                    ? "success"
+                    : "error"
                 }
               />
 
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 style={[
                   styles.growthValue,
                   {
                     color:
                       isPositive
-                        ? "#16A34A"
-                        : "#DC2626",
+                        ? Colors.success
+                        : Colors.error,
                   },
                 ]}
               >
@@ -677,6 +783,8 @@ function FixxamActivityCard({
             </View>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.statLabel
               }
@@ -701,55 +809,94 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      marginTop: 16,
-      marginHorizontal: 20,
-      padding: 18,
-      borderRadius: 20,
-      backgroundColor: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     cardPressed: {
-      opacity: 0.92,
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
     },
 
-    /* ========================================================
-       HEADER
-    ======================================================== */
-
     header: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     headerLeft: {
-      flexDirection: "row",
-      alignItems: "center",
       flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    headerText: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     activityIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 12,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      marginRight: 10,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     title: {
-      fontSize: 16,
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 11,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
@@ -757,50 +904,86 @@ const styles =
     ======================================================== */
 
     periodContainer: {
-      flexDirection: "row",
-      padding: 3,
-      borderRadius: 10,
+      flexShrink: 0,
+
+      flexDirection:
+        "row",
+
+      padding:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     periodButton: {
-      minWidth: 38,
-      height: 28,
-      borderRadius: 8,
-      alignItems: "center",
+      minWidth:
+        FixxamTokens.size.minimumTouchTarget,
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     periodButtonActive: {
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    periodPressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
     },
 
     periodText: {
-      fontSize: 10,
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     periodTextActive: {
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     singlePeriod: {
-      paddingHorizontal: 10,
-      height: 28,
-      borderRadius: 9,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     singlePeriodText: {
-      fontSize: 10,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -808,20 +991,24 @@ const styles =
     ======================================================== */
 
     volumeSection: {
-      marginTop: 18,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     volumeLabel: {
-      fontSize: 12,
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     volumeValue: {
-      marginTop: 3,
-      fontSize: 28,
-      lineHeight: 34,
-      color: "#111827",
-      letterSpacing: -0.5,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
+
+      letterSpacing:
+        -0.5,
     },
 
     /* ========================================================
@@ -830,9 +1017,15 @@ const styles =
 
     chartContainer: {
       height: 108,
-      marginTop: 12,
-      position: "relative",
-      overflow: "hidden",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      position:
+        "relative",
+
+      overflow:
+        "hidden",
     },
 
     chartArea: {
@@ -840,65 +1033,115 @@ const styles =
     },
 
     gridLine: {
-      position: "absolute",
+      position:
+        "absolute",
+
       left: 0,
+
       right: 0,
+
       height:
         StyleSheet.hairlineWidth,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
+    },
+
+    gridLineTop: {
+      top: "25%",
+    },
+
+    gridLineMiddle: {
+      top: "50%",
+    },
+
+    gridLineBottom: {
+      top: "75%",
     },
 
     chartLine: {
-      position: "absolute",
+      position:
+        "absolute",
+
       height: 2,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#2563EB",
+        CustomerColors.primary,
+
       transformOrigin:
         "left center",
-      borderRadius: 2,
     },
 
     chartPoint: {
-      position: "absolute",
+      position:
+        "absolute",
+
       width: 7,
+
       height: 7,
-      marginLeft: -3.5,
-      marginTop: -3.5,
-      borderRadius: 4,
-      backgroundColor:
-        "#FFFFFF",
+
+      marginLeft:
+        -3.5,
+
+      marginTop:
+        -3.5,
+
       borderWidth: 2,
+
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     chartEmpty: {
       height: 108,
-      marginTop: 12,
-      borderRadius: 14,
-      backgroundColor:
-        "#F8FAFC",
-      alignItems: "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     chartEmptyText: {
-      fontSize: 12,
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     chartLabels: {
-      flexDirection: "row",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection:
+        "row",
+
       justifyContent:
         "space-between",
-      marginTop: 2,
     },
 
     chartLabel: {
-      fontSize: 10,
-      color: "#94A3B8",
+      maxWidth:
+        "45%",
+
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
@@ -906,47 +1149,70 @@ const styles =
     ======================================================== */
 
     statsContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 16,
-      paddingTop: 15,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderTopWidth:
         StyleSheet.hairlineWidth,
+
       borderTopColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     stat: {
       flex: 1,
-      alignItems: "center",
+
+      minWidth: 0,
+
+      alignItems:
+        "center",
     },
 
     statDivider: {
       width:
         StyleSheet.hairlineWidth,
+
       height: 34,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     statValue: {
-      fontSize: 14,
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     statLabel: {
-      marginTop: 3,
-      fontSize: 10,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     growthRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 2,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
     },
 
     growthValue: {
-      fontSize: 14,
+      color:
+        Colors.success,
     },
   });

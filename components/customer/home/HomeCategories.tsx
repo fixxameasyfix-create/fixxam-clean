@@ -1,51 +1,88 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
-  View,
-  TouchableOpacity,
+  ActivityIndicator,
+  Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { useRouter } from "expo-router";
+import {
+  useRouter,
+} from "expo-router";
 
-import { AppText } from "@/components/ui";
-import AppIcon from "@/components/common/AppIcon";
+import Toast from "react-native-toast-message";
 
-import { getCategories } from "@/firebase/queries/categories";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+/*
+ * IMPORTANT:
+ *
+ * This is the existing dynamic service/category
+ * icon renderer.
+ *
+ * Keep it because Firebase provides:
+ * icon
+ * color
+ * backgroundColor
+ */
+import ServiceIcon from "@/components/common/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  getCategories,
+} from "@/firebase/queries/categories";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Category = {
   id: string;
+
   name: string;
+
   icon?: string;
+
   color?: string;
+
   backgroundColor?: string;
 };
 
-export default function HomeCategories() {
-  const router = useRouter();
+/* ============================================================
+   CONSTANTS
+============================================================ */
 
-  const [categories, setCategories] =
-    useState<Category[]>([]);
+const HOME_CATEGORY_LIMIT = 8;
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+/* ============================================================
+   HELPERS
+============================================================ */
 
-  async function loadCategories() {
-    try {
-      const snapshot = await getCategories();
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
 
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...(doc.data() as Omit<Category, "id">),
-      }));
-
-      setCategories(data);
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-   function shortName(name: string) {
+function shortName(
+  name: string,
+): string {
   switch (name) {
     case "Home Services":
       return "Home";
@@ -60,10 +97,10 @@ export default function HomeCategories() {
       return "Security";
 
     case "Automotive Services":
-      return "Automotiv";
+      return "Automotive";
 
     case "Technology Services":
-      return "Technolog";
+      return "Technology";
 
     case "Beauty & Personal Care":
       return "Beauty";
@@ -97,138 +134,522 @@ export default function HomeCategories() {
   }
 }
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+export default function HomeCategories() {
+  const router =
+    useRouter();
+
+  const [
+    categories,
+    setCategories,
+  ] =
+    useState<Category[]>([]);
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  /* ==========================================================
+     LOAD CATEGORIES
+  ========================================================== */
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCategories =
+      async () => {
+        try {
+          setLoading(true);
+
+          const snapshot =
+            await getCategories();
+
+          if (!active) {
+            return;
+          }
+
+          const data =
+            snapshot.docs
+              .map(
+                (
+                  document,
+                ): Category | null => {
+                  const raw =
+                    document.data() as Partial<
+                      Omit<
+                        Category,
+                        "id"
+                      >
+                    >;
+
+                  const name =
+                    cleanText(
+                      raw.name,
+                    );
+
+                  if (
+                    !document.id ||
+                    !name
+                  ) {
+                    return null;
+                  }
+
+                  return {
+                    id:
+                      document.id,
+
+                    name,
+
+                    icon:
+                      cleanText(
+                        raw.icon,
+                      ) ||
+                      undefined,
+
+                    color:
+                      cleanText(
+                        raw.color,
+                      ) ||
+                      undefined,
+
+                    backgroundColor:
+                      cleanText(
+                        raw.backgroundColor,
+                      ) ||
+                      undefined,
+                  };
+                },
+              )
+              .filter(
+                (
+                  item,
+                ): item is Category =>
+                  item !== null,
+              );
+
+          setCategories(
+            data,
+          );
+        } catch (error) {
+          console.error(
+            "HOME_CATEGORIES_LOAD_ERROR",
+            error,
+          );
+
+          if (!active) {
+            return;
+          }
+
+          setCategories([]);
+
+          Toast.show({
+            type: "error",
+            text1:
+              "Unable to load categories",
+            text2:
+              "Please check your connection and try again.",
+          });
+        } finally {
+          if (active) {
+            setLoading(false);
+          }
+        }
+      };
+
+    void loadCategories();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /* ==========================================================
+     VISIBLE CATEGORIES
+  ========================================================== */
+
+  const visibleCategories =
+    useMemo(
+      () =>
+        categories.slice(
+          0,
+          HOME_CATEGORY_LIMIT,
+        ),
+      [categories],
+    );
+
+  /* ==========================================================
+     SEE ALL
+  ========================================================== */
+
+  const handleSeeAll =
+    useCallback(() => {
+      router.push(
+        "/(customer)/details/categories",
+      );
+    }, [router]);
+
+  /* ==========================================================
+     CATEGORY
+  ========================================================== */
+
+  const handleCategoryPress =
+    useCallback(
+      (
+        categoryId: string,
+      ) => {
+        const safeId =
+          categoryId.trim();
+
+        if (!safeId) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/details/categories/[id]",
+
+          params: {
+            id: safeId,
+          },
+        } as const);
+      },
+      [router],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Categories
         </AppText>
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() =>
-            router.push(
-              "/(customer)/details/categories"
-            )
+        <Pressable
+          onPress={
+            handleSeeAll
           }
-        >
-          <AppText style={styles.seeAll}>
-            See All
-          </AppText>
-        </TouchableOpacity>
-      </View>
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="See all categories"
+          style={({
+            pressed,
+          }) => [
+            styles.seeAllButton,
 
-      <View style={styles.grid}>
-        {categories.slice(0, 8).map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            activeOpacity={0.8}
-            style={styles.card}
-            onPress={() =>
-              router.push({
-                pathname:
-                  "/(customer)/details/categories/[id]",
-                params: {
-                  id: item.id,
-                },
-              } as const)
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.seeAll
             }
           >
-            <AppIcon
-              icon={item.icon}
-              color={item.color}
-              backgroundColor={
-                item.backgroundColor
-              }
-              size={28}
-              containerSize={56}
-              borderRadius={16}
-            />
+            See All
+          </AppText>
 
-            <AppText
-              weight="bold"
-              numberOfLines={4}
-              style={styles.cardTitle}
-            >
-              {shortName(item.name)}
-            </AppText>
-          </TouchableOpacity>
-        ))}
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
+        </Pressable>
       </View>
+
+      {/* ======================================================
+          LOADING
+      ====================================================== */}
+
+      {loading ? (
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading categories...
+          </AppText>
+        </View>
+      ) : (
+        /* ====================================================
+           GRID
+        ==================================================== */
+
+        <View
+          style={
+            styles.grid
+          }
+        >
+          {visibleCategories.map(
+            (item) => (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  handleCategoryPress(
+                    item.id,
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.name} category`}
+                style={({
+                  pressed,
+                }) => [
+                  styles.card,
+
+                  pressed
+                    ? styles.cardPressed
+                    : null,
+                ]}
+              >
+                {/* ===========================================
+                    DYNAMIC FIREBASE ICON
+
+                    Preserve existing ServiceIcon.
+                =========================================== */}
+
+                <ServiceIcon
+                  icon={
+                    item.icon
+                  }
+                  color={
+                    item.color
+                  }
+                  backgroundColor={
+                    item.backgroundColor
+                  }
+                  size={28}
+                  containerSize={56}
+                  borderRadius={16}
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  numberOfLines={2}
+                  style={
+                    styles.cardTitle
+                  }
+                >
+                  {shortName(
+                    item.name,
+                  )}
+                </AppText>
+              </Pressable>
+            ),
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 0,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  title: {
-    fontSize: 20,
-    color: "#0F172A",
-  },
-
-  seeAll: {
-    fontSize: 15,
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-
-  card: {
-    width: "21%",
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 18,
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-
-    marginBottom: 14,
-
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+    container: {
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  cardTitle: {
-    marginTop: 8,
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    fontSize: 12,
+      flexDirection: "row",
 
-    lineHeight: 15,
+      justifyContent:
+        "space-between",
 
-    textAlign: "center",
+      alignItems: "center",
+    },
 
-    color: "#0F172A",
-  },
-});
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+    },
+
+    seeAll: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       GRID
+    ======================================================== */
+
+    grid: {
+      flexDirection: "row",
+
+      flexWrap: "wrap",
+
+      justifyContent:
+        "space-between",
+    },
+
+    card: {
+      width: "23%",
+
+      minHeight: 112,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      alignItems: "center",
+
+      justifyContent:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    cardPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    cardTitle: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 16,
+
+      textAlign: "center",
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
+      minHeight: 140,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+  });

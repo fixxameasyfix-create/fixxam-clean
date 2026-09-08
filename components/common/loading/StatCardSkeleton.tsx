@@ -1,35 +1,60 @@
-import React from "react";
+import React, { memo } from "react";
 
 import {
+  StyleProp,
   StyleSheet,
   View,
+  ViewStyle,
 } from "react-native";
 
 import SkeletonBox from "./SkeletonBox";
 
-export default function StatCardSkeleton() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+export interface StatCardSkeletonProps {
+  style?: StyleProp<ViewStyle>;
+}
+
+function StatCardSkeleton({
+  style,
+}: StatCardSkeletonProps) {
   return (
-    <View style={styles.card}>
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading statistics"
+      style={[
+        styles.card,
+        style,
+      ]}
+    >
       <View style={styles.row}>
-        <View>
+        <View style={styles.content}>
           <SkeletonBox
-            width={70}
+            width={72}
             height={30}
-            borderRadius={8}
+            borderRadius={
+              FixxamTokens.radius.sm
+            }
           />
 
           <SkeletonBox
-            width={90}
+            width={92}
             height={14}
-            borderRadius={6}
-            style={styles.space}
+            borderRadius={
+              FixxamTokens.radius.sm
+            }
           />
         </View>
 
         <SkeletonBox
-          width={50}
-          height={50}
-          borderRadius={15}
+          width={52}
+          height={52}
+          borderRadius={
+            FixxamTokens.radius.lg
+          }
         />
       </View>
     </View>
@@ -40,22 +65,41 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
 
-    backgroundColor: "#FFFFFF",
+    minWidth: 0,
 
-    borderRadius: 20,
+    backgroundColor:
+      Colors.surface,
 
-    padding: 18,
+    borderRadius:
+      FixxamTokens.radius.card,
+
+    padding:
+      FixxamTokens.spacing.card,
+
+    borderWidth:
+      StyleSheet.hairlineWidth,
+
+    borderColor:
+      Colors.border,
   },
 
   row: {
     flexDirection: "row",
 
-    justifyContent: "space-between",
-
     alignItems: "center",
+
+    justifyContent: "space-between",
   },
 
-  space: {
-    marginTop: 10,
+  content: {
+    flex: 1,
+
+    marginRight:
+      FixxamTokens.spacing.md,
+
+    gap:
+      FixxamTokens.spacing.sm,
   },
 });
+
+export default memo(StatCardSkeleton);

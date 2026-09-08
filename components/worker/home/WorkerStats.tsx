@@ -1,21 +1,33 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import useWorkerDashboard from "@/hooks/worker/useWorkerDashboard";
 
 import {
   StatCardSkeleton,
 } from "@/components/common/loading";
-
-import {
-  AppText,
-} from "@/components/ui";
 
 import WorkerStatusCard from "./WorkerStatusCard";
 
@@ -25,53 +37,164 @@ import WorkerStatusCard from "./WorkerStatusCard";
 
 type JobItemProps = {
   label: string;
+
   value: number;
-  icon: React.ComponentProps<
-    typeof Ionicons
-  >["name"];
+
+  icon: AppIconName;
+
   iconColor: string;
+
   backgroundColor: string;
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getSafeCount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+/* ==============================================================
+   JOB ITEM
+============================================================== */
+
+const JobItem =
+  memo(
+    function JobItem({
+      label,
+      value,
+      icon,
+      iconColor,
+      backgroundColor,
+    }: JobItemProps) {
+      return (
+        <View
+          style={
+            styles.jobItem
+          }
+        >
+          <View
+            style={[
+              styles.jobIcon,
+
+              {
+                backgroundColor,
+              },
+            ]}
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              size="sm"
+              color={
+                iconColor
+              }
+            />
+          </View>
+
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            style={
+              styles.jobValue
+            }
+          >
+            {value}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            center
+            style={
+              styles.jobLabel
+            }
+          >
+            {label}
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+JobItem.displayName =
+  "WorkerStatsJobItem";
 
 /* ==============================================================
    WORKER STATS
 ============================================================== */
 
-export default function WorkerStats() {
+function WorkerStats() {
   const dashboard =
     useWorkerDashboard();
 
   const {
     loading,
-    pending,
-    active,
-    completed,
     rating,
     reviewCount,
     online,
     toggleOnline,
   } = dashboard;
 
+  /* ============================================================
+     COUNTS
+  ============================================================ */
+
+  const pending =
+    getSafeCount(
+      dashboard.pending,
+    );
+
+  const active =
+    getSafeCount(
+      dashboard.active,
+    );
+
+  const completed =
+    getSafeCount(
+      dashboard.completed,
+    );
+
   /*
    * Some versions of useWorkerDashboard
    * may not expose cancelled yet.
    */
   const cancelled =
-    "cancelled" in dashboard &&
-    typeof dashboard.cancelled ===
-      "number"
-      ? dashboard.cancelled
-      : 0;
-
-  /* ============================================================
-     TOTAL JOBS
-  ============================================================ */
+    getSafeCount(
+      "cancelled" in dashboard
+        ? dashboard.cancelled
+        : 0,
+    );
 
   const totalJobs =
-    pending +
-    active +
-    cancelled +
-    completed;
+    useMemo(
+      () =>
+        pending +
+        active +
+        cancelled +
+        completed,
+      [
+        active,
+        cancelled,
+        completed,
+        pending,
+      ],
+    );
 
   /* ============================================================
      LOADING
@@ -84,10 +207,6 @@ export default function WorkerStats() {
           styles.container
         }
       >
-        {/* ====================================================
-            JOB BALANCE SKELETON
-        ==================================================== */}
-
         <View
           style={
             styles.balanceSkeleton
@@ -96,18 +215,21 @@ export default function WorkerStats() {
           <StatCardSkeleton />
         </View>
 
-        {/* ====================================================
-            ONLINE / OFFLINE
-        ==================================================== */}
-
-        <WorkerStatusCard
-          rating={0}
-          reviewCount={0}
-          online={false}
-          onToggleOnline={
-            toggleOnline
+        <View
+          pointerEvents="none"
+          style={
+            styles.loadingStatus
           }
-        />
+        >
+          <WorkerStatusCard
+            rating={0}
+            reviewCount={0}
+            online={false}
+            onToggleOnline={
+              toggleOnline
+            }
+          />
+        </View>
       </View>
     );
   }
@@ -123,7 +245,7 @@ export default function WorkerStats() {
       }
     >
       {/* ======================================================
-          JOB BALANCE CARD
+          JOB OVERVIEW
       ====================================================== */}
 
       <View
@@ -140,8 +262,6 @@ export default function WorkerStats() {
             styles.balanceTop
           }
         >
-          {/* TOTAL JOBS */}
-
           <View
             style={
               styles.totalSection
@@ -152,13 +272,16 @@ export default function WorkerStats() {
                 styles.balanceLabelRow
               }
             >
-              <Ionicons
-                name="briefcase-outline"
-                size={17}
-                color="#64748B"
+              <AppIcon
+                name="jobs"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.balanceLabel
@@ -174,6 +297,7 @@ export default function WorkerStats() {
               }
             >
               <AppText
+                variant="heading1"
                 weight="bold"
                 style={
                   styles.totalValue
@@ -187,13 +311,17 @@ export default function WorkerStats() {
                   styles.jobsBadge
                 }
               >
-                <Ionicons
-                  name="stats-chart-outline"
-                  size={13}
-                  color="#FF6B00"
+                <AppIcon
+                  name="grid"
+                  role="worker"
+                  size="xs"
+                  color={
+                    WorkerColors.primary
+                  }
                 />
 
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.badgeText
@@ -219,14 +347,17 @@ export default function WorkerStats() {
                 styles.completedIcon
               }
             >
-              <Ionicons
-                name="checkmark-circle"
-                size={17}
-                color="#16A34A"
+              <AppIcon
+                name="success"
+                size="sm"
+                color={
+                  Colors.success
+                }
               />
             </View>
 
             <AppText
+              variant="heading3"
               weight="bold"
               style={
                 styles.completedValue
@@ -236,6 +367,8 @@ export default function WorkerStats() {
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.completedLabel
               }
@@ -264,14 +397,18 @@ export default function WorkerStats() {
             styles.breakdown
           }
         >
-          {/* PENDING */}
-
           <JobItem
             label="Pending"
-            value={pending}
-            icon="time-outline"
-            iconColor="#F97316"
-            backgroundColor="#FFF3E8"
+            value={
+              pending
+            }
+            icon="clock"
+            iconColor={
+              Colors.warning
+            }
+            backgroundColor={
+              Colors.warningSoft
+            }
           />
 
           <View
@@ -279,15 +416,19 @@ export default function WorkerStats() {
               styles.verticalLine
             }
           />
-
-          {/* ACTIVE */}
 
           <JobItem
             label="Active"
-            value={active}
-            icon="briefcase-outline"
-            iconColor="#16A34A"
-            backgroundColor="#ECFDF5"
+            value={
+              active
+            }
+            icon="jobs"
+            iconColor={
+              Colors.info
+            }
+            backgroundColor={
+              Colors.infoSoft
+            }
           />
 
           <View
@@ -295,15 +436,19 @@ export default function WorkerStats() {
               styles.verticalLine
             }
           />
-
-          {/* CANCELLED */}
 
           <JobItem
             label="Cancelled"
-            value={cancelled}
-            icon="close-circle-outline"
-            iconColor="#DC2626"
-            backgroundColor="#FEF2F2"
+            value={
+              cancelled
+            }
+            icon="error"
+            iconColor={
+              Colors.error
+            }
+            backgroundColor={
+              Colors.errorSoft
+            }
           />
 
           <View
@@ -312,20 +457,24 @@ export default function WorkerStats() {
             }
           />
 
-          {/* COMPLETED */}
-
           <JobItem
             label="Completed"
-            value={completed}
-            icon="checkmark-circle-outline"
-            iconColor="#16A34A"
-            backgroundColor="#ECFDF5"
+            value={
+              completed
+            }
+            icon="success"
+            iconColor={
+              Colors.success
+            }
+            backgroundColor={
+              Colors.successSoft
+            }
           />
         </View>
       </View>
 
       {/* ======================================================
-          ONLINE / OFFLINE CARD
+          ONLINE / OFFLINE
       ====================================================== */}
 
       <View
@@ -334,9 +483,15 @@ export default function WorkerStats() {
         }
       >
         <WorkerStatusCard
-          rating={rating}
-          reviewCount={reviewCount}
-          online={online}
+          rating={
+            rating
+          }
+          reviewCount={
+            reviewCount
+          }
+          online={
+            online
+          }
           onToggleOnline={
             toggleOnline
           }
@@ -347,57 +502,15 @@ export default function WorkerStats() {
 }
 
 /* ==============================================================
-   JOB ITEM
+   MEMO
 ============================================================== */
 
-function JobItem({
-  label,
-  value,
-  icon,
-  iconColor,
-  backgroundColor,
-}: JobItemProps) {
-  return (
-    <View
-      style={
-        styles.jobItem
-      }
-    >
-      <View
-        style={[
-          styles.jobIcon,
-          {
-            backgroundColor,
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={15}
-          color={iconColor}
-        />
-      </View>
+WorkerStats.displayName =
+  "WorkerStats";
 
-      <AppText
-        weight="bold"
-        style={
-          styles.jobValue
-        }
-      >
-        {value}
-      </AppText>
-
-      <AppText
-        style={
-          styles.jobLabel
-        }
-        numberOfLines={1}
-      >
-        {label}
-      </AppText>
-    </View>
-  );
-}
+export default memo(
+  WorkerStats,
+);
 
 /* ==============================================================
    STYLES
@@ -406,8 +519,7 @@ function JobItem({
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 10,
-      marginBottom: 12,
+      width: "100%",
     },
 
     /* ========================================================
@@ -415,7 +527,14 @@ const styles =
     ======================================================== */
 
     balanceSkeleton: {
-      marginBottom: 12,
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    loadingStatus: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     /* ========================================================
@@ -425,35 +544,27 @@ const styles =
     balanceCard: {
       width: "100%",
 
-      backgroundColor:
-        "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      borderRadius: 20,
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      paddingHorizontal: 16,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      paddingTop: 15,
+      backgroundColor:
+        Colors.surface,
 
-      paddingBottom: 14,
-
-      shadowColor:
-        "#000000",
-
-      shadowOpacity: 0.06,
-
-      shadowRadius: 10,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -484,33 +595,32 @@ const styles =
       alignItems:
         "center",
 
-      gap: 7,
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     balanceLabel: {
-      fontSize: 13,
-
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     totalRow: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      marginTop: 3,
-
-      gap: 9,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     totalValue: {
-      fontSize: 34,
-
-      lineHeight: 40,
-
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     jobsBadge: {
@@ -520,22 +630,25 @@ const styles =
       alignItems:
         "center",
 
-      gap: 4,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#FFF7ED",
-
-      borderRadius: 999,
-
-      paddingHorizontal: 8,
-
-      paddingVertical: 5,
+        WorkerColors.primarySoft,
     },
 
     badgeText: {
-      fontSize: 9,
-
-      color: "#FF6B00",
+      color:
+        WorkerColors.primary,
     },
 
     /* ========================================================
@@ -543,50 +656,50 @@ const styles =
     ======================================================== */
 
     completedBox: {
+      minWidth: 76,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       alignItems:
         "flex-end",
 
       justifyContent:
         "center",
-
-      minWidth: 72,
-
-      marginLeft: 10,
     },
 
     completedIcon: {
-      width: 30,
+      width: 32,
 
-      height: 30,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        "#ECFDF5",
+      height: 32,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     completedValue: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      fontSize: 18,
-
-      lineHeight: 22,
-
-      color: "#16A34A",
+      color:
+        Colors.success,
     },
 
     completedLabel: {
-      marginTop: 1,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 9,
-
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -594,14 +707,17 @@ const styles =
     ======================================================== */
 
     divider: {
-      height: 1,
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
 
       backgroundColor:
-        "#F1F5F9",
-
-      marginTop: 14,
-
-      marginBottom: 12,
+        Colors.divider,
     },
 
     /* ========================================================
@@ -609,6 +725,8 @@ const styles =
     ======================================================== */
 
     breakdown: {
+      width: "100%",
+
       flexDirection:
         "row",
 
@@ -617,66 +735,61 @@ const styles =
 
       justifyContent:
         "space-between",
-
-      width: "100%",
     },
 
     jobItem: {
       flex: 1,
 
+      minWidth: 0,
+
       alignItems:
         "center",
 
       justifyContent:
         "center",
-
-      minWidth: 0,
     },
 
     jobIcon: {
-      width: 32,
+      width: 34,
 
-      height: 32,
-
-      borderRadius: 10,
+      height: 34,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     jobValue: {
-      marginTop: 5,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-      fontSize: 15,
-
-      lineHeight: 18,
-
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     jobLabel: {
-      marginTop: 1,
+      width: "100%",
 
-      fontSize: 8.5,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      lineHeight: 12,
-
-      color: "#64748B",
-
-      textAlign:
-        "center",
+      color:
+        Colors.textSecondary,
     },
 
     verticalLine: {
-      width: 1,
+      width:
+        StyleSheet.hairlineWidth,
 
       height: 42,
 
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     /* ========================================================
@@ -684,6 +797,7 @@ const styles =
     ======================================================== */
 
     statusCard: {
-      marginTop: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
   });

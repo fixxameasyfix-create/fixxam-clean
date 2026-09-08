@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,40 +8,78 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 export type ServiceCardData = {
   id: string;
+
   name: string;
+
   description: string;
+
   icon: string;
+
   color: string;
+
   backgroundColor: string;
 };
 
 type Props = {
   service: ServiceCardData;
+
   onPress: () => void;
 };
 
-export default function ServiceCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ServiceCard({
   service,
   onPress,
 }: Props) {
+  const description =
+    typeof service.description === "string"
+      ? service.description.trim()
+      : "";
+
   return (
     <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.pressed,
-      ]}
       accessibilityRole="button"
       accessibilityLabel={`View materials for ${service.name}`}
+      onPress={onPress}
+      style={({
+        pressed,
+      }) => [
+        styles.card,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
-      {/* ICON */}
+      {/* ======================================================
+          SERVICE ICON
+      ====================================================== */}
 
       <View
         style={[
@@ -52,133 +92,196 @@ export default function ServiceCard({
       >
         <MaterialCommunityIcons
           name={
-            service.icon as keyof typeof MaterialCommunityIcons.glyphMap
+            service.icon as MaterialIconName
           }
           size={24}
-          color={service.color}
+          color={
+            service.color
+          }
         />
       </View>
 
-      {/* TEXT */}
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
-      <View style={styles.content}>
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.name}
           numberOfLines={1}
+          ellipsizeMode="tail"
         >
           {service.name}
         </AppText>
 
-        {!!service.description && (
+        {description ? (
           <AppText
-            style={styles.description}
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
+            ellipsizeMode="tail"
+            style={
+              styles.description
+            }
           >
-            {service.description}
+            {description}
           </AppText>
-        )}
+        ) : null}
       </View>
 
-      {/* ARROW */}
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
 
-      <View style={styles.arrowContainer}>
-        <Ionicons
-          name="chevron-forward"
-          size={21}
-          color="#94A3B8"
+      <View
+        style={
+          styles.arrowContainer
+        }
+      >
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="muted"
         />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    width: "100%",
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-    minHeight: 82,
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    backgroundColor: "#FFFFFF",
+      flexDirection:
+        "row",
 
-    borderRadius: 18,
+      alignItems:
+        "center",
 
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    marginBottom: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  pressed: {
-    opacity: 0.92,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-  iconContainer: {
-    width: 48,
-    height: 48,
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-    borderRadius: 14,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-    alignItems: "center",
-    justifyContent: "center",
+      flexShrink: 0,
 
-    marginRight: 14,
+      alignItems:
+        "center",
 
-    flexShrink: 0,
-  },
+      justifyContent:
+        "center",
 
-  content: {
-    flex: 1,
-    minWidth: 0,
+      marginRight:
+        FixxamTokens.spacing.md,
 
-    justifyContent: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-  name: {
-    fontSize: 15,
-    lineHeight: 20,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    color: "#111827",
-  },
+    content: {
+      flex: 1,
 
-  description: {
-    marginTop: 2,
+      minWidth: 0,
 
-    fontSize: 11,
-    lineHeight: 16,
+      justifyContent:
+        "center",
+    },
 
-    color: "#64748B",
-  },
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-  arrowContainer: {
-    width: 30,
-    height: 30,
+    /* ========================================================
+       ARROW
+    ======================================================== */
 
-    alignItems: "center",
-    justifyContent: "center",
+    arrowContainer: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    marginLeft: 8,
-  },
-})
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+  });
+
+export default memo(
+  ServiceCard,
+);

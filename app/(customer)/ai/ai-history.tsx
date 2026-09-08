@@ -1,143 +1,281 @@
 import React, {
+  memo,
   useCallback,
-  useEffect,
   useState,
 } from "react";
 
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
   AppText,
 } from "@/components/ui";
 
+import {
+  AppLoader,
+} from "@/components/common";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 import useAiChat, {
-  AiChatHistoryItem,
+  type AiChatHistoryItem,
 } from "@/hooks/ai/useAiChat";
 
 /* ==============================================================
-   HISTORY ITEM
+   HELPERS
 ============================================================== */
 
-function HistoryItem({
-  item,
-  onOpen,
-  onDelete,
-}: {
-  item: AiChatHistoryItem;
-  onOpen: () => void;
-  onDelete: () => void;
-}) {
-  const messageCount =
-    item.messages.length;
+function formatHistoryDate(
+  value: AiChatHistoryItem["createdAt"],
+): string {
+  try {
+    const date =
+      new Date(value);
 
-  const date =
-    new Date(
-      item.createdAt,
-    ).toLocaleDateString(
-      undefined,
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return "Date unavailable";
+    }
+
+    return date.toLocaleDateString(
+      "en-NG",
       {
         day: "numeric",
         month: "short",
         year: "numeric",
       },
     );
+  } catch {
+    return "Date unavailable";
+  }
+}
 
-  return (
-    <Pressable
-      onPress={onOpen}
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${item.title}`}
-      style={({ pressed }) => [
-        styles.historyCard,
+/* ==============================================================
+   HISTORY ITEM
+============================================================== */
 
-        pressed &&
-          styles.historyCardPressed,
-      ]}
-    >
-      {/* ======================================================
-          ICON
-      ====================================================== */}
+type HistoryItemProps = {
+  item: AiChatHistoryItem;
 
-      <View style={styles.historyIcon}>
-        <Ionicons
-          name="chatbubble-ellipses-outline"
-          size={22}
-          color="#2563EB"
-        />
-      </View>
+  deleting: boolean;
 
-      {/* ======================================================
-          CONTENT
-      ====================================================== */}
+  onOpen: () => void;
 
-      <View style={styles.historyContent}>
-        <AppText
-          weight="bold"
-          numberOfLines={1}
-          style={styles.historyTitle}
-        >
-          {item.title}
-        </AppText>
+  onDelete: () => void;
+};
 
-        <AppText
-          numberOfLines={1}
-          style={styles.historyMeta}
-        >
-          {messageCount}{" "}
-          {messageCount === 1
-            ? "message"
-            : "messages"}{" "}
-          • {date}
-        </AppText>
-      </View>
+const HistoryItem =
+  memo(function HistoryItem({
+    item,
+    deleting,
+    onOpen,
+    onDelete,
+  }: HistoryItemProps) {
+    const messageCount =
+      item.messages.length;
 
-      {/* ======================================================
-          DELETE
-      ====================================================== */}
+    const date =
+      formatHistoryDate(
+        item.createdAt,
+      );
 
-      <Pressable
-        onPress={(event) => {
-          event.stopPropagation();
-          onDelete();
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`Delete ${item.title}`}
-        hitSlop={10}
-        style={({ pressed }) => [
-          styles.deleteButton,
-
-          pressed &&
-            styles.deleteButtonPressed,
-        ]}
+    return (
+      <AppCard
+        role="customer"
+        variant="outlined"
+        onPress={onOpen}
+        disabled={deleting}
+        accessibilityLabel={`Open ${item.title}`}
+        style={styles.historyCard}
       >
-        <Ionicons
-          name="trash-outline"
-          size={19}
-          color="#DC2626"
+        {/* ====================================================
+            ICON
+        ==================================================== */}
+
+        <View
+          style={
+            styles.historyIcon
+          }
+        >
+          <AppIcon
+            name="messages"
+            role="customer"
+            size="md"
+            state="active"
+          />
+        </View>
+
+        {/* ====================================================
+            CONTENT
+        ==================================================== */}
+
+        <View
+          style={
+            styles.historyContent
+          }
+        >
+          <AppText
+            variant="bodyLarge"
+            weight="semibold"
+            numberOfLines={1}
+          >
+            {item.title}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.historyMeta
+            }
+          >
+            {messageCount}{" "}
+            {messageCount === 1
+              ? "message"
+              : "messages"}{" "}
+            • {date}
+          </AppText>
+        </View>
+
+        {/* ====================================================
+            DELETE
+        ==================================================== */}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.title}`}
+          accessibilityState={{
+            disabled: deleting,
+            busy: deleting,
+          }}
+          disabled={deleting}
+          hitSlop={8}
+          onPress={(event) => {
+            event.stopPropagation();
+
+            onDelete();
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.deleteButton,
+
+            deleting
+              ? styles.deleteDisabled
+              : null,
+
+            pressed &&
+            !deleting
+              ? styles.deletePressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="delete"
+            role="customer"
+            size="sm"
+            state={
+              deleting
+                ? "muted"
+                : "error"
+            }
+          />
+        </Pressable>
+
+        {/* ====================================================
+            ARROW
+        ==================================================== */}
+
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="muted"
         />
-      </Pressable>
+      </AppCard>
+    );
+  });
 
-      {/* ======================================================
-          ARROW
-      ====================================================== */}
+/* ==============================================================
+   EMPTY STATE
+============================================================== */
 
-      <Ionicons
-        name="chevron-forward"
-        size={19}
-        color="#94A3B8"
+function EmptyHistory({
+  onStartChat,
+}: {
+  onStartChat: () => void;
+}) {
+  return (
+    <View
+      style={
+        styles.emptyContainer
+      }
+    >
+      <View
+        style={
+          styles.emptyIcon
+        }
+      >
+        <AppIcon
+          name="clock"
+          role="customer"
+          size="xl"
+          state="active"
+        />
+      </View>
+
+      <AppText
+        variant="heading2"
+        weight="semibold"
+        center
+      >
+        No saved chats
+      </AppText>
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.emptyMessage
+        }
+      >
+        Conversations you save
+        before starting a new chat
+        will appear here.
+      </AppText>
+
+      <AppButton
+        title="Start a Chat"
+        role="customer"
+        leftIconName="messages"
+        onPress={onStartChat}
+        style={
+          styles.startButton
+        }
       />
-    </Pressable>
+    </View>
   );
 }
 
@@ -155,91 +293,166 @@ export default function AiHistoryScreen() {
   const [
     deletingId,
     setDeletingId,
-  ] = useState<string | null>(
-    null,
-  );
-
-  /* ============================================================
-     DELETE
-  ============================================================ */
-
-  const handleDelete = useCallback(
-    (item: AiChatHistoryItem) => {
-      Alert.alert(
-        "Delete Chat?",
-        `Are you sure you want to delete "${item.title}" from History?`,
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                setDeletingId(item.id);
-
-                await deleteHistoryItem(
-                  item.id,
-                );
-              } catch (error) {
-                console.error(
-                  "HISTORY_DELETE_ERROR:",
-                  error,
-                );
-
-                Alert.alert(
-                  "Delete Failed",
-                  "Unable to delete this chat. Please try again.",
-                );
-              } finally {
-                setDeletingId(null);
-              }
-            },
-          },
-        ],
-      );
-    },
-    [deleteHistoryItem],
-  );
-
-  /* ============================================================
-     OPEN CHAT
-  ============================================================ */
-
-  const handleOpenChat = useCallback(
-    (
-      item: AiChatHistoryItem,
-    ) => {
-      /*
-       * For now we pass the history ID.
-       *
-       * The AI screen can later use this ID
-       * to restore the selected conversation.
-       */
-
-      router.push({
-        pathname:
-          "/(customer)/ai",
-        params: {
-          historyId: item.id,
-        },
-      });
-    },
-    [],
-  );
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   /* ============================================================
      BACK
   ============================================================ */
 
-  const handleBack = useCallback(
-    () => {
-      router.back();
-    },
-    [],
-  );
+  const handleBack =
+    useCallback(() => {
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/ai",
+      );
+    }, []);
+
+  /* ============================================================
+     START CHAT
+  ============================================================ */
+
+  const handleStartChat =
+    useCallback(() => {
+      router.replace(
+        "/(customer)/ai",
+      );
+    }, []);
+
+  /* ============================================================
+     OPEN HISTORY
+  ============================================================ */
+
+  const handleOpenChat =
+    useCallback(
+      (
+        item:
+          AiChatHistoryItem,
+      ) => {
+        router.push({
+          pathname:
+            "/(customer)/ai",
+
+          params: {
+            historyId:
+              item.id,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     DELETE
+  ============================================================ */
+
+  const handleDelete =
+    useCallback(
+      (
+        item:
+          AiChatHistoryItem,
+      ) => {
+        if (deletingId) {
+          return;
+        }
+
+        Alert.alert(
+          "Delete chat?",
+          `Delete "${item.title}" from your chat history?`,
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+
+            {
+              text: "Delete",
+              style:
+                "destructive",
+
+              onPress:
+                async () => {
+                  try {
+                    setDeletingId(
+                      item.id,
+                    );
+
+                    await deleteHistoryItem(
+                      item.id,
+                    );
+                  } catch (
+                    error
+                  ) {
+                    console.error(
+                      "HISTORY_DELETE_ERROR:",
+                      error,
+                    );
+
+                    Alert.alert(
+                      "Delete failed",
+                      "Unable to delete this chat. Please try again.",
+                    );
+                  } finally {
+                    setDeletingId(
+                      null,
+                    );
+                  }
+                },
+            },
+          ],
+        );
+      },
+      [
+        deleteHistoryItem,
+        deletingId,
+      ],
+    );
+
+  /* ============================================================
+     RENDER ITEM
+  ============================================================ */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          AiChatHistoryItem;
+      }) => (
+        <HistoryItem
+          item={item}
+          deleting={
+            deletingId ===
+            item.id
+          }
+          onOpen={() =>
+            handleOpenChat(
+              item,
+            )
+          }
+          onDelete={() =>
+            handleDelete(
+              item,
+            )
+          }
+        />
+      ),
+      [
+        deletingId,
+        handleDelete,
+        handleOpenChat,
+      ],
+    );
 
   /* ============================================================
      LOADING
@@ -247,83 +460,98 @@ export default function AiHistoryScreen() {
 
   if (!historyLoaded) {
     return (
-      <SafeAreaView
-        style={styles.container}
+      <AppScreen
+        role="customer"
+        padded={false}
       >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="small"
-            color="#2563EB"
-          />
-
-          <AppText
-            style={styles.loadingText}
-          >
-            Loading History...
-          </AppText>
-        </View>
-      </SafeAreaView>
+        <AppLoader
+          role="customer"
+          fullScreen
+          message="Loading history..."
+        />
+      </AppScreen>
     );
   }
-
-  /* ============================================================
-     EMPTY
-  ============================================================ */
-
-  const emptyHistory =
-    history.length === 0;
 
   /* ============================================================
      UI
   ============================================================ */
 
   return (
-    <SafeAreaView
-      style={styles.container}
+    <AppScreen
+      role="customer"
+      padded={false}
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
-      <View style={styles.header}>
+      <View
+        style={
+          styles.header
+        }
+      >
         <Pressable
-          onPress={handleBack}
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.backButton,
+          hitSlop={8}
+          onPress={
+            handleBack
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.headerButton,
 
-            pressed &&
-              styles.backButtonPressed,
+            pressed
+              ? styles.headerButtonPressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={23}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            role="customer"
+            size="md"
           />
         </Pressable>
 
-        <View style={styles.headerText}>
+        <View
+          style={
+            styles.headerText
+          }
+        >
           <AppText
-            weight="bold"
-            style={styles.headerTitle}
+            variant="heading3"
+            weight="semibold"
+            numberOfLines={1}
           >
             Chat History
           </AppText>
 
           <AppText
-            style={styles.headerSubtitle}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.headerSubtitle
+            }
           >
             Your saved conversations
           </AppText>
         </View>
 
-        <View style={styles.countBadge}>
+        <View
+          accessibilityRole="text"
+          accessibilityLabel={`${history.length} of 5 saved chats`}
+          style={
+            styles.countBadge
+          }
+        >
           <AppText
-            weight="bold"
-            style={styles.countText}
+            variant="caption"
+            weight="semibold"
+            role="customer"
+            tone="primary"
           >
             {history.length}/5
           </AppText>
@@ -331,95 +559,53 @@ export default function AiHistoryScreen() {
       </View>
 
       {/* ======================================================
-          EMPTY STATE
+          HISTORY LIST
       ====================================================== */}
 
-      {emptyHistory ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIcon}>
-            <Ionicons
-              name="time-outline"
-              size={42}
-              color="#2563EB"
-            />
-          </View>
+      <FlatList
+        data={history}
+        keyExtractor={(
+          item,
+        ) => item.id}
+        renderItem={
+          renderItem
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={[
+          styles.listContent,
 
-          <AppText
-            weight="bold"
-            style={styles.emptyTitle}
-          >
-            No saved chats
-          </AppText>
-
-          <AppText
-            style={styles.emptyMessage}
-          >
-            Conversations you save before
-            starting a new chat will appear
-            here.
-          </AppText>
-
-          <Pressable
-            onPress={() =>
-              router.back()
+          history.length === 0
+            ? styles.emptyListContent
+            : null,
+        ]}
+        ItemSeparatorComponent={
+          ListSeparator
+        }
+        ListEmptyComponent={
+          <EmptyHistory
+            onStartChat={
+              handleStartChat
             }
-            style={({ pressed }) => [
-              styles.startButton,
+          />
+        }
+      />
+    </AppScreen>
+  );
+}
 
-              pressed &&
-                styles.startButtonPressed,
-            ]}
-          >
-            <Ionicons
-              name="chatbubble-outline"
-              size={19}
-              color="#FFFFFF"
-            />
+/* ==============================================================
+   LIST SEPARATOR
+============================================================== */
 
-            <AppText
-              weight="bold"
-              style={styles.startButtonText}
-            >
-              Start a Chat
-            </AppText>
-          </Pressable>
-        </View>
-      ) : (
-        /* ====================================================
-           LIST
-        ==================================================== */
-
-        <FlatList
-          data={history}
-          keyExtractor={(item) =>
-            item.id
-          }
-          contentContainerStyle={
-            styles.listContent
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
-          renderItem={({
-            item,
-          }) => (
-            <HistoryItem
-              item={item}
-              onOpen={() =>
-                handleOpenChat(
-                  item,
-                )
-              }
-              onDelete={() =>
-                handleDelete(
-                  item,
-                )
-              }
-            />
-          )}
-        />
-      )}
-    </SafeAreaView>
+function ListSeparator() {
+  return (
+    <View
+      style={
+        styles.listSeparator
+      }
+    />
   );
 }
 
@@ -429,213 +615,293 @@ export default function AiHistoryScreen() {
 
 const styles =
   StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: "#FFFFFF",
-    },
-
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
-      minHeight: 76,
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection: "row",
+
       alignItems: "center",
-      paddingHorizontal: 20,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
       borderBottomWidth: 1,
-      borderBottomColor: "#EEF2F7",
+
+      borderBottomColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
+    headerButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
     },
 
-    backButtonPressed: {
-      backgroundColor: "#F1F5F9",
+    headerButtonPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 10,
-    },
 
-    headerTitle: {
-      fontSize: 21,
-      lineHeight: 27,
-      color: "#0F172A",
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     headerSubtitle: {
-      marginTop: 2,
-      fontSize: 13,
-      lineHeight: 18,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     countBadge: {
-      minWidth: 42,
-      height: 30,
-      paddingHorizontal: 9,
-      borderRadius: 15,
+      minWidth:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      minHeight: 32,
+
       alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#EFF6FF",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
-    countText: {
-      fontSize: 12,
-      color: "#2563EB",
-    },
-
-    /* ==========================================================
+    /* ========================================================
        LIST
-    ========================================================== */
+    ======================================================== */
 
     listContent: {
-      padding: 18,
-      paddingBottom: 30,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
+
+    emptyListContent: {
+      flexGrow: 1,
+    },
+
+    listSeparator: {
+      height:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       HISTORY CARD
+    ======================================================== */
 
     historyCard: {
-      minHeight: 78,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 14,
-      marginBottom: 11,
-      borderRadius: 18,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E8EEF5",
-      shadowColor: "#000000",
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      shadowOpacity: 0.05,
-      shadowRadius: 8,
-      elevation: 2,
-    },
+      width: "100%",
 
-    historyCardPressed: {
-      backgroundColor: "#F8FAFC",
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      padding:
+        FixxamTokens.spacing.md,
     },
 
     historyIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 15,
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#EFF6FF",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     historyContent: {
       flex: 1,
-      marginLeft: 13,
-      marginRight: 8,
-    },
 
-    historyTitle: {
-      fontSize: 15,
-      lineHeight: 21,
-      color: "#0F172A",
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     historyMeta: {
-      marginTop: 4,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
+
+    /* ========================================================
+       DELETE
+    ======================================================== */
 
     deleteButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
-      marginRight: 3,
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
     },
 
-    deleteButtonPressed: {
-      backgroundColor: "#FEF2F2",
+    deletePressed: {
+      backgroundColor:
+        Colors.errorSoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
-    /* ==========================================================
-       LOADING
-    ========================================================== */
-
-    loadingContainer: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
+    deleteDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
-    loadingText: {
-      marginTop: 10,
-      fontSize: 14,
-      color: "#64748B",
-    },
-
-    /* ==========================================================
-       EMPTY
-    ========================================================== */
+    /* ========================================================
+       EMPTY STATE
+    ======================================================== */
 
     emptyContainer: {
       flex: 1,
+
       alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 40,
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg *
+        2,
     },
 
     emptyIcon: {
-      width: 82,
-      height: 82,
-      borderRadius: 26,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#EFF6FF",
-      marginBottom: 20,
-    },
+      width:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    emptyTitle: {
-      fontSize: 22,
-      lineHeight: 28,
-      color: "#0F172A",
-      textAlign: "center",
+      height:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     emptyMessage: {
-      marginTop: 9,
-      fontSize: 15,
-      lineHeight: 22,
-      color: "#64748B",
-      textAlign: "center",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     startButton: {
-      minHeight: 48,
-      marginTop: 25,
-      paddingHorizontal: 20,
-      borderRadius: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      backgroundColor: "#2563EB",
-    },
+      minWidth: 160,
 
-    startButtonPressed: {
-      opacity: 0.8,
-    },
-
-    startButtonText: {
-      fontSize: 15,
-      color: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

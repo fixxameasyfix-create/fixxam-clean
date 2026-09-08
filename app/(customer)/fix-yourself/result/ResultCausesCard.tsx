@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -15,30 +18,67 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   causes: string[];
 }
 
-export default function ResultCausesCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultCausesCard({
   causes,
 }: Props) {
+  const cleanCauses =
+    useMemo(
+      () =>
+        causes
+          .map(
+            (cause) =>
+              cause.trim(),
+          )
+          .filter(Boolean),
+      [
+        causes,
+      ],
+    );
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
           <MaterialCommunityIcons
             name="alert-circle-outline"
             size={18}
-            color={CustomerColors.primary}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
           style={styles.title}
         >
@@ -46,50 +86,76 @@ export default function ResultCausesCard({
         </AppText>
       </View>
 
-      {causes.length === 0 ? (
-        <View style={styles.emptyState}>
+      {/* ========================================================
+          EMPTY
+      ======================================================== */}
+
+      {cleanCauses.length ===
+      0 ? (
+        <View
+          style={
+            styles.emptyState
+          }
+        >
           <MaterialCommunityIcons
             name="information-outline"
             size={18}
             color={
-              CustomerColors.textSecondary
+              Colors.textMuted
             }
           />
 
           <AppText
-            style={styles.emptyText}
-            color={
-              CustomerColors.textSecondary
+            variant="body"
+            tone="secondary"
+            style={
+              styles.emptyText
             }
           >
-            No possible causes were
-            identified.
+            No possible causes were identified.
           </AppText>
         </View>
       ) : (
-        <View style={styles.list}>
-          {causes.map(
-            (cause, index) => (
+        /* ======================================================
+           LIST
+        ====================================================== */
+
+        <View
+          style={styles.list}
+        >
+          {cleanCauses.map(
+            (
+              cause,
+              index,
+            ) => (
               <View
-                key={`${index}-${cause}`}
+                key={`${cause}-${index}`}
                 style={[
                   styles.item,
+
                   index <
-                    causes.length - 1 &&
-                    styles.itemBorder,
+                  cleanCauses.length -
+                    1
+                    ? styles.itemBorder
+                    : null,
                 ]}
               >
                 <MaterialCommunityIcons
                   name="check-circle"
                   size={18}
                   color={
-                    CustomerColors.success
+                    Colors.success
                   }
-                  style={styles.checkIcon}
+                  style={
+                    styles.checkIcon
+                  }
                 />
 
                 <AppText
-                  style={styles.text}
+                  variant="body"
+                  style={
+                    styles.text
+                  }
                 >
                   {cause}
                 </AppText>
@@ -102,6 +168,10 @@ export default function ResultCausesCard({
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     card: {
@@ -112,12 +182,14 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
       flexDirection: "row",
 
       alignItems: "center",
-
-      marginBottom: 2,
     },
 
     iconContainer: {
@@ -125,83 +197,116 @@ const styles =
 
       height: 34,
 
-      borderRadius: 17,
-
       alignItems: "center",
 
       justifyContent: "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        CustomerColors.diagnosisBackground,
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginLeft: 10,
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
-    list: {
-      borderRadius: 12,
+    /* ========================================================
+       LIST
+    ======================================================== */
 
+    list: {
       overflow: "hidden",
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        CustomerColors.card,
+        Colors.surface,
     },
 
     item: {
       flexDirection: "row",
 
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
 
-      paddingHorizontal: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      paddingVertical: 10,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     itemBorder: {
       borderBottomWidth: 1,
 
       borderBottomColor:
-        CustomerColors.border,
+        Colors.divider,
     },
 
     checkIcon: {
       marginTop: 2,
 
-      marginRight: 10,
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     text: {
       flex: 1,
 
-      fontSize: 14,
+      color:
+        Colors.textPrimary,
 
       lineHeight: 21,
-
-      color:
-        CustomerColors.primaryText,
     },
 
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
     emptyState: {
+      minHeight: 44,
+
       flexDirection: "row",
 
       alignItems: "center",
 
-      paddingVertical: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyText: {
       flex: 1,
 
-      marginLeft: 8,
-
-      fontSize: 14,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
     },
   });
+
+export default memo(
+  ResultCausesCard,
+);

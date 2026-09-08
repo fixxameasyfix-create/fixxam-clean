@@ -1,72 +1,161 @@
-import { StyleSheet } from "react-native";
+import {
+  StyleSheet,
+} from "react-native";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 export default StyleSheet.create({
+  /* ==========================================================
+     OVERLAY
+  ========================================================== */
+
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(15,23,42,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
+
+    padding:
+      FixxamTokens.spacing.xl,
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    backgroundColor:
+      Colors.overlayMedium,
   },
+
+  /* ==========================================================
+     DIALOG
+  ========================================================== */
 
   container: {
     width: "100%",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
+
+    maxWidth: 430,
+
+    padding:
+      FixxamTokens.spacing.xl,
+
+    borderWidth: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.xl,
+
+    backgroundColor:
+      Colors.surface,
+
+    ...FixxamTokens.shadow.card,
   },
+
+  /* ==========================================================
+     ICON
+  ========================================================== */
 
   icon: {
-    alignSelf: "center",
-    marginBottom: 16,
+    alignSelf:
+      "center",
+
+    marginBottom:
+      FixxamTokens.spacing.lg,
   },
 
+  /* ==========================================================
+     TEXT
+  ========================================================== */
+
   title: {
-    fontSize: 20,
-    textAlign: "center",
-    color: "#0F172A",
-    marginBottom: 8,
+    marginBottom:
+      FixxamTokens.spacing.sm,
+
+    textAlign:
+      "center",
+
+    color:
+      Colors.textPrimary,
   },
 
   message: {
-    textAlign: "center",
-    color: "#64748B",
+    marginBottom:
+      FixxamTokens.spacing.xl,
+
+    textAlign:
+      "center",
+
     lineHeight: 22,
-    marginBottom: 24,
+
+    color:
+      Colors.textSecondary,
   },
 
+  /* ==========================================================
+     ACTIONS
+  ========================================================== */
+
   row: {
-    flexDirection: "row",
-    gap: 12,
+    flexDirection:
+      "row",
+
+    gap:
+      FixxamTokens.spacing.md,
   },
 
   cancelButton: {
     flex: 1,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
+
+    minHeight:
+      FixxamTokens.size.buttonHeight,
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    borderWidth: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.button,
+
+    backgroundColor:
+      Colors.disabledBackground,
   },
 
   deleteButton: {
     flex: 1,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "#DC2626",
-    justifyContent: "center",
-    alignItems: "center",
+
+    minHeight:
+      FixxamTokens.size.buttonHeight,
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    borderRadius:
+      FixxamTokens.radius.button,
+
+    backgroundColor:
+      Colors.error,
   },
 
   cancelText: {
-    color: "#334155",
-    fontWeight: "700",
-    fontSize: 15,
+    color:
+      Colors.textSecondary,
   },
 
   deleteText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 15,
+    color:
+      Colors.textInverse,
   },
 });

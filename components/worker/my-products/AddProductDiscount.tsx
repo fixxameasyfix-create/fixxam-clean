@@ -1,14 +1,27 @@
 import React, {
   memo,
+  useCallback,
   useMemo,
+  useState,
 } from "react";
 
 import {
   StyleSheet,
-  Text,
   TextInput,
   View,
 } from "react-native";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -16,8 +29,11 @@ import {
 
 interface Props {
   price: string;
+
   discount: string;
+
   days: string;
+
   saving: boolean;
 
   onChangeDiscount: (
@@ -39,6 +55,8 @@ const MAX_DISCOUNT = 99;
 const MIN_DAYS = 1;
 const MAX_DAYS = 365;
 
+const MAX_DISCOUNT_DECIMALS = 2;
+
 /* ============================================================
    HELPERS
 ============================================================ */
@@ -58,9 +76,61 @@ function parseNumber(
   const parsed =
     Number(normalized);
 
-  return Number.isFinite(parsed)
+  return Number.isFinite(
+    parsed,
+  )
     ? parsed
     : 0;
+}
+
+function formatNaira(
+  value: number,
+): string {
+  const safeValue =
+    Number.isFinite(value) &&
+    value >= 0
+      ? value
+      : 0;
+
+  return `₦${safeValue.toLocaleString(
+    "en-NG",
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+function sanitizeDiscount(
+  value: string,
+): string {
+  const sanitized =
+    value.replace(
+      /[^0-9.]/g,
+      "",
+    );
+
+  const [
+    integerPart = "",
+    ...decimalParts
+  ] =
+    sanitized.split(".");
+
+  const decimalPart =
+    decimalParts
+      .join("")
+      .slice(
+        0,
+        MAX_DISCOUNT_DECIMALS,
+      );
+
+  if (
+    decimalParts.length === 0
+  ) {
+    return integerPart;
+  }
+
+  return `${integerPart}.${decimalPart}`;
 }
 
 /* ============================================================
@@ -75,45 +145,112 @@ function AddProductDiscount({
   onChangeDiscount,
   onChangeDays,
 }: Props) {
+  const [
+    discountFocused,
+    setDiscountFocused,
+  ] =
+    useState(false);
+
+  const [
+    daysFocused,
+    setDaysFocused,
+  ] =
+    useState(false);
+
   /* ==========================================================
      PRICE
   ========================================================== */
 
   const originalPrice =
-    parseNumber(price);
+    useMemo(
+      () =>
+        parseNumber(
+          price,
+        ),
+      [
+        price,
+      ],
+    );
 
   /* ==========================================================
-     DISCOUNT CALCULATION
+     VALUES
+  ========================================================== */
+
+  const discountValue =
+    useMemo(
+      () =>
+        parseNumber(
+          discount,
+        ),
+      [
+        discount,
+      ],
+    );
+
+  const daysValue =
+    useMemo(
+      () =>
+        parseNumber(
+          days,
+        ),
+      [
+        days,
+      ],
+    );
+
+  /* ==========================================================
+     VALIDATION
+  ========================================================== */
+
+  const discountValid =
+    discountValue >=
+      MIN_DISCOUNT &&
+    discountValue <=
+      MAX_DISCOUNT;
+
+  const daysValid =
+    Number.isInteger(
+      daysValue,
+    ) &&
+    daysValue >=
+      MIN_DAYS &&
+    daysValue <=
+      MAX_DAYS;
+
+  const showDiscountError =
+    discount.length > 0 &&
+    !discountValid;
+
+  const showDaysError =
+    days.length > 0 &&
+    !daysValid;
+
+  /* ==========================================================
+     CALCULATION
   ========================================================== */
 
   const calculation =
     useMemo(() => {
-      const discountPercentage =
-        parseNumber(discount);
-
       if (
         originalPrice <= 0 ||
-        discountPercentage <= 0
+        !discountValid
       ) {
         return {
-          discountedPrice: 0,
-          savingAmount: 0,
-          valid: false,
+          discountedPrice:
+            0,
+
+          savingAmount:
+            0,
+
+          valid:
+            false,
         };
       }
 
-      const safePercentage =
-        Math.min(
-          MAX_DISCOUNT,
-          Math.max(
-            MIN_DISCOUNT,
-            discountPercentage,
-          ),
-        );
-
       const savingAmount =
         originalPrice *
-        (safePercentage / 100);
+        (discountValue /
+          100);
 
       const discountedPrice =
         originalPrice -
@@ -122,135 +259,146 @@ function AddProductDiscount({
       return {
         discountedPrice:
           Number(
-            discountedPrice.toFixed(2),
+            discountedPrice.toFixed(
+              2,
+            ),
           ),
 
         savingAmount:
           Number(
-            savingAmount.toFixed(2),
+            savingAmount.toFixed(
+              2,
+            ),
           ),
 
         valid:
-          discountedPrice > 0,
+          discountedPrice >
+          0,
       };
     }, [
+      discountValid,
+      discountValue,
       originalPrice,
-      discount,
     ]);
 
   /* ==========================================================
-     DAYS VALIDATION
-  ========================================================== */
-
-  const daysValue =
-    parseNumber(days);
-
-  const daysValid =
-    Number.isInteger(daysValue) &&
-    daysValue >= MIN_DAYS &&
-    daysValue <= MAX_DAYS;
-
-  /* ==========================================================
-     DISCOUNT VALIDATION
-  ========================================================== */
-
-  const discountValue =
-    parseNumber(discount);
-
-  const discountValid =
-    Number.isFinite(discountValue) &&
-    discountValue >= MIN_DISCOUNT &&
-    discountValue <= MAX_DISCOUNT;
-
-  /* ==========================================================
-     INPUT DISCOUNT
+     DISCOUNT INPUT
   ========================================================== */
 
   const handleDiscountChange =
-    (value: string) => {
-      if (saving) {
-        return;
-      }
+    useCallback(
+      (
+        value: string,
+      ) => {
+        if (saving) {
+          return;
+        }
 
-      const sanitized =
-        value.replace(
-          /[^0-9.]/g,
-          "",
-        );
+        const normalized =
+          sanitizeDiscount(
+            value,
+          );
 
-      const parts =
-        sanitized.split(".");
+        if (
+          !normalized
+        ) {
+          onChangeDiscount(
+            "",
+          );
 
-      const normalized =
-        parts.length > 2
-          ? `${parts[0]}.${parts
-              .slice(1)
-              .join("")}`
-          : sanitized;
+          return;
+        }
 
-      if (!normalized) {
-        onChangeDiscount("");
-        return;
-      }
+        const numericValue =
+          Number(
+            normalized,
+          );
 
-      const numericValue =
-        Number(normalized);
+        if (
+          Number.isFinite(
+            numericValue,
+          ) &&
+          numericValue >
+            MAX_DISCOUNT
+        ) {
+          onChangeDiscount(
+            String(
+              MAX_DISCOUNT,
+            ),
+          );
 
-      if (
-        Number.isFinite(numericValue) &&
-        numericValue > MAX_DISCOUNT
-      ) {
+          return;
+        }
+
         onChangeDiscount(
-          String(MAX_DISCOUNT),
+          normalized,
         );
-
-        return;
-      }
-
-      onChangeDiscount(
-        normalized,
-      );
-    };
+      },
+      [
+        onChangeDiscount,
+        saving,
+      ],
+    );
 
   /* ==========================================================
-     INPUT DAYS
+     DAYS INPUT
   ========================================================== */
 
   const handleDaysChange =
-    (value: string) => {
-      if (saving) {
-        return;
-      }
+    useCallback(
+      (
+        value: string,
+      ) => {
+        if (saving) {
+          return;
+        }
 
-      const sanitized =
-        value.replace(
-          /[^0-9]/g,
-          "",
-        );
+        const sanitized =
+          value.replace(
+            /[^0-9]/g,
+            "",
+          );
 
-      if (!sanitized) {
-        onChangeDays("");
-        return;
-      }
+        if (
+          !sanitized
+        ) {
+          onChangeDays(
+            "",
+          );
 
-      const numericValue =
-        Number(sanitized);
+          return;
+        }
 
-      if (
-        Number.isFinite(numericValue) &&
-        numericValue > MAX_DAYS
-      ) {
+        const numericValue =
+          Number(
+            sanitized,
+          );
+
+        if (
+          Number.isFinite(
+            numericValue,
+          ) &&
+          numericValue >
+            MAX_DAYS
+        ) {
+          onChangeDays(
+            String(
+              MAX_DAYS,
+            ),
+          );
+
+          return;
+        }
+
         onChangeDays(
-          String(MAX_DAYS),
+          sanitized,
         );
-
-        return;
-      }
-
-      onChangeDays(
-        sanitized,
-      );
-    };
+      },
+      [
+        onChangeDays,
+        saving,
+      ],
+    );
 
   /* ==========================================================
      RENDER
@@ -258,270 +406,476 @@ function AddProductDiscount({
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
-      {/* ====================================================
+      {/* ======================================================
           HEADER
-      ==================================================== */}
+      ====================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <View
-          style={styles.titleContainer}
+          style={
+            styles.titleContainer
+          }
         >
-          <Text
-            style={styles.title}
+          <AppText
+            variant="heading3"
+            weight="bold"
+            style={
+              styles.title
+            }
           >
             Discount
-          </Text>
+          </AppText>
 
-          <Text
-            style={styles.subtitle}
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
           >
             Offer customers a special price
-          </Text>
+          </AppText>
         </View>
 
         <View
-          style={styles.discountBadge}
+          style={
+            styles.discountBadge
+          }
         >
-          <Text
-            style={styles.discountBadgeText}
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            style={
+              styles.discountBadgeText
+            }
           >
             %
-          </Text>
+          </AppText>
         </View>
       </View>
 
-      {/* ====================================================
+      {/* ======================================================
           ORIGINAL PRICE
-      ==================================================== */}
+      ====================================================== */}
 
       <View
-        style={styles.priceCard}
+        style={
+          styles.priceCard
+        }
       >
-        <Text
-          style={styles.label}
+        <AppText
+          variant="caption"
+          tone="secondary"
+          weight="bold"
+          style={
+            styles.label
+          }
         >
           Original price
-        </Text>
+        </AppText>
 
-        <Text
-          style={styles.originalPrice}
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          style={
+            styles.originalPrice
+          }
         >
-          ₦
-          {originalPrice.toLocaleString(
-            "en-NG",
-            {
-              minimumFractionDigits:
-                2,
-              maximumFractionDigits:
-                2,
-            },
+          {formatNaira(
+            originalPrice,
           )}
-        </Text>
+        </AppText>
       </View>
 
-      {/* ====================================================
-          DISCOUNT PERCENTAGE
-      ==================================================== */}
+      {/* ======================================================
+          DISCOUNT
+      ====================================================== */}
 
       <View
-        style={styles.inputSection}
+        style={
+          styles.inputSection
+        }
       >
-        <Text
-          style={styles.label}
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.label
+          }
         >
           Discount percentage
-        </Text>
+        </AppText>
 
         <View
           style={[
             styles.inputWrapper,
-            !discountValid &&
-              discount.length > 0 &&
-              styles.inputWrapperError,
+
+            discountFocused &&
+            !showDiscountError
+              ? styles.inputWrapperFocused
+              : null,
+
+            showDiscountError
+              ? styles.inputWrapperError
+              : null,
+
+            saving
+              ? styles.inputWrapperDisabled
+              : null,
           ]}
         >
           <TextInput
-            value={discount}
+            value={
+              discount
+            }
             onChangeText={
               handleDiscountChange
             }
+            onFocus={() => {
+              setDiscountFocused(
+                true,
+              );
+            }}
+            onBlur={() => {
+              setDiscountFocused(
+                false,
+              );
+            }}
             placeholder="e.g. 20"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            selectionColor={
+              WorkerColors.primary
+            }
             keyboardType="decimal-pad"
             inputMode="decimal"
             maxLength={5}
-            editable={!saving}
-            style={styles.input}
+            editable={
+              !saving
+            }
+            style={
+              styles.input
+            }
             accessibilityLabel="Discount percentage"
+            accessibilityState={{
+              disabled:
+                saving,
+            }}
           />
 
-          <Text
-            style={styles.inputSuffix}
+          <AppText
+            variant="body"
+            weight="bold"
+            style={
+              styles.inputSuffix
+            }
           >
             %
-          </Text>
+          </AppText>
         </View>
 
-        {!discountValid &&
-          discount.length > 0 && (
-            <Text
-              style={styles.errorText}
+        {showDiscountError ? (
+          <View
+            style={
+              styles.errorRow
+            }
+          >
+            <AppIcon
+              name="error"
+              size="xs"
+              color={
+                Colors.error
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.errorText
+              }
             >
               Enter a discount between 1% and 99%.
-            </Text>
-          )}
+            </AppText>
+          </View>
+        ) : null}
       </View>
 
-      {/* ====================================================
+      {/* ======================================================
           DURATION
-      ==================================================== */}
+      ====================================================== */}
 
       <View
-        style={styles.inputSection}
+        style={
+          styles.inputSection
+        }
       >
-        <Text
-          style={styles.label}
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.label
+          }
         >
           Discount duration
-        </Text>
+        </AppText>
 
         <View
           style={[
             styles.inputWrapper,
-            !daysValid &&
-              days.length > 0 &&
-              styles.inputWrapperError,
+
+            daysFocused &&
+            !showDaysError
+              ? styles.inputWrapperFocused
+              : null,
+
+            showDaysError
+              ? styles.inputWrapperError
+              : null,
+
+            saving
+              ? styles.inputWrapperDisabled
+              : null,
           ]}
         >
           <TextInput
-            value={days}
+            value={
+              days
+            }
             onChangeText={
               handleDaysChange
             }
+            onFocus={() => {
+              setDaysFocused(
+                true,
+              );
+            }}
+            onBlur={() => {
+              setDaysFocused(
+                false,
+              );
+            }}
             placeholder="e.g. 7"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            selectionColor={
+              WorkerColors.primary
+            }
             keyboardType="number-pad"
             inputMode="numeric"
             maxLength={3}
-            editable={!saving}
-            style={styles.input}
+            editable={
+              !saving
+            }
+            style={
+              styles.input
+            }
             accessibilityLabel="Discount duration in days"
+            accessibilityState={{
+              disabled:
+                saving,
+            }}
           />
 
-          <Text
-            style={styles.inputSuffix}
+          <AppText
+            variant="body"
+            weight="bold"
+            style={
+              styles.inputSuffix
+            }
           >
             days
-          </Text>
+          </AppText>
         </View>
 
-        {!daysValid &&
-          days.length > 0 && (
-            <Text
-              style={styles.errorText}
+        {showDaysError ? (
+          <View
+            style={
+              styles.errorRow
+            }
+          >
+            <AppIcon
+              name="error"
+              size="xs"
+              color={
+                Colors.error
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.errorText
+              }
             >
               Enter a duration between 1 and 365 days.
-            </Text>
-          )}
+            </AppText>
+          </View>
+        ) : null}
       </View>
 
-      {/* ====================================================
+      {/* ======================================================
           PREVIEW
-      ==================================================== */}
+      ====================================================== */}
 
       {calculation.valid &&
-        discountValid && (
+      discountValid ? (
+        <View
+          style={
+            styles.preview
+          }
+        >
           <View
-            style={styles.preview}
+            style={
+              styles.previewHeader
+            }
           >
-            <View
-              style={styles.previewRow}
+            <AppIcon
+              name="success"
+              size="sm"
+              color={
+                Colors.success
+              }
+            />
+
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.previewTitle
+              }
             >
-              <Text
-                style={styles.previewLabel}
-              >
-                Discounted price
-              </Text>
-
-              <Text
-                style={styles.discountedPrice}
-              >
-                ₦
-                {calculation.discountedPrice.toLocaleString(
-                  "en-NG",
-                  {
-                    minimumFractionDigits:
-                      2,
-                    maximumFractionDigits:
-                      2,
-                  },
-                )}
-              </Text>
-            </View>
-
-            <View
-              style={styles.previewRow}
-            >
-              <Text
-                style={styles.previewLabel}
-              >
-                Customer saves
-              </Text>
-
-              <Text
-                style={styles.savingText}
-              >
-                ₦
-                {calculation.savingAmount.toLocaleString(
-                  "en-NG",
-                  {
-                    minimumFractionDigits:
-                      2,
-                    maximumFractionDigits:
-                      2,
-                  },
-                )}
-              </Text>
-            </View>
-
-            {daysValid && (
-              <View
-                style={styles.previewRow}
-              >
-                <Text
-                  style={styles.previewLabel}
-                >
-                  Duration
-                </Text>
-
-                <Text
-                  style={styles.durationText}
-                >
-                  {daysValue}{" "}
-                  day
-                  {daysValue === 1
-                    ? ""
-                    : "s"}
-                </Text>
-              </View>
-            )}
+              Discount Preview
+            </AppText>
           </View>
-        )}
 
-      {/* ====================================================
+          <View
+            style={
+              styles.previewRow
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.previewLabel
+              }
+            >
+              Discounted price
+            </AppText>
+
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.discountedPrice
+              }
+            >
+              {formatNaira(
+                calculation
+                  .discountedPrice,
+              )}
+            </AppText>
+          </View>
+
+          <View
+            style={
+              styles.previewRow
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.previewLabel
+              }
+            >
+              Customer saves
+            </AppText>
+
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.savingText
+              }
+            >
+              {formatNaira(
+                calculation
+                  .savingAmount,
+              )}
+            </AppText>
+          </View>
+
+          {daysValid ? (
+            <View
+              style={
+                styles.previewRow
+              }
+            >
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.previewLabel
+                }
+              >
+                Duration
+              </AppText>
+
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.durationText
+                }
+              >
+                {daysValue}{" "}
+                {daysValue === 1
+                  ? "day"
+                  : "days"}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* ======================================================
           INFO
-      ==================================================== */}
+      ====================================================== */}
 
-      <Text
-        style={styles.infoText}
+      <View
+        style={
+          styles.infoBox
+        }
       >
-        The discount will be activated automatically
-        when you publish this product.
-      </Text>
+        <AppIcon
+          name="info"
+          size="sm"
+          color={
+            WorkerColors.primary
+          }
+        />
+
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.infoText
+          }
+        >
+          The discount will be activated automatically when you publish this product.
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -533,177 +887,344 @@ function AddProductDiscount({
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 16,
-      marginBottom: 16,
-      padding: 16,
-      borderRadius: 16,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 16,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     titleContainer: {
       flex: 1,
+
+      minWidth: 0,
     },
 
     title: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 4,
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 18,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     discountBadge: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#EFF6FF",
+        WorkerColors.primarySoft,
     },
 
     discountBadgeText: {
-      fontSize: 18,
-      fontWeight: "800",
-      color: "#2563EB",
+      color:
+        WorkerColors.primary,
     },
 
+    /* ========================================================
+       PRICE
+    ======================================================== */
+
     priceCard: {
-      marginBottom: 16,
-      padding: 12,
-      borderRadius: 12,
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     label: {
-      marginBottom: 8,
-      fontSize: 13,
-      fontWeight: "600",
-      color: "#475569",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
     originalPrice: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       INPUT
+    ======================================================== */
+
     inputSection: {
-      marginBottom: 16,
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     inputWrapper: {
-      minHeight: 50,
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#CBD5E1",
-      borderRadius: 12,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
+    },
+
+    inputWrapperFocused: {
+      borderColor:
+        WorkerColors.primary,
     },
 
     inputWrapperError: {
       borderColor:
-        "#DC2626",
+        Colors.error,
+    },
+
+    inputWrapperDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     input: {
       flex: 1,
-      minHeight: 48,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      fontSize: 16,
-      color: "#0F172A",
+
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     inputSuffix: {
-      paddingHorizontal: 14,
-      fontSize: 14,
-      fontWeight: "600",
-      color: "#64748B",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    errorRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     errorText: {
-      marginTop: 6,
-      fontSize: 12,
-      color: "#DC2626",
+      flex: 1,
+
+      color:
+        Colors.error,
     },
 
+    /* ========================================================
+       PREVIEW
+    ======================================================== */
+
     preview: {
-      marginBottom: 12,
-      padding: 14,
-      borderRadius: 12,
-      backgroundColor:
-        "#F0FDF4",
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#BBF7D0",
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    previewHeader: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    previewTitle: {
+      color:
+        Colors.success,
     },
 
     previewRow: {
+      minHeight: 30,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      marginVertical: 3,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     previewLabel: {
-      fontSize: 13,
-      color: "#475569",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
     discountedPrice: {
-      fontSize: 16,
-      fontWeight: "800",
-      color: "#166534",
+      flexShrink: 0,
+
+      color:
+        Colors.success,
     },
 
     savingText: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: "#15803D",
+      flexShrink: 0,
+
+      color:
+        Colors.success,
     },
 
     durationText: {
-      fontSize: 13,
-      fontWeight: "700",
-      color: "#166534",
+      flexShrink: 0,
+
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoBox: {
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     infoText: {
-      marginTop: 4,
-      fontSize: 12,
-      lineHeight: 17,
-      color: "#64748B",
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
     },
   });
 

@@ -1,238 +1,428 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   about?: string | null;
-  experience?: string | number | null;
+
+  experience?:
+    | string
+    | number
+    | null;
+
   category?: string | null;
 };
 
-export default function WorkerAbout({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeExperience(
+  value: Props["experience"],
+): string {
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return "Not specified";
+  }
+
+  const normalized =
+    String(value).trim();
+
+  return (
+    normalized ||
+    "Not specified"
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerAbout({
   about,
   experience,
   category,
 }: Props) {
   const normalizedAbout =
-    typeof about === "string"
-      ? about.trim()
-      : "";
+    cleanString(about);
 
   const normalizedExperience =
-    experience !== undefined &&
-    experience !== null &&
-    String(experience).trim()
-      ? String(experience).trim()
-      : "Not specified";
+    useMemo(
+      () =>
+        normalizeExperience(
+          experience,
+        ),
+      [
+        experience,
+      ],
+    );
 
   const normalizedCategory =
-    typeof category === "string" &&
-    category.trim()
-      ? category.trim()
-      : "Not specified";
+    cleanString(category) ||
+    "Not specified";
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
-      {/* HEADER */}
-
-      <View style={styles.header}>
-        <Ionicons
-          name="person-circle-outline"
-          size={22}
-          color="#2563EB"
-        />
+      <View
+        style={
+          styles.header
+        }
+      >
+        <View
+          style={
+            styles.headerIcon
+          }
+        >
+          <AppIcon
+            name="profile"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        </View>
 
         <AppText
+          variant="bodyLarge"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           About
         </AppText>
       </View>
 
-      {/* DESCRIPTION */}
+      {/* ======================================================
+          DESCRIPTION
+      ====================================================== */}
 
-      <AppText style={styles.description}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.description
+        }
+      >
         {normalizedAbout ||
           "This worker has not added a professional description yet."}
       </AppText>
 
-      {/* EXPERIENCE + CATEGORY */}
+      {/* ======================================================
+          INFORMATION
+      ====================================================== */}
 
-      <View style={styles.infoCard}>
+      <View
+        style={
+          styles.infoCard
+        }
+      >
+        {/* ====================================================
+            EXPERIENCE
+        ==================================================== */}
 
-        {/* EXPERIENCE */}
-
-        <View style={styles.infoRow}>
-          <View style={styles.experienceIcon}>
-            <Ionicons
-              name="briefcase-outline"
-              size={17}
-              color="#2563EB"
+        <View
+          style={
+            styles.infoRow
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="jobs"
+              role="customer"
+              size="sm"
+              state="active"
             />
           </View>
 
-          <AppText style={styles.label}>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.label
+            }
+          >
             Experience
           </AppText>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.value}
             numberOfLines={1}
+            style={
+              styles.value
+            }
           >
             {normalizedExperience}
           </AppText>
         </View>
 
-        <View style={styles.divider} />
+        <View
+          style={
+            styles.divider
+          }
+        />
 
-        {/* CATEGORY */}
+        {/* ====================================================
+            CATEGORY
+        ==================================================== */}
 
-        <View style={styles.infoRow}>
-          <View style={styles.categoryIcon}>
-            <Ionicons
-              name="construct-outline"
-              size={17}
-              color="#F97316"
+        <View
+          style={
+            styles.infoRow
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="sm"
+              state="active"
             />
           </View>
 
-          <AppText style={styles.label}>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.label
+            }
+          >
             Category
           </AppText>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.value}
             numberOfLines={1}
+            style={
+              styles.value
+            }
           >
             {normalizedCategory}
           </AppText>
         </View>
-
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 12,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 7,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  title: {
-    marginLeft: 7,
-    fontSize: 17,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  description: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#64748B",
-    marginBottom: 10,
-  },
-
-  infoCard: {
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 15,
-
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.035,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  infoRow: {
-    minHeight: 38,
+    header: {
+      flexDirection:
+        "row",
 
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      alignItems:
+        "center",
 
-  experienceIcon: {
-    width: 29,
-    height: 29,
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-    borderRadius: 9,
+    headerIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
 
-    alignItems: "center",
-    justifyContent: "center",
+      height:
+        FixxamTokens.size
+          .avatarXs,
 
-    backgroundColor: "#EFF6FF",
-  },
+      alignItems:
+        "center",
 
-  categoryIcon: {
-    width: 29,
-    height: 29,
+      justifyContent:
+        "center",
 
-    borderRadius: 9,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-    alignItems: "center",
-    justifyContent: "center",
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    backgroundColor: "#FFF7ED",
-  },
+    title: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
 
-  label: {
-    flex: 1,
+    /* ========================================================
+       DESCRIPTION
+    ======================================================== */
 
-    marginLeft: 9,
+    description: {
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    fontSize: 13,
-    lineHeight: 18,
+      lineHeight: 21,
+    },
 
-    color: "#64748B",
-  },
+    /* ========================================================
+       INFO CARD
+    ======================================================== */
 
-  value: {
-    maxWidth: "58%",
+    infoCard: {
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    fontSize: 14,
-    lineHeight: 18,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
-    color: "#0F172A",
+      borderWidth: 1,
 
-    textAlign: "right",
-  },
+      borderColor:
+        Colors.border,
 
-  divider: {
-    height: 1,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    backgroundColor: "#F1F5F9",
+      backgroundColor:
+        Colors.surface,
 
-    marginVertical: 4,
-  },
-});
+      ...FixxamTokens.shadow.card,
+    },
+
+    infoRow: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    label: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    value: {
+      maxWidth: "58%",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      textAlign:
+        "right",
+
+      color:
+        Colors.textPrimary,
+    },
+
+    divider: {
+      height: 1,
+
+      marginLeft:
+        FixxamTokens.size
+          .avatarXs +
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.divider,
+    },
+  });
+
+export default memo(
+  WorkerAbout,
+);

@@ -1,4 +1,6 @@
 import React, {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -10,6 +12,10 @@ import {
 } from "react-native";
 
 import {
+  onAuthStateChanged,
+} from "firebase/auth";
+
+import {
   doc,
   onSnapshot,
 } from "firebase/firestore";
@@ -19,10 +25,19 @@ import {
   db,
 } from "@/firebase/config";
 
+import {
+  useWorkerNotifications,
+} from "@/hooks/notifications/useWorkerNotifications";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
 import HeaderAvatar from "./HeaderAvatar";
 import HeaderGreeting from "./HeaderGreeting";
 import HeaderNotification from "./HeaderNotification";
 import HeaderStatus from "./HeaderStatus";
+import WorkerNotificationModal from "./WorkerNotificationModal";
 
 /* ============================================================
    TYPES
@@ -32,18 +47,23 @@ type PublicWorkerProfile = {
   uid?: string;
 
   firstName?: string;
+
   otherName?: string;
+
   surname?: string;
 
   fullName?: string;
+
   name?: string;
 
   photoUrl?: string;
+
   photoURL?: string;
 
   rating?: number;
 
   online?: boolean;
+
   available?: boolean;
 
   location?: string;
@@ -51,12 +71,19 @@ type PublicWorkerProfile = {
 
 type Props = {
   workerName?: string;
+
   photoURL?: string | null;
+
   notificationCount?: number;
+
   available?: boolean;
+
   rating?: number;
+
   location?: string;
+
   onAvatarPress?: () => void;
+
   onNotifications?: () => void;
 };
 
@@ -64,284 +91,536 @@ type Props = {
    HELPERS
 ============================================================ */
 
-function cleanString(value: unknown): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim();
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
-function isHttpUrl(value: string): boolean {
+function isHttpUrl(
+  value: string,
+): boolean {
   return (
     value.startsWith("https://") ||
     value.startsWith("http://")
   );
 }
 
+function getSafeRating(
+  value: unknown,
+  fallback = 0,
+): number {
+  const rating =
+    typeof value === "number" &&
+    Number.isFinite(value)
+      ? value
+      : fallback;
+
+  if (
+    !Number.isFinite(rating)
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      rating,
+    ),
+  );
+}
+
+function getSafeCount(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return null;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
 /* ============================================================
-   HEADER
+   COMPONENT
 ============================================================ */
 
-export default function Header({
+function Header({
   workerName = "",
   photoURL = null,
   notificationCount = 0,
   available = true,
   rating = 4.9,
-  location = "Kano",
+  location = "",
   onAvatarPress,
   onNotifications,
 }: Props) {
-  /* ==========================================================
-     PUBLIC PROFILE
-  ========================================================== */
+  const [
+    publicProfile,
+    setPublicProfile,
+  ] =
+    useState<PublicWorkerProfile | null>(
+      null,
+    );
 
-  const [publicProfile, setPublicProfile] =
-    useState<PublicWorkerProfile | null>(null);
+  const [
+    notificationsVisible,
+    setNotificationsVisible,
+  ] =
+    useState(false);
+
+  const {
+    notifications,
+    unreadCount,
+    loading:
+      notificationsLoading,
+  } =
+    useWorkerNotifications();
 
   /* ==========================================================
-     REALTIME PROFILE
+     PUBLIC PROFILE LISTENER
   ========================================================== */
 
   useEffect(() => {
-    const user = auth.currentUser;
+    let unsubscribeProfile:
+      | (() => void)
+      | undefined;
 
-    if (!user) {
-      setPublicProfile(null);
-      return;
-    }
+    const unsubscribeAuth =
+      onAuthStateChanged(
+        auth,
+        user => {
+          unsubscribeProfile?.();
 
-    const profileRef = doc(
-      db,
-      "workerPublicProfiles",
-      user.uid,
-    );
+          unsubscribeProfile =
+            undefined;
 
-    const unsubscribe = onSnapshot(
-      profileRef,
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setPublicProfile(null);
-          return;
-        }
+          if (!user) {
+            setPublicProfile(
+              null,
+            );
 
-        setPublicProfile(
-          snapshot.data() as PublicWorkerProfile,
-        );
-      },
-      (listenerError) => {
-        console.error(
-          "HOME_HEADER_PROFILE_LISTENER_ERROR:",
-          listenerError,
-        );
-      },
-    );
+            return;
+          }
 
-    return unsubscribe;
+          const profileRef =
+            doc(
+              db,
+              "workerPublicProfiles",
+              user.uid,
+            );
+
+          unsubscribeProfile =
+            onSnapshot(
+              profileRef,
+              snapshot => {
+                if (
+                  !snapshot.exists()
+                ) {
+                  setPublicProfile(
+                    null,
+                  );
+
+                  return;
+                }
+
+                setPublicProfile(
+                  snapshot.data() as PublicWorkerProfile,
+                );
+              },
+              error => {
+                console.error(
+                  "FIXXAM_WORKER_HEADER_PROFILE_ERROR:",
+                  error,
+                );
+
+                setPublicProfile(
+                  null,
+                );
+              },
+            );
+        },
+      );
+
+    return () => {
+      unsubscribeProfile?.();
+
+      unsubscribeAuth();
+    };
   }, []);
 
   /* ==========================================================
-     WORKER NAME
+     DISPLAY NAME
   ========================================================== */
 
-  const displayWorkerName = useMemo(() => {
-    const publicName =
-      cleanString(publicProfile?.fullName) ||
-      cleanString(publicProfile?.name);
+  const displayWorkerName =
+    useMemo(() => {
+      const publicName =
+        cleanString(
+          publicProfile?.fullName,
+        ) ||
+        cleanString(
+          publicProfile?.name,
+        );
 
-    if (publicName) {
-      return publicName;
-    }
+      if (publicName) {
+        return publicName;
+      }
 
-    const generatedName = [
-      publicProfile?.firstName,
-      publicProfile?.otherName,
-      publicProfile?.surname,
-    ]
-      .map(cleanString)
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+      const generatedName =
+        [
+          publicProfile?.firstName,
+          publicProfile?.otherName,
+          publicProfile?.surname,
+        ]
+          .map(
+            cleanString,
+          )
+          .filter(
+            Boolean,
+          )
+          .join(" ")
+          .trim();
 
-    if (generatedName) {
-      return generatedName;
-    }
+      if (generatedName) {
+        return generatedName;
+      }
 
-    const propName = cleanString(workerName);
-
-    if (propName) {
-      return propName;
-    }
-
-    const authName = cleanString(
-      auth.currentUser?.displayName,
-    );
-
-    return authName || "Worker";
-  }, [
-    publicProfile,
-    workerName,
-  ]);
+      return (
+        cleanString(
+          workerName,
+        ) ||
+        cleanString(
+          auth.currentUser
+            ?.displayName,
+        ) ||
+        "Worker"
+      );
+    }, [
+      publicProfile,
+      workerName,
+    ]);
 
   /* ==========================================================
-     WORKER PHOTO
+     PHOTO
   ========================================================== */
 
-  const displayPhotoURL = useMemo(() => {
-    const publicPhoto =
-      cleanString(publicProfile?.photoUrl) ||
-      cleanString(publicProfile?.photoURL);
+  const displayPhotoURL =
+    useMemo(() => {
+      const publicPhoto =
+        cleanString(
+          publicProfile?.photoUrl,
+        ) ||
+        cleanString(
+          publicProfile?.photoURL,
+        );
 
-    if (
-      publicPhoto &&
-      isHttpUrl(publicPhoto)
-    ) {
-      return publicPhoto;
-    }
+      if (
+        publicPhoto &&
+        isHttpUrl(
+          publicPhoto,
+        )
+      ) {
+        return publicPhoto;
+      }
 
-    const propPhoto = cleanString(photoURL);
+      const propPhoto =
+        cleanString(
+          photoURL,
+        );
 
-    if (
-      propPhoto &&
-      isHttpUrl(propPhoto)
-    ) {
-      return propPhoto;
-    }
+      if (
+        propPhoto &&
+        isHttpUrl(
+          propPhoto,
+        )
+      ) {
+        return propPhoto;
+      }
 
-    const authPhoto = cleanString(
-      auth.currentUser?.photoURL,
-    );
+      const authPhoto =
+        cleanString(
+          auth.currentUser
+            ?.photoURL,
+        );
 
-    if (
-      authPhoto &&
-      isHttpUrl(authPhoto)
-    ) {
-      return authPhoto;
-    }
-
-    return null;
-  }, [
-    publicProfile,
-    photoURL,
-  ]);
+      return isHttpUrl(
+        authPhoto,
+      )
+        ? authPhoto
+        : null;
+    }, [
+      publicProfile,
+      photoURL,
+    ]);
 
   /* ==========================================================
-     AVAILABILITY
+     STATUS
   ========================================================== */
 
   const displayAvailable =
-    typeof publicProfile?.available === "boolean"
+    typeof publicProfile?.available ===
+    "boolean"
       ? publicProfile.available
       : available;
 
-  /* ==========================================================
-     RATING
-  ========================================================== */
-
   const displayRating =
-    typeof publicProfile?.rating === "number" &&
-    Number.isFinite(publicProfile.rating)
-      ? Math.min(
-          5,
-          Math.max(0, publicProfile.rating),
-        )
-      : rating;
-
-  /* ==========================================================
-     LOCATION
-  ========================================================== */
+    useMemo(
+      () =>
+        getSafeRating(
+          publicProfile?.rating,
+          getSafeRating(
+            rating,
+          ),
+        ),
+      [
+        publicProfile?.rating,
+        rating,
+      ],
+    );
 
   const displayLocation =
-    cleanString(publicProfile?.location) ||
-    location ||
-    "Kano";
+    useMemo(
+      () =>
+        cleanString(
+          publicProfile?.location,
+        ) ||
+        cleanString(
+          location,
+        ) ||
+        "Location unavailable",
+      [
+        publicProfile?.location,
+        location,
+      ],
+    );
+
+  /* ==========================================================
+     NOTIFICATIONS
+  ========================================================== */
+
+  const liveNotificationCount =
+    useMemo(() => {
+      const liveCount =
+        getSafeCount(
+          unreadCount,
+        );
+
+      /*
+       * 0 is a valid realtime value.
+       * Do not fall back to a stale prop
+       * just because the realtime count is zero.
+       */
+      if (
+        liveCount !== null
+      ) {
+        return liveCount;
+      }
+
+      return (
+        getSafeCount(
+          notificationCount,
+        ) ?? 0
+      );
+    }, [
+      notificationCount,
+      unreadCount,
+    ]);
+
+  const handleNotifications =
+    useCallback(() => {
+      setNotificationsVisible(
+        true,
+      );
+
+      onNotifications?.();
+    }, [
+      onNotifications,
+    ]);
+
+  const handleCloseNotifications =
+    useCallback(() => {
+      setNotificationsVisible(
+        false,
+      );
+    }, []);
 
   /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
-    <View style={styles.container}>
-      {/* ======================================================
-          TOP
-      ====================================================== */}
+    <>
+      <View
+        style={
+          styles.container
+        }
+      >
+        {/* ====================================================
+            TOP
+        ==================================================== */}
 
-      <View style={styles.topRow}>
-        {/* PROFILE PHOTO */}
-
-        <HeaderAvatar
-          workerName={displayWorkerName}
-          photoURL={displayPhotoURL}
-          onPress={onAvatarPress}
-        />
-
-        {/* NAME + SUBTITLE */}
-
-        <View style={styles.identity}>
-          <HeaderGreeting
-            workerName={displayWorkerName}
+        <View
+          style={
+            styles.topRow
+          }
+        >
+          <HeaderAvatar
+            workerName={
+              displayWorkerName
+            }
+            photoURL={
+              displayPhotoURL
+            }
+            onPress={
+              onAvatarPress
+            }
           />
+
+          <View
+            style={
+              styles.identity
+            }
+          >
+            <HeaderGreeting
+              workerName={
+                displayWorkerName
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.notification
+            }
+          >
+            <HeaderNotification
+              count={
+                liveNotificationCount
+              }
+              onPress={
+                handleNotifications
+              }
+            />
+          </View>
         </View>
 
-        {/* NOTIFICATION */}
+        {/* ====================================================
+            STATUS
+        ==================================================== */}
 
-        <View style={styles.notification}>
-          <HeaderNotification
-            count={notificationCount}
-            onPress={onNotifications}
+        <View
+          style={
+            styles.statusRow
+          }
+        >
+          <HeaderStatus
+            available={
+              displayAvailable
+            }
+            rating={
+              displayRating
+            }
+            location={
+              displayLocation
+            }
           />
         </View>
       </View>
 
       {/* ======================================================
-          STATUS
+          NOTIFICATIONS MODAL
       ====================================================== */}
 
-      <View style={styles.statusRow}>
-        <HeaderStatus
-          available={displayAvailable}
-          rating={displayRating}
-          location={displayLocation}
-        />
-      </View>
-    </View>
+      <WorkerNotificationModal
+        visible={
+          notificationsVisible
+        }
+        loading={
+          notificationsLoading
+        }
+        notifications={
+          notifications
+        }
+        onClose={
+          handleCloseNotifications
+        }
+      />
+    </>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+Header.displayName =
+  "WorkerHomeHeader";
+
+export default memo(
+  Header,
+);
 
 /* ============================================================
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-    paddingTop: 8,
-    paddingBottom: 10,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  topRow: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  identity: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 12,
-    marginRight: 8,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-  notification: {
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    topRow: {
+      width: "100%",
 
-  statusRow: {
-    width: "100%",
-    marginTop: 10,
-    paddingLeft: 0,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    identity: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    notification: {
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    statusRow: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+  });

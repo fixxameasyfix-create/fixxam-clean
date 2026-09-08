@@ -1,23 +1,50 @@
 import React from "react";
+
 import {
-  View,
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-export default function HomeBanner() {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+interface HomeBannerProps {
+  onBookNow?: () => void;
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+export default function HomeBanner({
+  onBookNow,
+}: HomeBannerProps) {
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+    >
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
-      <View style={styles.left}>
-
+      <View
+        style={styles.left}
+      >
         <AppText
+          variant="heading2"
           weight="bold"
           style={styles.title}
         >
@@ -25,113 +52,217 @@ export default function HomeBanner() {
         </AppText>
 
         <AppText
+          variant="body"
           style={styles.subtitle}
         >
-  
           anytime, anywhere.
         </AppText>
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.button}
+        {/* ====================================================
+            BOOK NOW
+
+            No route existed in the original
+            component. Parent can provide
+            onBookNow when the real destination
+            is confirmed.
+        ==================================================== */}
+
+        <Pressable
+          onPress={onBookNow}
+          disabled={!onBookNow}
+          accessibilityRole="button"
+          accessibilityLabel="Book a professional"
+          accessibilityState={{
+            disabled: !onBookNow,
+          }}
+          style={({ pressed }) => [
+            styles.button,
+
+            pressed &&
+            onBookNow
+              ? styles.buttonPressed
+              : null,
+          ]}
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.buttonText}
+            style={
+              styles.buttonText
+            }
           >
             Book Now
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={16}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
-        </TouchableOpacity>
-
+        </Pressable>
       </View>
 
-      <View style={styles.iconBox}>
-        <Ionicons
-          name="construct"
-          size={52}
-          color="#FFFFFF"
+      {/* ======================================================
+          PROFESSIONAL ICON
+      ====================================================== */}
+
+      <View
+        style={styles.iconBox}
+      >
+        <AppIcon
+          name="service"
+          role="customer"
+          size="xl"
+          color={
+            Colors.textInverse
+          }
         />
       </View>
-
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
-    backgroundColor: "#2563EB",
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-    borderRadius: 22,
+    container: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    marginBottom: 20,
+      paddingVertical:
+        FixxamTokens.spacing.lg,
 
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+      flexDirection: "row",
 
-  left: {
-    flex: 1,
-    paddingRight: 12,
-  },
+      justifyContent:
+        "space-between",
 
-  title: {
-    fontSize: 20,
-    color: "#FFFFFF",
-  },
+      alignItems: "center",
 
-  subtitle: {
-    marginTop: 6,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-    fontSize: 13,
-    lineHeight: 20,
+      backgroundColor:
+        CustomerColors.primary,
 
-    color: "#DBEAFE",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  button: {
-    marginTop: 14,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    alignSelf: "flex-start",
+    left: {
+      flex: 1,
 
-    flexDirection: "row",
-    alignItems: "center",
+      minWidth: 0,
 
-    backgroundColor: "#F97316",
+      paddingRight:
+        FixxamTokens.spacing.md,
+    },
 
-    borderRadius: 14,
+    title: {
+      color:
+        Colors.textInverse,
+    },
 
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
+      lineHeight: 20,
 
-    marginRight: 6,
-  },
+      color:
+        CustomerColors.primarySoft,
+    },
 
-  iconBox: {
-    width: 78,
-    height: 78,
+    /* ========================================================
+       BUTTON
+    ======================================================== */
 
-    borderRadius: 20,
+    button: {
+      alignSelf:
+        "flex-start",
 
-    backgroundColor: "rgba(255255,255,0.15)",
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-    justifyContent: "center",
-    alignItems: "center",
-  },
+      marginTop:
+        FixxamTokens.spacing.md,
 
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    buttonText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    buttonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconBox: {
+      width: 78,
+
+      height: 78,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.overlayLight,
+    },
+  });

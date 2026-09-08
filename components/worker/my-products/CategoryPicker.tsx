@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Modal,
@@ -8,18 +11,30 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   PRODUCT_CATEGORIES,
 } from "@/constants/productCategories";
 
-type Props = {
+/* ============================================================
+   TYPES
+============================================================ */
 
+type Props = {
   visible: boolean;
 
   value: string;
@@ -29,212 +44,483 @@ type Props = {
   onSelect: (
     category: string,
   ) => void;
-
 };
 
-export default function CategoryPicker({
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function CategoryPicker({
   visible,
-
   value,
-
   onClose,
-
   onSelect,
-
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
+  /* ==========================================================
+     SELECT
+  ========================================================== */
+
+  const handleSelect =
+    useCallback(
+      (
+        category: string,
+      ) => {
+        onSelect(
+          category,
+        );
+
+        onClose();
+      },
+      [
+        onClose,
+        onSelect,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       animationType="slide"
       transparent
+      statusBarTranslucent
+      onRequestClose={
+        onClose
+      }
     >
-
-      <Pressable
-        style={styles.overlay}
-        onPress={onClose}
+      <View
+        style={
+          styles.overlay
+        }
       >
+        {/* ====================================================
+            BACKDROP
+        ==================================================== */}
 
         <Pressable
-          style={styles.sheet}
+          onPress={
+            onClose
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Close category picker"
+          style={
+            StyleSheet.absoluteFill
+          }
+        />
+
+        {/* ====================================================
+            SHEET
+        ==================================================== */}
+
+        <View
+          accessibilityViewIsModal
+          style={[
+            styles.sheet,
+
+            {
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens.spacing.lg,
+                ),
+            },
+          ]}
         >
+          {/* ==================================================
+              HANDLE
+          ================================================== */}
 
           <View
-            style={styles.header}
-          >
+            style={
+              styles.handle
+            }
+          />
 
-            <AppText
-              weight="bold"
-              style={styles.title}
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <View
+            style={
+              styles.header
+            }
+          >
+            <View
+              style={
+                styles.headerContent
+              }
             >
-              Select Category
-            </AppText>
+              <AppText
+                variant="heading3"
+                weight="bold"
+                style={
+                  styles.title
+                }
+              >
+                Select Category
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.subtitle
+                }
+              >
+                Choose the category that best matches your product.
+              </AppText>
+            </View>
 
             <Pressable
-              onPress={onClose}
+              onPress={
+                onClose
+              }
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Close category picker"
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={24}
-                color="#64748B"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
-
             </Pressable>
-
           </View>
+
+          {/* ==================================================
+              CATEGORIES
+          ================================================== */}
 
           <ScrollView
             showsVerticalScrollIndicator={
               false
             }
+            keyboardShouldPersistTaps="handled"
           >
-
             {PRODUCT_CATEGORIES.map(
-              (category) => (
+              category => {
+                const active =
+                  value ===
+                  category;
 
-                <Pressable
-                  key={category}
-                  style={styles.item}
-                  onPress={() => {
+                return (
+                  <Pressable
+                    key={
+                      category
+                    }
+                    onPress={() => {
+                      handleSelect(
+                        category,
+                      );
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${category} category`}
+                    accessibilityState={{
+                      selected:
+                        active,
+                    }}
+                    style={({
+                      pressed,
+                    }) => [
+                      styles.item,
 
-                    onSelect(
-                      category,
-                    );
+                      active
+                        ? styles.activeItem
+                        : null,
 
-                    onClose();
-
-                  }}
-                >
-
-                  <AppText
-                    style={[
-                      styles.text,
-
-                      value ===
-                        category &&
-                        styles.active,
-
+                      pressed
+                        ? styles.itemPressed
+                        : null,
                     ]}
                   >
+                    <AppText
+                      variant="body"
+                      weight={
+                        active
+                          ? "bold"
+                          : undefined
+                      }
+                      numberOfLines={1}
+                      style={[
+                        styles.text,
 
-                    {category}
+                        active
+                          ? styles.activeText
+                          : null,
+                      ]}
+                    >
+                      {category}
+                    </AppText>
 
-                  </AppText>
-
-                  {value ===
-                    category && (
-
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={22}
-                      color="#FF6B00"
-                    />
-
-                  )}
-
-                </Pressable>
-
-              ),
+                    {active ? (
+                      <View
+                        style={
+                          styles.checkContainer
+                        }
+                      >
+                        <AppIcon
+                          name="check"
+                          role="worker"
+                          size="xs"
+                          color={
+                            WorkerColors.primary
+                          }
+                        />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              },
             )}
-
           </ScrollView>
-
-        </Pressable>
-
-      </Pressable>
-
+        </View>
+      </View>
     </Modal>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedCategoryPicker =
+  memo(
+    CategoryPicker,
   );
 
-}
+MemoizedCategoryPicker.displayName =
+  "CategoryPicker";
+
+export default MemoizedCategoryPicker;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
     overlay: {
-
       flex: 1,
-
-      backgroundColor:
-        "rgba(0,0,0,0.35)",
 
       justifyContent:
         "flex-end",
 
+      backgroundColor:
+        Colors.overlayMedium,
     },
+
+    /* ========================================================
+       SHEET
+    ======================================================== */
 
     sheet: {
+      maxHeight:
+        "70%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      borderTopLeftRadius: 28,
-
-      borderTopRightRadius: 28,
-
-      maxHeight: "70%",
-
-      padding: 20,
-
+      ...FixxamTokens.shadow.card,
     },
 
+    handle: {
+      width: 40,
+
+      height: 4,
+
+      alignSelf:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.border,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-      flexDirection: "row",
-
-      justifyContent:
-        "space-between",
+      flexDirection:
+        "row",
 
       alignItems:
         "center",
 
-      marginBottom: 18,
+      gap:
+        FixxamTokens.spacing.md,
+    },
 
+    headerContent: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     title: {
-
-      fontSize: 20,
-
+      color:
+        Colors.textPrimary,
     },
 
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    closeButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       ITEM
+    ======================================================== */
+
     item: {
+      minHeight: 56,
 
-      height: 56,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
 
-      alignItems:
-        "center",
+      gap:
+        FixxamTokens.spacing.md,
 
       borderBottomWidth: 1,
 
       borderBottomColor:
-        "#F1F5F9",
+        Colors.divider,
 
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    activeItem: {
+      borderBottomColor:
+        "transparent",
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     text: {
+      flex: 1,
 
-      fontSize: 16,
-
-      color: "#0F172A",
-
+      color:
+        Colors.textPrimary,
     },
 
-    active: {
-
-      color: "#FF6B00",
-
-      fontWeight: "700",
-
+    activeText: {
+      color:
+        WorkerColors.primary,
     },
 
+    checkContainer: {
+      width: 32,
+
+      height: 32,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    itemPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
   });

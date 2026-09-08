@@ -1,26 +1,27 @@
 import React, {
+  memo,
   useEffect,
   useRef,
   useState,
 } from "react";
 
 import {
-  Alert,
   StyleSheet,
   View,
 } from "react-native";
 
 import * as Location from "expo-location";
 
+import Toast from "react-native-toast-message";
+
 import {
   doc,
-  updateDoc,
   serverTimestamp,
+  updateDoc,
 } from "firebase/firestore";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -29,12 +30,19 @@ import {
   db,
 } from "@/firebase/config";
 
-/* ============================================================
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type WorkerLiveLocationTrackerProps = {
   orderId: string;
+
   enabled: boolean;
 };
 
@@ -45,28 +53,65 @@ type TrackerState =
   | "denied"
   | "error";
 
-/* ============================================================
+/* ==============================================================
    CONSTANTS
-============================================================ */
+============================================================== */
 
-const LOCATION_DISTANCE_INTERVAL = 20;
+const LOCATION_DISTANCE_INTERVAL =
+  20;
 
-const LOCATION_TIME_INTERVAL = 10_000;
+const LOCATION_TIME_INTERVAL =
+  10_000;
 
-/* ============================================================
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function showError(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showWarning(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
-export default function WorkerLiveLocationTracker({
+function WorkerLiveLocationTracker({
   orderId,
   enabled,
 }: WorkerLiveLocationTrackerProps) {
   const [
     state,
     setState,
-  ] = useState<TrackerState>(
-    "idle",
-  );
+  ] =
+    useState<TrackerState>(
+      "idle",
+    );
 
   const subscriptionRef =
     useRef<Location.LocationSubscription | null>(
@@ -76,71 +121,126 @@ export default function WorkerLiveLocationTracker({
   const updatingRef =
     useRef(false);
 
+  const errorShownRef =
+    useRef(false);
+
   /* ==========================================================
-     CLEANUP
+     STOP TRACKING
+  ========================================================== */
+
+  function stopTracking() {
+    if (
+      subscriptionRef.current
+    ) {
+      subscriptionRef.current.remove();
+
+      subscriptionRef.current =
+        null;
+    }
+
+    updatingRef.current =
+      false;
+  }
+
+  /* ==========================================================
+     UNMOUNT CLEANUP
   ========================================================== */
 
   useEffect(() => {
     return () => {
-      if (
-        subscriptionRef.current
-      ) {
-        subscriptionRef.current.remove();
-
-        subscriptionRef.current =
-          null;
-      }
+      stopTracking();
     };
   }, []);
 
   /* ==========================================================
-     TRACKER
+     TRACKING
   ========================================================== */
 
   useEffect(() => {
     let cancelled = false;
 
+    const cleanOrderId =
+      cleanText(orderId);
+
+    errorShownRef.current =
+      false;
+
     async function startTracking() {
+      /* ======================================================
+         DISABLED
+      ====================================================== */
+
       if (!enabled) {
-        setState("idle");
+        stopTracking();
+
+        if (!cancelled) {
+          setState("idle");
+        }
 
         return;
       }
 
-      if (!orderId.trim()) {
-        setState("error");
+      /* ======================================================
+         ORDER VALIDATION
+      ====================================================== */
+
+      if (!cleanOrderId) {
+        stopTracking();
+
+        if (!cancelled) {
+          setState("error");
+
+          showError(
+            "Location unavailable",
+            "This order could not be identified.",
+          );
+        }
 
         return;
       }
+
+      /* ======================================================
+         AUTH
+      ====================================================== */
 
       const workerId =
-        auth.currentUser?.uid;
+        auth.currentUser?.uid?.trim();
 
       if (!workerId) {
-        setState("error");
+        stopTracking();
+
+        if (!cancelled) {
+          setState("error");
+
+          showError(
+            "Sign in required",
+            "Please sign in again before sharing your live location.",
+          );
+        }
 
         return;
       }
 
       try {
-        setState("starting");
-
-        /*
-         * Make sure an old subscription
-         * cannot remain active.
-         */
-
-        if (
-          subscriptionRef.current
-        ) {
-          subscriptionRef.current.remove();
-
-          subscriptionRef.current =
-            null;
+        if (!cancelled) {
+          setState(
+            "starting",
+          );
         }
 
+        /*
+         * Always remove an older
+         * foreground watcher first.
+         */
+        stopTracking();
+
+        /* ====================================================
+           FOREGROUND PERMISSION
+        ==================================================== */
+
         const permission =
-          await Location.requestForegroundPermissionsAsync();
+          await Location
+            .requestForegroundPermissionsAsync();
 
         if (cancelled) {
           return;
@@ -148,107 +248,148 @@ export default function WorkerLiveLocationTracker({
 
         if (
           permission.status !==
-          Location.PermissionStatus.GRANTED
+          Location.PermissionStatus
+            .GRANTED
         ) {
+          stopTracking();
+
           setState("denied");
 
-          Alert.alert(
-            "Location permission required",
-            "Please allow location access so customers can see your live location while you are working.",
+          showWarning(
+            "Location permission needed",
+            "Allow location access so the customer can see your live location while you are working.",
           );
 
           return;
         }
 
-        /*
-         * Get one immediate location first.
-         * This prevents waiting for the first
-         * watchPositionAsync callback.
-         */
+        /* ====================================================
+           INITIAL LOCATION
+        ==================================================== */
 
         const currentLocation =
-          await Location.getCurrentPositionAsync(
-            {
-              accuracy:
-                Location.Accuracy.High,
-            },
-          );
+          await Location
+            .getCurrentPositionAsync(
+              {
+                accuracy:
+                  Location
+                    .Accuracy
+                    .High,
+              },
+            );
 
         if (cancelled) {
           return;
         }
 
         await saveLocation(
-          orderId,
+          cleanOrderId,
           currentLocation,
+          workerId,
         );
 
         if (cancelled) {
           return;
         }
 
-        /*
-         * Start continuous foreground tracking.
-         */
+        /* ====================================================
+           FOREGROUND LIVE TRACKING
+        ==================================================== */
 
         const subscription =
-          await Location.watchPositionAsync(
-            {
-              accuracy:
-                Location.Accuracy.High,
+          await Location
+            .watchPositionAsync(
+              {
+                accuracy:
+                  Location
+                    .Accuracy
+                    .High,
 
-              distanceInterval:
-                LOCATION_DISTANCE_INTERVAL,
+                distanceInterval:
+                  LOCATION_DISTANCE_INTERVAL,
 
-              timeInterval:
-                LOCATION_TIME_INTERVAL,
+                timeInterval:
+                  LOCATION_TIME_INTERVAL,
 
-              mayShowUserSettingsDialog:
-                true,
-            },
+                mayShowUserSettingsDialog:
+                  true,
+              },
 
-            async (
-              location,
-            ) => {
-              if (
-                cancelled ||
-                updatingRef.current
-              ) {
-                return;
-              }
+              async (
+                location,
+              ) => {
+                if (
+                  cancelled ||
+                  updatingRef.current
+                ) {
+                  return;
+                }
 
-              try {
-                updatingRef.current =
-                  true;
+                try {
+                  updatingRef.current =
+                    true;
 
-                await saveLocation(
-                  orderId,
-                  location,
-                );
-              } catch (
-                error
-              ) {
+                  await saveLocation(
+                    cleanOrderId,
+                    location,
+                    workerId,
+                  );
+                } catch (error) {
+                  console.error(
+                    "WORKER_LIVE_LOCATION_UPDATE_ERROR",
+                    error,
+                  );
+
+                  /*
+                   * Do not show a Toast
+                   * every 10 seconds if
+                   * the network is failing.
+                   */
+                  if (
+                    !cancelled &&
+                    !errorShownRef.current
+                  ) {
+                    errorShownRef.current =
+                      true;
+
+                    showError(
+                      "Location update failed",
+                      "We could not update your live location. Check your connection.",
+                    );
+                  }
+                } finally {
+                  updatingRef.current =
+                    false;
+                }
+              },
+
+              (reason) => {
                 console.error(
-                  "WORKER_LIVE_LOCATION_UPDATE_ERROR",
-                  error,
+                  "WORKER_LIVE_LOCATION_WATCH_ERROR",
+                  reason,
                 );
-              } finally {
-                updatingRef.current =
-                  false;
-              }
-            },
 
-            (reason) => {
-              console.error(
-                "WORKER_LIVE_LOCATION_WATCH_ERROR",
-                reason,
-              );
+                if (cancelled) {
+                  return;
+                }
 
-              if (!cancelled) {
+                stopTracking();
+
                 setState("error");
-              }
-            },
-          );
+
+                if (
+                  !errorShownRef.current
+                ) {
+                  errorShownRef.current =
+                    true;
+
+                  showError(
+                    "Location unavailable",
+                    "Live location tracking stopped. Please check your location settings.",
+                  );
+                }
+              },
+            );
 
         if (cancelled) {
           subscription.remove();
@@ -259,6 +400,9 @@ export default function WorkerLiveLocationTracker({
         subscriptionRef.current =
           subscription;
 
+        errorShownRef.current =
+          false;
+
         setState("active");
       } catch (error) {
         console.error(
@@ -266,8 +410,22 @@ export default function WorkerLiveLocationTracker({
           error,
         );
 
+        stopTracking();
+
         if (!cancelled) {
           setState("error");
+
+          if (
+            !errorShownRef.current
+          ) {
+            errorShownRef.current =
+              true;
+
+            showError(
+              "Location unavailable",
+              "We could not start live location tracking. Please try again.",
+            );
+          }
         }
       }
     }
@@ -277,119 +435,177 @@ export default function WorkerLiveLocationTracker({
     return () => {
       cancelled = true;
 
-      if (
-        subscriptionRef.current
-      ) {
-        subscriptionRef.current.remove();
-
-        subscriptionRef.current =
-          null;
-      }
+      stopTracking();
     };
   }, [
-    orderId,
     enabled,
+    orderId,
   ]);
+
+  /* ==========================================================
+     HIDDEN STATES
+  ========================================================== */
+
+  if (
+    !enabled ||
+    state === "idle"
+  ) {
+    return null;
+  }
+
+  /* ==========================================================
+     UI STATE
+  ========================================================== */
+
+  const isActive =
+    state === "active";
+
+  const isDenied =
+    state === "denied";
+
+  const isError =
+    state === "error";
+
+  const iconName =
+    isActive
+      ? "navigation"
+      : isDenied
+        ? "warning"
+        : isError
+          ? "error"
+          : "location";
+
+  const iconColor =
+    isActive
+      ? Colors.success
+      : isDenied
+        ? Colors.warning
+        : isError
+          ? Colors.error
+          : WorkerColors.primary;
+
+  const title =
+    isActive
+      ? "LIVE LOCATION ACTIVE"
+      : isDenied
+        ? "LOCATION PERMISSION NEEDED"
+        : isError
+          ? "LOCATION UNAVAILABLE"
+          : "STARTING LIVE LOCATION";
+
+  const description =
+    isActive
+      ? "Customer can now see your live location."
+      : isDenied
+        ? "Allow location permission to share your location."
+        : isError
+          ? "We could not update your live location."
+          : "Preparing your live location...";
 
   /* ==========================================================
      UI
   ========================================================== */
 
-  if (!enabled) {
-    return null;
-  }
-
-  if (state === "idle") {
-    return null;
-  }
-
   return (
     <View
-      style={
-        styles.container
-      }
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={`${title}. ${description}`}
+      style={styles.container}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.icon,
-          state === "active"
+
+          isActive
             ? styles.iconActive
-            : styles.iconWaiting,
+            : isDenied
+              ? styles.iconWarning
+              : isError
+                ? styles.iconError
+                : styles.iconStarting,
         ]}
       >
-        <Ionicons
-          name={
-            state === "active"
-              ? "navigate"
-              : "location-outline"
-          }
-          size={17}
-          color={
-            state === "active"
-              ? "#16A34A"
-              : "#2563EB"
-          }
+        <AppIcon
+          name={iconName}
+          role="worker"
+          size="sm"
+          color={iconColor}
         />
       </View>
+
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
       <View
-        style={
-          styles.content
-        }
+        style={styles.content}
       >
         <AppText
+          variant="caption"
           weight="bold"
-          style={
-            styles.title
-          }
+          style={[
+            styles.title,
+
+            isActive
+              ? styles.titleActive
+              : isDenied
+                ? styles.titleWarning
+                : isError
+                  ? styles.titleError
+                  : styles.titleStarting,
+          ]}
         >
-          {state === "active"
-            ? "LIVE LOCATION ACTIVE"
-            : state === "denied"
-              ? "LOCATION PERMISSION NEEDED"
-              : state === "error"
-                ? "LOCATION UNAVAILABLE"
-                : "STARTING LIVE LOCATION"}
+          {title}
         </AppText>
 
         <AppText
-          style={
-            styles.text
-          }
+          variant="caption"
+          tone="secondary"
+          style={styles.text}
         >
-          {state === "active"
-            ? "Customer can now see your live location."
-            : state === "denied"
-              ? "Allow location permission to share your location."
-              : state === "error"
-                ? "We could not update your live location."
-                : "Preparing your live location..."}
+          {description}
         </AppText>
       </View>
 
-      {state === "active" && (
+      {/* ======================================================
+          LIVE INDICATOR
+      ====================================================== */}
+
+      {isActive ? (
         <View
-          style={
-            styles.liveDot
-          }
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+          style={styles.liveDot}
         />
-      )}
+      ) : null}
     </View>
   );
 }
 
-/* ============================================================
+/* ==============================================================
    SAVE LOCATION
-============================================================ */
+============================================================== */
 
 async function saveLocation(
   orderId: string,
   location: Location.LocationObject,
+  workerId: string,
 ) {
-  const workerId =
-    auth.currentUser?.uid;
+  const cleanOrderId =
+    cleanText(orderId);
 
-  if (!workerId) {
+  const cleanWorkerId =
+    cleanText(workerId);
+
+  if (
+    !cleanOrderId ||
+    !cleanWorkerId
+  ) {
     return;
   }
 
@@ -401,9 +617,17 @@ async function saveLocation(
     speed,
   } = location.coords;
 
+  /* ==========================================================
+     COORDINATE VALIDATION
+  ========================================================== */
+
   if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
+    !Number.isFinite(
+      latitude,
+    ) ||
+    !Number.isFinite(
+      longitude,
+    )
   ) {
     return;
   }
@@ -417,11 +641,12 @@ async function saveLocation(
     return;
   }
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    orderId,
-  );
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      cleanOrderId,
+    );
 
   await updateDoc(
     bookingRef,
@@ -432,23 +657,33 @@ async function saveLocation(
 
         accuracy:
           typeof accuracy ===
-          "number"
+            "number" &&
+          Number.isFinite(
+            accuracy,
+          )
             ? accuracy
             : null,
 
         heading:
           typeof heading ===
-          "number"
+            "number" &&
+          Number.isFinite(
+            heading,
+          )
             ? heading
             : null,
 
         speed:
           typeof speed ===
-          "number"
+            "number" &&
+          Number.isFinite(
+            speed,
+          )
             ? speed
             : null,
 
-        workerId,
+        workerId:
+          cleanWorkerId,
 
         updatedAt:
           serverTimestamp(),
@@ -460,66 +695,148 @@ async function saveLocation(
   );
 }
 
-/* ============================================================
+/* ==============================================================
+   EXPORT
+============================================================== */
+
+export default memo(
+  WorkerLiveLocationTracker,
+);
+
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 14,
-      padding: 12,
-      borderRadius: 16,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      minHeight: 68,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       ICON
+    ======================================================== */
+
     icon: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
+      width: 44,
+
+      height: 44,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    iconStarting: {
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     iconActive: {
       backgroundColor:
-        "#DCFCE7",
+        Colors.successSoft,
     },
 
-    iconWaiting: {
+    iconWarning: {
       backgroundColor:
-        "#EFF6FF",
+        Colors.warningSoft,
     },
+
+    iconError: {
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
     content: {
       flex: 1,
-      marginLeft: 10,
-      marginRight: 8,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 9.5,
-      color: "#0F172A",
+      letterSpacing: 0.3,
+    },
+
+    titleStarting: {
+      color:
+        WorkerColors.primary,
+    },
+
+    titleActive: {
+      color:
+        Colors.success,
+    },
+
+    titleWarning: {
+      color:
+        Colors.warning,
+    },
+
+    titleError: {
+      color:
+        Colors.error,
     },
 
     text: {
-      marginTop: 3,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
     },
+
+    /* ========================================================
+       LIVE INDICATOR
+    ======================================================== */
 
     liveDot: {
       width: 9,
+
       height: 9,
-      borderRadius: 5,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#16A34A",
+        Colors.success,
     },
   });

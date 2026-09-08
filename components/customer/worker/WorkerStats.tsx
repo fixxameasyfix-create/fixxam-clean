@@ -1,202 +1,486 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   experience: string;
+
   state: string;
+
   lga: string;
+
   hourlyRate: number;
+
   completedJobs?: number;
 };
 
 type StatItemProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
+  icon:
+    | "service"
+    | "payment"
+    | "success"
+    | "location";
+
+  iconColor: string;
+
+  iconBackgroundColor: string;
+
   title: string;
+
   value: string;
 };
 
-function StatItem({
-  icon,
-  color,
-  title,
-  value,
-}: StatItemProps) {
-  return (
-    <View style={styles.item}>
-      <View
-        style={[
-          styles.iconContainer,
-          {
-            backgroundColor: `${color}15`,
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={15}
-          color={color}
-        />
-      </View>
+/* ==============================================================
+   HELPERS
+============================================================== */
 
-      <AppText
-        weight="semibold"
-        style={styles.title}
-        numberOfLines={1}
-      >
-        {title}
-      </AppText>
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
 
-      <AppText
-        weight="bold"
-        style={styles.value}
-        numberOfLines={1}
-      >
-        {value}
-      </AppText>
-    </View>
+  return value.trim();
+}
+
+function normalizeNumber(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    value,
   );
 }
 
-export default function WorkerStats({
+function normalizeCount(
+  value: number,
+): number {
+  return Math.floor(
+    normalizeNumber(
+      value,
+    ),
+  );
+}
+
+function formatAmount(
+  value: number,
+): string {
+  return new Intl.NumberFormat(
+    "en-NG",
+    {
+      maximumFractionDigits: 0,
+    },
+  ).format(value);
+}
+
+/* ==============================================================
+   STAT ITEM
+============================================================== */
+
+const StatItem =
+  memo(function StatItem({
+    icon,
+    iconColor,
+    iconBackgroundColor,
+    title,
+    value,
+  }: StatItemProps) {
+    return (
+      <View
+        style={
+          styles.item
+        }
+      >
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor:
+                iconBackgroundColor,
+            },
+          ]}
+        >
+          <AppIcon
+            name={
+              icon
+            }
+            role="customer"
+            size="xs"
+            color={
+              iconColor
+            }
+          />
+        </View>
+
+        <AppText
+          variant="caption"
+          weight="semibold"
+          tone="secondary"
+          numberOfLines={1}
+          style={
+            styles.title
+          }
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="caption"
+          weight="bold"
+          numberOfLines={1}
+          style={
+            styles.value
+          }
+        >
+          {value}
+        </AppText>
+      </View>
+    );
+  });
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerStats({
   experience,
   state,
   lga,
   hourlyRate,
   completedJobs = 0,
 }: Props) {
+  /* ============================================================
+     NORMALIZED VALUES
+  ============================================================ */
+
+  const experienceLabel =
+    cleanString(
+      experience,
+    ) ||
+    "0";
+
+  const safeHourlyRate =
+    normalizeNumber(
+      hourlyRate,
+    );
+
+  const safeCompletedJobs =
+    normalizeCount(
+      completedJobs,
+    );
+
+  const location =
+    useMemo(() => {
+      const cleanLga =
+        cleanString(
+          lga,
+        );
+
+      const cleanState =
+        cleanString(
+          state,
+        );
+
+      return (
+        [
+          cleanLga,
+          cleanState,
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(
+            ", ",
+          ) ||
+        "-"
+      );
+    }, [
+      lga,
+      state,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.card
+        }
+      >
+        {/* ====================================================
+            EXPERIENCE
+        ==================================================== */}
+
         <StatItem
-          icon="briefcase-outline"
-          color="#2563EB"
+          icon="service"
+          iconColor={
+            CustomerColors.primary
+          }
+          iconBackgroundColor={
+            CustomerColors.primarySoft
+          }
           title="Experience"
-          value={experience || "0"}
+          value={
+            experienceLabel
+          }
         />
 
-        <View style={styles.divider} />
+        <View
+          style={
+            styles.divider
+          }
+        />
+
+        {/* ====================================================
+            RATE
+        ==================================================== */}
 
         <StatItem
-          icon="cash-outline"
-          color="#F97316"
+          icon="payment"
+          iconColor={
+            CustomerColors.primary
+          }
+          iconBackgroundColor={
+            CustomerColors.primarySoft
+          }
           title="Rate"
-          value={`₦${hourlyRate.toLocaleString()}/hr`}
+          value={`₦${formatAmount(
+            safeHourlyRate,
+          )}/hr`}
         />
 
-        <View style={styles.divider} />
+        <View
+          style={
+            styles.divider
+          }
+        />
+
+        {/* ====================================================
+            JOBS
+        ==================================================== */}
 
         <StatItem
-          icon="checkmark-done-circle-outline"
-          color="#22C55E"
+          icon="success"
+          iconColor={
+            Colors.success
+          }
+          iconBackgroundColor={
+            Colors.successSoft
+          }
           title="Jobs"
-          value={`${completedJobs}`}
+          value={String(
+            safeCompletedJobs,
+          )}
         />
 
-        <View style={styles.divider} />
+        <View
+          style={
+            styles.divider
+          }
+        />
+
+        {/* ====================================================
+            LOCATION
+        ==================================================== */}
 
         <StatItem
-          icon="location-outline"
-          color="#8B5CF6"
+          icon="location"
+          iconColor={
+            Colors.info
+          }
+          iconBackgroundColor={
+            Colors.infoSoft
+          }
           title="Location"
-          value={lga || state || "-"}
+          value={
+            location
+          }
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 12,
-    marginTop: -22,
-    marginBottom: 10,
-    zIndex: 10,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  card: {
-    minHeight: 72,
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    flexDirection: "row",
-    alignItems: "stretch",
+      marginTop:
+        -FixxamTokens.spacing.xl,
 
-    backgroundColor: "#FFFFFF",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 15,
-
-    overflow: "hidden",
-
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      zIndex: 10,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  item: {
-    flex: 1,
+    card: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    alignItems: "center",
-    justifyContent: "center",
+      flexDirection:
+        "row",
 
-    paddingVertical: 8,
-    paddingHorizontal: 3,
-  },
+      alignItems:
+        "stretch",
 
-  divider: {
-    width: 1,
-    marginVertical: 12,
-    backgroundColor: "#E5E7EB",
-  },
+      overflow:
+        "hidden",
 
-  iconContainer: {
-    width: 28,
-    height: 28,
+      borderWidth: 1,
 
-    borderRadius: 9,
+      borderColor:
+        Colors.border,
 
-    alignItems: "center",
-    justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    marginBottom: 4,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  title: {
-    maxWidth: "100%",
+      ...FixxamTokens.shadow.card,
+    },
 
-    fontSize: 8.5,
-    lineHeight: 11,
+    /* ========================================================
+       ITEM
+    ======================================================== */
 
-    color: "#64748B",
+    item: {
+      flex: 1,
 
-    textAlign: "center",
-  },
+      minWidth: 0,
 
-  value: {
-    maxWidth: "100%",
+      alignItems:
+        "center",
 
-    marginTop: 2,
+      justifyContent:
+        "center",
 
-    fontSize: 10.5,
-    lineHeight: 14,
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
 
-    color: "#0F172A",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
 
-    textAlign: "center",
-  },
-});
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
+
+      height:
+        FixxamTokens.size
+          .avatarXs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    title: {
+      maxWidth:
+        "100%",
+
+      textAlign:
+        "center",
+    },
+
+    value: {
+      maxWidth:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      textAlign:
+        "center",
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
+
+    divider: {
+      width: 1,
+
+      marginVertical:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.divider,
+    },
+  });
+
+export default memo(
+  WorkerStats,
+);

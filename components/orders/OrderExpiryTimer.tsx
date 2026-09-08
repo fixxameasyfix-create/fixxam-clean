@@ -2,6 +2,7 @@ import React, {
   memo,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -11,9 +12,15 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -21,7 +28,9 @@ import { AppText } from "@/components/ui";
 
 type Props = {
   expiresAt: number;
-  onExpired: () => void | Promise<void>;
+
+  onExpired: () =>
+    void | Promise<void>;
 };
 
 /* ============================================================
@@ -35,7 +44,9 @@ function getRemainingSeconds(
     expiresAt - Date.now();
 
   if (
-    !Number.isFinite(remaining) ||
+    !Number.isFinite(
+      remaining,
+    ) ||
     remaining <= 0
   ) {
     return 0;
@@ -49,10 +60,13 @@ function getRemainingSeconds(
 function formatTime(
   totalSeconds: number,
 ): string {
-  const safeSeconds = Math.max(
-    0,
-    Math.floor(totalSeconds),
-  );
+  const safeSeconds =
+    Math.max(
+      0,
+      Math.floor(
+        totalSeconds,
+      ),
+    );
 
   const minutes =
     Math.floor(
@@ -64,9 +78,15 @@ function formatTime(
 
   return `${String(
     minutes,
-  ).padStart(2, "0")}:${String(
+  ).padStart(
+    2,
+    "0",
+  )}:${String(
     seconds,
-  ).padStart(2, "0")}`;
+  ).padStart(
+    2,
+    "0",
+  )}`;
 }
 
 /* ============================================================
@@ -89,14 +109,25 @@ function OrderExpiryTimer({
   const [
     remainingSeconds,
     setRemainingSeconds,
-  ] = useState(
-    initialSeconds,
-  );
+  ] =
+    useState(
+      initialSeconds,
+    );
 
   const [
     expiring,
     setExpiring,
   ] = useState(false);
+
+  /*
+   * Prevent duplicate expiry callbacks
+   * if the effect restarts because the
+   * callback identity changes.
+   */
+  const handledExpiryRef =
+    useRef<number | null>(
+      null,
+    );
 
   /* ==========================================================
      RESET WHEN EXPIRY CHANGES
@@ -110,6 +141,9 @@ function OrderExpiryTimer({
     );
 
     setExpiring(false);
+
+    handledExpiryRef.current =
+      null;
   }, [expiresAt]);
 
   /* ==========================================================
@@ -118,16 +152,58 @@ function OrderExpiryTimer({
 
   useEffect(() => {
     if (
-      !Number.isFinite(expiresAt) ||
+      !Number.isFinite(
+        expiresAt,
+      ) ||
       expiresAt <= 0
     ) {
       return;
     }
 
-    let expiredHandled = false;
+    let mounted = true;
+
+    let interval:
+      | ReturnType<
+          typeof setInterval
+        >
+      | null = null;
+
+    const handleExpired =
+      async () => {
+        if (
+          handledExpiryRef.current ===
+          expiresAt
+        ) {
+          return;
+        }
+
+        handledExpiryRef.current =
+          expiresAt;
+
+        if (mounted) {
+          setExpiring(true);
+        }
+
+        try {
+          await onExpired();
+        } catch (error) {
+          console.error(
+            "ORDER_EXPIRY_HANDLER_ERROR",
+            error,
+          );
+        } finally {
+          if (mounted) {
+            setExpiring(false);
+          }
+        }
+      };
 
     const checkExpiry =
       () => {
+        if (!mounted) {
+          return;
+        }
+
         const seconds =
           getRemainingSeconds(
             expiresAt,
@@ -137,29 +213,41 @@ function OrderExpiryTimer({
           seconds,
         );
 
-        if (
-          seconds <= 0 &&
-          !expiredHandled
-        ) {
-          expiredHandled = true;
-          setExpiring(true);
+        if (seconds <= 0) {
+          if (interval) {
+            clearInterval(
+              interval,
+            );
 
-          void onExpired();
+            interval = null;
+          }
+
+          void handleExpired();
         }
       };
 
     checkExpiry();
 
-    const interval =
-      setInterval(
-        checkExpiry,
-        1000,
-      );
+    if (
+      getRemainingSeconds(
+        expiresAt,
+      ) > 0
+    ) {
+      interval =
+        setInterval(
+          checkExpiry,
+          1000,
+        );
+    }
 
     return () => {
-      clearInterval(
-        interval,
-      );
+      mounted = false;
+
+      if (interval) {
+        clearInterval(
+          interval,
+        );
+      }
     };
   }, [
     expiresAt,
@@ -167,11 +255,13 @@ function OrderExpiryTimer({
   ]);
 
   /* ==========================================================
-     INVALID DATE
+     INVALID EXPIRY
   ========================================================== */
 
   if (
-    !Number.isFinite(expiresAt) ||
+    !Number.isFinite(
+      expiresAt,
+    ) ||
     expiresAt <= 0
   ) {
     return null;
@@ -186,6 +276,9 @@ function OrderExpiryTimer({
   ) {
     return (
       <View
+        accessible
+        accessibilityRole="summary"
+        accessibilityLabel="Order expired. The 10-minute call window has ended."
         style={[
           styles.container,
           styles.expiredContainer,
@@ -197,25 +290,44 @@ function OrderExpiryTimer({
             styles.expiredIconContainer,
           ]}
         >
-          <Ionicons
-            name="time-outline"
-            size={20}
-            color="#DC2626"
-          />
+          {expiring ? (
+            <ActivityIndicator
+              size="small"
+              color={
+                Colors.error
+              }
+            />
+          ) : (
+            <AppIcon
+              name="clock"
+              size="sm"
+              color={
+                Colors.error
+              }
+            />
+          )}
         </View>
 
         <View
-          style={styles.content}
+          style={
+            styles.content
+          }
         >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.expiredTitle}
+            style={
+              styles.expiredTitle
+            }
           >
             ORDER EXPIRED
           </AppText>
 
           <AppText
-            style={styles.expiredSubtitle}
+            variant="caption"
+            style={
+              styles.expiredSubtitle
+            }
           >
             The 10-minute call window has ended.
           </AppText>
@@ -225,90 +337,120 @@ function OrderExpiryTimer({
   }
 
   /* ==========================================================
-     COUNTDOWN
+     ACTIVE / WARNING
   ========================================================== */
+
+  const warning =
+    remainingSeconds <= 60;
 
   return (
     <View
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={`Call window open. ${formatTime(
+        remainingSeconds,
+      )} remaining.`}
       style={[
         styles.container,
-        remainingSeconds <= 60 &&
-          styles.warningContainer,
+
+        warning
+          ? styles.warningContainer
+          : null,
       ]}
     >
+      {/* ======================================================
+          CALL ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconContainer,
-          remainingSeconds <= 60 &&
-            styles.warningIconContainer,
+
+          warning
+            ? styles.warningIconContainer
+            : null,
         ]}
       >
-        {expiring ? (
-          <ActivityIndicator
-            size="small"
-            color="#D97706"
-          />
-        ) : (
-          <Ionicons
-            name="call-outline"
-            size={20}
-            color={
-              remainingSeconds <= 60
-                ? "#D97706"
-                : "#16A34A"
-            }
-          />
-        )}
+        <AppIcon
+          name="phone"
+          size="sm"
+          color={
+            warning
+              ? Colors.warning
+              : Colors.success
+          }
+        />
       </View>
 
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <View
-        style={styles.content}
+        style={
+          styles.content
+        }
       >
         <AppText
+          variant="caption"
           weight="bold"
           style={[
             styles.title,
-            remainingSeconds <= 60 &&
-              styles.warningTitle,
+
+            warning
+              ? styles.warningTitle
+              : null,
           ]}
         >
           CALL WINDOW OPEN
         </AppText>
 
         <AppText
+          variant="caption"
           style={[
             styles.subtitle,
-            remainingSeconds <= 60 &&
-              styles.warningSubtitle,
+
+            warning
+              ? styles.warningSubtitle
+              : null,
           ]}
         >
           Call worker before this order expires.
         </AppText>
       </View>
 
+      {/* ======================================================
+          TIMER
+      ====================================================== */}
+
       <View
         style={[
           styles.timerBadge,
-          remainingSeconds <= 60 &&
-            styles.warningTimerBadge,
+
+          warning
+            ? styles.warningTimerBadge
+            : null,
         ]}
       >
-        <Ionicons
-          name="timer-outline"
-          size={14}
+        <AppIcon
+          name="clock"
+          size="xs"
           color={
-            remainingSeconds <= 60
-              ? "#D97706"
-              : "#15803D"
+            warning
+              ? Colors.warning
+              : Colors.success
           }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
           style={[
             styles.timerText,
-            remainingSeconds <= 60 &&
-              styles.warningTimerText,
+
+            warning
+              ? styles.warningTimerText
+              : null,
           ]}
         >
           {formatTime(
@@ -330,120 +472,192 @@ export default memo(
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
+
     container: {
       minHeight: 62,
-      marginTop: 10,
-      paddingHorizontal: 11,
-      paddingVertical: 9,
-      borderRadius: 16,
-      backgroundColor:
-        "#ECFDF5",
-      borderWidth: 1,
-      borderColor:
-        "#BBF7D0",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     warningContainer: {
-      backgroundColor:
-        "#FFF7E8",
       borderColor:
-        "#FDE68A",
+        Colors.warning,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     expiredContainer: {
-      backgroundColor:
-        "#FEF2F2",
       borderColor:
-        "#FECACA",
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
 
     iconContainer: {
       width: 40,
+
       height: 40,
-      borderRadius: 12,
-      backgroundColor:
-        "#DCFCE7",
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     warningIconContainer: {
       backgroundColor:
-        "#FEF3C7",
+        Colors.surface,
     },
 
     expiredIconContainer: {
       backgroundColor:
-        "#FEE2E2",
+        Colors.surface,
     },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
     content: {
       flex: 1,
-      marginLeft: 9,
-      marginRight: 8,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 10,
       letterSpacing: 0.3,
-      color: "#15803D",
+
+      color:
+        Colors.success,
     },
 
     warningTitle: {
-      color: "#B45309",
+      color:
+        Colors.warning,
     },
 
     expiredTitle: {
-      color: "#B91C1C",
+      letterSpacing: 0.3,
+
+      color:
+        Colors.error,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 8.8,
-      lineHeight: 14,
-      color: "#166534",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 15,
+
+      color:
+        Colors.textSecondary,
     },
 
     warningSubtitle: {
-      color: "#92400E",
+      color:
+        Colors.textSecondary,
     },
 
     expiredSubtitle: {
-      marginTop: 3,
-      fontSize: 8.8,
-      lineHeight: 14,
-      color: "#991B1B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 15,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       TIMER BADGE
+    ======================================================== */
+
     timerBadge: {
-      minWidth: 70,
-      height: 34,
-      paddingHorizontal: 8,
-      borderRadius: 10,
-      backgroundColor:
-        "#DCFCE7",
+      minWidth: 72,
+
+      minHeight: 36,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexShrink: 0,
+
+      flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      flexDirection: "row",
-      gap: 4,
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     warningTimerBadge: {
       backgroundColor:
-        "#FEF3C7",
+        Colors.surface,
     },
 
     timerText: {
-      fontSize: 11,
-      color: "#15803D",
       letterSpacing: 0.3,
+
+      color:
+        Colors.success,
     },
 
     warningTimerText: {
-      color: "#B45309",
+      color:
+        Colors.warning,
     },
   });

@@ -1,173 +1,424 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useState,
+} from "react";
+
 import {
-  View,
-  TextInput,
+  Pressable,
+  StyleProp,
   StyleSheet,
+  TextInput,
   TextInputProps,
+  TextStyle,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
+import AppIcon from "./AppIcon";
+import type { AppIconName } from "./AppIcon";
+import AppText from "./AppText";
 
-import { AppText } from "@/components/ui";
 import {
   CustomerColors,
-  WorkerColors,
   FixxamTokens,
-  FIXXAM,
-  FixxamColors,
+  Typography,
+  WorkerColors,
+  type FixxamRole,
 } from "@/theme";
 
-interface AppInputProps extends TextInputProps {
+export interface AppInputProps
+  extends Omit<
+    TextInputProps,
+    "style" | "role"
+  > {
   label?: string;
+
   error?: string;
+
+  helperText?: string;
+
   required?: boolean;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   * Existing screens can continue using:
+   * variant="customer"
+   * variant="worker"
+   */
   variant?: "customer" | "worker";
-  leftIcon?: keyof typeof Ionicons.glyphMap;
+
+  /*
+   * Preferred left icon API.
+   */
+  leftIconName?: AppIconName;
+
+  /*
+   * Legacy icon-name support.
+   */
+  leftIcon?: string;
+
+  /*
+   * Right-side action icon.
+   * Used by password visibility,
+   * clear actions, etc.
+   */
+  rightIconName?: AppIconName;
+
+  onRightIconPress?: () => void;
+
+  rightIconAccessibilityLabel?: string;
+
+  containerStyle?: StyleProp<ViewStyle>;
+
+  inputContainerStyle?: StyleProp<ViewStyle>;
+
+  style?: StyleProp<TextStyle>;
 }
 
-export default function AppInput({
+function AppInput({
   label,
   error,
+  helperText,
+
   required = false,
-  variant = "customer",
+
+  role = "customer",
+  variant,
+
+  leftIconName,
   leftIcon,
+
+  rightIconName,
+  onRightIconPress,
+  rightIconAccessibilityLabel,
+
+  containerStyle,
+  inputContainerStyle,
   style,
+
+  editable = true,
+
+  onFocus,
+  onBlur,
+
+  accessibilityLabel,
+
   ...props
 }: AppInputProps) {
-  const activeColor =
-    variant === "worker"
-      ? WorkerColors.primary
-      : CustomerColors.primary;
+  const [focused, setFocused] =
+    useState(false);
+
+  const resolvedRole: FixxamRole =
+    variant ?? role;
+
+  const colors =
+    resolvedRole === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const disabled =
+    editable === false;
+
+  const resolvedLeftIcon =
+    leftIconName ?? leftIcon;
+
+  const borderColor = error
+    ? colors.error
+    : focused
+      ? colors.primary
+      : colors.border;
+
+  const backgroundColor = disabled
+    ? colors.disabledBackground
+    : colors.surface;
+
+  const handleFocus: NonNullable<
+    TextInputProps["onFocus"]
+  > = useCallback(
+    (event) => {
+      setFocused(true);
+      onFocus?.(event);
+    },
+    [onFocus],
+  );
+
+  const handleBlur: NonNullable<
+    TextInputProps["onBlur"]
+  > = useCallback(
+    (event) => {
+      setFocused(false);
+      onBlur?.(event);
+    },
+    [onBlur],
+  );
+
+  const iconState = error
+    ? "error"
+    : disabled
+      ? "muted"
+      : focused
+        ? "active"
+        : "default";
 
   return (
-    <View style={styles.container}>
-      {label && (
+    <View
+      style={[
+        styles.container,
+        containerStyle,
+      ]}
+    >
+      {label ? (
         <View style={styles.labelRow}>
           <AppText
-            weight="semibold"
-            style={styles.label}
+            style={[
+              Typography.styles.label,
+              {
+                color: disabled
+                  ? colors.textMuted
+                  : colors.textPrimary,
+              },
+            ]}
           >
             {label}
           </AppText>
 
-          {required && (
+          {required ? (
             <AppText
-              style={styles.required}
+              style={[
+                Typography.styles.label,
+                {
+                  color: colors.error,
+                },
+              ]}
             >
               {" *"}
             </AppText>
-          )}
+          ) : null}
         </View>
-      )}
+      ) : null}
 
       <View
         style={[
           styles.inputContainer,
           {
-            borderColor: activeColor,
+            borderColor,
+            backgroundColor,
           },
-          error && styles.errorBorder,
+          inputContainerStyle,
         ]}
       >
-        {leftIcon && (
-          <Ionicons
-            name={leftIcon}
-            size={FIXXAM.ICON_SIZE_MD}
-            color={activeColor}
-            style={styles.icon}
-          />
-        )}
+        {resolvedLeftIcon ? (
+          <View style={styles.leftIcon}>
+            <AppIcon
+              name={resolvedLeftIcon}
+              role={resolvedRole}
+              size="sm"
+              state={iconState}
+            />
+          </View>
+        ) : null}
 
         <TextInput
           {...props}
+          editable={editable}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          accessibilityLabel={
+            accessibilityLabel ?? label
+          }
+          accessibilityState={{
+            disabled,
+          }}
           placeholderTextColor={
-            CustomerColors.textSecondary
+            colors.textMuted
+          }
+          selectionColor={
+            colors.primary
           }
           style={[
             styles.input,
+            Typography.styles.bodyLarge,
+            {
+              color: disabled
+                ? colors.textMuted
+                : colors.textPrimary,
+            },
             style,
           ]}
         />
+
+        {rightIconName ? (
+          <Pressable
+            accessibilityRole={
+              onRightIconPress
+                ? "button"
+                : undefined
+            }
+            accessibilityLabel={
+              rightIconAccessibilityLabel
+            }
+            disabled={
+              disabled ||
+              !onRightIconPress
+            }
+            hitSlop={8}
+            onPress={
+              onRightIconPress
+            }
+            style={({ pressed }) => [
+              styles.rightIcon,
+
+              pressed &&
+              onRightIconPress &&
+              !disabled
+                ? styles.iconPressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name={rightIconName}
+              role={resolvedRole}
+              size="sm"
+              state={iconState}
+            />
+          </Pressable>
+        ) : null}
       </View>
 
-      {!!error && (
-        <AppText
-          style={styles.errorText}
+      {error ? (
+        <View
+          style={styles.supportingRow}
         >
-          {error}
+          <AppIcon
+            name="error"
+            role={resolvedRole}
+            size="xs"
+            state="error"
+          />
+
+          <AppText
+            style={[
+              Typography.styles.caption,
+              {
+                color: colors.error,
+              },
+            ]}
+          >
+            {error}
+          </AppText>
+        </View>
+      ) : helperText ? (
+        <AppText
+          style={[
+            styles.helperText,
+            Typography.styles.caption,
+            {
+              color:
+                colors.textSecondary,
+            },
+          ]}
+        >
+          {helperText}
         </AppText>
-      )}
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 8,
+    width: "100%",
   },
 
   labelRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 3,
-  },
 
-  label: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: CustomerColors.textPrimary,
-  },
-
-  required: {
-    fontSize: 12,
-    color: CustomerColors.error,
+    marginBottom:
+      FixxamTokens.spacing.sm,
   },
 
   inputContainer: {
+    minHeight:
+      FixxamTokens.size.inputHeight,
+
     flexDirection: "row",
     alignItems: "center",
 
-    height: 48,
-
     borderWidth: 1,
-    borderRadius: 14,
 
-    backgroundColor: FixxamColors.white,
+    borderRadius:
+      FixxamTokens.radius.input,
 
-    paddingHorizontal: 12,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-
-    elevation: 1,
-  },
-
-  icon: {
-    marginRight: 8,
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
   },
 
   input: {
     flex: 1,
 
-    color: CustomerColors.textPrimary,
-
-    fontSize: 15,
+    minHeight:
+      FixxamTokens.size.inputHeight,
 
     paddingVertical: 0,
   },
 
-  errorBorder: {
-    borderColor: CustomerColors.error,
+  leftIcon: {
+    flexShrink: 0,
+
+    marginRight:
+      FixxamTokens.spacing.sm,
+
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  errorText: {
-    marginTop: 3,
-    fontSize: 11,
-    color: CustomerColors.error,
+  rightIcon: {
+    flexShrink: 0,
+
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius
+        .iconButton,
+  },
+
+  iconPressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
+  },
+
+  supportingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    gap:
+      FixxamTokens.spacing.xs,
+
+    marginTop:
+      FixxamTokens.spacing.xs,
+  },
+
+  helperText: {
+    marginTop:
+      FixxamTokens.spacing.xs,
   },
 });
+
+export default memo(AppInput);

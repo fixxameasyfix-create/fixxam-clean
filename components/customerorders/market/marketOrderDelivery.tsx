@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -7,30 +8,90 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   receiverName?: string;
+
   receiverPhone?: string;
+
   address: string;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function MarketOrderDelivery({
   receiverName,
   receiverPhone,
   address,
 }: Props) {
+  const deliveryName =
+    useMemo(
+      () =>
+        typeof receiverName === "string" &&
+        receiverName.trim()
+          ? receiverName.trim()
+          : "Delivery location",
+      [
+        receiverName,
+      ],
+    );
+
+  const deliveryAddress =
+    useMemo(
+      () =>
+        typeof address === "string" &&
+        address.trim()
+          ? address.trim()
+          : "Delivery address unavailable",
+      [
+        address,
+      ],
+    );
+
+  const deliveryPhone =
+    useMemo(
+      () =>
+        typeof receiverPhone === "string"
+          ? receiverPhone.trim()
+          : "",
+      [
+        receiverPhone,
+      ],
+    );
+
   return (
     <View
       style={
         styles.card
       }
+      accessibilityLabel={`${deliveryName}. ${deliveryAddress}${
+        deliveryPhone
+          ? `. Phone ${deliveryPhone}`
+          : ""
+      }`}
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="body"
         weight="bold"
         style={
           styles.title
@@ -38,6 +99,10 @@ function MarketOrderDelivery({
       >
         Delivery Address
       </AppText>
+
+      {/* ======================================================
+          DELIVERY INFO
+      ====================================================== */}
 
       <View
         style={
@@ -49,10 +114,13 @@ function MarketOrderDelivery({
             styles.iconBox
           }
         >
-          <Ionicons
-            name="location-outline"
-            size={21}
-            color="#2563EB"
+          <AppIcon
+            name="location"
+            role="customer"
+            size="md"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
@@ -62,43 +130,49 @@ function MarketOrderDelivery({
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
             numberOfLines={1}
             style={
               styles.name
             }
           >
-            {receiverName?.trim() ||
-              "Delivery location"}
+            {deliveryName}
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.address
             }
           >
-            {address?.trim() ||
-              "Delivery address unavailable"}
+            {deliveryAddress}
           </AppText>
 
-          {receiverPhone?.trim() ? (
+          {deliveryPhone ? (
             <View
               style={
                 styles.phoneRow
               }
             >
-              <Ionicons
-                name="call-outline"
-                size={13}
-                color="#64748B"
+              <AppIcon
+                name="phone"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
                 style={
                   styles.phone
                 }
               >
-                {receiverPhone.trim()}
+                {deliveryPhone}
               </AppText>
             </View>
           ) : null}
@@ -108,72 +182,143 @@ function MarketOrderDelivery({
   );
 }
 
-export default memo(
-  MarketOrderDelivery,
-);
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedMarketOrderDelivery =
+  memo(
+    MarketOrderDelivery,
+  );
+
+MemoizedMarketOrderDelivery.displayName =
+  "MarketOrderDelivery";
+
+export default MemoizedMarketOrderDelivery;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     row: {
-      marginTop: 12,
-      flexDirection: "row",
-      alignItems: "flex-start",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
     },
 
     iconBox: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     content: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     name: {
-      fontSize: 10.5,
-      color: "#334155",
+      color:
+        Colors.textPrimary,
     },
 
     address: {
-      marginTop: 4,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       PHONE
+    ======================================================== */
+
     phoneRow: {
-      marginTop: 5,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     phone: {
-      fontSize: 8.5,
-      color: "#64748B",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
   });

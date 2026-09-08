@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -7,53 +9,123 @@ import {
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
 
-export default function PopularMaterialsEmpty() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function PopularMaterialsEmpty() {
   return (
-    <View style={styles.container}>
-      <MaterialCommunityIcons
-        name="package-variant-closed-remove"
-        size={72}
-        color="#CBD5E1"
-      />
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.iconBox
+        }
+      >
+        <MaterialCommunityIcons
+          name="package-variant-closed-remove"
+          size={56}
+          color={
+            Colors.textMuted
+          }
+        />
+      </View>
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        center
+        style={
+          styles.title
+        }
       >
         No Materials Found
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        We couldn't find any materials
-        matching your search or selected
-        category.
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.subtitle
+        }
+      >
+        We couldn't find any materials matching your search or selected category.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    minHeight: 320,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  title: {
-    marginTop: 20,
-    fontSize: 20,
-    color: "#111827",
-    textAlign: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight: 300,
 
-  subtitle: {
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-    textAlign: "center",
-  },
-});
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xl,
+    },
+
+    iconBox: {
+      width: 88,
+
+      height: 88,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 21,
+    },
+  });
+
+export default memo(
+  PopularMaterialsEmpty,
+);

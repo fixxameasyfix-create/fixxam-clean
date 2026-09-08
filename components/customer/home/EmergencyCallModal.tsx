@@ -11,43 +11,84 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   EmergencyService,
 } from "@/constants/emergencyServices";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   visible: boolean;
-  service: EmergencyService | null;
+
+  service:
+    | EmergencyService
+    | null;
+
   onClose: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function EmergencyCallModal({
   visible,
   service,
   onClose,
 }: Props) {
-  const handleCall = useCallback(() => {
-    if (!service) {
-      return;
-    }
+  /* ==========================================================
+     CONTACT WORKERS
+  ========================================================== */
 
-    /*
-     * Call Now no longer opens the phone dialer.
-     *
-     * It takes the customer directly to:
-     *
-     * app/(customer)/contact-worker/index.tsx
-     */
-    router.push(
-      "/(customer)/contact-worker/contact",
-    );
-  }, [service]);
+  const handleCall =
+    useCallback(() => {
+      if (!service) {
+        return;
+      }
+
+      /*
+       * Close the emergency modal first
+       * so it cannot remain mounted over
+       * the next screen.
+       */
+      onClose();
+
+      /*
+       * Preserve the existing route.
+       *
+       * Call Now does not open
+       * the phone dialer.
+       */
+      router.push(
+        "/(customer)/contact-worker/contact",
+      );
+    }, [
+      onClose,
+      service,
+    ]);
+
+  /* ==========================================================
+     EMPTY
+  ========================================================== */
 
   if (!service) {
     return null;
   }
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
@@ -57,19 +98,24 @@ function EmergencyCallModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          {/* =====================================================
-              FULL EMERGENCY IMAGE
+      <View
+        style={styles.overlay}
+      >
+        <View
+          accessibilityViewIsModal
+          style={styles.modal}
+        >
+          {/* ==================================================
+              EMERGENCY IMAGE
 
               The image already contains:
-              - Emergency image
+              - Emergency artwork
               - SOS icon
               - Title
               - Description
-              - ×
-              - Call Now
-          ===================================================== */}
+              - Close icon
+              - Call Now button
+          ================================================== */}
 
           <Image
             source={service.image}
@@ -79,43 +125,40 @@ function EmergencyCallModal({
             accessibilityLabel={`${service.title} emergency service`}
           />
 
-          {/* =====================================================
+          {/* ==================================================
               CLOSE HOTSPOT
-
-              Invisible Pressable positioned over the ×
-              already contained inside the image.
-          ===================================================== */}
+          ================================================== */}
 
           <Pressable
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel="Close emergency service"
+            accessibilityHint="Closes this emergency service window"
             hitSlop={8}
             style={({ pressed }) => [
               styles.closeHotspot,
-              pressed &&
-                styles.hotspotPressed,
+
+              pressed
+                ? styles.hotspotPressed
+                : null,
             ]}
           />
 
-          {/* =====================================================
-              CALL NOW HOTSPOT
-
-              Invisible Pressable positioned over the
-              Call Now button contained inside the image.
-
-              It now opens Contact Workers instead of
-              opening the phone dialer.
-          ===================================================== */}
+          {/* ==================================================
+              CONTACT WORKERS HOTSPOT
+          ================================================== */}
 
           <Pressable
             onPress={handleCall}
             accessibilityRole="button"
             accessibilityLabel={`Contact workers for ${service.title}`}
+            accessibilityHint="Opens the contact workers screen"
             style={({ pressed }) => [
               styles.callHotspot,
-              pressed &&
-                styles.hotspotPressed,
+
+              pressed
+                ? styles.hotspotPressed
+                : null,
             ]}
           />
         </View>
@@ -128,107 +171,117 @@ export default memo(
   EmergencyCallModal,
 );
 
-const styles = StyleSheet.create({
-  /* ============================================================
-     OVERLAY
-  ============================================================ */
+/* ============================================================
+   STYLES
+============================================================ */
 
-  overlay: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
 
-    backgroundColor:
-      "rgba(15, 23, 42, 0.68)",
+    overlay: {
+      flex: 1,
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems: "center",
 
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
+      justifyContent:
+        "center",
 
-  /* ============================================================
-     MODAL
-  ============================================================ */
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  modal: {
-    width: "100%",
+      paddingVertical:
+        FixxamTokens.spacing.lg,
 
-    maxWidth: 430,
-
-    aspectRatio: 2 / 3,
-
-    position: "relative",
-
-    overflow: "hidden",
-
-    backgroundColor: "#FFFFFF",
-
-    borderRadius: 30,
-
-    shadowColor: "#000000",
-
-    shadowOpacity: 0.25,
-
-    shadowRadius: 30,
-
-    shadowOffset: {
-      width: 0,
-      height: 16,
+      backgroundColor:
+        Colors.overlayStrong,
     },
 
-    elevation: 20,
-  },
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
-  /* ============================================================
-     IMAGE
-  ============================================================ */
+    modal: {
+      width: "100%",
 
-  image: {
-    width: "100%",
-    height: "100%",
-  },
+      maxWidth: 430,
 
-  /* ============================================================
-     CLOSE HOTSPOT
-  ============================================================ */
+      aspectRatio: 2 / 3,
 
-  closeHotspot: {
-    position: "absolute",
+      position: "relative",
 
-    top: 0,
-    right: 0,
+      overflow: "hidden",
 
-    width: "18%",
-    height: "14%",
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-    zIndex: 20,
+      backgroundColor:
+        Colors.surface,
 
-    backgroundColor: "transparent",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  /* ============================================================
-     CALL NOW HOTSPOT
-  ============================================================ */
+    /* ========================================================
+       IMAGE
+    ======================================================== */
 
-  callHotspot: {
-    position: "absolute",
+    image: {
+      width: "100%",
 
-    left: 0,
-    right: 0,
-    bottom: 0,
+      height: "100%",
+    },
 
-    height: "15%",
+    /* ========================================================
+       CLOSE HOTSPOT
+    ======================================================== */
 
-    zIndex: 20,
+    closeHotspot: {
+      position: "absolute",
 
-    backgroundColor: "transparent",
-  },
+      top: 0,
 
-  /* ============================================================
-     PRESSED STATE
-  ============================================================ */
+      right: 0,
 
-  hotspotPressed: {
-    opacity: 0.75,
-  },
-});
+      width: "18%",
+
+      height: "14%",
+
+      zIndex: 20,
+
+      backgroundColor:
+        "transparent",
+    },
+
+    /* ========================================================
+       CALL HOTSPOT
+    ======================================================== */
+
+    callHotspot: {
+      position: "absolute",
+
+      left: 0,
+
+      right: 0,
+
+      bottom: 0,
+
+      height: "15%",
+
+      zIndex: 20,
+
+      backgroundColor:
+        "transparent",
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    hotspotPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+  });

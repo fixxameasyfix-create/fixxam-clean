@@ -6,20 +6,33 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
-
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
 import CategoryCard from "@/components/categories/CategoryCard";
 
 import useRecommendedServices from "@/hooks/services/useRecommendedServices";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function RecommendedDealsScreen() {
   const {
@@ -31,12 +44,24 @@ export default function RecommendedDealsScreen() {
   } =
     useRecommendedServices();
 
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
+
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
   const handleServicePress =
     useCallback(
-      (serviceId: string) => {
+      (
+        serviceId: string,
+      ) => {
         router.push({
           pathname:
             "/(customer)/details/workers/[id]",
+
           params: {
             id: serviceId,
           },
@@ -45,20 +70,29 @@ export default function RecommendedDealsScreen() {
       [],
     );
 
+  /* ==========================================================
+     LOADING
+  ========================================================== */
+
   if (loading) {
     return (
-      <SafeAreaView
-        style={styles.container}
+      <AppScreen
+        role="customer"
+        style={styles.screen}
       >
         <View
           style={styles.center}
         >
           <ActivityIndicator
             size="large"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -66,37 +100,60 @@ export default function RecommendedDealsScreen() {
             Loading recommended services...
           </AppText>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
-    <SafeAreaView
-      style={styles.container}
+    <AppScreen
+      role="customer"
+      style={styles.screen}
     >
-      <View style={styles.header}>
+      {/* ====================================================
+          HEADER
+      ==================================================== */}
+
+      <View
+        style={styles.header}
+      >
         <Pressable
+          onPress={
+            handleBack
+          }
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          hitSlop={10}
-          onPress={() =>
-            router.back()
-          }
-          style={
-            styles.backButton
-          }
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            role="customer"
+            size="md"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
 
         <View
-          style={styles.headerText}
+          style={
+            styles.headerText
+          }
         >
           <AppText
+            variant="heading2"
             weight="bold"
             style={styles.title}
           >
@@ -104,34 +161,50 @@ export default function RecommendedDealsScreen() {
           </AppText>
 
           <AppText
-            style={styles.subtitle}
+            variant="body"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
           >
-            Discover services selected
-            for today.
+            Discover services selected for today.
           </AppText>
         </View>
       </View>
 
+      {/* ====================================================
+          DAILY BANNER
+      ==================================================== */}
+
       <View
-        style={styles.dailyBanner}
+        style={
+          styles.dailyBanner
+        }
       >
         <View
           style={
             styles.dailyIcon
           }
         >
-          <Ionicons
-            name="sparkles-outline"
-            size={22}
-            color="#7C3AED"
+          <AppIcon
+            name="star"
+            role="customer"
+            size="md"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <View
-          style={styles.dailyContent}
+          style={
+            styles.dailyContent
+          }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
+            numberOfLines={1}
             style={
               styles.dailyTitle
             }
@@ -140,27 +213,36 @@ export default function RecommendedDealsScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            numberOfLines={2}
             style={
               styles.dailyText
             }
           >
-            We selected up to 10 services
-            from Fixxam for today.
+            We selected up to 10 services from Fixxam for today.
           </AppText>
         </View>
       </View>
+
+      {/* ====================================================
+          ERROR
+      ==================================================== */}
 
       {error ? (
         <View
           style={styles.errorCard}
         >
-          <Ionicons
-            name="alert-circle-outline"
-            size={22}
-            color="#DC2626"
+          <AppIcon
+            name="error"
+            size="sm"
+            color={
+              Colors.error
+            }
           />
 
           <AppText
+            variant="body"
+            numberOfLines={3}
             style={
               styles.errorText
             }
@@ -170,15 +252,23 @@ export default function RecommendedDealsScreen() {
         </View>
       ) : null}
 
+      {/* ====================================================
+          SERVICES
+      ==================================================== */}
+
       <FlatList
         data={services}
-        keyExtractor={(item) =>
-          item.id
-        }
-        renderItem={({ item }) => (
+        keyExtractor={(
+          item,
+        ) => item.id}
+        renderItem={({
+          item,
+        }) => (
           <CategoryCard
             icon={item.icon}
-            iconColor={item.color}
+            iconColor={
+              item.color
+            }
             backgroundColor={
               item.backgroundColor
             }
@@ -190,15 +280,21 @@ export default function RecommendedDealsScreen() {
             }
           />
         )}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
+        refreshing={
+          refreshing
+        }
+        onRefresh={
+          onRefresh
+        }
         showsVerticalScrollIndicator={
           false
         }
         contentContainerStyle={[
           styles.content,
-          services.length === 0 &&
-            styles.emptyContent,
+
+          services.length === 0
+            ? styles.emptyContent
+            : null,
         ]}
         ListEmptyComponent={
           <View
@@ -209,15 +305,20 @@ export default function RecommendedDealsScreen() {
                 styles.emptyIcon
               }
             >
-              <Ionicons
-                name="sparkles-outline"
-                size={38}
-                color="#7C3AED"
+              <AppIcon
+                name="star"
+                role="customer"
+                size="xl"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
             <AppText
+              variant="heading3"
               weight="bold"
+              center
               style={
                 styles.emptyTitle
               }
@@ -226,23 +327,43 @@ export default function RecommendedDealsScreen() {
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               center
               style={
                 styles.emptyText
               }
             >
-              There are no services available
-              to recommend right now.
+              There are no services available to recommend right now.
             </AppText>
 
             <Pressable
-              onPress={onRefresh}
-              style={
-                styles.retryButton
+              onPress={
+                onRefresh
               }
               accessibilityRole="button"
+              accessibilityLabel="Try loading recommended services again"
+              style={({
+                pressed,
+              }) => [
+                styles.retryButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
+              <AppIcon
+                name="refresh"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
+              />
+
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.retryText
@@ -254,198 +375,372 @@ export default function RecommendedDealsScreen() {
           </View>
         }
       />
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
+/* ============================================================
+   STYLES
+============================================================ */
+
 const styles =
   StyleSheet.create({
-    container: {
-      flex: 1,
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     center: {
       flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 24,
     },
 
     loadingText: {
-      marginTop: 12,
-      fontSize: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
-      flexDirection:
-        "row",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection: "row",
+
       alignItems:
         "flex-start",
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 18,
     },
 
     backButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor:
-        "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginRight: 12,
 
-      shadowColor: "#000000",
-      shadowOpacity: 0.08,
-      shadowRadius: 6,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      borderWidth: 1,
 
-      elevation: 2,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 24,
-      lineHeight: 30,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 4,
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 21,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       DAILY BANNER
+    ======================================================== */
+
     dailyBanner: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      marginHorizontal: 16,
-      marginBottom: 14,
-      padding: 14,
-      borderRadius: 18,
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#F5F3FF",
+        CustomerColors.primarySoft,
     },
 
     dailyIcon: {
-      width: 46,
-      height: 46,
-      borderRadius: 15,
-      backgroundColor:
-        "#FFFFFF",
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     dailyContent: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     dailyTitle: {
-      fontSize: 15,
-      color: "#4C1D95",
+      color:
+        Colors.textPrimary,
     },
 
     dailyText: {
-      marginTop: 3,
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       lineHeight: 18,
-      color: "#6D28D9",
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       ERROR
+    ======================================================== */
+
     errorCard: {
-      flexDirection:
-        "row",
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
       alignItems:
         "flex-start",
-      marginHorizontal: 16,
-      marginBottom: 14,
-      padding: 14,
-      borderRadius: 14,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#FEF2F2",
+        Colors.errorSoft,
     },
 
     errorText: {
       flex: 1,
-      marginLeft: 8,
-      fontSize: 14,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 20,
-      color: "#B91C1C",
+
+      color:
+        Colors.error,
     },
 
+    /* ========================================================
+       LIST
+    ======================================================== */
+
     content: {
-      paddingHorizontal: 16,
-      paddingBottom: 28,
-      gap: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     emptyContent: {
       flexGrow: 1,
     },
 
+    /* ========================================================
+       EMPTY STATE
+    ======================================================== */
+
     empty: {
       flex: 1,
-      alignItems:
-        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
+
+      alignItems: "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 30,
     },
 
     emptyIcon: {
       width: 76,
+
       height: 76,
-      borderRadius: 22,
-      backgroundColor:
-        "#F5F3FF",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      marginBottom: 18,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     emptyTitle: {
-      fontSize: 20,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 8,
       maxWidth: 300,
-      fontSize: 14,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 21,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       RETRY
+    ======================================================== */
+
     retryButton: {
-      marginTop: 20,
-      paddingHorizontal: 22,
-      paddingVertical: 12,
-      borderRadius: 12,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
     retryText: {
-      fontSize: 13,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

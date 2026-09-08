@@ -1,31 +1,100 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useRef,
+} from "react";
 
 import {
+  Animated,
+  type DimensionValue,
+  type StyleProp,
   StyleSheet,
-  View,
+  type ViewStyle,
 } from "react-native";
 
-type Props = {
-  width?: number | string;
-  height: number;
-  borderRadius?: number;
-  style?: object;
-};
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-export default function SkeletonBox({
+export interface SkeletonBoxProps {
+  width?: DimensionValue;
+
+  height: number;
+
+  borderRadius?: number;
+
+  animated?: boolean;
+
+  color?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function SkeletonBox({
   width = "100%",
   height,
-  borderRadius = 12,
+
+  borderRadius =
+    FixxamTokens.radius.md,
+
+  animated = true,
+
+  color = Colors.iconBackground,
+
   style,
-}: Props) {
+}: SkeletonBoxProps) {
+  const opacity = useRef(
+    new Animated.Value(
+      animated ? 0.5 : 1,
+    ),
+  ).current;
+
+  useEffect(() => {
+    if (!animated) {
+      opacity.stopAnimation();
+      opacity.setValue(1);
+
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration:
+            FixxamTokens.motion.slow,
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(opacity, {
+          toValue: 0.5,
+          duration:
+            FixxamTokens.motion.slow,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [animated, opacity]);
+
   return (
-    <View
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no"
       style={[
         styles.skeleton,
         {
           width,
           height,
           borderRadius,
+          backgroundColor: color,
+          opacity,
         },
         style,
       ]}
@@ -35,7 +104,8 @@ export default function SkeletonBox({
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: "#E5E7EB",
     overflow: "hidden",
   },
 });
+
+export default memo(SkeletonBox);

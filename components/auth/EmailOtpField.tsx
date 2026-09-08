@@ -1,78 +1,154 @@
-import React from "react";
-import { View } from "react-native";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
-  AppInput,
-  AppText,
-} from "@/components/ui";
+  StyleSheet,
+  View,
+} from "react-native";
+
+import AppInput from "@/components/ui/AppInput";
 
 import OtpVerification from "@/components/auth/OtpVerification";
 
-type Props = {
+import {
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface EmailOtpFieldProps {
   email: string;
+
   otp: string;
 
-  onEmailChange: (value: string) => void;
-  onOtpChange: (value: string) => void;
+  onEmailChange: (
+    value: string,
+  ) => void;
 
+  onOtpChange: (
+    value: string,
+  ) => void;
+
+  role?: FixxamRole;
+
+  /*
+   * Legacy support.
+   */
   variant?: "customer" | "worker";
 
   isVerified?: boolean;
-  onVerifiedChange?: (
-    value: boolean
-  ) => void;
-};
 
-export default function EmailOtpField({
+  onVerifiedChange?: (
+    value: boolean,
+  ) => void;
+
+  error?: string;
+
+  disabled?: boolean;
+}
+
+function EmailOtpField({
   email,
   otp,
+
   onEmailChange,
   onOtpChange,
-  variant = "customer",
+
+  role = "customer",
+  variant,
+
   isVerified = false,
   onVerifiedChange,
-}: Props) {
+
+  error,
+
+  disabled = false,
+}: EmailOtpFieldProps) {
+  const resolvedRole: FixxamRole =
+    variant ?? role;
+
+  const handleEmailChange =
+    useCallback(
+      (value: string) => {
+        if (value === email) {
+          return;
+        }
+
+        onEmailChange(value);
+
+        /*
+         * Verification belongs to the
+         * exact email address that was
+         * verified. Editing it invalidates
+         * the previous verification.
+         */
+        if (isVerified) {
+          onVerifiedChange?.(false);
+        }
+      },
+      [
+        email,
+        isVerified,
+        onEmailChange,
+        onVerifiedChange,
+      ],
+    );
+
   return (
-    <View>
+    <View style={styles.container}>
       <AppInput
+        role={resolvedRole}
         label="Email Address"
         placeholder="Enter your email address"
         value={email}
-        onChangeText={(value) => {
-          onEmailChange(value);
-
-          if (isVerified) {
-            onVerifiedChange?.(false);
-          }
-        }}
+        onChangeText={
+          handleEmailChange
+        }
+        editable={!disabled}
         keyboardType="email-address"
+        inputMode="email"
         autoCapitalize="none"
         autoCorrect={false}
-        variant={variant}
+        autoComplete="email"
+        textContentType="emailAddress"
+        leftIconName="mail"
+        helperText="Optional (Email or Phone required)"
+        error={error}
+        accessibilityLabel="Email address"
       />
 
-      <AppText
-        size="sm"
-        color="#6B7280"
-        style={{
-          marginTop: 2,
-          marginBottom: 8,
-        }}
-      >
-        Optional (Email or Phone required)
-      </AppText>
-
-      <OtpVerification
-        type="email"
-        value={email}
-        otp={otp}
-        onOtpChange={onOtpChange}
-        variant={variant}
-        verified={isVerified}
-        onVerified={(value) =>
-          onVerifiedChange?.(value)
-        }
-      />
+      <View style={styles.verification}>
+        <OtpVerification
+          type="email"
+          value={email}
+          otp={otp}
+          onOtpChange={onOtpChange}
+          role={resolvedRole}
+          verified={isVerified}
+          onVerified={(value) =>
+            onVerifiedChange?.(
+              value,
+            )
+          }
+        />
+      </View>
     </View>
   );
 }
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+    },
+
+    verification: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+  });
+
+export default memo(
+  EmailOtpField,
+);

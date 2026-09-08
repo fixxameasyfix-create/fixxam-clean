@@ -1,4 +1,8 @@
-import React, { useMemo } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,9 +10,20 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   JobCardSkeleton,
@@ -20,6 +35,7 @@ import useRecentJobs, {
 } from "@/hooks/worker/useRecentJobs";
 
 import WorkerMarketOrderCard from "@/components/workerorders/WorkerMarketOrderCard";
+
 import WorkerOrderCard from "@/components/workerorders/WorkerOrderCard";
 
 import type {
@@ -66,50 +82,143 @@ function isValidJob(
   );
 }
 
-/* ==============================================================
-   GET JOB TYPE
-============================================================== */
-
 function getJobType(
   job: RecentJob,
 ): "booking" | "market" {
-  if (job.type === "market") {
-    return "market";
-  }
-
-  return "booking";
+  /*
+   * Preserve existing behaviour:
+   * anything that is not explicitly market
+   * is treated as a service booking.
+   */
+  return job.type === "market"
+    ? "market"
+    : "booking";
 }
-
-/* ==============================================================
-   TYPE GUARDS
-============================================================== */
 
 function isWorkerServiceOrder(
   job: RecentJob,
-): job is RecentJob & WorkerServiceOrder {
+): job is RecentJob &
+  WorkerServiceOrder {
   return (
-    getJobType(job) === "booking"
+    getJobType(job) ===
+    "booking"
   );
 }
 
 function isWorkerMarketOrder(
   job: RecentJob,
-): job is RecentJob & WorkerMarketOrder {
+): job is RecentJob &
+  WorkerMarketOrder {
   return (
-    getJobType(job) === "market"
+    getJobType(job) ===
+    "market"
   );
 }
+
+/* ==============================================================
+   SECTION HEADER
+============================================================== */
+
+const RecentJobsHeader =
+  memo(
+    function RecentJobsHeader({
+      onViewAll,
+    }: {
+      onViewAll: () => void;
+    }) {
+      return (
+        <View
+          style={
+            styles.header
+          }
+        >
+          <View
+            style={
+              styles.headerTitleRow
+            }
+          >
+            <View
+              style={
+                styles.headerIcon
+              }
+            >
+              <AppIcon
+                name="jobs"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
+              />
+            </View>
+
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
+              Recent Jobs
+            </AppText>
+          </View>
+
+          <Pressable
+            onPress={
+              onViewAll
+            }
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="View all orders"
+            accessibilityHint="Open the worker orders page"
+            style={({
+              pressed,
+            }) => [
+              styles.seeAllButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={
+                styles.seeAll
+              }
+            >
+              See All
+            </AppText>
+
+            <AppIcon
+              name="next"
+              role="worker"
+              size="xs"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </Pressable>
+        </View>
+      );
+    },
+  );
+
+RecentJobsHeader.displayName =
+  "RecentJobsHeader";
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function RecentJobs() {
+function RecentJobs() {
   const {
     loading,
     error,
     jobs,
-  } = useRecentJobs();
+  } =
+    useRecentJobs();
 
   /* ============================================================
      PREPARE RECENT ITEMS
@@ -119,7 +228,9 @@ export default function RecentJobs() {
     useMemo<RecentItem[]>(
       () => {
         if (
-          !Array.isArray(jobs)
+          !Array.isArray(
+            jobs,
+          )
         ) {
           return [];
         }
@@ -129,34 +240,45 @@ export default function RecentJobs() {
             isValidJob,
           )
           .map<RecentItem | null>(
-            (job) => {
+            job => {
               const type =
-                getJobType(job);
+                getJobType(
+                  job,
+                );
 
-              /* ==================================================
+              /* ================================================
                  MARKET
-              ================================================== */
+              ================================================= */
 
               if (
-                type === "market" &&
-                isWorkerMarketOrder(job)
+                type ===
+                  "market" &&
+                isWorkerMarketOrder(
+                  job,
+                )
               ) {
                 return {
-                  type: "market",
+                  type:
+                    "market",
+
                   data:
                     job as WorkerMarketOrder,
                 };
               }
 
-              /* ==================================================
-                 SERVICE / BOOKING
-              ================================================== */
+              /* ================================================
+                 SERVICE
+              ================================================= */
 
               if (
-                isWorkerServiceOrder(job)
+                isWorkerServiceOrder(
+                  job,
+                )
               ) {
                 return {
-                  type: "booking",
+                  type:
+                    "booking",
+
                   data:
                     job as WorkerServiceOrder,
                 };
@@ -169,21 +291,29 @@ export default function RecentJobs() {
             (
               item,
             ): item is RecentItem =>
-              item !== null,
+              item !==
+              null,
           )
           .sort(
-            (a, b) => {
+            (
+              a,
+              b,
+            ) => {
               const aTime =
                 getTimestamp(
-                  a.data.createdAt ??
-                    a.data.updatedAt ??
+                  a.data
+                    .createdAt ??
+                    a.data
+                      .updatedAt ??
                     a.data.date,
                 );
 
               const bTime =
                 getTimestamp(
-                  b.data.createdAt ??
-                    b.data.updatedAt ??
+                  b.data
+                    .createdAt ??
+                    b.data
+                      .updatedAt ??
                     b.data.date,
                 );
 
@@ -193,21 +323,81 @@ export default function RecentJobs() {
               );
             },
           )
-          .slice(0, 2);
+          .slice(
+            0,
+            2,
+          );
       },
-      [jobs],
+      [
+        jobs,
+      ],
     );
 
   /* ============================================================
-     VIEW ALL
+     NAVIGATION
   ============================================================ */
 
   const handleViewAll =
-    () => {
+    useCallback(() => {
       router.push(
         "/(worker)/(tabs)/orders",
       );
-    };
+    }, []);
+
+  const handleServicePress =
+    useCallback(
+      (
+        selectedOrder: WorkerServiceOrder,
+      ) => {
+        const orderId =
+          String(
+            selectedOrder.id ??
+              "",
+          ).trim();
+
+        if (!orderId) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(worker)/orders/[orderId]",
+
+          params: {
+            orderId,
+          },
+        });
+      },
+      [],
+    );
+
+  const handleMarketPress =
+    useCallback(
+      (
+        selectedOrder: WorkerMarketOrder,
+      ) => {
+        const marketId =
+          String(
+            selectedOrder.id ??
+              "",
+          ).trim();
+
+        if (!marketId) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(worker)/orders/market/[market]",
+
+          params: {
+            market:
+              marketId,
+          },
+        });
+      },
+      [],
+    );
 
   /* ============================================================
      LOADING
@@ -220,39 +410,11 @@ export default function RecentJobs() {
           styles.container
         }
       >
-        <View
-          style={
-            styles.header
+        <RecentJobsHeader
+          onViewAll={
+            handleViewAll
           }
-        >
-          <AppText
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Recent Jobs
-          </AppText>
-
-          <Pressable
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="View all orders"
-            accessibilityHint="Open the worker orders page"
-            onPress={
-              handleViewAll
-            }
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.seeAll
-              }
-            >
-              See All
-            </AppText>
-          </Pressable>
-        </View>
+        />
 
         <View
           style={
@@ -260,6 +422,7 @@ export default function RecentJobs() {
           }
         >
           <JobCardSkeleton />
+
           <JobCardSkeleton />
         </View>
       </View>
@@ -272,7 +435,8 @@ export default function RecentJobs() {
 
   if (
     error &&
-    recentItems.length === 0
+    recentItems.length ===
+      0
   ) {
     return (
       <View
@@ -280,47 +444,35 @@ export default function RecentJobs() {
           styles.container
         }
       >
+        <RecentJobsHeader
+          onViewAll={
+            handleViewAll
+          }
+        />
+
         <View
           style={
-            styles.header
+            styles.stateCard
           }
         >
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.title
+              styles.errorIcon
             }
           >
-            Recent Jobs
-          </AppText>
-
-          <Pressable
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="View all orders"
-            accessibilityHint="Open the worker orders page"
-            onPress={
-              handleViewAll
-            }
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.seeAll
+            <AppIcon
+              name="error"
+              size="lg"
+              color={
+                Colors.error
               }
-            >
-              See All
-            </AppText>
-          </Pressable>
-        </View>
+            />
+          </View>
 
-        <View
-          style={
-            styles.empty
-          }
-        >
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.emptyTitle
             }
@@ -329,12 +481,14 @@ export default function RecentJobs() {
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.emptyText
             }
           >
-            Please check your connection
-            and try again.
+            Please check your connection and try again.
           </AppText>
         </View>
       </View>
@@ -351,56 +505,42 @@ export default function RecentJobs() {
         styles.container
       }
     >
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <View
-        style={
-          styles.header
+      <RecentJobsHeader
+        onViewAll={
+          handleViewAll
         }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.title
-          }
-        >
-          Recent Jobs
-        </AppText>
-
-        <Pressable
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="View all orders"
-          accessibilityHint="Open the worker orders page"
-          onPress={
-            handleViewAll
-          }
-        >
-          <AppText
-            weight="bold"
-            style={
-              styles.seeAll
-            }
-          >
-            See All
-          </AppText>
-        </Pressable>
-      </View>
+      />
 
       {/* ========================================================
           EMPTY
       ======================================================== */}
 
-      {recentItems.length === 0 ? (
+      {recentItems.length ===
+      0 ? (
         <View
           style={
-            styles.empty
+            styles.stateCard
           }
         >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="jobs"
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.emptyTitle
             }
@@ -409,22 +549,28 @@ export default function RecentJobs() {
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.emptyText
             }
           >
-            New bookings and marketplace
-            orders will appear here.
+            New bookings and marketplace orders will appear here.
           </AppText>
         </View>
       ) : (
+        /* ======================================================
+           JOBS
+        ====================================================== */
+
         <View
           style={
             styles.list
           }
         >
           {recentItems.map(
-            (item) => {
+            item => {
               /* ================================================
                  SERVICE BOOKING
               ================================================= */
@@ -439,30 +585,12 @@ export default function RecentJobs() {
                 return (
                   <WorkerOrderCard
                     key={`booking-${order.id}`}
-                    order={order}
-                    onPress={(
-                      selectedOrder,
-                    ) => {
-                      const orderId =
-                        String(
-                          selectedOrder.id ??
-                            "",
-                        ).trim();
-
-                      if (
-                        !orderId
-                      ) {
-                        return;
-                      }
-
-                      router.push({
-                        pathname:
-                          "/(worker)/orders/[orderId]",
-                        params: {
-                          orderId,
-                        },
-                      });
-                    }}
+                    order={
+                      order
+                    }
+                    onPress={
+                      handleServicePress
+                    }
                   />
                 );
               }
@@ -477,31 +605,12 @@ export default function RecentJobs() {
               return (
                 <WorkerMarketOrderCard
                   key={`market-${order.id}`}
-                  order={order}
-                  onPress={(
-                    selectedOrder,
-                  ) => {
-                    const marketId =
-                      String(
-                        selectedOrder.id ??
-                          "",
-                      ).trim();
-
-                    if (
-                      !marketId
-                    ) {
-                      return;
-                    }
-
-                    router.push({
-                      pathname:
-                        "/(worker)/orders/market/[market]",
-                      params: {
-                        market:
-                          marketId,
-                      },
-                    });
-                  }}
+                  order={
+                    order
+                  }
+                  onPress={
+                    handleMarketPress
+                  }
                 />
               );
             },
@@ -513,48 +622,112 @@ export default function RecentJobs() {
 }
 
 /* ==============================================================
+   MEMO
+============================================================== */
+
+RecentJobs.displayName =
+  "RecentJobs";
+
+export default memo(
+  RecentJobs,
+);
+
+/* ==============================================================
    STYLES
 ============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 28,
-      marginBottom: 20,
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
-    list: {
-      gap: 12,
-    },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       flexDirection:
         "row",
-      justifyContent:
-        "space-between",
+
       alignItems:
         "center",
-      marginBottom: 16,
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    headerTitleRow: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    headerIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     title: {
-      fontSize: 22,
-      color: "#0F172A",
+      flexShrink: 1,
+
+      color:
+        Colors.textPrimary,
     },
 
-    seeAll: {
-      color: "#FF6B00",
-      fontSize: 15,
-    },
+    /* ========================================================
+       SEE ALL
+    ======================================================== */
 
-    empty: {
-      backgroundColor:
-        "#FFFFFF",
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 24,
+      flexShrink: 0,
 
-      paddingVertical: 32,
-      paddingHorizontal: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
 
       alignItems:
         "center",
@@ -562,34 +735,140 @@ const styles =
       justifyContent:
         "center",
 
-      shadowColor:
-        "#000000",
+      gap:
+        FixxamTokens.spacing.xs,
 
-      shadowOpacity:
-        0.05,
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-      shadowRadius:
-        10,
+    seeAll: {
+      color:
+        WorkerColors.primary,
+    },
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+    /* ========================================================
+       LIST
+    ======================================================== */
 
-      elevation: 3,
+    list: {
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       EMPTY / ERROR
+    ======================================================== */
+
+    stateCard: {
+      width: "100%",
+
+      minHeight: 220,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    errorIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     emptyTitle: {
-      fontSize: 20,
-      color: "#0F172A",
-      marginBottom: 8,
-      textAlign: "center",
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      color: "#64748B",
-      textAlign: "center",
+      maxWidth: 310,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 22,
-      fontSize: 15,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

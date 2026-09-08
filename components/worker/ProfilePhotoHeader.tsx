@@ -1,62 +1,126 @@
-import React from "react";
-import { View, StyleSheet } from "react-native";
+import React, {
+  memo,
+} from "react";
 
-import { AppText } from "@/components/ui";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
-export default function ProfilePhotoHeader() {
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function ProfilePhotoHeader() {
   return (
-    <View style={styles.container}>
-      <View style={styles.badge}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.badge
+        }
+      >
         <AppText
-          weight="semibold"
-          color="#FF6B00"
+          variant="caption"
+          weight="medium"
+          style={
+            styles.badgeText
+          }
         >
           Step 3 of 3
         </AppText>
       </View>
 
       <AppText
-        size="xl"
+        variant="heading2"
         weight="bold"
         center
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Complete Your Profile
       </AppText>
 
       <AppText
+        variant="body"
+        tone="secondary"
         center
-        style={styles.subtitle}
+        style={
+          styles.subtitle
+        }
       >
-        Add a professional profile photo
-        to build customer trust.
+        Add a professional profile photo to build customer trust.
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    marginBottom: 16,
-  },
+export default memo(
+  ProfilePhotoHeader,
+);
 
-  badge: {
-    backgroundColor: "#FFF7ED",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 12,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  title: {
-    marginBottom: 6,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      alignItems:
+        "center",
 
-  subtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    opacity: 0.7,
-    maxWidth: 260,
-  },
-});
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    badge: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    badgeText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      maxWidth: 260,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

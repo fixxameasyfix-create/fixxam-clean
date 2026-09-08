@@ -1,74 +1,167 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import type { AppIconName } from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppChipProps {
   label: string;
 
   selected?: boolean;
 
   onPress?: () => void;
-};
 
-export default function AppChip({
+  role?: FixxamRole;
+
+  disabled?: boolean;
+
+  icon?: AppIconName;
+}
+
+function AppChip({
   label,
   selected = false,
   onPress,
-}: Props) {
+  role = "customer",
+  disabled = false,
+  icon,
+}: AppChipProps) {
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const interactive =
+    typeof onPress === "function";
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.85}
+    <Pressable
+      accessibilityRole={
+        interactive ? "button" : undefined
+      }
+      accessibilityState={{
+        selected,
+        disabled,
+      }}
+      disabled={
+        disabled || !interactive
+      }
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.chip,
-        selected && styles.selectedChip,
+
+        {
+          backgroundColor: selected
+            ? colors.primarySoft
+            : Colors.surface,
+
+          borderColor: selected
+            ? colors.primary
+            : Colors.border,
+        },
+
+        pressed &&
+        !disabled &&
+        interactive
+          ? styles.pressed
+          : null,
+
+        disabled
+          ? styles.disabled
+          : null,
       ]}
     >
+      {icon ? (
+        <View style={styles.icon}>
+          <AppIcon
+            name={icon}
+            role={role}
+            size="xs"
+            state={
+              selected
+                ? "active"
+                : "default"
+            }
+          />
+        </View>
+      ) : null}
+
       <AppText
-        weight="semibold"
-        style={[
-          styles.text,
-          selected &&
-            styles.selectedText,
-        ]}
+        variant="bodyMedium"
+        role={role}
+        tone={
+          selected
+            ? "primary"
+            : disabled
+              ? "muted"
+              : "secondary"
+        }
+        numberOfLines={1}
       >
         {label}
       </AppText>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    minHeight: 36,
 
-    borderRadius: 999,
+    alignSelf: "flex-start",
 
-    backgroundColor: "#F8FAFC",
+    flexDirection: "row",
+    alignItems: "center",
+
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
+
+    paddingVertical:
+      FixxamTokens.spacing.sm,
 
     borderWidth: 1,
-    borderColor: "#E2E8F0",
 
-    marginRight: 10,
-    marginBottom: 10,
+    borderRadius:
+      FixxamTokens.radius.chip,
   },
 
-  selectedChip: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
+  icon: {
+    marginRight:
+      FixxamTokens.spacing.xs,
   },
 
-  text: {
-    fontSize: 14,
-    color: "#475569",
+  pressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
+      },
+    ],
   },
 
-  selectedText: {
-    color: "#FFFFFF",
+  disabled: {
+    opacity:
+      FixxamTokens.motion
+        .disabledOpacity,
   },
 });
+
+export default memo(AppChip);

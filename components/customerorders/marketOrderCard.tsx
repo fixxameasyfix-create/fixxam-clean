@@ -1,21 +1,20 @@
 import React, {
   memo,
+  useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
+  type GestureResponderEvent,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import {
-  router,
-} from "expo-router";
+import { Image } from "expo-image";
+import { router } from "expo-router";
 
 import {
   doc,
@@ -23,8 +22,14 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  AppDivider,
+} from "@/components/common";
 
 import {
   auth,
@@ -38,6 +43,12 @@ import {
 import type {
   MarketOrder,
 } from "./orders.types";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -58,6 +69,120 @@ type ChatDocument = {
   lastMessage?: unknown;
 };
 
+type StatusTone =
+  | "pending"
+  | "accepted"
+  | "in-progress"
+  | "completed"
+  | "cancelled"
+  | "expired";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function formatCurrency(
+  amount: number,
+): string {
+  return `₦${Math.max(
+    0,
+    amount,
+  ).toLocaleString("en-NG")}`;
+}
+
+function getStatusLabel(
+  status: MarketOrder["status"],
+): string {
+  switch (status) {
+    case "accepted":
+      return "ACCEPTED";
+
+    case "in-progress":
+      return "ON THE WAY";
+
+    case "completed":
+      return "COMPLETED";
+
+    case "cancelled":
+      return "CANCELLED";
+
+    case "expired":
+      return "EXPIRED";
+
+    case "pending":
+    default:
+      return "PENDING";
+  }
+}
+
+function getStatusAppearance(
+  status: StatusTone,
+) {
+  switch (status) {
+    case "accepted":
+      return {
+        backgroundColor:
+          CustomerColors.primarySoft,
+
+        color:
+          CustomerColors.primaryDark,
+
+        dotColor:
+          CustomerColors.primary,
+      };
+
+    case "in-progress":
+    case "completed":
+      return {
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
+
+        dotColor:
+          Colors.success,
+      };
+
+    case "cancelled":
+      return {
+        backgroundColor:
+          Colors.errorSoft,
+
+        color:
+          Colors.error,
+
+        dotColor:
+          Colors.error,
+      };
+
+    case "expired":
+      return {
+        backgroundColor:
+          Colors.disabledBackground,
+
+        color:
+          Colors.textSecondary,
+
+        dotColor:
+          Colors.textMuted,
+      };
+
+    case "pending":
+    default:
+      return {
+        backgroundColor:
+          Colors.warningSoft,
+
+        color:
+          Colors.warning,
+
+        dotColor:
+          Colors.warning,
+      };
+  }
+}
+
 /* ==============================================================
    COMPONENT
 ============================================================== */
@@ -66,60 +191,89 @@ function MarketOrderCard({
   order,
   onPress,
 }: Props) {
-  /* ============================================================
-     PRODUCT
-  ============================================================ */
-
   const product =
     order.products[0];
 
-  /* ============================================================
-     ITEM COUNT
-  ============================================================ */
+  const orderId =
+    useMemo(
+      () =>
+        String(
+          order.id ?? "",
+        ).trim(),
+      [order.id],
+    );
 
   const itemCount =
-    order.products.reduce(
-      (sum, item) =>
-        sum + item.quantity,
-      0,
-    );
+    useMemo(() => {
+      if (
+        typeof order.itemCount ===
+          "number" &&
+        Number.isFinite(
+          order.itemCount,
+        )
+      ) {
+        return Math.max(
+          0,
+          Math.floor(
+            order.itemCount,
+          ),
+        );
+      }
 
-  /* ============================================================
-     TOTAL
-  ============================================================ */
+      return order.products.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          Math.max(
+            1,
+            Math.floor(
+              item.quantity,
+            ),
+          ),
+        0,
+      );
+    }, [
+      order.itemCount,
+      order.products,
+    ]);
 
   const total =
-    typeof order.total ===
-      "number"
-      ? order.total
-      : order.products.reduce(
-          (sum, item) =>
-            sum +
-            item.price *
-              item.quantity,
+    useMemo(() => {
+      if (
+        typeof order.total ===
+          "number" &&
+        Number.isFinite(
+          order.total,
+        )
+      ) {
+        return Math.max(
           0,
+          order.total,
         );
+      }
 
-  /* ============================================================
-     STATUS
-  ============================================================ */
-
-  const status =
-    getStatusStyle(
-      order.status,
-    );
-
-  const isOnTheWay =
-    order.status ===
-    "in-progress";
-
-  const isCompleted =
-    order.status ===
-    "completed";
-
-  /* ============================================================
-     CHAT STATE
-  ============================================================ */
+      return order.products.reduce(
+        (
+          sum,
+          item,
+        ) =>
+          sum +
+          Math.max(
+            0,
+            item.price,
+          ) *
+            Math.max(
+              1,
+              item.quantity,
+            ),
+        0,
+      );
+    }, [
+      order.products,
+      order.total,
+    ]);
 
   const [
     chatArrowState,
@@ -129,23 +283,27 @@ function MarketOrderCard({
       "empty",
     );
 
-  /* ============================================================
-     CURRENT CUSTOMER
-  ============================================================ */
-
   const currentUserId =
     auth.currentUser?.uid ?? "";
 
+  const isOnTheWay =
+    order.status ===
+    "in-progress";
+
+  const isCompleted =
+    order.status ===
+    "completed";
+
+  const statusAppearance =
+    getStatusAppearance(
+      order.status,
+    );
+
   /* ============================================================
-     CHAT REAL-TIME LISTENER
+     CHAT LISTENER
   ============================================================ */
 
   useEffect(() => {
-    const orderId =
-      String(
-        order.id ?? "",
-      ).trim();
-
     if (!orderId) {
       setChatArrowState(
         "empty",
@@ -153,17 +311,6 @@ function MarketOrderCard({
 
       return;
     }
-
-    /*
-     * Shared market chat room:
-     *
-     * marketChats/{orderId}
-     *
-     * The document contains:
-     *
-     * lastMessage
-     * lastMessageSenderId
-     */
 
     const chatRef =
       doc(
@@ -175,12 +322,8 @@ function MarketOrderCard({
     const unsubscribe =
       onSnapshot(
         chatRef,
-        (snapshot) => {
-          /*
-           * Chat room does not
-           * exist yet.
-           */
 
+        (snapshot) => {
           if (
             !snapshot.exists()
           ) {
@@ -206,11 +349,10 @@ function MarketOrderCard({
               ? data.lastMessageSenderId.trim()
               : "";
 
-          /*
-           * No valid message.
-           */
-
-          if (!lastMessage) {
+          if (
+            !lastMessage ||
+            !senderId
+          ) {
             setChatArrowState(
               "empty",
             );
@@ -218,22 +360,7 @@ function MarketOrderCard({
             return;
           }
 
-          /*
-           * ====================================================
-           * CURRENT CUSTOMER
-           * ====================================================
-           *
-           * Customer sent latest message.
-           *
-           * State:
-           * customer
-           *
-           * Direction on CUSTOMER APP:
-           * ↑
-           */
-
           if (
-            senderId &&
             currentUserId &&
             senderId ===
               currentUserId
@@ -245,34 +372,11 @@ function MarketOrderCard({
             return;
           }
 
-          /*
-           * ====================================================
-           * SELLER / WORKER
-           * ====================================================
-           *
-           * Someone else sent latest
-           * message.
-           *
-           * Direction on CUSTOMER APP:
-           * ↓
-           */
-
-          if (senderId) {
-            setChatArrowState(
-              "seller",
-            );
-
-            return;
-          }
-
-          /*
-           * Sender unavailable.
-           */
-
           setChatArrowState(
-            "empty",
+            "seller",
           );
         },
+
         (error) => {
           console.error(
             "MARKET_ORDER_CHAT_LISTENER_ERROR:",
@@ -280,10 +384,9 @@ function MarketOrderCard({
           );
 
           /*
-           * Chat must never break
-           * the order card.
+           * Chat state must never
+           * break order rendering.
            */
-
           setChatArrowState(
             "empty",
           );
@@ -292,230 +395,112 @@ function MarketOrderCard({
 
     return unsubscribe;
   }, [
-    order.id,
     currentUserId,
+    orderId,
   ]);
 
   /* ============================================================
-     CHAT PRESS
+     CHAT
   ============================================================ */
 
   const handleChatPress =
-    () => {
-      const orderId =
-        String(
-          order.id ?? "",
-        ).trim();
+    useCallback(
+      (
+        event?:
+          GestureResponderEvent,
+      ) => {
+        event?.stopPropagation();
 
-      if (!orderId) {
-        return;
-      }
+        if (!orderId) {
+          return;
+        }
 
-      router.push({
-        pathname:
-          "/(customer)/orders/market/chat",
-        params: {
-          orderId,
-        },
-      });
-    };
+        router.push({
+          pathname:
+            "/(customer)/orders/market/chat",
 
-  /* ============================================================
-     RENDER CHAT ARROW
-  ============================================================ */
-
-  const renderChatArrow =
-    () => {
-      /*
-       * ========================================================
-       * CUSTOMER APP
-       * ========================================================
-       *
-       * Customer message → ↑
-       *
-       * Blue
-       */
-
-      if (
-        chatArrowState ===
-        "customer"
-      ) {
-        return (
-          <Pressable
-            onPress={
-              handleChatPress
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Open chat for order ${order.id}. You sent the latest message.`}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.chatArrowButton,
-              styles.chatArrowCustomer,
-              pressed &&
-                styles.chatArrowPressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-up"
-              size={21}
-              color="#FFFFFF"
-            />
-          </Pressable>
-        );
-      }
-
-      /*
-       * ========================================================
-       * SELLER / WORKER
-       * ========================================================
-       *
-       * Worker message → ↓
-       *
-       * Green
-       */
-
-      if (
-        chatArrowState ===
-        "seller"
-      ) {
-        return (
-          <Pressable
-            onPress={
-              handleChatPress
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Open chat for order ${order.id}. Seller sent the latest message.`}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.chatArrowButton,
-              styles.chatArrowSeller,
-              pressed &&
-                styles.chatArrowPressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-down"
-              size={21}
-              color="#FFFFFF"
-            />
-          </Pressable>
-        );
-      }
-
-      /*
-       * ========================================================
-       * EMPTY
-       * ========================================================
-       */
-
-      return (
-        <Pressable
-          onPress={
-            handleChatPress
-          }
-          accessibilityRole="button"
-          accessibilityLabel={`Open chat for order ${order.id}. No messages yet.`}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.arrowButton,
-            pressed &&
-              styles.arrowPressed,
-          ]}
-        >
-          <Ionicons
-            name="chevron-forward"
-            size={18}
-            color="#64748B"
-          />
-        </Pressable>
-      );
-    };
+          params: {
+            orderId,
+          },
+        });
+      },
+      [orderId],
+    );
 
   /* ============================================================
-     RENDER
+     UI
   ============================================================ */
 
   return (
-    <Pressable
-      onPress={
-        onPress
-      }
-      accessibilityRole="button"
+    <AppCard
+      role="customer"
+      variant="outlined"
+      onPress={onPress}
       accessibilityLabel={`Open ${
         product?.name ??
         "market"
       } order`}
-      style={({ pressed }) => [
-        styles.card,
-        pressed &&
-          styles.cardPressed,
-      ]}
+      style={styles.card}
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
-      <View
-        style={
-          styles.header
-        }
-      >
+      <View style={styles.header}>
         <View
           style={[
             styles.statusBadge,
-            status.background,
+
+            {
+              backgroundColor:
+                statusAppearance
+                  .backgroundColor,
+            },
           ]}
         >
           <View
             style={[
               styles.statusDot,
-              status.dot,
+
+              {
+                backgroundColor:
+                  statusAppearance
+                    .dotColor,
+              },
             ]}
           />
 
           <AppText
-            weight="bold"
-            style={[
-              styles.statusText,
-              status.text,
-            ]}
+            variant="caption"
+            weight="semibold"
+            style={{
+              color:
+                statusAppearance
+                  .color,
+            }}
           >
-            {status.label}
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.orderNumberRow
-          }
-        >
-          <AppText
-            style={
-              styles.orderNumber
-            }
-          >
-            {formatOrderNumber(
-              order.id,
+            {getStatusLabel(
+              order.status,
             )}
           </AppText>
-
-          <Ionicons
-            name="ellipsis-vertical"
-            size={17}
-            color="#0F172A"
-          />
         </View>
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          numberOfLines={1}
+        >
+          {formatOrderNumber(
+            order.id,
+          )}
+        </AppText>
       </View>
 
       {/* ======================================================
           PRODUCT
       ====================================================== */}
 
-      <View
-        style={
-          styles.productRow
-        }
-      >
+      <View style={styles.productRow}>
         {product?.image ? (
           <Image
             source={{
@@ -524,7 +509,14 @@ function MarketOrderCard({
             style={
               styles.productImage
             }
-            resizeMode="cover"
+            contentFit="cover"
+            transition={150}
+            cachePolicy="memory-disk"
+            accessibilityLabel={
+              product.name
+                ? `${product.name} image`
+                : "Product image"
+            }
           />
         ) : (
           <View
@@ -532,10 +524,11 @@ function MarketOrderCard({
               styles.productPlaceholder
             }
           >
-            <Ionicons
-              name="cube-outline"
-              size={27}
-              color="#2563EB"
+            <AppIcon
+              name="package"
+              role="customer"
+              size="lg"
+              state="active"
             />
           </View>
         )}
@@ -546,17 +539,17 @@ function MarketOrderCard({
           }
         >
           <AppText
-            weight="bold"
+            variant="bodyLarge"
+            weight="semibold"
             numberOfLines={1}
-            style={
-              styles.productName
-            }
           >
             {product?.name ??
               "Market Order"}
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.storeName
@@ -571,17 +564,17 @@ function MarketOrderCard({
               styles.itemBadge
             }
           >
-            <Ionicons
-              name="bag-handle-outline"
-              size={13}
-              color="#475569"
+            <AppIcon
+              name="package"
+              role="customer"
+              size="xs"
+              state="muted"
             />
 
             <AppText
-              weight="bold"
-              style={
-                styles.itemText
-              }
+              variant="caption"
+              weight="semibold"
+              tone="secondary"
             >
               {itemCount}{" "}
               {itemCount === 1
@@ -591,180 +584,293 @@ function MarketOrderCard({
           </View>
         </View>
 
-        {/* ==================================================
-            CHAT ARROW
-        ================================================== */}
-
-        {renderChatArrow()}
+        <ChatButton
+          state={
+            chatArrowState
+          }
+          orderId={orderId}
+          onPress={
+            handleChatPress
+          }
+        />
       </View>
 
-      {/* ======================================================
-          DIVIDER
-      ====================================================== */}
-
-      <View
-        style={
-          styles.divider
-        }
+      <AppDivider
+        style={styles.divider}
       />
 
       {/* ======================================================
-          ORDER INFO
+          INFO
       ====================================================== */}
 
-      <View
-        style={
-          styles.infoRow
-        }
-      >
-        <View
-          style={
-            styles.infoItem
-          }
-        >
-          <Ionicons
-            name="location-outline"
-            size={17}
-            color="#64748B"
-          />
-
-          <AppText
-            numberOfLines={1}
-            style={
-              styles.infoText
-            }
-          >
-            {order.address ||
-              "Address unavailable"}
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.infoSeparator
+      <View style={styles.infoSection}>
+        <InfoRow
+          icon="location"
+          text={
+            order.address ||
+            order.location ||
+            "Address unavailable"
           }
         />
 
-        <View
-          style={
-            styles.infoItem
+        <InfoRow
+          icon={
+            isOnTheWay
+              ? "navigation"
+              : isCompleted
+                ? "success"
+                : "clock"
           }
-        >
-          <Ionicons
-            name={
-              isOnTheWay
-                ? "car-outline"
-                : isCompleted
-                  ? "checkmark-circle-outline"
-                  : "time-outline"
-            }
-            size={17}
-            color={
-              isOnTheWay ||
-              isCompleted
-                ? "#16A34A"
-                : "#64748B"
-            }
-          />
-
-          <AppText
-            numberOfLines={1}
-            style={[
-              styles.infoText,
-              isOnTheWay &&
-                styles.onTheWayText,
-              isCompleted &&
-                styles.completedText,
-            ]}
-          >
-            {getOrderMessage(
+          text={
+            getOrderMessage(
               order,
-            )}
-          </AppText>
-        </View>
+            )
+          }
+          success={
+            isOnTheWay ||
+            isCompleted
+          }
+        />
       </View>
+
+      <AppDivider
+        style={
+          styles.footerDivider
+        }
+      />
 
       {/* ======================================================
           FOOTER
       ====================================================== */}
 
-      <View
-        style={
-          styles.footer
-        }
-      >
+      <View style={styles.footer}>
         <View
           style={
             styles.dateContainer
           }
         >
           <AppText
-            style={
-              styles.dateLabel
-            }
+            variant="caption"
+            tone="muted"
           >
             Ordered on
           </AppText>
 
           <AppText
-            weight="bold"
-            style={
-              styles.date
-            }
+            variant="caption"
+            weight="semibold"
+            tone="secondary"
+            style={styles.date}
           >
             {order.date}
           </AppText>
         </View>
 
         <AppText
-          weight="bold"
-          style={
-            styles.total
-          }
+          variant="bodyLarge"
+          weight="semibold"
         >
-          ₦
-          {total.toLocaleString(
-            "en-NG",
+          {formatCurrency(
+            total,
           )}
         </AppText>
 
-        <Pressable
-          onPress={
-            onPress
+        <View
+          style={
+            styles.viewDetails
           }
-          accessibilityRole="button"
-          accessibilityLabel={`View order ${order.id}`}
-          style={[
-            styles.actionButton,
-            isOnTheWay &&
-              styles.trackButton,
-            isCompleted &&
-              styles.completedButton,
-          ]}
         >
           <AppText
-            weight="bold"
-            style={
-              styles.actionText
+            variant="bodyMedium"
+            role="customer"
+            tone={
+              isOnTheWay
+                ? "success"
+                : "primary"
             }
           >
             {isOnTheWay
-              ? "TRACK ORDER"
-              : "VIEW ORDER"}
+              ? "Track"
+              : "View details"}
           </AppText>
 
-          <Ionicons
+          <AppIcon
             name={
               isOnTheWay
-                ? "location"
-                : "arrow-forward"
+                ? "navigation"
+                : "next"
             }
-            size={16}
-            color="#FFFFFF"
+            role="customer"
+            size="xs"
+            state={
+              isOnTheWay
+                ? "success"
+                : "active"
+            }
           />
-        </Pressable>
+        </View>
       </View>
+    </AppCard>
+  );
+}
+
+/* ==============================================================
+   CHAT BUTTON
+============================================================== */
+
+function ChatButton({
+  state,
+  orderId,
+  onPress,
+}: {
+  state: ChatArrowState;
+
+  orderId: string;
+
+  onPress: (
+    event:
+      GestureResponderEvent,
+  ) => void;
+}) {
+  if (
+    state === "customer"
+  ) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open chat for order ${orderId}. You sent the latest message.`}
+        hitSlop={8}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.chatButton,
+
+          {
+            backgroundColor:
+              CustomerColors.primary,
+          },
+
+          pressed
+            ? styles.chatPressed
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="arrow-up"
+          role="customer"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
+          strokeWidth="strong"
+        />
+      </Pressable>
+    );
+  }
+
+  if (
+    state === "seller"
+  ) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open chat for order ${orderId}. Seller sent the latest message.`}
+        hitSlop={8}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.chatButton,
+
+          {
+            backgroundColor:
+              Colors.success,
+          },
+
+          pressed
+            ? styles.chatPressed
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="arrow-down"
+          role="customer"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
+          strokeWidth="strong"
+        />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open chat for order ${orderId}. No messages yet.`}
+      hitSlop={8}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.emptyChatButton,
+
+        pressed
+          ? styles.chatPressed
+          : null,
+      ]}
+    >
+      <AppIcon
+        name="messages"
+        role="customer"
+        size="sm"
+        state="muted"
+      />
     </Pressable>
+  );
+}
+
+/* ==============================================================
+   INFO ROW
+============================================================== */
+
+function InfoRow({
+  icon,
+  text,
+  success = false,
+}: {
+  icon:
+    | "location"
+    | "navigation"
+    | "success"
+    | "clock";
+
+  text: string;
+
+  success?: boolean;
+}) {
+  return (
+    <View style={styles.infoItem}>
+      <AppIcon
+        name={icon}
+        role="customer"
+        size="xs"
+        state={
+          success
+            ? "success"
+            : "muted"
+        }
+      />
+
+      <AppText
+        variant="caption"
+        tone={
+          success
+            ? "success"
+            : "secondary"
+        }
+        numberOfLines={1}
+        style={styles.infoText}
+      >
+        {text}
+      </AppText>
+    </View>
   );
 }
 
@@ -775,9 +881,7 @@ function MarketOrderCard({
 function getOrderMessage(
   order: MarketOrder,
 ): string {
-  switch (
-    order.status
-  ) {
+  switch (order.status) {
     case "in-progress":
       return "Seller is on the way";
 
@@ -802,678 +906,252 @@ function getOrderMessage(
 }
 
 /* ==============================================================
-   STATUS STYLE
-============================================================== */
-
-function getStatusStyle(
-  status: MarketOrder["status"],
-) {
-  switch (
-    status
-  ) {
-    case "accepted":
-      return {
-        label: "ACCEPTED",
-
-        background:
-          styles.statusAccepted,
-
-        dot:
-          styles.dotAccepted,
-
-        text:
-          styles.textAccepted,
-      };
-
-    case "in-progress":
-      return {
-        label: "ON THE WAY",
-
-        background:
-          styles.statusOnTheWay,
-
-        dot:
-          styles.dotOnTheWay,
-
-        text:
-          styles.textOnTheWay,
-      };
-
-    case "completed":
-      return {
-        label: "COMPLETED",
-
-        background:
-          styles.statusCompleted,
-
-        dot:
-          styles.dotCompleted,
-
-        text:
-          styles.textCompleted,
-      };
-
-    case "cancelled":
-      return {
-        label: "CANCELLED",
-
-        background:
-          styles.statusCancelled,
-
-        dot:
-          styles.dotCancelled,
-
-        text:
-          styles.textCancelled,
-      };
-
-    case "expired":
-      return {
-        label: "EXPIRED",
-
-        background:
-          styles.statusExpired,
-
-        dot:
-          styles.dotExpired,
-
-        text:
-          styles.textExpired,
-      };
-
-    case "pending":
-    default:
-      return {
-        label: "PENDING",
-
-        background:
-          styles.statusPending,
-
-        dot:
-          styles.dotPending,
-
-        text:
-          styles.textPending,
-      };
-  }
-}
-
-/* ==============================================================
    STYLES
 ============================================================== */
 
-const styles =
-  StyleSheet.create({
-    /* ==========================================================
-       CARD
-    ========================================================== */
+const styles = StyleSheet.create({
+  card: {
+    width: "100%",
 
-    card: {
-      backgroundColor:
-        "#FFFFFF",
+    padding:
+      FixxamTokens.spacing.lg,
+  },
 
-      borderRadius: 20,
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "space-between",
 
-      borderWidth: 1,
+    gap:
+      FixxamTokens.spacing.sm,
+  },
 
-      borderColor:
-        "#E2E8F0",
+ statusBadge: {
+  flexDirection: "row",
+  alignItems: "center",
 
-      paddingHorizontal: 10,
+  paddingHorizontal:
+    FixxamTokens.spacing.sm,
 
-      paddingTop: 10,
+  paddingVertical:
+    FixxamTokens.spacing.xs,
 
-      paddingBottom: 10,
+  borderRadius:
+    FixxamTokens.radius.full,
+},
 
-      shadowColor:
-        "#0F172A",
+  statusDot: {
+    width: 6,
+    height: 6,
 
-      shadowOpacity: 0.05,
+    borderRadius:
+      FixxamTokens.radius.full,
 
-      shadowRadius: 6,
+    marginRight:
+      FixxamTokens.spacing.xs,
+  },
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
+  productRow: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    marginTop:
+      FixxamTokens.spacing.md,
+  },
+
+  productImage: {
+    width:
+      FixxamTokens.size.avatarXl,
+
+    height:
+      FixxamTokens.size.avatarXl,
+
+    flexShrink: 0,
+
+    borderRadius:
+      FixxamTokens.radius.image,
+
+    backgroundColor:
+      Colors.iconBackground,
+  },
+
+  productPlaceholder: {
+    width:
+      FixxamTokens.size.avatarXl,
+
+    height:
+      FixxamTokens.size.avatarXl,
+
+    flexShrink: 0,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.image,
+
+    backgroundColor:
+      CustomerColors.primarySoft,
+  },
+
+  productInfo: {
+    flex: 1,
+    minWidth: 0,
+
+    marginHorizontal:
+      FixxamTokens.spacing.md,
+  },
+
+  storeName: {
+    marginTop:
+      FixxamTokens.spacing.xs,
+  },
+
+  itemBadge: {
+    alignSelf: "flex-start",
+
+    flexDirection: "row",
+    alignItems: "center",
+
+    gap:
+      FixxamTokens.spacing.xs,
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
+
+    paddingVertical:
+      FixxamTokens.spacing.xs,
+
+    borderRadius:
+      FixxamTokens.radius.badge,
+
+    backgroundColor:
+      Colors.iconBackground,
+  },
+
+  emptyChatButton: {
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    flexShrink: 0,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderWidth: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      Colors.surface,
+  },
+
+  chatButton: {
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    flexShrink: 0,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    ...FixxamTokens.shadow.floating,
+  },
+
+  chatPressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
       },
-
-      elevation: 2,
-    },
-
-    cardPressed: {
-      opacity: 0.97,
-
-      transform: [
-        {
-          scale: 0.995,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       HEADER
-    ========================================================== */
-
-    header: {
-      minHeight: 24,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-    },
-
-    statusBadge: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      paddingHorizontal: 9,
-
-      paddingVertical: 5,
-
-      borderRadius: 999,
-    },
-
-    statusDot: {
-      width: 6,
-
-      height: 6,
-
-      borderRadius: 3,
-
-      marginRight: 5,
-    },
-
-    statusText: {
-      fontSize: 8,
-
-      letterSpacing: 0.2,
-    },
-
-    orderNumberRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap: 4,
-    },
-
-    orderNumber: {
-      fontSize: 8.5,
-
-      color:
-        "#64748B",
-    },
-
-    /* ==========================================================
-       PRODUCT
-    ========================================================== */
-
-    productRow: {
-      marginTop: 10,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    productImage: {
-      width: 74,
-
-      height: 74,
-
-      borderRadius: 15,
-
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    productPlaceholder: {
-      width: 74,
-
-      height: 74,
-
-      borderRadius: 15,
-
-      backgroundColor:
-        "#EFF6FF",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    productInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft: 12,
-
-      marginRight: 8,
-    },
-
-    productName: {
-      fontSize: 15,
-
-      color:
-        "#0F172A",
-    },
-
-    storeName: {
-      marginTop: 4,
-
-      fontSize: 11.5,
-
-      color:
-        "#64748B",
-    },
-
-    itemBadge: {
-      alignSelf:
-        "flex-start",
-
-      marginTop: 7,
-
-      paddingHorizontal: 8,
-
-      paddingVertical: 5,
-
-      borderRadius: 7,
-
-      backgroundColor:
-        "#F1F5F9",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap: 5,
-    },
-
-    itemText: {
-      fontSize: 9,
-
-      color:
-        "#475569",
-    },
-
-    /* ==========================================================
-       EMPTY ARROW
-    ========================================================== */
-
-    arrowButton: {
-      width: 40,
-
-      height: 40,
-
-      borderRadius: 20,
-
-      backgroundColor:
-        "#F8FAFC",
-
-      borderWidth: 1,
-
-      borderColor:
-        "#E2E8F0",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    arrowPressed: {
-      opacity: 0.75,
-
-      transform: [
-        {
-          scale: 0.94,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       CHAT ARROW
-    ========================================================== */
-
-    chatArrowButton: {
-      width: 40,
-
-      height: 40,
-
-      borderRadius: 20,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      shadowColor:
-        "#0F172A",
-
-      shadowOpacity: 0.12,
-
-      shadowRadius: 5,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 2,
-      },
-
-      elevation: 3,
-    },
-
-    /*
-     * CUSTOMER APP
-     *
-     * Customer → BLUE → ↑
-     */
-
-    chatArrowCustomer: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    /*
-     * CUSTOMER APP
-     *
-     * Seller / Worker → GREEN → ↓
-     */
-
-    chatArrowSeller: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    chatArrowPressed: {
-      opacity: 0.82,
-
-      transform: [
-        {
-          scale: 0.94,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       DIVIDER
-    ========================================================== */
-
-    divider: {
-      height: 1,
-
-      marginTop: 10,
-
-      marginBottom: 9,
-
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    /* ==========================================================
-       INFO
-    ========================================================== */
-
-    infoRow: {
-      minHeight: 28,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    infoItem: {
-      flex: 1,
-
-      minWidth: 0,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    infoText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft: 5,
-
-      fontSize: 9,
-
-      color:
-        "#64748B",
-    },
-
-    onTheWayText: {
-      color:
-        "#15803D",
-    },
-
-    completedText: {
-      color:
-        "#15803D",
-    },
-
-    infoSeparator: {
-      width: 1,
-
-      height: 20,
-
-      marginHorizontal: 7,
-
-      backgroundColor:
-        "#E2E8F0",
-    },
-
-    /* ==========================================================
-       FOOTER
-    ========================================================== */
-
-    footer: {
-      marginTop: 8,
-
-      paddingTop: 8,
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        "#F1F5F9",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    dateContainer: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    dateLabel: {
-      fontSize: 7.5,
-
-      color:
-        "#94A3B8",
-    },
-
-    date: {
-      marginTop: 2,
-
-      fontSize: 9,
-
-      color:
-        "#64748B",
-    },
-
-    total: {
-      marginHorizontal: 10,
-
-      fontSize: 15,
-
-      color:
-        "#0F172A",
-    },
-
-    actionButton: {
-      minHeight: 36,
-
-      paddingHorizontal: 11,
-
-      borderRadius: 10,
-
-      backgroundColor:
-        "#2563EB",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap: 5,
-    },
-
-    trackButton: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    completedButton: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    actionText: {
-      fontSize: 8,
-
-      color:
-        "#FFFFFF",
-    },
-
-    /* ==========================================================
-       STATUS COLORS
-    ========================================================== */
-
-    statusPending: {
-      backgroundColor:
-        "#FFF7E8",
-    },
-
-    dotPending: {
-      backgroundColor:
-        "#F59E0B",
-    },
-
-    textPending: {
-      color:
-        "#D97706",
-    },
-
-    statusAccepted: {
-      backgroundColor:
-        "#EFF6FF",
-    },
-
-    dotAccepted: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    textAccepted: {
-      color:
-        "#1D4ED8",
-    },
-
-    statusOnTheWay: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotOnTheWay: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textOnTheWay: {
-      color:
-        "#15803D",
-    },
-
-    statusCompleted: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textCompleted: {
-      color:
-        "#15803D",
-    },
-
-    statusCancelled: {
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor:
-        "#DC2626",
-    },
-
-    textCancelled: {
-      color:
-        "#B91C1C",
-    },
-
-    statusExpired: {
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor:
-        "#64748B",
-    },
-
-    textExpired: {
-      color:
-        "#475569",
-    },
-  });
+    ],
+  },
+
+  divider: {
+    marginVertical:
+      FixxamTokens.spacing.md,
+  },
+
+  infoSection: {
+    gap:
+      FixxamTokens.spacing.sm,
+  },
+
+  infoItem: {
+    minWidth: 0,
+
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  infoText: {
+    flex: 1,
+    minWidth: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.sm,
+  },
+
+  footerDivider: {
+    marginTop:
+      FixxamTokens.spacing.md,
+
+    marginBottom:
+      FixxamTokens.spacing.sm,
+  },
+
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    gap:
+      FixxamTokens.spacing.md,
+  },
+
+  dateContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  date: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
+
+  viewDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+
+    gap:
+      FixxamTokens.spacing.xs,
+  },
+});
 
 export default memo(
   MarketOrderCard,

@@ -1,119 +1,220 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
-
-import { AppText } from "@/components/ui";
 import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 interface Props {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
+
   title: string;
+
   danger?: boolean;
+
   onPress: () => void;
 }
 
-export default function MenuItem({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function MenuItem({
   icon,
   title,
   danger = false,
   onPress,
 }: Props) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.75}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
       onPress={onPress}
-      style={styles.container}
+      style={({ pressed }) => [
+        styles.container,
+
+        pressed
+          ? danger
+            ? styles.dangerPressed
+            : styles.pressed
+          : null,
+      ]}
     >
       <View
         style={[
           styles.iconBox,
-          danger && styles.iconDanger,
+
+          danger
+            ? styles.iconDanger
+            : null,
         ]}
       >
-        <Ionicons
+        <AppIcon
           name={icon}
-          size={22}
-          color={
+          role="customer"
+          size="sm"
+          state={
             danger
-              ? "#EF4444"
-              : CustomerColors.primary
+              ? "error"
+              : "active"
           }
         />
       </View>
 
       <AppText
+        variant="body"
         weight="semibold"
+        numberOfLines={1}
         style={[
           styles.title,
-          danger && styles.dangerText,
+
+          danger
+            ? styles.dangerText
+            : null,
         ]}
       >
         {title}
       </AppText>
 
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color="#B8C1CC"
+      <AppIcon
+        name="next"
+        role="customer"
+        size="sm"
+        state="muted"
       />
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 60,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    flexDirection: "row",
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    alignItems: "center",
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-    paddingHorizontal: 18,
+      flexDirection: "row",
 
-    borderRadius: 18,
+      alignItems: "center",
 
-    marginBottom: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  iconBox: {
-    width: 42,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    height: 42,
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    borderRadius: 14,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    backgroundColor: "#EEF4FF",
+      flexShrink: 0,
 
-    justifyContent: "center",
+      alignItems: "center",
 
-    alignItems: "center",
-  },
+      justifyContent: "center",
 
-  iconDanger: {
-    backgroundColor: "#FEECEC",
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  title: {
-    flex: 1,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    marginLeft: 14,
+    iconDanger: {
+      backgroundColor:
+        Colors.errorSoft,
+    },
 
-    fontSize: 16,
+    title: {
+      flex: 1,
 
-    color: CustomerColors.textPrimary,
-  },
+      minWidth: 0,
 
-  dangerText: {
-    color: "#EF4444",
-  },
-});
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    dangerText: {
+      color:
+        Colors.error,
+    },
+
+    pressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    dangerPressed: {
+      backgroundColor:
+        Colors.errorSoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  MenuItem,
+);

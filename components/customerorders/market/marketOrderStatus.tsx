@@ -1,15 +1,22 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   formatMarketDate,
@@ -18,23 +25,30 @@ import {
   type MarketStatus,
 } from "./marketOrder.utils";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
 type Props = {
   status: MarketStatus;
+
   createdAt: unknown;
 };
 
-/* ==============================================================
-   TIMELINE STEPS
-============================================================== */
+type TimelineStep = {
+  key: Exclude<
+    MarketStatus,
+    "cancelled" | "expired"
+  >;
 
-const STEPS: {
-  key: MarketStatus;
   label: string;
-}[] = [
+};
+
+/* ============================================================
+   TIMELINE STEPS
+============================================================ */
+
+const STEPS: TimelineStep[] = [
   {
     key: "pending",
     label: "Order placed",
@@ -53,11 +67,11 @@ const STEPS: {
   },
 ];
 
-/* ==============================================================
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
-export default function MarketOrderStatus({
+function MarketOrderStatus({
   status,
   createdAt,
 }: Props) {
@@ -72,22 +86,27 @@ export default function MarketOrderStatus({
     );
 
   const isTerminal =
-    status ===
-      "cancelled" ||
-    status ===
-      "expired";
+    status === "cancelled" ||
+    status === "expired";
+
+  const placedDate =
+    formatMarketDate(
+      createdAt,
+    );
 
   return (
     <View
       style={
         styles.card
       }
+      accessibilityLabel={`Order status ${config.label}. ${config.message}`}
     >
-      {/* ========================================================
+      {/* ======================================================
           TITLE
-      ======================================================== */}
+      ====================================================== */}
 
       <AppText
+        variant="body"
         weight="bold"
         style={
           styles.title
@@ -96,15 +115,12 @@ export default function MarketOrderStatus({
         Order Status
       </AppText>
 
-      {/* ========================================================
-          TIMELINE
-      ======================================================== */}
+      {/* ======================================================
+          TIMELINE / TERMINAL
+      ====================================================== */}
 
       {isTerminal ? (
         <TerminalStatus
-          status={
-            status
-          }
           config={
             config
           }
@@ -115,11 +131,31 @@ export default function MarketOrderStatus({
             styles.timeline
           }
         >
+          {/* BASE LINE */}
+
           <View
             style={
               styles.timelineLine
             }
           />
+
+          {/* PROGRESS LINE */}
+
+          {currentIndex > 0 ? (
+            <View
+              style={[
+                styles.timelineProgress,
+
+                {
+                  width:
+                    `${Math.min(
+                      currentIndex,
+                      3,
+                    ) * 25}%`,
+                },
+              ]}
+            />
+          ) : null}
 
           <View
             style={
@@ -139,6 +175,15 @@ export default function MarketOrderStatus({
                   index ===
                   currentIndex;
 
+                const activeColor =
+                  status ===
+                  "completed"
+                    ? Colors.success
+                    : status ===
+                        "pending"
+                      ? Colors.warning
+                      : CustomerColors.primary;
+
                 return (
                   <View
                     key={
@@ -148,66 +193,87 @@ export default function MarketOrderStatus({
                       styles.step
                     }
                   >
-                    {/* CIRCLE */}
+                    {/* ========================================
+                        CIRCLE
+                    ======================================== */}
 
                     <View
                       style={[
                         styles.circle,
-                        completed &&
-                          styles.circleCompleted,
-                        active &&
-                          styles.circleActive,
+
+                        completed
+                          ? styles.circleCompleted
+                          : null,
+
+                        active
+                          ? {
+                              borderColor:
+                                activeColor,
+
+                              backgroundColor:
+                                Colors.surface,
+                            }
+                          : null,
                       ]}
                     >
                       {completed ? (
-                        <Ionicons
-                          name="checkmark"
-                          size={13}
-                          color="#FFFFFF"
+                        <AppIcon
+                          name="check"
+                          size="xs"
+                          color={
+                            Colors.textInverse
+                          }
                         />
                       ) : active ? (
                         <View
-                          style={
-                            styles.activeDot
-                          }
+                          style={[
+                            styles.activeDot,
+
+                            {
+                              backgroundColor:
+                                activeColor,
+                            },
+                          ]}
                         />
                       ) : null}
                     </View>
 
-                    {/* LABEL */}
+                    {/* ========================================
+                        LABEL
+                    ======================================== */}
 
                     <AppText
+                      variant="caption"
                       weight={
                         active
                           ? "bold"
                           : undefined
                       }
-                      numberOfLines={
-                        2
-                      }
+                      numberOfLines={2}
                       style={[
                         styles.stepLabel,
-                        active &&
-                          styles.stepLabelActive,
+
+                        active
+                          ? styles.stepLabelActive
+                          : null,
                       ]}
                     >
-                      {
-                        step.label
-                      }
+                      {step.label}
                     </AppText>
 
-                    {/* DATE */}
+                    {/* ========================================
+                        CREATED DATE
+                    ======================================== */}
 
-                    {index ===
-                    0 ? (
+                    {index === 0 ? (
                       <AppText
+                        variant="caption"
+                        numberOfLines={2}
                         style={
                           styles.date
                         }
                       >
-                        {formatMarketDate(
-                          createdAt,
-                        )}
+                        {placedDate}
                       </AppText>
                     ) : null}
                   </View>
@@ -218,13 +284,14 @@ export default function MarketOrderStatus({
         </View>
       )}
 
-      {/* ========================================================
+      {/* ======================================================
           STATUS MESSAGE
-      ======================================================== */}
+      ====================================================== */}
 
       <View
         style={[
           styles.message,
+
           {
             backgroundColor:
               config.messageBackground,
@@ -234,17 +301,19 @@ export default function MarketOrderStatus({
         <View
           style={[
             styles.messageIcon,
+
             {
               backgroundColor:
                 config.background,
             },
           ]}
         >
-          <Ionicons
+          <AppIcon
             name={
               config.icon
             }
-            size={20}
+            role="customer"
+            size="sm"
             color={
               config.color
             }
@@ -252,28 +321,39 @@ export default function MarketOrderStatus({
         </View>
 
         <AppText
+          variant="caption"
           style={
             styles.messageText
           }
         >
-          {
-            config.message
-          }
+          {config.message}
         </AppText>
       </View>
     </View>
   );
 }
 
-/* ==============================================================
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedMarketOrderStatus =
+  memo(
+    MarketOrderStatus,
+  );
+
+MemoizedMarketOrderStatus.displayName =
+  "MarketOrderStatus";
+
+export default MemoizedMarketOrderStatus;
+
+/* ============================================================
    TERMINAL STATUS
-============================================================== */
+============================================================ */
 
 function TerminalStatus({
-  status,
   config,
 }: {
-  status: MarketStatus;
   config: ReturnType<
     typeof getMarketStatusConfig
   >;
@@ -287,20 +367,18 @@ function TerminalStatus({
       <View
         style={[
           styles.terminalIcon,
+
           {
             backgroundColor:
               config.background,
           },
         ]}
       >
-        <Ionicons
+        <AppIcon
           name={
-            status ===
-            "cancelled"
-              ? "close-outline"
-              : "time-outline"
+            config.icon
           }
-          size={25}
+          size="md"
           color={
             config.color
           }
@@ -308,9 +386,11 @@ function TerminalStatus({
       </View>
 
       <AppText
+        variant="caption"
         weight="bold"
         style={[
           styles.terminalTitle,
+
           {
             color:
               config.color,
@@ -323,26 +403,40 @@ function TerminalStatus({
   );
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -350,114 +444,186 @@ const styles =
     ======================================================== */
 
     timeline: {
-      marginTop: 19,
-      minHeight: 84,
-      position: "relative",
+      minHeight: 92,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      position:
+        "relative",
     },
 
     timelineLine: {
-      position: "absolute",
-      top: 12,
+      position:
+        "absolute",
+
+      top: 13,
+
       left: "12.5%",
+
       right: "12.5%",
+
       height: 2,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
+    },
+
+    timelineProgress: {
+      position:
+        "absolute",
+
+      top: 13,
+
+      left: "12.5%",
+
+      height: 2,
+
+      maxWidth: "75%",
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     steps: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
+
       justifyContent:
         "space-between",
     },
 
     step: {
       width: "25%",
-      alignItems: "center",
-    },
 
-    circle: {
-      width: 25,
-      height: 25,
-      borderRadius: 13,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 2,
-      borderColor:
-        "#CBD5E1",
-      alignItems: "center",
-      justifyContent:
+      alignItems:
         "center",
     },
 
-    circleCompleted: {
-      backgroundColor:
-        "#16A34A",
+    circle: {
+      width: 28,
+
+      height: 28,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
       borderColor:
-        "#16A34A",
+        Colors.disabled,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    circleActive: {
-      backgroundColor:
-        "#FFFFFF",
+    circleCompleted: {
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     activeDot: {
       width: 10,
+
       height: 10,
-      borderRadius: 5,
-      backgroundColor:
-        "#2563EB",
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     stepLabel: {
-      marginTop: 6,
-      fontSize: 7.5,
-      lineHeight: 10,
-      textAlign: "center",
-      color: "#64748B",
+      minHeight: 30,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
+
+      textAlign:
+        "center",
+
+      lineHeight: 14,
+
+      color:
+        Colors.textSecondary,
     },
 
     stepLabelActive: {
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     date: {
-      marginTop: 2,
-      fontSize: 6.8,
-      color: "#94A3B8",
-      textAlign: "center",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      textAlign:
+        "center",
+
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
-       MESSAGE
+       STATUS MESSAGE
     ======================================================== */
 
     message: {
-      marginTop: 14,
-      padding: 10,
-      borderRadius: 13,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 9,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     messageIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     messageText: {
       flex: 1,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#334155",
+
+      lineHeight: 16,
+
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -465,27 +631,46 @@ const styles =
     ======================================================== */
 
     terminal: {
-      marginTop: 17,
-      minHeight: 65,
-      borderRadius: 14,
-      backgroundColor:
-        "#F8FAFC",
-      alignItems: "center",
+      minHeight: 92,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     terminalIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     terminalTitle: {
-      marginTop: 6,
-      fontSize: 10,
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
   });

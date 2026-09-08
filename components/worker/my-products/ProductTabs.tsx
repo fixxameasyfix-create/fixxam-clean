@@ -1,4 +1,6 @@
 import React, {
+  memo,
+  useCallback,
   useState,
 } from "react";
 
@@ -12,141 +14,241 @@ import {
   AppText,
 } from "@/components/ui";
 
-const tabs = [
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+const TABS = [
   "Products",
-
   "Orders",
-
   "Reviews",
+] as const;
 
-];
+type ProductTab =
+  (typeof TABS)[number];
 
-export default function ProductTabs() {
+/* ============================================================
+   COMPONENT
+============================================================ */
 
+function ProductTabs() {
   const [
     active,
     setActive,
-  ] = useState("Products");
+  ] =
+    useState<ProductTab>(
+      "Products",
+    );
+
+  /* ==========================================================
+     SELECT TAB
+  ========================================================== */
+
+  const handleSelect =
+    useCallback(
+      (
+        tab: ProductTab,
+      ) => {
+        setActive(
+          tab,
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {TABS.map(
+        tab => {
+          const selected =
+            active === tab;
 
-    <View style={styles.container}>
+          return (
+            <Pressable
+              key={
+                tab
+              }
+              onPress={() => {
+                handleSelect(
+                  tab,
+                );
+              }}
+              accessibilityRole="tab"
+              accessibilityLabel={`${tab} tab`}
+              accessibilityState={{
+                selected,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.tab,
 
-      {tabs.map((tab) => {
+                selected
+                  ? styles.activeTab
+                  : null,
 
-        const selected =
-          active === tab;
-
-        return (
-
-          <Pressable
-            key={tab}
-            style={styles.tab}
-            onPress={() =>
-              setActive(tab)
-            }
-          >
-
-            <AppText
-              weight="bold"
-              style={[
-                styles.text,
-                selected &&
-                  styles.activeText,
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              {tab}
-            </AppText>
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                center
+                style={[
+                  styles.text,
 
-            {selected && (
+                  selected
+                    ? styles.activeText
+                    : null,
+                ]}
+              >
+                {tab}
+              </AppText>
 
               <View
-                style={styles.indicator}
+                style={[
+                  styles.indicator,
+
+                  selected
+                    ? styles.activeIndicator
+                    : null,
+                ]}
               />
-
-            )}
-
-          </Pressable>
-
-        );
-
-      })}
-
+            </Pressable>
+          );
+        },
+      )}
     </View>
+  );
+}
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedProductTabs =
+  memo(
+    ProductTabs,
   );
 
-}
+MemoizedProductTabs.displayName =
+  "ProductTabs";
+
+export default MemoizedProductTabs;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
-
     container: {
+      width: "100%",
 
-      flexDirection: "row",
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      borderRadius: 18,
-
-      padding: 6,
-
-      marginBottom: 20,
-
-      shadowColor: "#000",
-
-      shadowOpacity: 0.05,
-
-      shadowRadius: 10,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 3,
-
+      ...FixxamTokens.shadow.card,
     },
 
     tab: {
-
       flex: 1,
 
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-      paddingVertical: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    activeTab: {
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     text: {
-
-      color: "#64748B",
-
-      fontSize: 15,
-
+      color:
+        Colors.textSecondary,
     },
 
     activeText: {
-
-      color: "#FF6B00",
-
+      color:
+        WorkerColors.primary,
     },
 
     indicator: {
-
-      marginTop: 8,
-
-      width: 30,
+      width: 28,
 
       height: 3,
 
-      borderRadius: 2,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#FF6B00",
-
+        "transparent",
     },
 
+    activeIndicator: {
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
   });

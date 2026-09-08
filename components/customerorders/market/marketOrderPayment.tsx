@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -7,41 +8,101 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  formatMarketPaymentMethod,
+  getMarketPaymentIcon,
+  normalizeMarketPaymentStatus,
+  type MarketPaymentStatus,
+} from "./marketOrder.utils";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   paymentMethod: string;
+
   paymentStatus: string;
 };
+
+type PaymentStatusConfig = {
+  label: string;
+
+  color: string;
+
+  background: string;
+};
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function MarketOrderPayment({
   paymentMethod,
   paymentStatus,
 }: Props) {
-  const method =
-    paymentMethod
-      .toLowerCase()
-      .trim();
+  const methodLabel =
+    useMemo(
+      () =>
+        formatMarketPaymentMethod(
+          paymentMethod,
+        ),
+      [
+        paymentMethod,
+      ],
+    );
 
-  const status =
-    paymentStatus
-      .toLowerCase()
-      .trim();
+  const methodIcon =
+    useMemo(
+      () =>
+        getMarketPaymentIcon(
+          paymentMethod,
+        ),
+      [
+        paymentMethod,
+      ],
+    );
 
-  const isPaid =
-    status === "paid";
+  const normalizedStatus =
+    useMemo(
+      () =>
+        normalizeMarketPaymentStatus(
+          paymentStatus,
+        ),
+      [
+        paymentStatus,
+      ],
+    );
+
+  const statusConfig =
+    getPaymentStatusConfig(
+      normalizedStatus,
+    );
 
   return (
     <View
       style={
         styles.card
       }
+      accessibilityLabel={`Payment method ${methodLabel}. Payment status ${statusConfig.label}.`}
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="body"
         weight="bold"
         style={
           styles.title
@@ -50,12 +111,18 @@ function MarketOrderPayment({
         Payment Information
       </AppText>
 
+      {/* ======================================================
+          DETAILS
+      ====================================================== */}
+
       <View
         style={
           styles.row
         }
       >
-        {/* PAYMENT METHOD */}
+        {/* ====================================================
+            PAYMENT METHOD
+        ==================================================== */}
 
         <View
           style={
@@ -63,6 +130,7 @@ function MarketOrderPayment({
           }
         >
           <AppText
+            variant="caption"
             style={
               styles.label
             }
@@ -75,26 +143,39 @@ function MarketOrderPayment({
               styles.valueRow
             }
           >
-            <Ionicons
-              name={getPaymentIcon(
-                method,
-              )}
-              size={20}
-              color="#16A34A"
-            />
+            <View
+              style={
+                styles.methodIconBox
+              }
+            >
+              <AppIcon
+                name={
+                  methodIcon
+                }
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
 
             <AppText
+              variant="caption"
               weight="bold"
+              numberOfLines={2}
               style={
                 styles.value
               }
             >
-              {formatPaymentMethod(
-                method,
-              )}
+              {methodLabel}
             </AppText>
           </View>
         </View>
+
+        {/* ====================================================
+            DIVIDER
+        ==================================================== */}
 
         <View
           style={
@@ -102,7 +183,9 @@ function MarketOrderPayment({
           }
         />
 
-        {/* PAYMENT STATUS */}
+        {/* ====================================================
+            PAYMENT STATUS
+        ==================================================== */}
 
         <View
           style={
@@ -110,6 +193,7 @@ function MarketOrderPayment({
           }
         >
           <AppText
+            variant="caption"
             style={
               styles.label
             }
@@ -120,32 +204,37 @@ function MarketOrderPayment({
           <View
             style={[
               styles.statusBadge,
-              isPaid
-                ? styles.paidBadge
-                : styles.pendingBadge,
+
+              {
+                backgroundColor:
+                  statusConfig.background,
+              },
             ]}
           >
             <View
               style={[
                 styles.statusDot,
-                isPaid
-                  ? styles.paidDot
-                  : styles.pendingDot,
+
+                {
+                  backgroundColor:
+                    statusConfig.color,
+                },
               ]}
             />
 
             <AppText
+              variant="caption"
               weight="bold"
               style={[
                 styles.statusText,
-                isPaid
-                  ? styles.paidText
-                  : styles.pendingText,
+
+                {
+                  color:
+                    statusConfig.color,
+                },
               ]}
             >
-              {status
-                ? status.toUpperCase()
-                : "PENDING"}
+              {statusConfig.label}
             </AppText>
           </View>
         </View>
@@ -154,152 +243,247 @@ function MarketOrderPayment({
   );
 }
 
-export default memo(
-  MarketOrderPayment,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
-   HELPERS
-============================================================== */
+const MemoizedMarketOrderPayment =
+  memo(
+    MarketOrderPayment,
+  );
 
-function formatPaymentMethod(
-  value: string,
-): string {
-  switch (value) {
-    case "card":
-      return "Card Payment";
+MemoizedMarketOrderPayment.displayName =
+  "MarketOrderPayment";
 
-    case "transfer":
-      return "Bank Transfer";
+export default MemoizedMarketOrderPayment;
 
-    case "cash":
+/* ============================================================
+   STATUS CONFIG
+============================================================ */
+
+function getPaymentStatusConfig(
+  status: MarketPaymentStatus,
+): PaymentStatusConfig {
+  switch (status) {
+    case "paid":
+      return {
+        label:
+          "PAID",
+
+        color:
+          Colors.success,
+
+        background:
+          Colors.successSoft,
+      };
+
+    case "failed":
+      return {
+        label:
+          "FAILED",
+
+        color:
+          Colors.error,
+
+        background:
+          Colors.errorSoft,
+      };
+
+    case "refunded":
+      return {
+        label:
+          "REFUNDED",
+
+        color:
+          Colors.info,
+
+        background:
+          Colors.infoSoft,
+      };
+
+    case "pending":
     default:
-      return "Pay on Delivery";
+      return {
+        label:
+          "PENDING",
+
+        color:
+          Colors.warning,
+
+        background:
+          Colors.warningSoft,
+      };
   }
 }
 
-function getPaymentIcon(
-  value: string,
-): keyof typeof Ionicons.glyphMap {
-  switch (value) {
-    case "card":
-      return "card-outline";
-
-    case "transfer":
-      return "business-outline";
-
-    case "cash":
-    default:
-      return "cash-outline";
-  }
-}
-
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     row: {
-      marginTop: 12,
-      flexDirection: "row",
-      alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     column: {
       flex: 1,
+
       minWidth: 0,
     },
 
     divider: {
       width: 1,
-      height: 42,
-      marginHorizontal: 10,
+
+      height: 48,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     label: {
-      fontSize: 8,
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
+    /* ========================================================
+       PAYMENT METHOD
+    ======================================================== */
+
     valueRow: {
-      marginTop: 6,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    methodIconBox: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     value: {
       flex: 1,
-      fontSize: 9.5,
-      color: "#334155",
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       STATUS
+    ======================================================== */
 
     statusBadge: {
-      alignSelf: "flex-start",
-      marginTop: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 999,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-    },
+      alignSelf:
+        "flex-start",
 
-    paidBadge: {
-      backgroundColor:
-        "#ECFDF5",
-    },
+      minHeight: 28,
 
-    pendingBadge: {
-      backgroundColor:
-        "#FFF7E8",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
 
     statusDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 3,
-    },
+      width: 6,
 
-    paidDot: {
-      backgroundColor:
-        "#16A34A",
-    },
+      height: 6,
 
-    pendingDot: {
-      backgroundColor:
-        "#F59E0B",
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusText: {
-      fontSize: 7.5,
-      letterSpacing: 0.2,
-    },
-
-    paidText: {
-      color: "#15803D",
-    },
-
-    pendingText: {
-      color: "#D97706",
+      letterSpacing:
+        0.2,
     },
   });

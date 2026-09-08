@@ -1,14 +1,32 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  Image,
+  ActivityIndicator,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -16,59 +34,327 @@ import { AppText } from "@/components/ui";
 
 type Props = {
   name: string;
+
   photoUrl?: string;
+
   category?: string;
+
   online?: boolean;
+
   distance?: number;
 };
+
+/* ==============================================================
+   PHOTO URL
+============================================================== */
+
+function normalizePhotoUrl(
+  value?: string,
+): string {
+  if (
+    typeof value !==
+      "string"
+  ) {
+    return "";
+  }
+
+  const url =
+    value.trim();
+
+  if (!url) {
+    return "";
+  }
+
+  /*
+   * Production worker profile
+   * images must use secure HTTPS.
+   *
+   * file:// and content:// URIs
+   * are intentionally rejected.
+   */
+  if (
+    !url.startsWith(
+      "https://",
+    )
+  ) {
+    return "";
+  }
+
+  return url;
+}
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function RequestWorkerCard({
+function RequestWorkerCard({
   name,
   photoUrl,
   category = "Service Provider",
   online = false,
   distance,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  const [
+    imageLoading,
+    setImageLoading,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     PHOTO
+  ============================================================ */
+
+  const safePhotoUrl =
+    useMemo(
+      () =>
+        normalizePhotoUrl(
+          photoUrl,
+        ),
+      [
+        photoUrl,
+      ],
+    );
+
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+
+    setImageLoading(
+      Boolean(
+        safePhotoUrl,
+      ),
+    );
+  }, [
+    safePhotoUrl,
+  ]);
+
+  /* ============================================================
+     DISTANCE
+  ============================================================ */
+
   const safeDistance =
-    typeof distance === "number" &&
-    Number.isFinite(distance)
-      ? Math.max(0, distance)
-      : undefined;
+    useMemo(() => {
+      if (
+        typeof distance !==
+          "number" ||
+        !Number.isFinite(
+          distance,
+        )
+      ) {
+        return undefined;
+      }
+
+      return Math.max(
+        0,
+        distance,
+      );
+    }, [
+      distance,
+    ]);
+
+  /* ============================================================
+     IMAGE EVENTS
+  ============================================================ */
+
+  const handleImageLoadStart =
+    useCallback(() => {
+      setImageLoading(
+        true,
+      );
+
+      setImageFailed(
+        false,
+      );
+
+      if (__DEV__) {
+        console.log(
+          "REQUEST_WORKER_IMAGE_LOAD_START",
+          {
+            name,
+
+            photoUrl:
+              safePhotoUrl,
+          },
+        );
+      }
+    }, [
+      name,
+      safePhotoUrl,
+    ]);
+
+  const handleImageLoad =
+    useCallback(() => {
+      setImageLoading(
+        false,
+      );
+
+      setImageFailed(
+        false,
+      );
+
+      if (__DEV__) {
+        console.log(
+          "REQUEST_WORKER_IMAGE_LOADED",
+          {
+            name,
+
+            photoUrl:
+              safePhotoUrl,
+          },
+        );
+      }
+    }, [
+      name,
+      safePhotoUrl,
+    ]);
+
+  const handleImageError =
+    useCallback(
+      (
+        error: unknown,
+      ) => {
+        setImageLoading(
+          false,
+        );
+
+        setImageFailed(
+          true,
+        );
+
+        if (__DEV__) {
+          console.warn(
+            "REQUEST_WORKER_IMAGE_LOAD_FAILED",
+            {
+              name,
+
+              photoUrl:
+                safePhotoUrl,
+
+              error,
+            },
+          );
+        }
+      },
+      [
+        name,
+        safePhotoUrl,
+      ],
+    );
+
+  /* ============================================================
+     IMAGE STATE
+  ============================================================ */
+
+  const shouldShowImage =
+    Boolean(
+      safePhotoUrl &&
+      !imageFailed,
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.card}>
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
       {/* ======================================================
           AVATAR
       ====================================================== */}
 
-      <View style={styles.avatarWrapper}>
-        <View style={styles.avatarRing}>
-          {photoUrl ? (
+      <View
+        style={
+          styles.avatarWrapper
+        }
+      >
+        <View
+          style={
+            styles.avatarRing
+          }
+        >
+          {shouldShowImage ? (
             <Image
-              source={{ uri: photoUrl }}
-              style={styles.avatar}
-              resizeMode="cover"
+              source={{
+                uri:
+                  safePhotoUrl,
+              }}
+              style={
+                styles.avatar
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={
+                FixxamTokens.motion
+                  .fast
+              }
+              onLoadStart={
+                handleImageLoadStart
+              }
+              onLoad={
+                handleImageLoad
+              }
+              onError={
+                handleImageError
+              }
+              accessibilityLabel={`${name} profile photo`}
             />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons
-                name="person-outline"
-                size={32}
-                color="#94A3B8"
+            <View
+              style={
+                styles.avatarPlaceholder
+              }
+            >
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="lg"
+                state="muted"
               />
             </View>
           )}
+
+          {/* ==================================================
+              LOADING
+          ================================================== */}
+
+          {imageLoading &&
+          shouldShowImage ? (
+            <View
+              pointerEvents="none"
+              style={
+                styles.imageLoadingOverlay
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+          ) : null}
         </View>
 
-        {/* ONLINE DOT */}
+        {/* ====================================================
+            STATUS DOT
+        ==================================================== */}
 
         <View
           style={[
             styles.statusDot,
+
             online
               ? styles.statusOnline
               : styles.statusOffline,
@@ -77,88 +363,121 @@ export default function RequestWorkerCard({
       </View>
 
       {/* ======================================================
-          WORKER INFO
+          WORKER INFORMATION
       ====================================================== */}
 
-      <View style={styles.content}>
-        {/* NAME */}
-
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={styles.name}
         >
           {name}
         </AppText>
 
-        {/* CATEGORY */}
-
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
           ellipsizeMode="tail"
-          style={styles.category}
+          style={
+            styles.category
+          }
         >
           {category}
         </AppText>
 
-        {/* ==================================================
-            DISTANCE + AVAILABLE
-        ================================================== */}
+        {/* ====================================================
+            META
+        ==================================================== */}
 
-        <View style={styles.metaRow}>
-          {/* DISTANCE */}
-
-          {safeDistance !== undefined && (
-            <View style={styles.distanceRow}>
-              <Ionicons
-                name="time-outline"
-                size={16}
-                color="#D97706"
+        <View
+          style={
+            styles.metaRow
+          }
+        >
+          {safeDistance !==
+          undefined ? (
+            <View
+              style={
+                styles.distanceRow
+              }
+            >
+              <AppIcon
+                name="location"
+                role="customer"
+                size="xs"
+                state="muted"
               />
 
               <AppText
-                weight="bold"
-                style={styles.distanceText}
+                variant="caption"
+                tone="secondary"
+                weight="semibold"
+                style={
+                  styles.distanceText
+                }
               >
-                {safeDistance.toFixed(1)} km away
+                {safeDistance.toFixed(
+                  1,
+                )}{" "}
+                km away
               </AppText>
             </View>
-          )}
+          ) : null}
 
-          {/* AVAILABLE — SAME STYLE AS WORKER LIST */}
+          {/* ==================================================
+              AVAILABILITY
+          ================================================== */}
 
           <View
             style={[
-              styles.availablePill,
-              safeDistance !== undefined &&
-                styles.availableSpacing,
+              styles.availability,
+
+              online
+                ? styles.availabilityOnline
+                : styles.availabilityOffline,
+
+              safeDistance !==
+              undefined
+                ? styles.availabilitySpacing
+                : null,
             ]}
           >
             <View
               style={[
-                styles.availableDot,
+                styles.availabilityDot,
+
                 online
-                  ? styles.availableDotOnline
-                  : styles.availableDotOffline,
+                  ? styles.statusOnline
+                  : styles.statusOffline,
               ]}
             />
 
             <AppText
-              weight="bold"
+              variant="caption"
+              weight="semibold"
               style={[
-                styles.availableText,
+                styles.availabilityText,
+
                 online
-                  ? styles.availableTextOnline
-                  : styles.availableTextOffline,
+                  ? styles.availabilityTextOnline
+                  : styles.availabilityTextOffline,
               ]}
             >
-              {online ? "Available" : "Offline"}
+              {online
+                ? "Available"
+                : "Offline"}
             </AppText>
           </View>
         </View>
       </View>
-    </View>
+    </AppCard>
   );
 }
 
@@ -166,248 +485,282 @@ export default function RequestWorkerCard({
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  /* ============================================================
-     CARD
-  ============================================================ */
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-  card: {
-    width: "100%",
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    minHeight: 132,
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+      alignItems:
+        "center",
 
-    borderRadius: 22,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.045,
-    shadowRadius: 12,
-
-    shadowOffset: {
-      width: 0,
-      height: 5,
+      padding:
+        FixxamTokens.spacing.md,
     },
 
-    elevation: 3,
-  },
+    /* ========================================================
+       AVATAR
+    ======================================================== */
 
-  /* ============================================================
-     AVATAR
-  ============================================================ */
+    avatarWrapper: {
+      position:
+        "relative",
 
-  avatarWrapper: {
-    position: "relative",
+      width:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    width: 88,
-    height: 88,
+      height:
+        FixxamTokens.size
+          .roleCardHeight,
 
-    marginRight: 13,
+      flexShrink: 0,
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    flexShrink: 0,
-  },
+      justifyContent:
+        "center",
 
-  avatarRing: {
-    width: 82,
-    height: 82,
+      marginRight:
+        FixxamTokens.spacing.md,
+    },
 
-    borderRadius: 41,
+    avatarRing: {
+      width:
+        FixxamTokens.size.avatarXl,
 
-    padding: 3,
+      height:
+        FixxamTokens.size.avatarXl,
 
-    backgroundColor: "#EFF6FF",
+      overflow:
+        "hidden",
 
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
+      padding:
+        FixxamTokens.spacing.xxs,
 
-  avatar: {
-    width: "100%",
-    height: "100%",
+      borderWidth: 1,
 
-    borderRadius: 38,
+      borderColor:
+        CustomerColors.primaryLight,
 
-    backgroundColor: "#E2E8F0",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  avatarPlaceholder: {
-    flex: 1,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    borderRadius: 38,
+    avatar: {
+      width: "100%",
 
-    backgroundColor: "#E2E8F0",
+      height: "100%",
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  /* ============================================================
-     ONLINE DOT
-  ============================================================ */
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  statusDot: {
-    position: "absolute",
+    avatarPlaceholder: {
+      flex: 1,
 
-    right: 0,
-    bottom: 2,
+      alignItems:
+        "center",
 
-    width: 20,
-    height: 20,
+      justifyContent:
+        "center",
 
-    borderRadius: 10,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  statusOnline: {
-    backgroundColor: "#22C55E",
-  },
+    imageLoadingOverlay: {
+      ...StyleSheet.absoluteFillObject,
 
-  statusOffline: {
-    backgroundColor: "#94A3B8",
-  },
+      alignItems:
+        "center",
 
-  /* ============================================================
-     CONTENT
-  ============================================================ */
+      justifyContent:
+        "center",
 
-  content: {
-    flex: 1,
-    minWidth: 0,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  /* ============================================================
-     NAME
-  ============================================================ */
+      backgroundColor:
+        Colors.overlayLight,
+    },
 
-  name: {
-    fontSize: 18,
-    lineHeight: 23,
+    /* ========================================================
+       STATUS
+    ======================================================== */
 
-    color: "#0F172A",
-  },
+    statusDot: {
+      position:
+        "absolute",
 
-  /* ============================================================
-     CATEGORY
-  ============================================================ */
+      right:
+        FixxamTokens.spacing.xs,
 
-  category: {
-    marginTop: 3,
+      bottom:
+        FixxamTokens.spacing.xs,
 
-    fontSize: 13,
-    lineHeight: 18,
+      width: 18,
 
-    color: "#64748B",
-  },
+      height: 18,
 
-  /* ============================================================
-     META
-  ============================================================ */
+      borderWidth: 3,
 
-  metaRow: {
-    flexDirection: "row",
+      borderColor:
+        Colors.surface,
 
-    alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
 
-    flexWrap: "wrap",
+    statusOnline: {
+      backgroundColor:
+        Colors.success,
+    },
 
-    marginTop: 8,
-  },
+    statusOffline: {
+      backgroundColor:
+        Colors.textMuted,
+    },
 
-  /* ============================================================
-     DISTANCE
-  ============================================================ */
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-  distanceRow: {
-    flexDirection: "row",
+    content: {
+      flex: 1,
 
-    alignItems: "center",
+      minWidth: 0,
+    },
 
-    flexShrink: 1,
-  },
+    category: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-  distanceText: {
-    marginLeft: 5,
+    /* ========================================================
+       META
+    ======================================================== */
 
-    fontSize: 12,
-    lineHeight: 17,
+    metaRow: {
+      flexDirection:
+        "row",
 
-    color: "#D97706",
-  },
+      alignItems:
+        "center",
 
-  /* ============================================================
-     AVAILABLE PILL
-     SAME STYLE AS WORKER LIST
-  ============================================================ */
+      flexWrap:
+        "wrap",
 
-  availablePill: {
-    minHeight: 30,
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-    paddingHorizontal: 11,
+    distanceRow: {
+      flexDirection:
+        "row",
 
-    borderRadius: 16,
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
+      flexShrink: 1,
+    },
 
-    borderWidth: 1,
+    distanceText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
 
-    borderColor: "#E2E8F0",
+    /* ========================================================
+       AVAILABILITY
+    ======================================================== */
 
-    flexDirection: "row",
+    availability: {
+      minHeight: 30,
 
-    alignItems: "center",
+      flexDirection:
+        "row",
 
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    flexShrink: 0,
-  },
+      justifyContent:
+        "center",
 
-  availableSpacing: {
-    marginLeft: 9,
-  },
+      flexShrink: 0,
 
-  availableDot: {
-    width: 9,
-    height: 9,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    borderRadius: 4.5,
+      borderWidth: 1,
 
-    marginRight: 7,
-  },
+      borderRadius:
+        FixxamTokens.radius.chip,
+    },
 
-  availableDotOnline: {
-    backgroundColor: "#22C55E",
-  },
+    availabilityOnline: {
+      borderColor:
+        Colors.success,
 
-  availableDotOffline: {
-    backgroundColor: "#94A3B8",
-  },
+      backgroundColor:
+        Colors.successSoft,
+    },
 
-  availableText: {
-    fontSize: 12,
+    availabilityOffline: {
+      borderColor:
+        Colors.border,
 
-    lineHeight: 17,
-  },
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  availableTextOnline: {
-    color: "#334155",
-  },
+    availabilitySpacing: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
 
-  availableTextOffline: {
-    color: "#64748B",
-  },
-});
+    availabilityDot: {
+      width: 7,
+
+      height: 7,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    availabilityText: {
+      flexShrink: 0,
+    },
+
+    availabilityTextOnline: {
+      color:
+        Colors.success,
+    },
+
+    availabilityTextOffline: {
+      color:
+        Colors.textSecondary,
+    },
+  });
+
+export default memo(
+  RequestWorkerCard,
+);

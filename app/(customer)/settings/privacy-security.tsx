@@ -1,5 +1,7 @@
 import React, {
+  memo,
   useCallback,
+  useRef,
   useState,
 } from "react";
 
@@ -12,33 +14,132 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import {
+  FirebaseError,
+} from "firebase/app";
 
 import {
   sendEmailVerification,
-  User,
+  type User,
 } from "firebase/auth";
 
+import Toast from "react-native-toast-message";
+
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
-import { auth } from "@/firebase/config";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  auth,
+} from "@/firebase/config";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type StatusType =
+  | "success"
+  | "warning";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+function getVerificationErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error instanceof FirebaseError
+  ) {
+    switch (
+      error.code
+    ) {
+      case "auth/too-many-requests":
+        return "Too many requests were made. Please wait before trying again.";
+
+      case "auth/network-request-failed":
+        return "Check your internet connection and try again.";
+
+      case "auth/user-disabled":
+        return "This account is currently disabled.";
+
+      case "auth/user-token-expired":
+      case "auth/invalid-user-token":
+        return "Your session has expired. Please sign in again.";
+
+      default:
+        return "We could not send the verification email. Please try again later.";
+    }
+  }
+
+  return "We could not send the verification email. Please try again later.";
+}
 
 /* ============================================================
    CUSTOMER PRIVACY & SECURITY
 ============================================================ */
 
 export default function CustomerPrivacySecurityScreen() {
-  const user = auth.currentUser;
+  const user =
+    auth.currentUser;
 
   const [
     sendingVerification,
     setSendingVerification,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const verificationInFlight =
+    useRef(false);
 
   /* ==========================================================
      EMAIL VERIFICATION
@@ -46,50 +147,80 @@ export default function CustomerPrivacySecurityScreen() {
 
   const handleEmailVerification =
     useCallback(async () => {
-      const currentUser: User | null =
+      if (
+        verificationInFlight.current ||
+        sendingVerification
+      ) {
+        return;
+      }
+
+      const currentUser:
+        User | null =
         auth.currentUser;
 
-      if (!currentUser) {
-        Alert.alert(
+      if (
+        !currentUser
+      ) {
+        showErrorToast(
           "Account required",
           "Please sign in again to continue.",
         );
+
         return;
       }
 
-      if (currentUser.emailVerified) {
-        Alert.alert(
+      if (
+        currentUser.emailVerified
+      ) {
+        showInfoToast(
           "Email verified",
           "Your email address is already verified.",
         );
+
         return;
       }
 
-      try {
-        setSendingVerification(true);
+      verificationInFlight.current =
+        true;
 
+      setSendingVerification(
+        true,
+      );
+
+      try {
         await sendEmailVerification(
           currentUser,
         );
 
-        Alert.alert(
+        showSuccessToast(
           "Verification email sent",
           "Check your email and follow the verification link.",
         );
-      } catch (error) {
+      } catch (
+        error
+      ) {
         console.error(
           "SEND_EMAIL_VERIFICATION_ERROR:",
           error,
         );
 
-        Alert.alert(
+        showErrorToast(
           "Unable to send email",
-          "We could not send the verification email. Please try again later.",
+          getVerificationErrorMessage(
+            error,
+          ),
         );
       } finally {
-        setSendingVerification(false);
+        verificationInFlight.current =
+          false;
+
+        setSendingVerification(
+          false,
+        );
       }
-    }, []);
+    }, [
+      sendingVerification,
+    ]);
 
   /* ==========================================================
      CHANGE PASSWORD
@@ -124,34 +255,77 @@ export default function CustomerPrivacySecurityScreen() {
   if (!user) {
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
-          styles.loadingContainer
+          styles.emptyContainer
         }
       >
+        <View
+          style={
+            styles.emptyIcon
+          }
+        >
+          <AppIcon
+            name="shield"
+            size="lg"
+            color={
+              Colors.textMuted
+            }
+          />
+        </View>
+
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.emptyTitle}
+          center
+          style={
+            styles.emptyTitle
+          }
         >
           Account required
         </AppText>
 
         <AppText
-          style={styles.emptyText}
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.emptyText
+          }
         >
           Please sign in to manage your security settings.
         </AppText>
 
         <Pressable
-          onPress={() =>
-            router.back()
-          }
-          style={styles.backAction}
+          onPress={() => {
+            router.back();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          style={({
+            pressed,
+          }) => [
+            styles.backAction,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
+          <AppIcon
+            name="back"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
+          />
+
           <AppText
+            variant="body"
             weight="bold"
-            style={styles.backActionText}
+            style={
+              styles.backActionText
+            }
           >
             Go Back
           </AppText>
@@ -166,12 +340,15 @@ export default function CustomerPrivacySecurityScreen() {
 
   return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
         styles.screen
       }
     >
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={
+          false
+        }
         contentContainerStyle={
           styles.content
         }
@@ -180,35 +357,58 @@ export default function CustomerPrivacySecurityScreen() {
             HEADER
         ==================================================== */}
 
-        <View style={styles.header}>
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
-            onPress={() =>
-              router.back()
-            }
-            style={styles.backButton}
+            onPress={() => {
+              router.back();
+            }}
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            hitSlop={8}
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
           <View
-            style={styles.headerText}
+            style={
+              styles.headerText
+            }
           >
             <AppText
+              variant="heading2"
               weight="bold"
-              style={styles.title}
+              style={
+                styles.title
+              }
             >
               Privacy & Security
             </AppText>
 
             <AppText
-              style={styles.subtitle}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
             >
               Protect your Fixxam account
             </AppText>
@@ -223,13 +423,17 @@ export default function CustomerPrivacySecurityScreen() {
           title="ACCOUNT SECURITY"
         />
 
-        <View style={styles.card}>
+        <View
+          style={
+            styles.card
+          }
+        >
           {/* ==================================================
               EMAIL VERIFICATION
           ================================================== */}
 
           <SettingRow
-            icon="mail-outline"
+            icon="mail"
             title="Email Verification"
             subtitle={
               user.emailVerified
@@ -249,7 +453,9 @@ export default function CustomerPrivacySecurityScreen() {
             onPress={
               user.emailVerified
                 ? undefined
-                : handleEmailVerification
+                : () => {
+                    void handleEmailVerification();
+                  }
             }
             loading={
               sendingVerification
@@ -263,13 +469,64 @@ export default function CustomerPrivacySecurityScreen() {
           ================================================== */}
 
           <SettingRow
-            icon="key-outline"
+            icon="lock"
             title="Change Password"
             subtitle="Update your account password"
             onPress={
               handleChangePassword
             }
           />
+        </View>
+
+        {/* ====================================================
+            SECURITY INFO
+        ==================================================== */}
+
+        <View
+          style={
+            styles.infoCard
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="shield"
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.infoContent
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.infoTitle
+              }
+            >
+              Account security
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.infoText
+              }
+            >
+              Keep your email verified and use a strong password to help protect your Fixxam account.
+            </AppText>
+          </View>
         </View>
       </ScrollView>
     </AppScreen>
@@ -280,160 +537,237 @@ export default function CustomerPrivacySecurityScreen() {
    SECTION TITLE
 ============================================================ */
 
-function SectionTitle({
-  title,
-}: {
-  title: string;
-}) {
-  return (
-    <AppText
-      weight="bold"
-      style={
-        styles.sectionTitle
-      }
-    >
-      {title}
-    </AppText>
+const SectionTitle =
+  memo(
+    function SectionTitle({
+      title,
+    }: {
+      title: string;
+    }) {
+      return (
+        <AppText
+          variant="caption"
+          weight="bold"
+          style={
+            styles.sectionTitle
+          }
+        >
+          {title}
+        </AppText>
+      );
+    },
   );
-}
+
+SectionTitle.displayName =
+  "SectionTitle";
 
 /* ============================================================
    SETTING ROW
 ============================================================ */
 
-function SettingRow({
-  icon,
-  title,
-  subtitle,
-  status,
-  statusType,
-  onPress,
-  loading = false,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  subtitle: string;
-  status?: string;
-  statusType?:
-    | "success"
-    | "warning";
-  onPress?: () => void;
-  loading?: boolean;
-}) {
-  const content = (
-    <View style={styles.row}>
-      {/* ICON */}
+const SettingRow =
+  memo(
+    function SettingRow({
+      icon,
+      title,
+      subtitle,
+      status,
+      statusType,
+      onPress,
+      loading = false,
+    }: {
+      icon: AppIconName;
 
-      <View
-        style={
-          styles.iconBox
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={20}
-          color="#2563EB"
-        />
-      </View>
+      title: string;
 
-      {/* TEXT */}
+      subtitle: string;
 
-      <View
-        style={
-          styles.rowContent
-        }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.rowTitle
-          }
-        >
-          {title}
-        </AppText>
+      status?: string;
 
-        <AppText
-          style={
-            styles.rowSubtitle
-          }
-        >
-          {subtitle}
-        </AppText>
-      </View>
+      statusType?:
+        StatusType;
 
-      {/* ACTION / STATUS */}
+      onPress?:
+        () => void;
 
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color="#2563EB"
-        />
-      ) : status ? (
+      loading?: boolean;
+    }) {
+      const content = (
         <View
-          style={[
-            styles.statusBadge,
-            statusType ===
-              "success"
-              ? styles.successBadge
-              : styles.warningBadge,
+          style={
+            styles.row
+          }
+        >
+          {/* ICON */}
+
+          <View
+            style={
+              styles.iconBox
+            }
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="customer"
+              size="sm"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          {/* TEXT */}
+
+          <View
+            style={
+              styles.rowContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.rowTitle
+              }
+            >
+              {title}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.rowSubtitle
+              }
+            >
+              {subtitle}
+            </AppText>
+          </View>
+
+          {/* STATUS / ACTION */}
+
+          {loading ? (
+            <View
+              style={
+                styles.trailingControl
+              }
+            >
+              <ActivityIndicator
+                size="small"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+          ) : status ? (
+            <View
+              style={[
+                styles.statusBadge,
+
+                statusType ===
+                "success"
+                  ? styles.successBadge
+                  : styles.warningBadge,
+              ]}
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                numberOfLines={1}
+                style={[
+                  styles.statusText,
+
+                  statusType ===
+                  "success"
+                    ? styles.successText
+                    : styles.warningText,
+                ]}
+              >
+                {status}
+              </AppText>
+            </View>
+          ) : (
+            <View
+              style={
+                styles.trailingControl
+              }
+            >
+              <AppIcon
+                name="next"
+                size="sm"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </View>
+          )}
+        </View>
+      );
+
+      if (!onPress) {
+        return content;
+      }
+
+      return (
+        <Pressable
+          onPress={
+            onPress
+          }
+          disabled={
+            loading
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            title
+          }
+          accessibilityState={{
+            disabled:
+              loading,
+            busy:
+              loading,
+          }}
+          style={({
+            pressed,
+          }) => [
+            loading
+              ? styles.disabled
+              : null,
+
+            pressed &&
+            !loading
+              ? styles.pressedRow
+              : null,
           ]}
         >
-          <AppText
-            weight="bold"
-            style={[
-              styles.statusText,
-              statusType ===
-                "success"
-                ? styles.successText
-                : styles.warningText,
-            ]}
-          >
-            {status}
-          </AppText>
-        </View>
-      ) : (
-        <Ionicons
-          name="chevron-forward"
-          size={19}
-          color="#94A3B8"
-        />
-      )}
-    </View>
+          {content}
+        </Pressable>
+      );
+    },
   );
 
-  if (!onPress) {
-    return content;
-  }
-
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={loading}
-      style={({ pressed }) => [
-        pressed &&
-          styles.pressedRow,
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      {content}
-    </Pressable>
-  );
-}
+SettingRow.displayName =
+  "SettingRow";
 
 /* ============================================================
    DIVIDER
 ============================================================ */
 
-function Divider() {
-  return (
-    <View
-      style={
-        styles.divider
-      }
-    />
+const Divider =
+  memo(
+    function Divider() {
+      return (
+        <View
+          style={
+            styles.divider
+          }
+        />
+      );
+    },
   );
-}
+
+Divider.displayName =
+  "Divider";
 
 /* ============================================================
    STYLES
@@ -446,54 +780,121 @@ const styles =
     ======================================================== */
 
     screen: {
+      flex: 1,
+
       paddingHorizontal: 0,
+
       paddingTop: 0,
+
       paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 110,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ========================================================
-       LOADING / EMPTY
+       EMPTY
     ======================================================== */
 
-    loadingContainer: {
+    emptyContainer: {
       flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 24,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      fontSize: 18,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 6,
-      fontSize: 12,
-      lineHeight: 18,
-      textAlign: "center",
-      color: "#64748B",
+      maxWidth: 310,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
     backAction: {
-      marginTop: 18,
-      minHeight: 44,
-      paddingHorizontal: 20,
-      borderRadius: 12,
-      backgroundColor: "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     backActionText: {
-      fontSize: 13,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
@@ -501,36 +902,65 @@ const styles =
     ======================================================== */
 
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 24,
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      alignItems: "center",
-      justifyContent: "center",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 20,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-      fontSize: 11.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -538,11 +968,17 @@ const styles =
     ======================================================== */
 
     sectionTitle: {
-      marginLeft: 4,
-      marginBottom: 8,
-      fontSize: 11,
-      letterSpacing: 0.7,
-      color: "#64748B",
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      letterSpacing:
+        0.7,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -550,12 +986,24 @@ const styles =
     ======================================================== */
 
     card: {
-      marginBottom: 20,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
+      overflow:
+        "hidden",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      overflow: "hidden",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -564,40 +1012,78 @@ const styles =
 
     row: {
       minHeight: 76,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      flexDirection: "row",
-      alignItems: "center",
-    },
 
-    pressedRow: {
-      opacity: 0.7,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     iconBox: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     rowContent: {
       flex: 1,
-      marginHorizontal: 12,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     rowTitle: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     rowSubtitle: {
-      marginTop: 3,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    trailingControl: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     /* ========================================================
@@ -605,32 +1091,49 @@ const styles =
     ======================================================== */
 
     statusBadge: {
-      minWidth: 68,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 8,
-      alignItems: "center",
-      justifyContent: "center",
+      minHeight: 28,
+
+      maxWidth: 94,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
 
     successBadge: {
-      backgroundColor: "#DCFCE7",
+      backgroundColor:
+        Colors.successSoft,
     },
 
     warningBadge: {
-      backgroundColor: "#FEF3C7",
+      backgroundColor:
+        Colors.warningSoft,
     },
 
     statusText: {
-      fontSize: 9.5,
+      textAlign:
+        "center",
     },
 
     successText: {
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
     warningText: {
-      color: "#B45309",
+      color:
+        Colors.warning,
     },
 
     /* ========================================================
@@ -639,7 +1142,110 @@ const styles =
 
     divider: {
       height: 1,
+
       marginLeft: 68,
-      backgroundColor: "#F1F5F9",
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoCard: {
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    infoTitle: {
+      color:
+        CustomerColors.primary,
+    },
+
+    infoText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    pressedRow: {
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

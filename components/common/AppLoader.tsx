@@ -1,62 +1,145 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
+  ActivityIndicator,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import LottieView from "lottie-react-native";
+import AppText from "@/components/ui/AppText";
 
-import { AppText } from "@/components/ui";
+import {
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
 
-type Props = {
+type LoaderSize =
+  | "sm"
+  | "md"
+  | "lg";
+
+export interface AppLoaderProps {
   message?: string;
-  size?: number;
+
+  role?: FixxamRole;
+
+  size?: LoaderSize;
+
+  /*
+   * Use true for whole-screen loading.
+   * False is better inside cards/lists.
+   */
+  fullScreen?: boolean;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+const loaderSizes: Record<
+  LoaderSize,
+  number
+> = {
+  sm: 20,
+  md: 28,
+  lg: 36,
 };
 
-export default function AppLoader({
+function AppLoader({
   message = "Please wait...",
-  size = 180,
-}: Props) {
-  return (
-    <View style={styles.container}>
-      <LottieView
-        source={require("@/assets/animations/loading.json")}
-        autoPlay
-        loop
-        style={{
-          width: size,
-          height: size,
-        }}
-      />
+  role = "customer",
+  size = "md",
+  fullScreen = true,
+  style,
+}: AppLoaderProps) {
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
 
-      <AppText
-        weight="semibold"
-        style={styles.message}
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={message}
+      style={[
+        styles.container,
+
+        fullScreen
+          ? styles.fullScreen
+          : styles.inline,
+
+        style,
+      ]}
+    >
+      <View
+        style={[
+          styles.spinnerBox,
+          {
+            backgroundColor:
+              colors.primarySoft,
+          },
+        ]}
       >
-        {message}
-      </AppText>
+        <ActivityIndicator
+          size={loaderSizes[size]}
+          color={colors.primary}
+        />
+      </View>
+
+      {message ? (
+        <AppText
+          variant="bodyMedium"
+          tone="secondary"
+          center
+          style={styles.message}
+        >
+          {message}
+        </AppText>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  fullScreen: {
     flex: 1,
 
-    justifyContent: "center",
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
+
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
+  },
+
+  inline: {
+    paddingVertical:
+      FixxamTokens.spacing.xl,
+  },
+
+  spinnerBox: {
+    width: 56,
+    height: 56,
 
     alignItems: "center",
+    justifyContent: "center",
 
-    backgroundColor: "#FFFFFF",
+    borderRadius:
+      FixxamTokens.radius.lg,
   },
 
   message: {
-    marginTop: -10,
+    marginTop:
+      FixxamTokens.spacing.md,
 
-    fontSize: 16,
-
-    color: "#64748B",
-
-    textAlign: "center",
+    maxWidth: 280,
   },
 });
+
+export default memo(AppLoader);

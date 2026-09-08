@@ -26,7 +26,12 @@ import {
 export type CustomerNotificationType =
   | "service_request"
   | "booking"
+  | "market_order"
   | "system";
+
+export type NotificationRecipientRole =
+  | "customer"
+  | "worker";
 
 export type CustomerNotification = {
   id: string;
@@ -49,6 +54,15 @@ export type CustomerNotification = {
 
   requestId?: string;
 
+  bookingId?: string;
+
+  orderId?: string;
+
+  recipientId?: string;
+
+  recipientRole?:
+    NotificationRecipientRole;
+
   read: boolean;
 
   createdAt: Timestamp | null;
@@ -66,6 +80,21 @@ function isTimestamp(
   return value instanceof Timestamp;
 }
 
+function getOptionalString(
+  value: unknown,
+): string | undefined {
+  if (
+    typeof value !== "string"
+  ) {
+    return undefined;
+  }
+
+  const normalized =
+    value.trim();
+
+  return normalized || undefined;
+}
+
 /* ============================================================
    TYPE VALIDATION
 ============================================================ */
@@ -76,7 +105,17 @@ function isNotificationType(
   return (
     value === "service_request" ||
     value === "booking" ||
+    value === "market_order" ||
     value === "system"
+  );
+}
+
+function isRecipientRole(
+  value: unknown,
+): value is NotificationRecipientRole {
+  return (
+    value === "customer" ||
+    value === "worker"
   );
 }
 
@@ -106,7 +145,9 @@ function mapNotification(
           ? "New Service Request"
           : type === "booking"
             ? "Booking Update"
-            : "Fixxam Notification",
+            : type === "market_order"
+              ? "Market Order Update"
+              : "Fixxam Notification",
 
     message:
       typeof data.message === "string"
@@ -114,33 +155,58 @@ function mapNotification(
         : "",
 
     workerId:
-      typeof data.workerId === "string"
-        ? data.workerId
-        : undefined,
+      getOptionalString(
+        data.workerId,
+      ),
 
     workerName:
-      typeof data.workerName === "string"
-        ? data.workerName.trim()
-        : undefined,
+      getOptionalString(
+        data.workerName,
+      ),
 
     workerPhone:
-      typeof data.workerPhone === "string"
-        ? data.workerPhone.trim()
-        : undefined,
+      getOptionalString(
+        data.workerPhone,
+      ),
 
     service:
-      typeof data.service === "string"
-        ? data.service.trim()
-        : undefined,
+      getOptionalString(
+        data.service,
+      ) ??
+      getOptionalString(
+        data.serviceName,
+      ),
 
     location:
-      typeof data.location === "string"
-        ? data.location.trim()
-        : undefined,
+      getOptionalString(
+        data.location,
+      ),
 
     requestId:
-      typeof data.requestId === "string"
-        ? data.requestId
+      getOptionalString(
+        data.requestId,
+      ),
+
+    bookingId:
+      getOptionalString(
+        data.bookingId,
+      ),
+
+    orderId:
+      getOptionalString(
+        data.orderId,
+      ),
+
+    recipientId:
+      getOptionalString(
+        data.recipientId,
+      ),
+
+    recipientRole:
+      isRecipientRole(
+        data.recipientRole,
+      )
+        ? data.recipientRole
         : undefined,
 
     read:
@@ -170,11 +236,17 @@ export default function useCustomerNotifications() {
     CustomerNotification[]
   >([]);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    error,
+    setError,
+  ] = useState<string | null>(
+    null,
+  );
 
   /* ==========================================================
      REAL-TIME LISTENER
@@ -226,10 +298,7 @@ export default function useCustomerNotifications() {
             );
 
           /*
-           * Realtime query.
-           *
-           * Single-field orderBy normally does not
-           * require a composite index.
+           * Single-field orderBy.
            */
           const notificationsQuery =
             query(
@@ -261,17 +330,37 @@ export default function useCustomerNotifications() {
                           document.data(),
                         ),
                     )
+
+                    /*
+                     * ==================================================
+                     * CUSTOMER RECIPIENT FILTER
+                     * ==================================================
+                     *
+                     * Only notifications explicitly addressed to
+                     * this authenticated customer are allowed.
+                     *
+                     * This prevents Worker notifications from appearing
+                     * inside the Customer application.
+                     */
+                    .filter(
+                      (
+                        notification,
+                      ) =>
+                        notification.recipientId ===
+                          user.uid &&
+                        notification.recipientRole ===
+                          "customer",
+                    )
+
+                    /*
+                     * ==================================================
+                     * EXPIRATION FILTER
+                     * ==================================================
+                     */
                     .filter(
                       (
                         notification,
                       ) => {
-                        /*
-                         * Hide expired notifications
-                         * from the UI.
-                         *
-                         * Backend cleanup should
-                         * permanently delete them.
-                         */
                         if (
                           notification.expiresAt
                         ) {

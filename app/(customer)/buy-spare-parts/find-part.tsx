@@ -7,10 +7,8 @@ import React, {
 } from "react";
 
 import {
-  Animated,
-  Easing,
+  ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
@@ -20,804 +18,962 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
-import { CustomerColors } from "@/theme/customerColors";
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
 
 const PROCESSING_DURATION = 5400;
 
+const COMPLETION_DELAY =
+  FixxamTokens.motion.normal;
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type FindPartParams = {
   photoUri?: string;
+
   description?: string;
+
   source?: string;
 
   equipmentId?: string;
+
   equipmentName?: string;
 
   brandId?: string;
+
   brandName?: string;
 };
 
+/* ==============================================================
+   SCREEN
+============================================================== */
+
 export default function FindPartScreen() {
-  /*
-   * ============================================================
-   * PARAMS
-   * ============================================================
-   */
+  const insets =
+    useSafeAreaInsets();
+
+  /* ============================================================
+     PARAMS
+  ============================================================ */
 
   const params =
     useLocalSearchParams<FindPartParams>();
 
-  const photoUri = useMemo(
-    () =>
-      String(
-        params.photoUri ?? "",
-      ).trim(),
-    [params.photoUri],
-  );
+  const photoUri =
+    useMemo(
+      () =>
+        String(
+          params.photoUri ??
+            "",
+        ).trim(),
+      [
+        params.photoUri,
+      ],
+    );
 
-  const description = useMemo(
-    () =>
-      String(
-        params.description ?? "",
-      ).trim(),
-    [params.description],
-  );
+  const description =
+    useMemo(
+      () =>
+        String(
+          params.description ??
+            "",
+        ).trim(),
+      [
+        params.description,
+      ],
+    );
 
-  const source = useMemo(
-    () =>
-      String(
-        params.source ?? "",
-      ).trim(),
-    [params.source],
-  );
+  const source =
+    useMemo(
+      () =>
+        String(
+          params.source ??
+            "",
+        ).trim(),
+      [
+        params.source,
+      ],
+    );
 
-  const equipmentId = useMemo(
-    () =>
-      String(
-        params.equipmentId ?? "",
-      ).trim(),
-    [params.equipmentId],
-  );
+  const equipmentId =
+    useMemo(
+      () =>
+        String(
+          params.equipmentId ??
+            "",
+        ).trim(),
+      [
+        params.equipmentId,
+      ],
+    );
 
-  const equipmentName = useMemo(
-    () =>
-      String(
-        params.equipmentName ?? "",
-      ).trim(),
-    [params.equipmentName],
-  );
+  const equipmentName =
+    useMemo(
+      () =>
+        String(
+          params.equipmentName ??
+            "",
+        ).trim(),
+      [
+        params.equipmentName,
+      ],
+    );
 
-  const brandId = useMemo(
-    () =>
-      String(
-        params.brandId ?? "",
-      ).trim(),
-    [params.brandId],
-  );
+  const brandId =
+    useMemo(
+      () =>
+        String(
+          params.brandId ??
+            "",
+        ).trim(),
+      [
+        params.brandId,
+      ],
+    );
 
-  const brandName = useMemo(
-    () =>
-      String(
-        params.brandName ?? "",
-      ).trim(),
-    [params.brandName],
-  );
+  const brandName =
+    useMemo(
+      () =>
+        String(
+          params.brandName ??
+            "",
+        ).trim(),
+      [
+        params.brandName,
+      ],
+    );
 
-  /*
-   * ============================================================
-   * SEARCH TYPE
-   * ============================================================
-   */
+  /* ============================================================
+     SEARCH TYPE
+  ============================================================ */
 
   const isPhotoSearch =
     source === "photo" ||
-    Boolean(photoUri);
+    Boolean(
+      photoUri,
+    );
 
   const isDescriptionSearch =
-    source === "description" ||
-    Boolean(description);
+    source ===
+      "description" ||
+    Boolean(
+      description,
+    );
 
   const isEquipmentSearch =
-    source === "equipment" ||
-    Boolean(equipmentId) ||
-    Boolean(brandId);
+    source ===
+      "equipment" ||
+    Boolean(
+      equipmentId,
+    ) ||
+    Boolean(
+      brandId,
+    );
 
   const hasSearchInput =
     isPhotoSearch ||
     isDescriptionSearch ||
     isEquipmentSearch;
 
-  /*
-   * ============================================================
-   * STATE
-   * ============================================================
-   */
+  /* ============================================================
+     STATE
+  ============================================================ */
 
-  const [isProcessing, setIsProcessing] =
+  const [
+    isProcessing,
+    setIsProcessing,
+  ] =
     useState(true);
 
-  /*
-   * ============================================================
-   * ANIMATIONS
-   * ============================================================
-   */
+  /* ============================================================
+     TIMER
+  ============================================================ */
 
-  const rotation = useRef(
-    new Animated.Value(0),
-  ).current;
+  const processingTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
 
-  const fadeAnim = useRef(
-    new Animated.Value(0),
-  ).current;
+  const completionTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
 
-  const scaleAnim = useRef(
-    new Animated.Value(0.96),
-  ).current;
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
 
-  /*
-   * ============================================================
-   * REFS
-   * ============================================================
-   */
+  const cleanupTimers =
+    useCallback(() => {
+      if (
+        processingTimerRef.current
+      ) {
+        clearTimeout(
+          processingTimerRef.current,
+        );
 
-  const timeoutRef = useRef<
-    ReturnType<typeof setTimeout> | null
-  >(null);
+        processingTimerRef.current =
+          null;
+      }
 
-  const animationRef = useRef<
-    Animated.CompositeAnimation | null
-  >(null);
+      if (
+        completionTimerRef.current
+      ) {
+        clearTimeout(
+          completionTimerRef.current,
+        );
 
-  /*
-   * ============================================================
-   * CLEANUP
-   * ============================================================
-   */
+        completionTimerRef.current =
+          null;
+      }
+    }, []);
 
-  const cleanup = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(
-        timeoutRef.current,
-      );
+  /* ============================================================
+     OPEN PRODUCTS
+  ============================================================ */
 
-      timeoutRef.current = null;
-    }
+  const openProducts =
+    useCallback(() => {
+      if (
+        !hasSearchInput
+      ) {
+        if (
+          router.canGoBack()
+        ) {
+          router.back();
 
-    if (animationRef.current) {
-      animationRef.current.stop();
-      animationRef.current = null;
-    }
-  }, []);
+          return;
+        }
 
-  /*
-   * ============================================================
-   * OPEN PRODUCTS
-   * ============================================================
-   */
+        router.replace(
+          "/(customer)/buy-spare-parts/spare-products",
+        );
 
-  const openProducts = useCallback(() => {
-    if (!hasSearchInput) {
-      router.back();
-      return;
-    }
-
-    router.replace({
-      pathname:
-        "/(customer)/buy-spare-parts/spare-products",
-
-      params: {
-        ...(photoUri
-          ? {
-              photoUri,
-            }
-          : {}),
-
-        ...(description
-          ? {
-              description,
-            }
-          : {}),
-
-        ...(source
-          ? {
-              source,
-            }
-          : {}),
-
-        ...(equipmentId
-          ? {
-              equipmentId,
-            }
-          : {}),
-
-        ...(equipmentName
-          ? {
-              equipmentName,
-            }
-          : {}),
-
-        ...(brandId
-          ? {
-              brandId,
-            }
-          : {}),
-
-        ...(brandName
-          ? {
-              brandName,
-            }
-          : {}),
-      },
-    });
-  }, [
-    brandId,
-    brandName,
-    description,
-    equipmentId,
-    equipmentName,
-    hasSearchInput,
-    photoUri,
-    source,
-  ]);
-
-  /*
-   * ============================================================
-   * PROCESSING
-   * ============================================================
-   */
-
-  useEffect(() => {
-    if (!hasSearchInput) {
-      router.back();
-      return;
-    }
-
-    let cancelled = false;
-
-    setIsProcessing(true);
-
-    fadeAnim.setValue(0);
-    scaleAnim.setValue(0.96);
-    rotation.setValue(0);
-
-    /*
-     * Entrance
-     */
-
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.out(
-          Easing.cubic,
-        ),
-        useNativeDriver: true,
-      }),
-
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        damping: 16,
-        stiffness: 140,
-        mass: 0.7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    /*
-     * Loader
-     */
-
-    animationRef.current =
-      Animated.loop(
-        Animated.timing(rotation, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
-
-    animationRef.current.start();
-
-    /*
-     * Processing
-     */
-
-    timeoutRef.current = setTimeout(() => {
-      if (cancelled) {
         return;
       }
 
-      setIsProcessing(false);
+      router.replace({
+        pathname:
+          "/(customer)/buy-spare-parts/spare-products",
 
-      timeoutRef.current =
-        setTimeout(() => {
-          if (!cancelled) {
-            openProducts();
+        params: {
+          ...(photoUri
+            ? {
+                photoUri,
+              }
+            : {}),
+
+          ...(description
+            ? {
+                description,
+              }
+            : {}),
+
+          ...(source
+            ? {
+                source,
+              }
+            : {}),
+
+          ...(equipmentId
+            ? {
+                equipmentId,
+              }
+            : {}),
+
+          ...(equipmentName
+            ? {
+                equipmentName,
+              }
+            : {}),
+
+          ...(brandId
+            ? {
+                brandId,
+              }
+            : {}),
+
+          ...(brandName
+            ? {
+                brandName,
+              }
+            : {}),
+        },
+      });
+    }, [
+      brandId,
+      brandName,
+      description,
+      equipmentId,
+      equipmentName,
+      hasSearchInput,
+      photoUri,
+      source,
+    ]);
+
+  /* ============================================================
+     PROCESSING
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !hasSearchInput
+    ) {
+      openProducts();
+
+      return;
+    }
+
+    let cancelled =
+      false;
+
+    setIsProcessing(
+      true,
+    );
+
+    processingTimerRef.current =
+      setTimeout(
+        () => {
+          if (
+            cancelled
+          ) {
+            return;
           }
-        }, 500);
-    }, PROCESSING_DURATION);
+
+          setIsProcessing(
+            false,
+          );
+
+          completionTimerRef.current =
+            setTimeout(
+              () => {
+                if (
+                  cancelled
+                ) {
+                  return;
+                }
+
+                openProducts();
+              },
+              COMPLETION_DELAY,
+            );
+        },
+        PROCESSING_DURATION,
+      );
 
     return () => {
-      cancelled = true;
-      cleanup();
+      cancelled =
+        true;
+
+      cleanupTimers();
     };
   }, [
-    cleanup,
-    fadeAnim,
+    cleanupTimers,
     hasSearchInput,
     openProducts,
-    rotation,
-    scaleAnim,
   ]);
 
-  /*
-   * ============================================================
-   * BACK
-   * ============================================================
-   */
+  /* ============================================================
+     BACK
+  ============================================================ */
 
-  const handleBack = useCallback(() => {
-    cleanup();
-    router.back();
-  }, [cleanup]);
+  const handleBack =
+    useCallback(() => {
+      cleanupTimers();
 
-  /*
-   * ============================================================
-   * LOADER
-   * ============================================================
-   */
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
 
-  const loaderRotation =
-    rotation.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        "0deg",
-        "360deg",
-      ],
-    });
+        return;
+      }
 
-  /*
-   * ============================================================
-   * TEXT
-   * ============================================================
-   */
+      router.replace(
+        "/(customer)/buy-spare-parts/spare-products",
+      );
+    }, [
+      cleanupTimers,
+    ]);
 
-  const title = isEquipmentSearch
-    ? "Finding your spare part"
-    : "Fixxam is finding\nyour spare part";
+  /* ============================================================
+     TEXT
+  ============================================================ */
 
-  const subtitle = isEquipmentSearch
-    ? brandName
-      ? `Finding compatible ${brandName} parts for your ${
+  const title =
+    isEquipmentSearch
+      ? "Finding your spare part"
+      : "Fixxam is finding your spare part";
+
+  const subtitle =
+    useMemo(() => {
+      if (
+        isEquipmentSearch
+      ) {
+        const equipment =
           equipmentName ||
-          "equipment"
-        }...`
-      : `Finding compatible parts for your ${
-          equipmentName ||
-          "equipment"
-        }...`
-    : isDescriptionSearch
-      ? "Understanding your description and finding\ncompatible parts..."
-      : "Analyzing your photo and finding\ncompatible parts...";
+          "equipment";
 
-  /*
-   * ============================================================
-   * RENDER
-   * ============================================================
-   */
+        if (
+          brandName
+        ) {
+          return `Finding compatible ${brandName} parts for your ${equipment}...`;
+        }
+
+        return `Finding compatible parts for your ${equipment}...`;
+      }
+
+      if (
+        isDescriptionSearch
+      ) {
+        return "Understanding your description and finding compatible parts...";
+      }
+
+      return "Analyzing your photo and finding compatible parts...";
+    }, [
+      brandName,
+      equipmentName,
+      isDescriptionSearch,
+      isEquipmentSearch,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <SafeAreaView
-      style={styles.safeArea}
+    <AppScreen
+      role="customer"
+      padded={false}
     >
-      <View style={styles.container}>
-        {/* ======================================================
-            BACK BUTTON
-            ====================================================== */}
+      <View
+        style={
+          styles.container
+        }
+      >
+        {/* ====================================================
+            BACK
+        ==================================================== */}
 
         <Pressable
-          onPress={handleBack}
-          hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel="Go back"
           accessibilityHint="Return to the previous screen"
-          style={({ pressed }) => [
+          hitSlop={8}
+          onPress={
+            handleBack
+          }
+          style={({
+            pressed,
+          }) => [
             styles.backButton,
-            pressed &&
-              styles.backButtonPressed,
+
+            {
+              top:
+                Math.max(
+                  insets.top,
+                  FixxamTokens
+                    .spacing.sm,
+                ),
+            },
+
+            pressed
+              ? styles.backButtonPressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={21}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
+            state="default"
           />
         </Pressable>
 
-        {/* ======================================================
+        {/* ====================================================
             CONTENT
-            ====================================================== */}
+        ==================================================== */}
 
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-
-              transform: [
-                {
-                  scale: scaleAnim,
-                },
-              ],
-            },
-          ]}
+        <View
+          style={
+            styles.content
+          }
         >
-          {/* ====================================================
+          {/* ==================================================
               SEARCH ICON
-              ==================================================== */}
+          ================================================== */}
 
-          <View style={styles.searchCircle}>
+          <View
+            style={
+              styles.searchCircle
+            }
+          >
             <View
-              style={styles.searchIconInner}
+              style={
+                styles.searchIconInner
+              }
             >
-              <Ionicons
+              <AppIcon
                 name="search"
-                size={34}
-                color={
-                  CustomerColors.primary
-                }
+                role="customer"
+                size="xl"
+                state="active"
               />
             </View>
           </View>
 
-          {/* ====================================================
+          {/* ==================================================
               TITLE
-              ==================================================== */}
+          ================================================== */}
 
           <AppText
+            variant="heading1"
             weight="bold"
             center
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             {title}
           </AppText>
 
-          {/* ====================================================
+          {/* ==================================================
               SUBTITLE
-              ==================================================== */}
+          ================================================== */}
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
-            style={styles.subtitle}
+            style={
+              styles.subtitle
+            }
           >
             {subtitle}
           </AppText>
 
-          {/* ====================================================
-              LOADER
-              ==================================================== */}
-
-          {isProcessing ? (
-            <Animated.View
-              style={[
-                styles.loader,
-                {
-                  transform: [
-                    {
-                      rotate:
-                        loaderRotation,
-                    },
-                  ],
-                },
-              ]}
-            >
-              <View
-                style={styles.loaderDot}
-              />
-            </Animated.View>
-          ) : (
-            <View
-              style={
-                styles.completedIcon
-              }
-            >
-              <Ionicons
-                name="checkmark"
-                size={18}
-                color="#16A36A"
-              />
-            </View>
-          )}
-
-          {/* ====================================================
-              INFO CARD
-              ==================================================== */}
+          {/* ==================================================
+              STATUS
+          ================================================== */}
 
           <View
-            style={styles.infoCard}
+            style={
+              styles.statusContainer
+            }
+          >
+            {isProcessing ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.completedIcon
+                }
+              >
+                <AppIcon
+                  name="check"
+                  role="customer"
+                  size="sm"
+                  state="success"
+                />
+              </View>
+            )}
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.statusText
+              }
+            >
+              {isProcessing
+                ? "Preparing results..."
+                : "Results ready"}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              REASSURANCE
+          ================================================== */}
+
+          <View
+            style={
+              styles.infoCard
+            }
           >
             <View
-              style={styles.infoIcon}
+              style={
+                styles.infoIcon
+              }
             >
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={21}
-                color="#22A66F"
+              <AppIcon
+                name="shield"
+                role="customer"
+                size="sm"
+                state="success"
               />
             </View>
 
-            <AppText
-              weight="bold"
-              style={styles.infoText}
+            <View
+              style={
+                styles.infoContent
+              }
             >
-              Fixxam will prepare
-              compatible spare parts
-              for you. Nothing will be
-              ordered until you choose
-              a product.
-            </AppText>
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.infoTitle
+                }
+              >
+                You're still in control
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.infoText
+                }
+              >
+                Fixxam will only prepare
+                compatible spare parts.
+                Nothing is ordered until
+                you choose a product.
+              </AppText>
+            </View>
           </View>
-        </Animated.View>
+        </View>
       </View>
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
-const styles = StyleSheet.create({
-  /*
-   * SCREEN
-   */
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
 
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  container: {
-    flex: 1,
-
-    backgroundColor: "#FFFFFF",
-
-    alignItems: "center",
-  },
-
-  /*
-   * BACK BUTTON
-   */
-
-  backButton: {
-    position: "absolute",
-
-    top: 14,
-    left: 16,
-
-    zIndex: 10,
-
-    width: 42,
-    height: 42,
-
-    borderRadius: 13,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#E8EDF3",
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#0F172A",
-
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      alignItems:
+        "center",
     },
 
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
+    /* ========================================================
+       BACK
+    ======================================================== */
 
-    elevation: 2,
-  },
+    backButton: {
+      position:
+        "absolute",
 
-  backButtonPressed: {
-    opacity: 0.72,
+      left:
+        FixxamTokens.spacing.lg,
 
-    transform: [
-      {
-        scale: 0.96,
-      },
-    ],
-  },
+      zIndex: 10,
 
-  /*
-   * CONTENT
-   */
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  content: {
-    flex: 1,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    width: "100%",
+      alignItems:
+        "center",
 
-    alignItems: "center",
-    justifyContent: "center",
+      justifyContent:
+        "center",
 
-    paddingHorizontal: 24,
+      borderWidth: 1,
 
-    paddingTop: 16,
-    paddingBottom: 48,
-  },
+      borderColor:
+        Colors.border,
 
-  /*
-   * SEARCH ICON
-   */
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  searchCircle: {
-    width: 92,
-    height: 92,
+      backgroundColor:
+        Colors.surface,
 
-    borderRadius: 46,
-
-    backgroundColor: "#EFF6FF",
-
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  searchIconInner: {
-    width: 66,
-    height: 66,
-
-    borderRadius: 33,
-
-    backgroundColor: "#FFFFFF",
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#2563EB",
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      ...FixxamTokens.shadow.card,
     },
 
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-    elevation: 2,
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  /*
-   * TITLE
-   */
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  title: {
-    marginTop: 24,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-    maxWidth: 330,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    color: "#0F172A",
+    content: {
+      flex: 1,
 
-    fontSize: 25,
-    lineHeight: 32,
+      width: "100%",
 
-    letterSpacing: -0.3,
-  },
+      alignItems:
+        "center",
 
-  /*
-   * SUBTITLE
-   */
+      justifyContent:
+        "center",
 
-  subtitle: {
-    maxWidth: 330,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-    marginTop: 9,
+      paddingTop:
+        FixxamTokens.spacing.xl,
 
-    color: "#64748B",
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
+    },
 
-    fontSize: 14,
-    lineHeight: 21,
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
-    fontWeight: "500",
-  },
+    searchCircle: {
+      width: 92,
 
-  /*
-   * LOADER
-   */
+      height: 92,
 
-  loader: {
-    width: 30,
-    height: 30,
+      alignItems:
+        "center",
 
-    marginTop: 22,
+      justifyContent:
+        "center",
 
-    alignItems: "center",
-    justifyContent: "flex-start",
-  },
+      borderWidth: 1,
 
-  loaderDot: {
-    width: 8,
-    height: 8,
+      borderColor:
+        CustomerColors.primary,
 
-    marginTop: 1,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    borderRadius: 4,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    backgroundColor: "#F97316",
-  },
+    searchIconInner: {
+      width:
+        FixxamTokens.size.fabLarge,
 
-  /*
-   * COMPLETED
-   */
+      height:
+        FixxamTokens.size.fabLarge,
 
-  completedIcon: {
-    width: 32,
-    height: 32,
+      alignItems:
+        "center",
 
-    marginTop: 20,
+      justifyContent:
+        "center",
 
-    borderRadius: 16,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    backgroundColor: "#ECFDF5",
+      backgroundColor:
+        Colors.surface,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  /*
-   * INFO CARD
-   */
+    /* ========================================================
+       TEXT
+    ======================================================== */
 
-  infoCard: {
-    width: "100%",
+    title: {
+      maxWidth: 340,
 
-    marginTop: 32,
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
 
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    subtitle: {
+      maxWidth: 340,
 
-    borderRadius: 17,
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-    backgroundColor: "#F0FDF4",
+    /* ========================================================
+       STATUS
+    ======================================================== */
 
-    borderWidth: 1,
-    borderColor: "#DCFCE7",
+    statusContainer: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    flexDirection: "row",
+      flexDirection:
+        "row",
 
-    alignItems: "center",
-  },
+      alignItems:
+        "center",
 
-  infoIcon: {
-    width: 36,
-    height: 36,
+      justifyContent:
+        "center",
 
-    borderRadius: 18,
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  infoText: {
-    flex: 1,
+      borderRadius:
+        FixxamTokens.radius.chip,
 
-    marginLeft: 8,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    color: "#166534",
+    statusText: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
 
-    fontSize: 12,
-    lineHeight: 18,
-  },
-});
+    completedIcon: {
+      width: 28,
+
+      height: 28,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoCard: {
+      width: "100%",
+
+      maxWidth: 420,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    infoTitle: {
+      color:
+        Colors.success,
+    },
+
+    infoText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+  });

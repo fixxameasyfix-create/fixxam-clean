@@ -1,279 +1,804 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Review = {
   id: string;
+
   customerName: string;
+
   rating: number;
+
   comment: string;
+
   date: string;
 };
 
 type Props = {
   rating: number;
+
   totalReviews: number;
+
   reviews: Review[];
 };
 
-export default function WorkerReviews({
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_VISIBLE_REVIEWS =
+  3;
+
+const STAR_COUNT =
+  5;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeRating(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+function normalizeCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      value,
+    ),
+  );
+}
+
+function getRatingLabel(
+  rating: number,
+): string {
+  if (
+    rating >= 4.5
+  ) {
+    return "Excellent";
+  }
+
+  if (
+    rating >= 4
+  ) {
+    return "Very Good";
+  }
+
+  if (
+    rating >= 3
+  ) {
+    return "Good";
+  }
+
+  if (
+    rating >= 2
+  ) {
+    return "Fair";
+  }
+
+  if (
+    rating > 0
+  ) {
+    return "Needs Improvement";
+  }
+
+  return "New";
+}
+
+function getInitial(
+  name: string,
+): string {
+  const cleanName =
+    cleanString(
+      name,
+    );
+
+  if (
+    !cleanName
+  ) {
+    return "C";
+  }
+
+  return cleanName
+    .charAt(0)
+    .toUpperCase();
+}
+
+/* ==============================================================
+   REVIEW STARS
+============================================================== */
+
+const ReviewStars =
+  memo(function ReviewStars({
+    rating,
+  }: {
+    rating: number;
+  }) {
+    const normalizedRating =
+      normalizeRating(
+        rating,
+      );
+
+    const activeStars =
+      Math.round(
+        normalizedRating,
+      );
+
+    return (
+      <View
+        style={
+          styles.ratingRow
+        }
+        accessibilityLabel={`${normalizedRating.toFixed(
+          1,
+        )} out of 5 stars`}
+      >
+        {Array.from({
+          length:
+            STAR_COUNT,
+        }).map(
+          (
+            _,
+            index,
+          ) => (
+            <View
+              key={
+                index
+              }
+              style={
+                styles.starItem
+              }
+            >
+              <AppIcon
+                name="star"
+                role="customer"
+                size="xs"
+                color={
+                  index <
+                  activeStars
+                    ? Colors.warning
+                    : Colors.disabled
+                }
+              />
+            </View>
+          ),
+        )}
+      </View>
+    );
+  });
+
+/* ==============================================================
+   REVIEW CARD
+============================================================== */
+
+const ReviewCard =
+  memo(function ReviewCard({
+    review,
+  }: {
+    review: Review;
+  }) {
+    const customerName =
+      cleanString(
+        review.customerName,
+      ) ||
+      "Customer";
+
+    const comment =
+      cleanString(
+        review.comment,
+      );
+
+    const date =
+      cleanString(
+        review.date,
+      );
+
+    return (
+      <AppCard
+        role="customer"
+        variant="outlined"
+        style={
+          styles.card
+        }
+      >
+        <View
+          style={
+            styles.row
+          }
+        >
+          {/* ==================================================
+              AVATAR
+          ================================================== */}
+
+          <View
+            style={
+              styles.avatar
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.avatarText
+              }
+            >
+              {getInitial(
+                customerName,
+              )}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              CUSTOMER
+          ================================================== */}
+
+          <View
+            style={
+              styles.customerInfo
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={1}
+            >
+              {customerName}
+            </AppText>
+
+            <ReviewStars
+              rating={
+                review.rating
+              }
+            />
+          </View>
+
+          {/* ==================================================
+              DATE
+          ================================================== */}
+
+          {date ? (
+            <AppText
+              variant="caption"
+              tone="muted"
+              numberOfLines={1}
+              style={
+                styles.date
+              }
+            >
+              {date}
+            </AppText>
+          ) : null}
+        </View>
+
+        {/* ====================================================
+            COMMENT
+        ==================================================== */}
+
+        {comment ? (
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={3}
+            style={
+              styles.comment
+            }
+          >
+            {comment}
+          </AppText>
+        ) : null}
+      </AppCard>
+    );
+  });
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerReviews({
   rating,
   totalReviews,
   reviews,
 }: Props) {
-  return (
-    <View style={styles.container}>
-      {/* HEADER */}
+  const safeRating =
+    normalizeRating(
+      rating,
+    );
 
-      <View style={styles.header}>
-        <Ionicons
+  const safeTotalReviews =
+    normalizeCount(
+      totalReviews,
+    );
+
+  const ratingLabel =
+    getRatingLabel(
+      safeRating,
+    );
+
+  const visibleReviews =
+    Array.isArray(
+      reviews,
+    )
+      ? reviews.slice(
+          0,
+          MAX_VISIBLE_REVIEWS,
+        )
+      : [];
+
+  return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.header
+        }
+      >
+        <AppIcon
           name="star"
-          size={17}
-          color="#F59E0B"
+          role="customer"
+          size="sm"
+          color={
+            Colors.warning
+          }
         />
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Customer Reviews
         </AppText>
       </View>
 
-      {/* SUMMARY */}
+      {/* ======================================================
+          SUMMARY
+      ====================================================== */}
 
-      <View style={styles.summary}>
+      <AppCard
+        role="customer"
+        variant="outlined"
+        style={
+          styles.summary
+        }
+      >
         <AppText
+          variant="heading2"
           weight="bold"
-          style={styles.bigRating}
+          style={
+            styles.bigRating
+          }
         >
-          {rating.toFixed(1)}
+          {safeRating.toFixed(
+            1,
+          )}
         </AppText>
 
-        <View style={styles.summaryText}>
+        <View
+          style={
+            styles.summaryText
+          }
+        >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.summaryTitle}
           >
-            Excellent
+            {ratingLabel}
           </AppText>
 
-          <AppText style={styles.summarySub}>
-            {totalReviews} Reviews
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.summarySub
+            }
+          >
+            {safeTotalReviews}{" "}
+            {safeTotalReviews ===
+            1
+              ? "Review"
+              : "Reviews"}
           </AppText>
         </View>
-      </View>
+      </AppCard>
 
-      {/* REVIEWS */}
+      {/* ======================================================
+          REVIEWS
+      ====================================================== */}
 
-      {reviews.length > 0 &&
-        reviews.slice(0, 3).map((item) => (
+      {visibleReviews.length >
+      0 ? (
+        <View
+          style={
+            styles.reviewList
+          }
+        >
+          {visibleReviews.map(
+            (
+              item,
+            ) => (
+              <ReviewCard
+                key={
+                  item.id
+                }
+                review={
+                  item
+                }
+              />
+            ),
+          )}
+        </View>
+      ) : (
+        <View
+          style={
+            styles.empty
+          }
+        >
           <View
-            key={item.id}
-            style={styles.card}
+            style={
+              styles.emptyIcon
+            }
           >
-            <View style={styles.row}>
-              {/* AVATAR */}
+            <AppIcon
+              name="star"
+              role="customer"
+              size="md"
+              state="muted"
+            />
+          </View>
 
-              <View style={styles.avatar}>
-                <AppText
-                  weight="bold"
-                  style={styles.avatarText}
-                >
-                  {item.customerName
-                    .charAt(0)
-                    .toUpperCase()}
-                </AppText>
-              </View>
-
-              {/* CUSTOMER */}
-
-              <View style={styles.customerInfo}>
-                <AppText
-                  weight="bold"
-                  style={styles.customerName}
-                  numberOfLines={1}
-                >
-                  {item.customerName}
-                </AppText>
-
-                <View style={styles.ratingRow}>
-                  {Array.from({ length: 5 }).map(
-                    (_, i) => (
-                      <Ionicons
-                        key={i}
-                        name={
-                          i < item.rating
-                            ? "star"
-                            : "star-outline"
-                        }
-                        size={11}
-                        color="#F59E0B"
-                      />
-                    ),
-                  )}
-                </View>
-              </View>
-
-              {/* DATE */}
-
-              <AppText style={styles.date}>
-                {item.date}
-              </AppText>
-            </View>
-
-            {/* COMMENT */}
+          <View
+            style={
+              styles.emptyContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+            >
+              No reviews yet
+            </AppText>
 
             <AppText
-              style={styles.comment}
-              numberOfLines={3}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.emptyText
+              }
             >
-              {item.comment}
+              Customer reviews will
+              appear here after
+              completed services.
             </AppText>
           </View>
-        ))}
+        </View>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 12,
-    marginTop: 8,
-    marginBottom: 10,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  /* HEADER */
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  title: {
-    marginLeft: 5,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#0F172A",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+    },
 
-  /* SUMMARY */
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  summary: {
-    height: 48,
+    header: {
+      flexDirection:
+        "row",
 
-    flexDirection: "row",
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-    borderRadius: 11,
+    title: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
 
-    paddingHorizontal: 11,
+    /* ========================================================
+       SUMMARY
+    ======================================================== */
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+    summary: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    marginBottom: 6,
-  },
+      flexDirection:
+        "row",
 
-  bigRating: {
-    fontSize: 20,
-    lineHeight: 24,
-    color: "#F59E0B",
-  },
+      alignItems:
+        "center",
 
-  summaryText: {
-    marginLeft: 8,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+    },
 
-  summaryTitle: {
-    fontSize: 11,
-    lineHeight: 14,
-    color: "#0F172A",
-  },
+    bigRating: {
+      color:
+        Colors.warning,
+    },
 
-  summarySub: {
-    marginTop: 1,
-    fontSize: 9.5,
-    lineHeight: 13,
-    color: "#64748B",
-  },
+    summaryText: {
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  /* REVIEW CARD */
+    summarySub: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-  card: {
-    backgroundColor: "#FFFFFF",
+    /* ========================================================
+       REVIEW LIST
+    ======================================================== */
 
-    borderRadius: 11,
+    reviewList: {
+      gap:
+        FixxamTokens.spacing.sm,
 
-    padding: 9,
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-    marginBottom: 5,
+    /* ========================================================
+       REVIEW CARD
+    ======================================================== */
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-  },
+    card: {
+      padding:
+        FixxamTokens.spacing.md,
+    },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    row: {
+      flexDirection:
+        "row",
 
-  avatar: {
-    width: 27,
-    height: 27,
+      alignItems:
+        "center",
+    },
 
-    borderRadius: 13.5,
+    /* ========================================================
+       AVATAR
+    ======================================================== */
 
-    backgroundColor: "#2563EB",
+    avatar: {
+      width:
+        FixxamTokens.size
+          .avatarXs,
 
-    justifyContent: "center",
-    alignItems: "center",
+      height:
+        FixxamTokens.size
+          .avatarXs,
 
-    marginRight: 7,
-  },
+      flexShrink: 0,
 
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-  },
+      alignItems:
+        "center",
 
-  customerInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
+      justifyContent:
+        "center",
 
-  customerName: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    color: "#0F172A",
-  },
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-  ratingRow: {
-    flexDirection: "row",
-    marginTop: 1,
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  date: {
-    marginLeft: 5,
-    fontSize: 8.5,
-    lineHeight: 12,
-    color: "#94A3B8",
-  },
+      backgroundColor:
+        CustomerColors.primary,
+    },
 
-  comment: {
-    marginTop: 5,
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#475569",
-  },
-});
+    avatarText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       CUSTOMER
+    ======================================================== */
+
+    customerInfo: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    ratingRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    starItem: {
+      marginRight:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       DATE
+    ======================================================== */
+
+    date: {
+      maxWidth: 92,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       COMMENT
+    ======================================================== */
+
+    comment: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    empty: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    emptyContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    emptyText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+  });
+
+export default memo(
+  WorkerReviews,
+);

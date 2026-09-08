@@ -1,22 +1,40 @@
 import React, {
+  memo,
+  useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
+  FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type GalleryItem =
   | string
@@ -30,72 +48,263 @@ type Props = {
   images?: GalleryItem[];
 };
 
-export default function WorkerGallery({
+type GalleryImageProps = {
+  image: string;
+  index: number;
+  onPress: (
+    image: string,
+  ) => void;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function resolveGalleryImage(
+  item: GalleryItem,
+): string {
+  if (
+    typeof item === "string"
+  ) {
+    return cleanString(item);
+  }
+
+  return (
+    cleanString(item.url) ||
+    cleanString(item.imageUrl) ||
+    cleanString(item.uri)
+  );
+}
+
+/* ==============================================================
+   GALLERY IMAGE
+============================================================== */
+
+const GalleryImage =
+  memo(function GalleryImage({
+    image,
+    index,
+    onPress,
+  }: GalleryImageProps) {
+    const [
+      failed,
+      setFailed,
+    ] = useState(false);
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`View work photo ${
+          index + 1
+        }`}
+        onPress={() =>
+          onPress(image)
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.imageCard,
+
+          pressed
+            ? styles.imagePressed
+            : null,
+        ]}
+      >
+        {!failed ? (
+          <Image
+            source={{
+              uri: image,
+            }}
+            style={
+              styles.image
+            }
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={
+              FixxamTokens.motion.fast
+            }
+            onError={() =>
+              setFailed(true)
+            }
+          />
+        ) : (
+          <View
+            style={
+              styles.imageFallback
+            }
+          >
+            <AppIcon
+              name="image"
+              role="customer"
+              size="lg"
+              state="muted"
+            />
+          </View>
+        )}
+
+        {/* ==================================================
+            IMAGE NUMBER
+        ================================================== */}
+
+        <View
+          style={
+            styles.imageNumber
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.imageNumberText
+            }
+          >
+            {index + 1}
+          </AppText>
+        </View>
+      </Pressable>
+    );
+  });
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerGallery({
   images = [],
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
   const [
     selectedImage,
     setSelectedImage,
-  ] = useState<string | null>(null);
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    previewFailed,
+    setPreviewFailed,
+  ] =
+    useState(false);
 
   /* ============================================================
-     NORMALIZE GALLERY IMAGES
+     NORMALIZE GALLERY
   ============================================================ */
 
   const galleryImages =
     useMemo(() => {
-      if (!Array.isArray(images)) {
+      if (
+        !Array.isArray(
+          images,
+        )
+      ) {
         return [];
       }
 
-      return images
-        .map((item) => {
-          if (
-            typeof item === "string"
-          ) {
-            return item.trim();
-          }
-
-          if (
-            item &&
-            typeof item === "object"
-          ) {
-            return (
-              item.url ??
-              item.imageUrl ??
-              item.uri ??
-              ""
-            ).trim();
-          }
-
-          return "";
-        })
-        .filter(
-          (
-            image,
-          ): image is string =>
-            Boolean(image),
-        );
-    }, [images]);
+      return Array.from(
+        new Set(
+          images
+            .map(
+              resolveGalleryImage,
+            )
+            .filter(
+              Boolean,
+            ),
+        ),
+      );
+    }, [
+      images,
+    ]);
 
   /* ============================================================
      OPEN IMAGE
   ============================================================ */
 
-  const handleOpenImage = (
-    image: string,
-  ) => {
-    setSelectedImage(image);
-  };
+  const handleOpenImage =
+    useCallback(
+      (
+        image: string,
+      ) => {
+        const normalizedImage =
+          cleanString(
+            image,
+          );
+
+        if (
+          !normalizedImage
+        ) {
+          return;
+        }
+
+        setPreviewFailed(
+          false,
+        );
+
+        setSelectedImage(
+          normalizedImage,
+        );
+      },
+      [],
+    );
 
   /* ============================================================
      CLOSE IMAGE
   ============================================================ */
 
   const handleCloseImage =
-    () => {
-      setSelectedImage(null);
-    };
+    useCallback(() => {
+      setSelectedImage(
+        null,
+      );
+
+      setPreviewFailed(
+        false,
+      );
+    }, []);
+
+  /* ============================================================
+     RENDER IMAGE
+  ============================================================ */
+
+  const renderImage =
+    useCallback(
+      ({
+        item,
+        index,
+      }: {
+        item: string;
+        index: number;
+      }) => (
+        <GalleryImage
+          image={
+            item
+          }
+          index={
+            index
+          }
+          onPress={
+            handleOpenImage
+          }
+        />
+      ),
+      [
+        handleOpenImage,
+      ],
+    );
 
   return (
     <>
@@ -123,10 +332,11 @@ export default function WorkerGallery({
                 styles.iconBox
               }
             >
-              <Ionicons
-                name="images-outline"
-                size={22}
-                color="#2563EB"
+              <AppIcon
+                name="image"
+                role="customer"
+                size="md"
+                state="active"
               />
             </View>
 
@@ -136,15 +346,16 @@ export default function WorkerGallery({
               }
             >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
-                style={
-                  styles.title
-                }
+                numberOfLines={1}
               >
                 Work Gallery
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.subtitle
                 }
@@ -156,91 +367,68 @@ export default function WorkerGallery({
           </View>
 
           {galleryImages.length >
-            0 && (
-            <AppText
-              weight="bold"
+          0 ? (
+            <View
               style={
-                styles.photoCount
+                styles.countChip
               }
             >
-              {galleryImages.length}
-            </AppText>
-          )}
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.photoCount
+                }
+              >
+                {
+                  galleryImages.length
+                }
+              </AppText>
+            </View>
+          ) : null}
         </View>
 
         {/* ======================================================
-            HORIZONTAL GALLERY
+            GALLERY
         ====================================================== */}
 
         {galleryImages.length >
         0 ? (
-          <ScrollView
+          <FlatList
             horizontal
+            data={
+              galleryImages
+            }
+            keyExtractor={(
+              item,
+            ) =>
+              item
+            }
+            renderItem={
+              renderImage
+            }
+            ItemSeparatorComponent={() => (
+              <View
+                style={
+                  styles.separator
+                }
+              />
+            )}
             showsHorizontalScrollIndicator={
               false
             }
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={
               styles.galleryWrapper
             }
-            keyboardShouldPersistTaps="handled"
-            decelerationRate="fast"
-          >
-            {galleryImages.map(
-              (
-                image,
-                index,
-              ) => (
-                <Pressable
-                  key={`${image}-${index}`}
-                  style={({ pressed }) => [
-                    styles.imageCard,
-                    pressed &&
-                      styles.imagePressed,
-                  ]}
-                  onPress={() =>
-                    handleOpenImage(
-                      image,
-                    )
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel={`View work photo ${
-                    index + 1
-                  }`}
-                >
-                  <Image
-                    source={{
-                      uri: image,
-                    }}
-                    style={
-                      styles.image
-                    }
-                    resizeMode="cover"
-                  />
-
-                  {/* IMAGE NUMBER */}
-
-                  <View
-                    style={
-                      styles.imageNumber
-                    }
-                  >
-                    <AppText
-                      weight="bold"
-                      style={
-                        styles.imageNumberText
-                      }
-                    >
-                      {index + 1}
-                    </AppText>
-                  </View>
-                </Pressable>
-              ),
-            )}
-          </ScrollView>
+            initialNumToRender={4}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+          />
         ) : (
-          /* ======================================================
-             EMPTY STATE
-          ====================================================== */
+          /* ====================================================
+             EMPTY
+          ==================================================== */
 
           <View
             style={
@@ -252,15 +440,18 @@ export default function WorkerGallery({
                 styles.emptyIcon
               }
             >
-              <Ionicons
-                name="images-outline"
-                size={32}
-                color="#94A3B8"
+              <AppIcon
+                name="image"
+                role="customer"
+                size="lg"
+                state="muted"
               />
             </View>
 
             <AppText
+              variant="bodyMedium"
               weight="bold"
+              center
               style={
                 styles.emptyTitle
               }
@@ -269,6 +460,9 @@ export default function WorkerGallery({
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
+              center
               style={
                 styles.emptyText
               }
@@ -281,57 +475,114 @@ export default function WorkerGallery({
       </View>
 
       {/* ========================================================
-          FULL SCREEN IMAGE PREVIEW
+          FULL SCREEN PREVIEW
       ======================================================== */}
 
       <Modal
         visible={
-          Boolean(selectedImage)
+          Boolean(
+            selectedImage,
+          )
         }
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={
           handleCloseImage
         }
-        statusBarTranslucent
       >
         <View
           style={
             styles.previewOverlay
           }
         >
-          {/* CLOSE BUTTON */}
+          {/* ==================================================
+              CLOSE
+          ================================================== */}
 
           <Pressable
-            style={
-              styles.closeButton
-            }
-            onPress={
-              handleCloseImage
-            }
             accessibilityRole="button"
             accessibilityLabel="Close image preview"
             hitSlop={8}
+            onPress={
+              handleCloseImage
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.closeButton,
+
+              {
+                top:
+                  insets.top +
+                  FixxamTokens
+                    .spacing.sm,
+              },
+
+              pressed
+                ? styles.closePressed
+                : null,
+            ]}
           >
-            <Ionicons
+            <AppIcon
               name="close"
-              size={28}
-              color="#FFFFFF"
+              role="customer"
+              size="md"
+              color={
+                Colors.textInverse
+              }
             />
           </Pressable>
 
-          {/* IMAGE */}
+          {/* ==================================================
+              PREVIEW
+          ================================================== */}
 
-          {selectedImage && (
+          {selectedImage &&
+          !previewFailed ? (
             <Image
               source={{
-                uri: selectedImage,
+                uri:
+                  selectedImage,
               }}
               style={
                 styles.previewImage
               }
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="memory-disk"
+              accessibilityLabel="Selected work photo"
+              onError={() =>
+                setPreviewFailed(
+                  true,
+                )
+              }
             />
+          ) : (
+            <View
+              style={
+                styles.previewFallback
+              }
+            >
+              <AppIcon
+                name="image"
+                role="customer"
+                size="xl"
+                color={
+                  Colors.textInverse
+                }
+              />
+
+              <AppText
+                variant="body"
+                center
+                style={
+                  styles.previewFallbackText
+                }
+              >
+                Unable to display this
+                image.
+              </AppText>
+            </View>
           )}
         </View>
       </Modal>
@@ -346,13 +597,16 @@ export default function WorkerGallery({
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 24,
-      paddingHorizontal: 16,
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
     },
 
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
       flexDirection:
@@ -364,218 +618,243 @@ const styles =
       justifyContent:
         "space-between",
 
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     titleRow: {
+      flex: 1,
+
+      minWidth: 0,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
-
-      flex: 1,
     },
 
     iconBox: {
-      width: 48,
-      height: 48,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 16,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-      backgroundColor:
-        "#EFF6FF",
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     titleContent: {
       flex: 1,
 
-      marginLeft: 12,
-    },
+      minWidth: 0,
 
-    title: {
-      fontSize: 19,
-
-      lineHeight: 24,
-
-      color:
-        "#0F172A",
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     subtitle: {
-      marginTop: 2,
-
-      fontSize: 13,
-
-      lineHeight: 19,
-
-      color:
-        "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    photoCount: {
-      minWidth: 30,
+    countChip: {
+      minWidth: 32,
 
-      textAlign:
-        "right",
+      minHeight: 28,
 
-      fontSize: 14,
-
-      color:
-        "#2563EB",
-    },
-
-    /* ==========================================================
-       HORIZONTAL GALLERY
-    ========================================================== */
-
-    galleryWrapper: {
-      flexDirection:
-        "row",
+      flexShrink: 0,
 
       alignItems:
         "center",
 
-      gap: 10,
+      justifyContent:
+        "center",
 
-      paddingRight: 16,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
-    /*
-     * Landscape 16:9
-     *
-     * 160 x 90
-     */
+    photoCount: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       GALLERY
+    ======================================================== */
+
+    galleryWrapper: {
+      paddingRight:
+        FixxamTokens.spacing.lg,
+    },
+
+    separator: {
+      width:
+        FixxamTokens.spacing.sm,
+    },
 
     imageCard: {
-      width: 160,
-      height: 90,
+      position:
+        "relative",
 
-      borderRadius: 14,
+      width: 160,
+
+      height: 90,
 
       overflow:
         "hidden",
 
-      backgroundColor:
-        "#E2E8F0",
-
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      position: "relative",
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     image: {
-      width: "100%",
-      height: "100%",
+      width:
+        "100%",
+
+      height:
+        "100%",
     },
 
-    /* ==========================================================
+    imageFallback: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    imagePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    /* ========================================================
        IMAGE NUMBER
-    ========================================================== */
+    ======================================================== */
 
     imageNumber: {
       position:
         "absolute",
 
-      top: 7,
+      top:
+        FixxamTokens.spacing.xs,
 
-      right: 7,
+      right:
+        FixxamTokens.spacing.xs,
 
-      minWidth: 25,
+      minWidth: 28,
 
-      height: 25,
-
-      paddingHorizontal: 7,
-
-      borderRadius: 13,
-
-      backgroundColor:
-        "rgba(15, 23, 42, 0.68)",
+      height: 28,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        "rgba(15,23,42,0.72)",
     },
 
     imageNumberText: {
-      fontSize: 11,
-
       color:
-        "#FFFFFF",
+        Colors.textInverse,
     },
 
-    imagePressed: {
-      opacity: 0.82,
-
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       EMPTY STATE
-    ========================================================== */
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     emptyCard: {
       minHeight: 180,
 
-      borderRadius: 20,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xl,
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
 
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      paddingHorizontal: 24,
-
-      paddingVertical: 28,
-
-      shadowColor:
-        "#0F172A",
-
-      shadowOpacity: 0.04,
-
-      shadowRadius: 8,
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      elevation: 2,
+      ...FixxamTokens.shadow.card,
     },
 
     emptyIcon: {
-      width: 62,
+      width:
+        FixxamTokens.size
+          .avatarLg,
 
-      height: 62,
-
-      borderRadius: 20,
-
-      backgroundColor:
-        "#F1F5F9",
+      height:
+        FixxamTokens.size
+          .avatarLg,
 
       alignItems:
         "center",
@@ -583,87 +862,121 @@ const styles =
       justifyContent:
         "center",
 
-      marginBottom: 12,
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      fontSize: 16,
-
-      color:
-        "#0F172A",
-
-      textAlign:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     emptyText: {
-      marginTop: 6,
-
       maxWidth: 280,
 
-      fontSize: 13,
-
-      lineHeight: 19,
-
-      color:
-        "#64748B",
-
-      textAlign:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
-    /* ==========================================================
-       FULL SCREEN PREVIEW
-    ========================================================== */
+    /* ========================================================
+       PREVIEW
+    ======================================================== */
 
     previewOverlay: {
       flex: 1,
 
-      backgroundColor:
-        "rgba(0, 0, 0, 0.94)",
-
       alignItems:
         "center",
 
       justifyContent:
         "center",
 
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        "rgba(0,0,0,0.94)",
     },
 
     previewImage: {
-      width: "100%",
+      width:
+        "100%",
 
-      height: "80%",
+      height:
+        "82%",
     },
 
-    /* ==========================================================
-       CLOSE BUTTON
-    ========================================================== */
+    previewFallback: {
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+    },
+
+    previewFallbackText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       CLOSE
+    ======================================================== */
 
     closeButton: {
       position:
         "absolute",
 
-      top: 50,
-
-      right: 20,
+      right:
+        FixxamTokens.spacing.lg,
 
       zIndex: 10,
 
-      width: 46,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      height: 46,
-
-      borderRadius: 23,
-
-      backgroundColor:
-        "rgba(255, 255, 255, 0.15)",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        "rgba(255,255,255,0.16)",
+    },
+
+    closePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });
+
+export default memo(
+  WorkerGallery,
+);

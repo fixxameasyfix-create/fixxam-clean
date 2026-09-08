@@ -1,36 +1,76 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   description: string;
 };
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 const WorkerOrderRequest = memo(
   function WorkerOrderRequest({
     description,
   }: Props) {
+    const safeDescription =
+      useMemo(
+        () =>
+          typeof description === "string"
+            ? description.trim()
+            : "",
+        [description],
+      );
+
     return (
-      <View style={styles.requestCard}>
-        <View style={styles.requestIcon}>
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={22}
-            color="#2563EB"
+      <View
+        style={styles.requestCard}
+        accessible
+        accessibilityLabel={`Service request. ${
+          safeDescription ||
+          "No description provided."
+        }`}
+      >
+        <View
+          style={styles.requestIcon}
+        >
+          <AppIcon
+            name="messages"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
         <AppText
+          variant="body"
           style={styles.description}
         >
-          {description.trim() ||
+          {safeDescription ||
             "No description provided."}
         </AppText>
       </View>
@@ -43,31 +83,65 @@ WorkerOrderRequest.displayName =
 
 export default WorkerOrderRequest;
 
-const styles = StyleSheet.create({
-  requestCard: {
-    padding: 13,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  requestIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const styles =
+  StyleSheet.create({
+    requestCard: {
+      padding:
+        FixxamTokens.spacing.md,
 
-  description: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color: "#334155",
-  },
-});
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    requestIcon: {
+      width: 44,
+
+      height: 44,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    description: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 19,
+
+      color:
+        Colors.textPrimary,
+    },
+  });

@@ -1,4 +1,6 @@
 import React, {
+  useCallback,
+  useMemo,
   useState,
 } from "react";
 
@@ -9,12 +11,17 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import CategoryPicker from "./CategoryPicker";
 
@@ -24,6 +31,7 @@ import ProductPricing from "./add/ProductPricing";
 import ProductDescription from "./add/ProductDescription";
 import ProductOptions from "./add/ProductOptions";
 import ProductFooter from "./add/ProductFooter";
+
 import AddProductDiscount from "./AddProductDiscount";
 
 import ProductServicesPicker from "@/components/worker/products/ProductServicesPicker";
@@ -31,7 +39,7 @@ import ProductServicesPicker from "@/components/worker/products/ProductServicesP
 import useAddProduct from "@/hooks/worker/useAddProduct";
 
 /* ============================================================
-   ADD PRODUCT SCREEN
+   SCREEN
 ============================================================ */
 
 export default function AddProductScreen() {
@@ -39,51 +47,104 @@ export default function AddProductScreen() {
     useAddProduct();
 
   /* ==========================================================
-     CATEGORY PICKER
+     PICKERS
   ========================================================== */
 
   const [
     categoryPickerVisible,
     setCategoryPickerVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const [
+    servicesPickerVisible,
+    setServicesPickerVisible,
+  ] =
+    useState(false);
+
+  /* ==========================================================
+     STATE
+  ========================================================== */
+
+  const isSaving =
+    Boolean(
+      addProduct.loading,
+    );
+
+  const selectedServiceCount =
+    addProduct.serviceIds.length;
+
+  const servicesSummary =
+    useMemo(
+      () =>
+        selectedServiceCount > 0
+          ? `${selectedServiceCount} service${
+              selectedServiceCount === 1
+                ? ""
+                : "s"
+            } selected`
+          : "Select services",
+      [
+        selectedServiceCount,
+      ],
+    );
+
+  /* ==========================================================
+     CATEGORY PICKER
+  ========================================================== */
+
+  const openCategoryPicker =
+    useCallback(() => {
+      if (isSaving) {
+        return;
+      }
+
+      setCategoryPickerVisible(
+        true,
+      );
+    }, [
+      isSaving,
+    ]);
+
+  const closeCategoryPicker =
+    useCallback(() => {
+      setCategoryPickerVisible(
+        false,
+      );
+    }, []);
+
+  const handleCategorySelect =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        if (isSaving) {
+          return;
+        }
+
+        const normalizedValue =
+          value.trim();
+
+        addProduct.setCategory(
+          normalizedValue,
+        );
+
+        setCategoryPickerVisible(
+          false,
+        );
+      },
+      [
+        addProduct.setCategory,
+        isSaving,
+      ],
+    );
 
   /* ==========================================================
      SERVICES PICKER
   ========================================================== */
 
-  const [
-    servicesPickerVisible,
-    setServicesPickerVisible,
-  ] = useState(false);
-
-  /* ==========================================================
-     LOADING
-  ========================================================== */
-
-  const isSaving =
-    Boolean(addProduct.loading);
-
-  /* ==========================================================
-     OPEN CATEGORY PICKER
-  ========================================================== */
-
-  const openCategoryPicker =
-    () => {
-      if (isSaving) {
-        return;
-      }
-
-      setCategoryPickerVisible(
-        true,
-      );
-    };
-
-  /* ==========================================================
-     OPEN SERVICES PICKER
-  ========================================================== */
-
   const openServicesPicker =
-    () => {
+    useCallback(() => {
       if (isSaving) {
         return;
       }
@@ -91,110 +152,74 @@ export default function AddProductScreen() {
       setServicesPickerVisible(
         true,
       );
-    };
-
-  /* ==========================================================
-     CLOSE CATEGORY PICKER
-  ========================================================== */
-
-  const closeCategoryPicker =
-    () => {
-      if (isSaving) {
-        return;
-      }
-
-      setCategoryPickerVisible(
-        false,
-      );
-    };
-
-  /* ==========================================================
-     CLOSE SERVICES PICKER
-  ========================================================== */
+    }, [
+      isSaving,
+    ]);
 
   const closeServicesPicker =
-    () => {
-      if (isSaving) {
-        return;
-      }
-
+    useCallback(() => {
       setServicesPickerVisible(
         false,
       );
-    };
-
-  /* ==========================================================
-     SELECT CATEGORY
-  ========================================================== */
-
-  const handleCategorySelect =
-    (value: string) => {
-      if (isSaving) {
-        return;
-      }
-
-      addProduct.setCategory(
-        value,
-      );
-
-      setCategoryPickerVisible(
-        false,
-      );
-    };
-
-  /* ==========================================================
-     APPLY SERVICES
-  ========================================================== */
+    }, []);
 
   const handleServicesApply =
-    (
-      serviceIds: string[],
-    ) => {
-      if (isSaving) {
-        return;
-      }
+    useCallback(
+      (
+        serviceIds: string[],
+      ) => {
+        if (isSaving) {
+          return;
+        }
 
-      /*
-       * Remove duplicates and
-       * empty service IDs before
-       * sending them to the hook.
-       */
-      const normalizedServiceIds =
-        Array.from(
-          new Set(
-            serviceIds
-              .filter(
-                (
-                  serviceId,
-                ): serviceId is string =>
-                  typeof serviceId ===
-                  "string",
-              )
-              .map(
-                (
-                  serviceId,
-                ) =>
-                  serviceId.trim(),
-              )
-              .filter(Boolean),
-          ),
+        /*
+         * Normalize IDs before sending
+         * them to useAddProduct.
+         */
+        const normalizedServiceIds =
+          Array.from(
+            new Set(
+              serviceIds
+                .filter(
+                  (
+                    serviceId,
+                  ): serviceId is string =>
+                    typeof serviceId ===
+                    "string",
+                )
+                .map(
+                  serviceId =>
+                    serviceId.trim(),
+                )
+                .filter(Boolean),
+            ),
+          );
+
+        addProduct.setServiceIds(
+          normalizedServiceIds,
         );
 
-      addProduct.setServiceIds(
-        normalizedServiceIds,
-      );
-
-      setServicesPickerVisible(
-        false,
-      );
-    };
+        setServicesPickerVisible(
+          false,
+        );
+      },
+      [
+        addProduct.setServiceIds,
+        isSaving,
+      ],
+    );
 
   /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
@@ -203,6 +228,7 @@ export default function AddProductScreen() {
           styles.container
         }
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* ====================================================
             PRODUCT IMAGES
@@ -260,39 +286,28 @@ export default function AddProductScreen() {
 
         {/* ====================================================
             DISCOUNT
-        ====================================================
-
-            Discount is optional.
-
-            Example:
-
-            Original price: ₦2,000
-            Discount:       5%
-            Duration:       7 days
-
-            The actual deal should be created
-            by useAddProduct during product
-            publishing, after a valid productId
-            has been created.
-
         ==================================================== */}
 
-       {/* ====================================================
-    DISCOUNT
-==================================================== */}
-
-<AddProductDiscount
-  price={addProduct.price}
-  discount={addProduct.discount}
-  days={addProduct.discountDays}
-  saving={addProduct.discountSaving}
-  onChangeDiscount={
-    addProduct.setDiscount
-  }
-  onChangeDays={
-    addProduct.setDiscountDays
-  }
-/>
+        <AddProductDiscount
+          price={
+            addProduct.price
+          }
+          discount={
+            addProduct.discount
+          }
+          days={
+            addProduct.discountDays
+          }
+          saving={
+            addProduct.discountSaving
+          }
+          onChangeDiscount={
+            addProduct.setDiscount
+          }
+          onChangeDays={
+            addProduct.setDiscountDays
+          }
+        />
 
         {/* ====================================================
             DESCRIPTION
@@ -341,73 +356,105 @@ export default function AddProductScreen() {
             styles.servicesSection
           }
         >
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.servicesTitle
+              styles.servicesHeading
             }
           >
-            Services for this material
-          </AppText>
+            <View
+              style={
+                styles.servicesHeadingIcon
+              }
+            >
+              <AppIcon
+                name="service"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
+              />
+            </View>
 
-          <AppText
-            style={
-              styles.servicesDescription
-            }
-          >
-            Select the services this
-            material can be used for.
-            This helps customers find it
-            through "Find Materials for
-            Your Service".
-          </AppText>
+            <View
+              style={
+                styles.servicesHeadingContent
+              }
+            >
+              <AppText
+                variant="heading3"
+                weight="bold"
+                style={
+                  styles.servicesTitle
+                }
+              >
+                Services for this material
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.servicesDescription
+                }
+              >
+                Select the services this material can be used for. This helps customers find it through Find Materials for Your Service.
+              </AppText>
+            </View>
+          </View>
 
           {/* ==================================================
               SERVICE SELECTOR
           ================================================== */}
 
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Select services for this material"
-            accessibilityState={{
-              disabled: isSaving,
-            }}
-            disabled={
-              isSaving
-            }
             onPress={
               openServicesPicker
             }
-            style={({ pressed }) => [
+            disabled={
+              isSaving
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Select services for this material"
+            accessibilityHint="Opens the service selector"
+            accessibilityState={{
+              disabled:
+                isSaving,
+            }}
+            style={({
+              pressed,
+            }) => [
               styles.servicesButton,
 
-              isSaving &&
-                styles.servicesButtonDisabled,
+              selectedServiceCount >
+                0
+                ? styles.servicesButtonSelected
+                : null,
+
+              isSaving
+                ? styles.disabled
+                : null,
 
               pressed &&
-                !isSaving &&
-                styles.servicesButtonPressed,
+              !isSaving
+                ? styles.pressed
+                : null,
             ]}
           >
-            {/* ==================================================
-                ICON
-            ================================================== */}
-
             <View
               style={
                 styles.servicesButtonIcon
               }
             >
-              <Ionicons
-                name="construct-outline"
-                size={21}
-                color="#0891B2"
+              <AppIcon
+                name="service"
+                role="worker"
+                size="md"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
 
             <View
               style={
@@ -415,92 +462,81 @@ export default function AddProductScreen() {
               }
             >
               <AppText
+                variant="body"
                 weight="bold"
+                numberOfLines={1}
                 style={
                   styles.servicesButtonTitle
                 }
               >
-                {addProduct
-                  .serviceIds
-                  .length > 0
-                  ? `${addProduct.serviceIds.length} service${
-                      addProduct
-                        .serviceIds
-                        .length ===
-                      1
-                        ? ""
-                        : "s"
-                    } selected`
-                  : "Select services"}
+                {servicesSummary}
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={2}
                 style={
                   styles.servicesButtonDescription
                 }
               >
-                {addProduct
-                  .serviceIds
-                  .length > 0
+                {selectedServiceCount >
+                0
                   ? "Material will appear for the selected services."
                   : "Required — select at least one service."}
               </AppText>
             </View>
 
-            {/* ==================================================
-                ARROW
-            ================================================== */}
-
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color="#94A3B8"
+            <AppIcon
+              name="next"
+              role="worker"
+              size="sm"
+              color={
+                Colors.textMuted
+              }
             />
           </Pressable>
 
           {/* ==================================================
-              SELECTED SERVICE SUMMARY
+              SELECTED SUMMARY
           ================================================== */}
 
-          {addProduct
-            .serviceIds
-            .length > 0 && (
+          {selectedServiceCount >
+          0 ? (
             <View
               style={
                 styles.selectedServices
               }
             >
-              <Ionicons
-                name="checkmark-circle"
-                size={17}
-                color="#16A34A"
+              <AppIcon
+                name="success"
+                size="xs"
+                color={
+                  Colors.success
+                }
               />
 
               <AppText
+                variant="caption"
+                weight="bold"
                 style={
                   styles.selectedServicesText
                 }
               >
-                {
-                  addProduct
-                    .serviceIds
-                    .length
-                }{" "}
+                {selectedServiceCount}{" "}
                 service
-                {addProduct
-                  .serviceIds
-                  .length ===
+                {selectedServiceCount ===
                 1
                   ? ""
                   : "s"}{" "}
                 selected
               </AppText>
             </View>
-          )}
+          ) : null}
         </View>
 
         {/* ====================================================
-            PUBLISH PRODUCT
+            PUBLISH
         ==================================================== */}
 
         <ProductFooter
@@ -555,190 +591,254 @@ export default function AddProductScreen() {
   );
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       CONTAINER
-    ========================================================== */
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
+    },
 
     container: {
       flexGrow: 1,
 
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingTop: 16,
+      paddingTop:
+        FixxamTokens.spacing.lg,
 
-      paddingBottom: 40,
-
-      backgroundColor:
-        "#F8FAFC",
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SERVICES SECTION
-    ========================================================== */
+    ======================================================== */
 
     servicesSection: {
-      marginTop: 20,
+      marginTop:
+        FixxamTokens.spacing.xl,
 
-      marginBottom: 8,
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
-    servicesTitle: {
-      fontSize: 17,
-
-      lineHeight: 22,
-
-      color:
-        "#0F172A",
-    },
-
-    servicesDescription: {
-      marginTop: 5,
-
-      fontSize: 13,
-
-      lineHeight: 19,
-
-      color:
-        "#64748B",
-    },
-
-    /* ==========================================================
-       SERVICES BUTTON
-    ========================================================== */
-
-    servicesButton: {
-      minHeight: 72,
-
-      marginTop: 12,
-
-      paddingHorizontal: 12,
-
-      paddingVertical: 12,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        "#FFFFFF",
-
+    servicesHeading: {
       flexDirection:
         "row",
 
       alignItems:
-        "center",
+        "flex-start",
 
-      shadowColor:
-        "#000000",
-
-      shadowOpacity:
-        0.05,
-
-      shadowRadius:
-        7,
-
-      shadowOffset: {
-        width: 0,
-
-        height: 2,
-      },
-
-      elevation: 2,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    servicesButtonDisabled: {
-      opacity: 0.6,
-    },
+    servicesHeadingIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-    servicesButtonPressed: {
-      opacity: 0.75,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      transform: [
-        {
-          scale: 0.99,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       SERVICES ICON
-    ========================================================== */
-
-    servicesButtonIcon: {
-      width: 46,
-
-      height: 46,
-
-      borderRadius: 14,
-
-      backgroundColor:
-        "#ECFEFF",
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
-    /* ==========================================================
-       SERVICES CONTENT
-    ========================================================== */
-
-    servicesButtonContent: {
+    servicesHeadingContent: {
       flex: 1,
 
-      marginLeft: 11,
-
-      paddingRight: 8,
+      minWidth: 0,
     },
 
-    servicesButtonTitle: {
-      fontSize: 14,
+    servicesTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    servicesDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       lineHeight: 19,
 
       color:
-        "#0F172A",
+        Colors.textSecondary,
     },
 
-    servicesButtonDescription: {
-      marginTop: 3,
+    /* ========================================================
+       SERVICES BUTTON
+    ======================================================== */
 
-      fontSize: 12,
+    servicesButton: {
+      minHeight: 78,
 
-      lineHeight: 17,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      color:
-        "#64748B",
-    },
+      padding:
+        FixxamTokens.spacing.md,
 
-    /* ==========================================================
-       SELECTED SERVICES
-    ========================================================== */
-
-    selectedServices: {
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      marginTop: 9,
+      borderWidth: 1,
 
-      paddingHorizontal: 3,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    servicesButtonSelected: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    servicesButtonIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    servicesButtonContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    servicesButtonTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    servicesButtonDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SELECTED SERVICES
+    ======================================================== */
+
+    selectedServices: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     selectedServicesText: {
-      marginLeft: 6,
-
-      fontSize: 12,
-
       color:
-        "#16A34A",
+        Colors.success,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

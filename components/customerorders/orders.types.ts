@@ -2,6 +2,10 @@ import type MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIco
 
 /* ==============================================================
    SERVICE ICON
+
+   IMPORTANT:
+   MaterialCommunityIcons remains the official type source
+   for service icons used by existing service/order data.
 ============================================================== */
 
 export type ServiceIcon =
@@ -31,6 +35,21 @@ export type FilterType =
   | "cancelled";
 
 /* ==============================================================
+   ORDER ACTOR
+============================================================== */
+
+export type OrderActorRole =
+  | "customer"
+  | "worker";
+
+/* ==============================================================
+   COMMON AMOUNT
+============================================================== */
+
+export type OrderAmount =
+  number | null;
+
+/* ==============================================================
    SERVICE ORDER
 ============================================================== */
 
@@ -38,6 +57,10 @@ export type Order = {
   id: string;
 
   status: OrderStatus;
+
+  /* ==========================================================
+     SERVICE
+  ========================================================== */
 
   serviceName: string;
 
@@ -47,15 +70,27 @@ export type Order = {
 
   serviceBackgroundColor?: string;
 
+  /* ==========================================================
+     WORKER
+  ========================================================== */
+
   workerName: string;
 
   workerCategory: string;
 
   workerPhoto?: string;
 
+  /* ==========================================================
+     LOCATION
+  ========================================================== */
+
   location: string;
 
   address?: string;
+
+  /* ==========================================================
+     SCHEDULE
+  ========================================================== */
 
   date: string;
 
@@ -63,20 +98,31 @@ export type Order = {
 
   createdAt?: unknown;
 
+  /* ==========================================================
+     WORKER OFFER
+  ========================================================== */
+
   offerStatus?: string;
 
-  offerAmount?: number | null;
+  offerAmount?: OrderAmount;
+
+  /* ==========================================================
+     COUNTER OFFER
+  ========================================================== */
 
   counterOfferStatus?: string;
 
-  counterOfferAmount?: number | null;
+  counterOfferAmount?: OrderAmount;
 
   counterOfferBy?:
-    | "customer"
-    | "worker"
+    | OrderActorRole
     | null;
 
-  agreedPrice?: number | null;
+  /* ==========================================================
+     AGREED PRICE
+  ========================================================== */
+
+  agreedPrice?: OrderAmount;
 };
 
 /* ==============================================================
@@ -114,15 +160,15 @@ export type MarketOrder = {
   status: OrderStatus;
 
   /* ==========================================================
-     FULL PRODUCTS
+     PRODUCTS
   ========================================================== */
 
   products: MarketOrderProduct[];
 
-  /* ==========================================================
-     CARD PRODUCT PREVIEW
-  ========================================================== */
-
+  /*
+   * Cached first-product preview fields.
+   * Used by market order cards.
+   */
   productImage?: string;
 
   productName?: string;
@@ -144,7 +190,7 @@ export type MarketOrder = {
   itemCount?: number;
 
   /* ==========================================================
-     AMOUNTS
+     AMOUNTS / OFFERS
   ========================================================== */
 
   amount?: number;
@@ -154,7 +200,7 @@ export type MarketOrder = {
   offerStatus?: string;
 
   /* ==========================================================
-     STORE
+     STORE / SELLER
   ========================================================== */
 
   storeName?: string;
@@ -175,12 +221,13 @@ export type MarketOrder = {
      PAYMENT
   ========================================================== */
 
-  paymentMethod: MarketPaymentMethod;
+  paymentMethod:
+    MarketPaymentMethod;
 
   total: number;
 
   /* ==========================================================
-     DATE
+     DATE / TIMESTAMP
   ========================================================== */
 
   date: string;

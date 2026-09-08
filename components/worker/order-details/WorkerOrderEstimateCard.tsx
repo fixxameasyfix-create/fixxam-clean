@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -9,150 +12,331 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
 import WorkerEstimateForm from "@/components/bookings/WorkerEstimateForm";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   bookingId: string;
+
   status: string;
+
   offerPrice?: number | null;
+
   offerMessage?: string | null;
+
   onOfferSent?: () => void;
 };
 
-export default function WorkerOrderEstimateCard({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeStatus(
+  value: string,
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /[\s-]+/g,
+      "_",
+    );
+}
+
+function formatMoney(
+  value: number,
+): string {
+  return `₦${value.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  )}`;
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerOrderEstimateCard({
   bookingId,
   status,
   offerPrice,
   offerMessage,
   onOfferSent,
 }: Props) {
+  const normalizedStatus =
+    useMemo(
+      () =>
+        normalizeStatus(
+          status,
+        ),
+      [status],
+    );
+
   const isPendingEstimate =
-    status === "pending_estimate";
+    normalizedStatus ===
+    "pending_estimate";
 
   const isNegotiating =
-    status === "negotiating";
+    normalizedStatus ===
+    "negotiating";
 
   const canSendOffer =
     isPendingEstimate ||
     isNegotiating;
 
-  const hasOffer =
-    offerPrice != null &&
+  const safeOfferPrice =
+    typeof offerPrice ===
+      "number" &&
     Number.isFinite(
-      Number(offerPrice),
-    );
+      offerPrice,
+    )
+      ? offerPrice
+      : null;
+
+  const hasOffer =
+    safeOfferPrice !==
+    null;
+
+  const displayMessage =
+    typeof offerMessage ===
+      "string"
+      ? offerMessage.trim()
+      : "";
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         {isPendingEstimate
           ? "Send Estimate"
           : "Price Estimate"}
       </AppText>
 
+      {/* ======================================================
+          DESCRIPTION
+      ====================================================== */}
+
       {isPendingEstimate ? (
         <AppText
-          style={styles.description}
+          variant="body"
+          tone="secondary"
+          style={
+            styles.description
+          }
         >
-          Review the customer's request
-          and send your estimated price.
+          Review the customer's request and send your estimated price.
         </AppText>
       ) : null}
 
       {isNegotiating ? (
         <AppText
-          style={styles.description}
+          variant="body"
+          tone="secondary"
+          style={
+            styles.description
+          }
         >
-          The customer is reviewing the
-          current offer. You can send
-          another offer if needed.
+          The customer is reviewing the current offer. You can send another offer if needed.
         </AppText>
       ) : null}
 
+      {/* ======================================================
+          CURRENT OFFER
+      ====================================================== */}
+
       {hasOffer ? (
-        <View style={styles.summary}>
+        <View
+          style={
+            styles.summary
+          }
+        >
           <AppText
-            style={styles.label}
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.label
+            }
           >
             Current Offer
           </AppText>
 
           <AppText
+            variant="heading1"
             weight="bold"
-            style={styles.price}
+            numberOfLines={1}
+            style={
+              styles.price
+            }
           >
-            ₦
-            {Number(
-              offerPrice,
-            ).toLocaleString()}
+            {formatMoney(
+              safeOfferPrice,
+            )}
           </AppText>
 
-          {offerMessage ? (
+          {displayMessage ? (
             <AppText
-              style={styles.message}
+              variant="body"
+              tone="secondary"
+              style={
+                styles.message
+              }
             >
-              {offerMessage}
+              {displayMessage}
             </AppText>
           ) : null}
         </View>
       ) : null}
 
+      {/* ======================================================
+          ESTIMATE FORM
+      ====================================================== */}
+
       {canSendOffer ? (
         <WorkerEstimateForm
-          bookingId={bookingId}
-          onSuccess={onOfferSent}
+          bookingId={
+            bookingId
+          }
+          onSuccess={
+            onOfferSent
+          }
         />
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 18,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  title: {
-    fontSize: 18,
-    color: "#0F172A",
-    marginBottom: 8,
-  },
+WorkerOrderEstimateCard.displayName =
+  "WorkerOrderEstimateCard";
 
-  description: {
-    color: "#64748B",
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
+export default memo(
+  WorkerOrderEstimateCard,
+);
 
-  summary: {
-    backgroundColor: "#FFF7ED",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 18,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  label: {
-    color: "#64748B",
-    fontSize: 13,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  price: {
-    marginTop: 6,
-    fontSize: 24,
-    color: "#FF6B00",
-  },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  message: {
-    marginTop: 8,
-    color: "#475569",
-    lineHeight: 20,
-    fontSize: 13,
-  },
-});
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CURRENT OFFER
+    ======================================================== */
+
+    summary: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    label: {
+      color:
+        Colors.textSecondary,
+    },
+
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    message: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

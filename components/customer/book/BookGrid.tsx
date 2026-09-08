@@ -5,128 +5,100 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import DashboardWideCard from "@/components/common/dashboard/DashboardWideCard";
 
 import useTodayDeals from "@/hooks/deals/useTodayDeals";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
 import BookCard from "./BookCard";
-import { bookCards } from "./BookData";
+import {
+  bookCards,
+} from "./BookData";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 export default function BookGrid() {
-  const deal = useTodayDeals();
+  const deal =
+    useTodayDeals();
 
   return (
-    <View style={styles.container}>
-      {/* =====================================================
+    <View
+      style={styles.container}
+    >
+      {/* ======================================================
           BOOK AUTOMATICALLY
-          FULL WIDTH
-      ===================================================== */}
+      ====================================================== */}
 
-      <View style={styles.wideCard}>
-        <DashboardWideCard
-          title="Book Automatically"
-          description="Let Fixxam find the right worker nearby."
-          icon="sparkles-outline"
-          iconColor="#F97316"
-          iconBackground="#FFF7ED"
-          onPress={() =>
-            router.push(
-              "/(customer)/ai-booking",
-            )
-          }
-        />
-      </View>
 
-      {/* =====================================================
-          ALL BOOK OPTIONS
-          2 EQUAL COLUMNS
-      ===================================================== */}
+      <DashboardWideCard
+  title="Book Automatically"
+  description="Let Fixxam find the right worker nearby."
+  icon="sparkles-outline"
+  iconColor="#F97316"
+  iconBackground="#FFF7ED"
+  onPress={() =>
+    router.push(
+      "/(customer)/ai-booking",
+    )
+  }
+/>
 
-      <View style={styles.gridSection}>
-        <View style={styles.grid}>
-          {/* FIND WORKER */}
+      {/* ======================================================
+          BOOK OPTIONS
+      ====================================================== */}
 
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[0]}
-            />
-          </View>
-
-          {/* CHOOSE SERVICES */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[1]}
-            />
-          </View>
-
-          {/* HELP ME FIX */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[2]}
-            />
-          </View>
-
-          {/* FIX YOURSELF */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[3]}
-            />
-          </View>
-
-          {/* BUY SPARE PARTS */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[4]}
-            />
-          </View>
-
-          {/* FIND MATERIALS */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[5]}
-            />
-          </View>
-
-          {/* GET WORKER BY CALL */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              {...bookCards[6]}
-            />
-          </View>
-
-          {/* =================================================
-              TODAY'S GOOD DEALS
-              SAME CARD SIZE AS EVERYTHING ELSE
-          ================================================= */}
-
-          <View style={styles.gridItem}>
-            <BookCard
-              title={
-                deal?.title ??
-                "Today's Good Deals"
+      <View
+        style={styles.grid}
+      >
+        {bookCards.map(
+          (item) => (
+            <View
+              key={item.title}
+              style={
+                styles.gridItem
               }
-              description={
-                deal?.description ??
-                "Discover today's best promotions, discounts and featured offers."
-              }
-              icon="gift-outline"
-              iconColor="#F59E0B"
-              iconBackground="#FFFBEA"
-              onPress={() =>
-                router.push(
-                  "/good-deals",
-                )
-              }
-            />
-          </View>
+            >
+              <BookCard
+                {...item}
+              />
+            </View>
+          ),
+        )}
+
+        {/* ====================================================
+            TODAY'S GOOD DEALS
+        ==================================================== */}
+
+        <View
+          style={styles.gridItem}
+        >
+          <BookCard
+            title={
+              deal?.title ??
+              "Today's Good Deals"
+            }
+            description={
+              deal?.description ??
+              "Discover today's best promotions, discounts and featured offers."
+            }
+            icon="star"
+            iconColor="#F59E0B"
+            iconBackground="#FFFBEA"
+            onPress={() =>
+              router.push(
+                "/good-deals",
+              )
+            }
+          />
         </View>
       </View>
     </View>
@@ -135,30 +107,32 @@ export default function BookGrid() {
 
 /* ==============================================================
    STYLES
-================================================================ */
+============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+    },
 
-  wideCard: {
-    width: "100%",
-  },
+    grid: {
+      width: "100%",
 
-  gridSection: {
-    width: "100%",
-    marginTop: 14,
-  },
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: 12,
-  },
+      flexDirection: "row",
 
-  gridItem: {
-    width: "48.5%",
-  },
-});
+      flexWrap: "wrap",
+
+      justifyContent:
+        "space-between",
+
+      rowGap:
+        FixxamTokens.spacing.md,
+    },
+
+    gridItem: {
+      width: "48.5%",
+    },
+  });

@@ -1,22 +1,59 @@
-import React from "react";
+import React, {
+  useMemo,
+} from "react";
 
 import {
-  Image,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   name: string;
+
   photoUrl: string;
+
   email: string;
+
   phone: string;
+
   role: "customer" | "worker";
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function ProfileHeader({
   name,
@@ -25,30 +62,92 @@ export default function ProfileHeader({
   phone,
   role,
 }: Props) {
+  const safeName =
+    cleanText(name) || "Fixxam User";
+
+  const safePhotoUrl =
+    cleanText(photoUrl);
+
+  const safeEmail =
+    cleanText(email);
+
+  const safePhone =
+    cleanText(phone);
+
+  const roleColors =
+    useMemo(
+      () =>
+        role === "worker"
+          ? WorkerColors
+          : CustomerColors,
+      [role],
+    );
+
+  const accountLabel =
+    role === "worker"
+      ? "Worker Account"
+      : "Customer Account";
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+    >
       {/* =====================================================
           AVATAR
       ===================================================== */}
 
-      <Image
-        source={{
-          uri: photoUrl,
-        }}
-        style={styles.avatar}
-      />
+      <View
+        style={[
+          styles.avatarContainer,
+          {
+            backgroundColor:
+              roleColors.primarySoft,
+          },
+        ]}
+      >
+        {safePhotoUrl ? (
+          <Image
+            source={{
+              uri: safePhotoUrl,
+            }}
+            style={styles.avatar}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            accessibilityLabel={`${safeName} profile photo`}
+          />
+        ) : (
+          <AppIcon
+            name="profile"
+            role={role}
+            size="lg"
+            color={
+              roleColors.primary
+            }
+          />
+        )}
+      </View>
 
       {/* =====================================================
           INFO
       ===================================================== */}
 
-      <View style={styles.info}>
+      <View
+        style={styles.info}
+      >
+        {/* NAME */}
+
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={1}
           style={styles.name}
         >
-          {name}
+          {safeName}
         </AppText>
 
         {/* ===================================================
@@ -58,18 +157,24 @@ export default function ProfileHeader({
         <View
           style={[
             styles.badge,
-            role === "worker"
-              ? styles.worker
-              : styles.customer,
+            {
+              backgroundColor:
+                roleColors.primarySoft,
+            },
           ]}
         >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.badgeText}
+            style={[
+              styles.badgeText,
+              {
+                color:
+                  roleColors.primary,
+              },
+            ]}
           >
-            {role === "worker"
-              ? "Worker Account"
-              : "Customer Account"}
+            {accountLabel}
           </AppText>
         </View>
 
@@ -77,105 +182,198 @@ export default function ProfileHeader({
             PHONE
         =================================================== */}
 
-        <AppText
-          numberOfLines={1}
-          style={styles.contact}
-        >
-          📞 {phone}
-        </AppText>
+        {safePhone ? (
+          <View
+            style={
+              styles.contactRow
+            }
+          >
+            <AppIcon
+              name="phone"
+              role={role}
+              size="xs"
+              color={
+                Colors.textSecondary
+              }
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.contactText
+              }
+            >
+              {safePhone}
+            </AppText>
+          </View>
+        ) : null}
 
         {/* ===================================================
             EMAIL
         =================================================== */}
 
-        <AppText
-          numberOfLines={1}
-          style={styles.contact}
-        >
-          ✉ {email}
-        </AppText>
+        {safeEmail ? (
+          <View
+            style={
+              styles.contactRow
+            }
+          >
+            <AppIcon
+              name="mail"
+              role={role}
+              size="xs"
+              color={
+                Colors.textSecondary
+              }
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.contactText
+              }
+            >
+              {safeEmail}
+            </AppText>
+          </View>
+        ) : null}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  /* ========================================================
-     CONTAINER
-  ======================================================== */
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  /* ========================================================
-     AVATAR
-  ======================================================== */
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  avatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
-  },
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-  /* ========================================================
-     INFO
-  ======================================================== */
+      flexDirection: "row",
 
-  info: {
-    flex: 1,
-    minWidth: 0,
-    marginLeft: 11,
-  },
+      alignItems: "center",
 
-  /* ========================================================
-     NAME
-  ======================================================== */
+      backgroundColor:
+        Colors.surface,
+    },
 
-  name: {
-    fontSize: 16,
-    lineHeight: 20,
-    color: "#0F172A",
-  },
+    /* ========================================================
+       AVATAR
+    ======================================================== */
 
-  /* ========================================================
-     BADGE
-  ======================================================== */
+    avatarContainer: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-  badge: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    marginBottom: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 7,
-  },
+      height:
+        FixxamTokens.size.avatarLg,
 
-  customer: {
-    backgroundColor: "#DBEAFE",
-  },
+      flexShrink: 0,
 
-  worker: {
-    backgroundColor: "#DCFCE7",
-  },
+      overflow: "hidden",
 
-  badgeText: {
-    fontSize: 8.5,
-    lineHeight: 11,
-  },
+      alignItems: "center",
 
-  /* ========================================================
-     CONTACT
-  ======================================================== */
+      justifyContent: "center",
 
-  contact: {
-    marginTop: 1,
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#64748B",
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    avatar: {
+      width: "100%",
+
+      height: "100%",
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       NAME
+    ======================================================== */
+
+    name: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       BADGE
+    ======================================================== */
+
+    badge: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+    },
+
+    badgeText: {
+      lineHeight: 14,
+    },
+
+    /* ========================================================
+       CONTACT
+    ======================================================== */
+
+    contactRow: {
+      minWidth: 0,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+    },
+
+    contactText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

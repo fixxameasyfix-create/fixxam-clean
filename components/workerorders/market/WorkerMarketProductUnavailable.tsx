@@ -1,5 +1,7 @@
 import React, {
   useCallback,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -15,15 +17,20 @@ import {
   doc,
   runTransaction,
   serverTimestamp,
+  Timestamp,
 } from "firebase/firestore";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 import Toast from "react-native-toast-message";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   auth,
@@ -36,8 +43,11 @@ import {
 
 type Props = {
   orderId: string;
+
   productId: string;
+
   productName: string;
+
   disabled?: boolean;
 
   /**
@@ -48,6 +58,96 @@ type Props = {
     productId: string,
   ) => void;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function normalizeStatus(
+  value: unknown,
+): string {
+  return normalizeString(
+    value,
+  )
+    .toLowerCase()
+    .replace(
+      /[_\s]+/g,
+      "-",
+    );
+}
+
+function isClosedStatus(
+  value: unknown,
+): boolean {
+  const status =
+    normalizeStatus(
+      value,
+    );
+
+  return (
+    status === "cancelled" ||
+    status === "canceled" ||
+    status === "completed" ||
+    status === "expired"
+  );
+}
+
+function containsProductId(
+  value: unknown,
+  productId: string,
+): boolean {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+
+  return value.some(
+    item => {
+      /*
+       * Migration-safe:
+       * supports legacy string[] and
+       * current object[] values.
+       */
+      if (
+        typeof item ===
+        "string"
+      ) {
+        return (
+          item.trim() ===
+          productId
+        );
+      }
+
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return false;
+      }
+
+      const record =
+        item as Record<
+          string,
+          unknown
+        >;
+
+      return (
+        normalizeString(
+          record.productId,
+        ) === productId
+      );
+    },
+  );
+}
 
 /* ============================================================
    COMPONENT
@@ -63,43 +163,41 @@ export default function WorkerMarketProductUnavailable({
   const [
     submitting,
     setSubmitting,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const submissionRef =
+    useRef(false);
 
   /* ==========================================================
-     CONFIRM
+     NORMALIZED VALUES
   ========================================================== */
 
-  const handleUnavailable =
-    useCallback(() => {
-      if (
-        submitting ||
-        disabled
-      ) {
-        return;
-      }
+  const normalizedOrderId =
+    useMemo(
+      () =>
+        orderId.trim(),
+      [orderId],
+    );
 
-      Alert.alert(
-        "Product unavailable",
-        `"${productName}" is not available at the moment. Notify the customer?`,
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Notify Customer",
-            style: "destructive",
-            onPress: () => {
-              void submitUnavailable();
-            },
-          },
-        ],
-      );
-    }, [
-      submitting,
-      disabled,
-      productName,
-    ]);
+  const normalizedProductId =
+    useMemo(
+      () =>
+        productId.trim(),
+      [productId],
+    );
+
+  const normalizedProductName =
+    useMemo(
+      () =>
+        productName.trim() ||
+        "Product",
+      [productName],
+    );
+
+  const blocked =
+    disabled ||
+    submitting;
 
   /* ==========================================================
      SUBMIT
@@ -107,14 +205,23 @@ export default function WorkerMarketProductUnavailable({
 
   const submitUnavailable =
     useCallback(async () => {
+      if (
+        submissionRef.current ||
+        disabled
+      ) {
+        return;
+      }
+
       const user =
         auth.currentUser;
 
       if (!user) {
         Toast.show({
           type: "error",
+
           text1:
             "Authentication required",
+
           text2:
             "Please sign in again.",
         });
@@ -122,23 +229,16 @@ export default function WorkerMarketProductUnavailable({
         return;
       }
 
-      const normalizedOrderId =
-        orderId.trim();
-
-      const normalizedProductId =
-        productId.trim();
-
-      const normalizedProductName =
-        productName.trim();
-
       if (
         !normalizedOrderId ||
         !normalizedProductId
       ) {
         Toast.show({
           type: "error",
+
           text1:
             "Invalid product",
+
           text2:
             "Product information is missing.",
         });
@@ -146,9 +246,14 @@ export default function WorkerMarketProductUnavailable({
         return;
       }
 
-      try {
-        setSubmitting(true);
+      submissionRef.current =
+        true;
 
+      setSubmitting(
+        true,
+      );
+
+      try {
         const orderRef =
           doc(
             db,
@@ -158,13 +263,15 @@ export default function WorkerMarketProductUnavailable({
 
         await runTransaction(
           db,
-          async (
-            transaction,
-          ) => {
+          async transaction => {
             const snapshot =
               await transaction.get(
                 orderRef,
               );
+
+            /* ==================================================
+               ORDER EXISTS
+            ================================================== */
 
             if (
               !snapshot.exists()
@@ -178,18 +285,18 @@ export default function WorkerMarketProductUnavailable({
               snapshot.data();
 
             /* ==================================================
-               WORKER CHECK
+               WORKER OWNERSHIP
             ================================================== */
 
             const workerId =
-              typeof data.workerId ===
-              "string"
-                ? data.workerId.trim()
-                : "";
+              normalizeString(
+                data.workerId,
+              );
 
             if (
+              !workerId ||
               workerId !==
-              user.uid
+                user.uid
             ) {
               throw new Error(
                 "NOT_ASSIGNED_WORKER",
@@ -200,23 +307,10 @@ export default function WorkerMarketProductUnavailable({
                ORDER STATUS
             ================================================== */
 
-            const status =
-              typeof data.status ===
-              "string"
-                ? data.status
-                    .trim()
-                    .toLowerCase()
-                : "";
-
             if (
-              status ===
-                "cancelled" ||
-              status ===
-                "canceled" ||
-              status ===
-                "completed" ||
-              status ===
-                "expired"
+              isClosedStatus(
+                data.status,
+              )
             ) {
               throw new Error(
                 "ORDER_CLOSED",
@@ -227,41 +321,11 @@ export default function WorkerMarketProductUnavailable({
                DUPLICATE CHECK
             ================================================== */
 
-            const unavailableProducts =
-              Array.isArray(
-                data.unavailableProducts,
-              )
-                ? data.unavailableProducts
-                : [];
-
-            const alreadyReported =
-              unavailableProducts.some(
-                (item: unknown) => {
-                  if (
-                    !item ||
-                    typeof item !==
-                      "object"
-                  ) {
-                    return false;
-                  }
-
-                  const value =
-                    item as Record<
-                      string,
-                      unknown
-                    >;
-
-                  return (
-                    typeof value.productId ===
-                      "string" &&
-                    value.productId.trim() ===
-                      normalizedProductId
-                  );
-                },
-              );
-
             if (
-              alreadyReported
+              containsProductId(
+                data.unavailableProducts,
+                normalizedProductId,
+              )
             ) {
               throw new Error(
                 "ALREADY_REPORTED",
@@ -281,14 +345,20 @@ export default function WorkerMarketProductUnavailable({
                       normalizedProductId,
 
                     productName:
-                      normalizedProductName ||
-                      "Product",
+                      normalizedProductName,
 
                     reportedBy:
                       user.uid,
 
+                    /*
+                     * Timestamp.now() is intentional.
+                     *
+                     * serverTimestamp() remains top-level
+                     * because transform sentinels should not
+                     * be nested inside arrayUnion values.
+                     */
                     reportedAt:
-                      serverTimestamp(),
+                      Timestamp.now(),
                   }),
 
                 updatedAt:
@@ -298,22 +368,22 @@ export default function WorkerMarketProductUnavailable({
           },
         );
 
-        /*
-         * Update parent UI immediately.
-         *
-         * This happens only after the transaction
-         * has completed successfully.
-         */
+        /* ======================================================
+           LOCAL UI UPDATE
+        ====================================================== */
+
         onReported?.(
           normalizedProductId,
         );
 
         Toast.show({
           type: "success",
+
           text1:
             "Customer notified",
+
           text2:
-            `"${normalizedProductName || "Product"}" was marked unavailable.`,
+            `"${normalizedProductName}" was marked unavailable.`,
         });
       } catch (error) {
         console.error(
@@ -321,15 +391,70 @@ export default function WorkerMarketProductUnavailable({
           error,
         );
 
-        handleError(error);
+        handleError(
+          error,
+        );
       } finally {
-        setSubmitting(false);
+        submissionRef.current =
+          false;
+
+        setSubmitting(
+          false,
+        );
       }
     }, [
-      orderId,
-      productId,
-      productName,
+      disabled,
+      normalizedOrderId,
+      normalizedProductId,
+      normalizedProductName,
       onReported,
+    ]);
+
+  /* ==========================================================
+     CONFIRM
+  ========================================================== */
+
+  const handleUnavailable =
+    useCallback(() => {
+      if (
+        blocked ||
+        submissionRef.current
+      ) {
+        return;
+      }
+
+      Alert.alert(
+        "Product unavailable",
+
+        `"${normalizedProductName}" is not available at the moment. Notify the customer?`,
+
+        [
+          {
+            text:
+              "Cancel",
+
+            style:
+              "cancel",
+          },
+
+          {
+            text:
+              "Notify Customer",
+
+            style:
+              "destructive",
+
+            onPress:
+              () => {
+                void submitUnavailable();
+              },
+          },
+        ],
+      );
+    }, [
+      blocked,
+      normalizedProductName,
+      submitUnavailable,
     ]);
 
   /* ==========================================================
@@ -342,49 +467,60 @@ export default function WorkerMarketProductUnavailable({
         handleUnavailable
       }
       disabled={
-        submitting ||
-        disabled
+        blocked
       }
-      style={({ pressed }) => [
-        styles.button,
-        disabled &&
-          styles.disabled,
-        pressed &&
-          !disabled &&
-          !submitting &&
-          styles.pressed,
-      ]}
       accessibilityRole="button"
-      accessibilityLabel={`Mark ${productName} unavailable`}
+      accessibilityLabel={`Mark ${normalizedProductName} unavailable`}
       accessibilityState={{
         disabled:
-          submitting ||
-          disabled,
-        busy: submitting,
+          blocked,
+
+        busy:
+          submitting,
       }}
+      style={({
+        pressed,
+      }) => [
+        styles.button,
+
+        blocked
+          ? styles.disabled
+          : null,
+
+        pressed &&
+        !blocked
+          ? styles.pressed
+          : null,
+      ]}
     >
       {submitting ? (
         <ActivityIndicator
           size="small"
-          color="#B91C1C"
+          color={
+            Colors.error
+          }
         />
       ) : (
-        <Ionicons
-          name="close-circle-outline"
-          size={15}
-          color="#B91C1C"
+        <AppIcon
+          name="error"
+          size="xs"
+          color={
+            Colors.error
+          }
         />
       )}
 
       <AppText
+        variant="caption"
         weight="bold"
-        style={styles.text}
+        numberOfLines={1}
+        style={
+          styles.text
+        }
       >
         {submitting
           ? "Updating..."
-          : disabled
-            ? "Unavailable"
-            : "Unavailable"}
+          : "Unavailable"}
       </AppText>
     </Pressable>
   );
@@ -396,7 +532,7 @@ export default function WorkerMarketProductUnavailable({
 
 function handleError(
   error: unknown,
-) {
+): void {
   const message =
     error instanceof Error
       ? error.message
@@ -406,48 +542,62 @@ function handleError(
     case "ORDER_NOT_FOUND":
       Toast.show({
         type: "error",
+
         text1:
           "Order not found",
+
         text2:
           "This order is no longer available.",
       });
+
       return;
 
     case "NOT_ASSIGNED_WORKER":
       Toast.show({
         type: "error",
+
         text1:
           "Permission denied",
+
         text2:
           "You are not assigned to this order.",
       });
+
       return;
 
     case "ORDER_CLOSED":
       Toast.show({
         type: "info",
+
         text1:
           "Order closed",
+
         text2:
           "You can no longer update this order.",
       });
+
       return;
 
     case "ALREADY_REPORTED":
       Toast.show({
         type: "info",
+
         text1:
           "Already reported",
+
         text2:
           "This product has already been marked unavailable.",
       });
+
       return;
 
     default:
       Toast.show({
         type: "error",
+
         text1:
           "Unable to update product",
+
         text2:
           "Please check your connection and try again.",
       });
@@ -461,33 +611,58 @@ function handleError(
 const styles =
   StyleSheet.create({
     button: {
-      minHeight: 34,
-      paddingHorizontal: 9,
-      borderRadius: 10,
-      backgroundColor:
-        "#FEF2F2",
-      borderWidth: 1,
-      borderColor:
-        "#FECACA",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 5,
-    },
 
-    disabled: {
-      opacity: 0.65,
-    },
+      gap:
+        FixxamTokens.spacing.xs,
 
-    pressed: {
-      opacity: 0.8,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     text: {
-      fontSize: 8.5,
-      color: "#B91C1C",
+      color:
+        Colors.error,
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -9,249 +10,583 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { httpsCallable } from "firebase/functions";
+import {
+  router,
+} from "expo-router";
 
-import { functions } from "@/firebase/config";
+import {
+  httpsCallable,
+} from "firebase/functions";
+
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  functions,
+} from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type ServicePromotionStatus = {
   completedBookings: number;
+
   progress: number;
+
   requiredBookings: number;
+
   rewardUnlocked: boolean;
+
   rewardClaimed: boolean;
 };
 
 type FirebaseCallableError = {
   code?: string;
+
   message?: string;
 };
 
+/* ============================================================
+   CLOUD FUNCTION
+============================================================ */
+
 const getServicePromotionStatus =
-  httpsCallable<void, ServicePromotionStatus>(
+  httpsCallable<
+    void,
+    ServicePromotionStatus
+  >(
     functions,
     "getServicePromotionStatus",
   );
 
-export default function ServicePromotionsScreen() {
-  const [status, setStatus] =
-    useState<ServicePromotionStatus | null>(null);
+/* ============================================================
+   CONSTANTS
+============================================================ */
 
-  const [loading, setLoading] =
+const DEFAULT_REQUIRED_BOOKINGS =
+  20;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getSafeNumber(
+  value: unknown,
+  fallback = 0,
+): number {
+  const parsed =
+    Number(value);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : fallback;
+}
+
+function normalizePromotionStatus(
+  value: ServicePromotionStatus,
+): ServicePromotionStatus {
+  const requiredBookings =
+    Math.max(
+      1,
+      Math.floor(
+        getSafeNumber(
+          value.requiredBookings,
+          DEFAULT_REQUIRED_BOOKINGS,
+        ),
+      ),
+    );
+
+  const completedBookings =
+    Math.max(
+      0,
+      Math.floor(
+        getSafeNumber(
+          value.completedBookings,
+          0,
+        ),
+      ),
+    );
+
+  const progress =
+    Math.max(
+      0,
+      Math.min(
+        Math.floor(
+          getSafeNumber(
+            value.progress,
+            completedBookings,
+          ),
+        ),
+        requiredBookings,
+      ),
+    );
+
+  return {
+    completedBookings,
+
+    progress,
+
+    requiredBookings,
+
+    rewardUnlocked:
+      Boolean(
+        value.rewardUnlocked,
+      ),
+
+    rewardClaimed:
+      Boolean(
+        value.rewardClaimed,
+      ),
+  };
+}
+
+function getPromotionErrorMessage(
+  error: unknown,
+): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error
+  ) {
+    const code =
+      String(
+        (
+          error as FirebaseCallableError
+        ).code ?? "",
+      );
+
+    switch (code) {
+      case "functions/unauthenticated":
+      case "unauthenticated":
+        return "Please sign in again to view your reward progress.";
+
+      case "functions/permission-denied":
+      case "permission-denied":
+        return "You do not have permission to view this reward.";
+
+      case "functions/unavailable":
+      case "unavailable":
+        return "The service is temporarily unavailable. Please try again.";
+
+      default:
+        break;
+    }
+  }
+
+  return "Unable to load your reward progress. Please try again.";
+}
+
+/* ============================================================
+   SCREEN
+============================================================ */
+
+export default function ServicePromotionsScreen() {
+  const [
+    status,
+    setStatus,
+  ] =
+    useState<ServicePromotionStatus | null>(
+      null,
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    error,
+    setError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
-  const loadStatus = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  /* ==========================================================
+     LOAD STATUS
+  ========================================================== */
 
-      const result =
-        await getServicePromotionStatus();
-
-      const data = result.data;
-
-      if (!data) {
-        throw new Error(
-          "No reward status was returned from Firebase.",
-        );
-      }
-
-      setStatus({
-        completedBookings:
-          Number(data.completedBookings) || 0,
-
-        progress:
-          Number(data.progress) || 0,
-
-        requiredBookings:
-          Number(data.requiredBookings) || 20,
-
-        rewardUnlocked:
-          Boolean(data.rewardUnlocked),
-
-        rewardClaimed:
-          Boolean(data.rewardClaimed),
-      });
-    } catch (err) {
-      const firebaseError =
-        err as FirebaseCallableError;
-
-      console.error(
-        "Failed to load service promotion:",
-        {
-          code: firebaseError?.code,
-          message: firebaseError?.message,
-          error: err,
-        },
+  const loadStatus =
+    useCallback(async () => {
+      setLoading(
+        true,
       );
-
-      setStatus(null);
 
       setError(
-        firebaseError?.message ||
-          "Unable to load your reward progress. Please try again.",
+        null,
       );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+      try {
+        const result =
+          await getServicePromotionStatus();
+
+        if (
+          !result.data
+        ) {
+          throw new Error(
+            "SERVICE_PROMOTION_STATUS_EMPTY",
+          );
+        }
+
+        const normalized =
+          normalizePromotionStatus(
+            result.data,
+          );
+
+        setStatus(
+          normalized,
+        );
+      } catch (
+        loadError
+      ) {
+        const firebaseError =
+          loadError as FirebaseCallableError;
+
+        console.error(
+          "SERVICE_PROMOTION_STATUS_ERROR:",
+          {
+            code:
+              firebaseError?.code,
+
+            message:
+              firebaseError?.message,
+
+            error:
+              loadError,
+          },
+        );
+
+        setStatus(
+          null,
+        );
+
+        setError(
+          getPromotionErrorMessage(
+            loadError,
+          ),
+        );
+      } finally {
+        setLoading(
+          false,
+        );
+      }
+    }, []);
 
   useEffect(() => {
     void loadStatus();
-  }, [loadStatus]);
+  }, [
+    loadStatus,
+  ]);
 
-  const handleClaim = () => {
-    if (!status) {
-      return;
-    }
-
-    if (status.rewardClaimed) {
-      return;
-    }
-
-    if (!status.rewardUnlocked) {
-      return;
-    }
-
-    router.push({
-      pathname:
-        "/(customer)/details/categories",
-      params: {
-        reward:
-          "service-promotion-free-service",
-      },
-    });
-  };
-
-  const progress =
-    status?.progress ?? 0;
+  /* ==========================================================
+     DERIVED STATE
+  ========================================================== */
 
   const required =
-    status?.requiredBookings &&
-    status.requiredBookings > 0
-      ? status.requiredBookings
-      : 20;
+    status?.requiredBookings ??
+    DEFAULT_REQUIRED_BOOKINGS;
 
-  const safeProgress = Math.max(
-    0,
-    Math.min(progress, required),
-  );
+  const safeProgress =
+    Math.max(
+      0,
+      Math.min(
+        status?.progress ?? 0,
+        required,
+      ),
+    );
 
-  const percentage =
+  const progressPercentage =
     required > 0
-      ? safeProgress / required
+      ? Math.min(
+          100,
+          Math.max(
+            0,
+            (
+              safeProgress /
+              required
+            ) *
+              100,
+          ),
+        )
       : 0;
 
   const remaining =
     Math.max(
-      required - safeProgress,
+      required -
+        safeProgress,
       0,
     );
 
   const rewardReady =
-    Boolean(status?.rewardUnlocked) &&
+    Boolean(
+      status?.rewardUnlocked,
+    ) &&
     !status?.rewardClaimed;
 
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        {/* Header */}
+  const progressMessage =
+    useMemo(() => {
+      if (
+        status?.rewardClaimed
+      ) {
+        return "Your free service reward has already been claimed.";
+      }
 
-        <View style={styles.header}>
+      if (
+        status?.rewardUnlocked
+      ) {
+        return "Your free service is ready to claim.";
+      }
+
+      return `${remaining} more completed ${
+        remaining === 1
+          ? "booking"
+          : "bookings"
+      } to unlock your reward.`;
+    }, [
+      remaining,
+      status?.rewardClaimed,
+      status?.rewardUnlocked,
+    ]);
+
+  /* ==========================================================
+     CLAIM
+  ========================================================== */
+
+  const handleClaim =
+    useCallback(() => {
+      if (
+        !status ||
+        status.rewardClaimed ||
+        !status.rewardUnlocked
+      ) {
+        return;
+      }
+
+      router.push({
+        pathname:
+          "/(customer)/details/categories",
+
+        params: {
+          reward:
+            "service-promotion-free-service",
+        },
+      });
+    }, [
+      status,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
+  return (
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={
+          styles.content
+        }
+      >
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
             hitSlop={10}
-            onPress={() => router.back()}
-            style={({ pressed }) => [
+            onPress={() => {
+              router.back();
+            }}
+            style={({
+              pressed,
+            }) => [
               styles.backButton,
-              pressed && styles.pressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
-          <View style={styles.headerText}>
-            <Text style={styles.title}>
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading1"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
               Service Promotions
-            </Text>
+            </AppText>
 
-            <Text style={styles.subtitle}>
-              Complete 20 successful bookings and
-              get one service free.
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              Complete {required} successful bookings and get one service free.
+            </AppText>
           </View>
         </View>
 
-        {/* Hero */}
+        {/* ====================================================
+            HERO
+        ==================================================== */}
 
-        <View style={styles.heroCard}>
-          <View style={styles.iconBox}>
-            <Ionicons
-              name="construct-outline"
-              size={36}
-              color="#7C3AED"
+        <View
+          style={
+            styles.heroCard
+          }
+        >
+          <View
+            style={
+              styles.heroIcon
+            }
+          >
+            <AppIcon
+              name="service"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
-          <Text style={styles.heroTitle}>
-            Book 20 Services, Get 1 Free
-          </Text>
+          <AppText
+            variant="heading2"
+            weight="bold"
+            style={
+              styles.heroTitle
+            }
+          >
+            Book {required} Services, Get 1 Free
+          </AppText>
 
-          <Text style={styles.heroDescription}>
-            Keep using Fixxam and complete
-            successful service bookings to unlock
-            your free service reward.
-          </Text>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.heroDescription
+            }
+          >
+            Keep using Fixxam and complete successful service bookings to unlock your free service reward.
+          </AppText>
         </View>
 
-        {/* Loading */}
+        {/* ====================================================
+            LOADING
+        ==================================================== */}
 
         {loading ? (
-          <View style={styles.loading}>
+          <View
+            style={
+              styles.stateCard
+            }
+          >
             <ActivityIndicator
               size="large"
-              color="#2563EB"
+              color={
+                CustomerColors.primary
+              }
             />
 
-            <Text style={styles.loadingText}>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.loadingText
+              }
+            >
               Loading your progress...
-            </Text>
+            </AppText>
           </View>
         ) : error ? (
-          /* Error */
+          /* ==================================================
+             ERROR
+          ================================================== */
 
-          <View style={styles.errorCard}>
-            <View style={styles.errorIcon}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={26}
-                color="#DC2626"
+          <View
+            style={
+              styles.errorCard
+            }
+          >
+            <View
+              style={
+                styles.errorIcon
+              }
+            >
+              <AppIcon
+                name="error"
+                size="md"
+                color={
+                  Colors.error
+                }
               />
             </View>
 
-            <Text style={styles.errorTitle}>
+            <AppText
+              variant="heading3"
+              weight="bold"
+              center
+              style={
+                styles.errorTitle
+              }
+            >
               Unable to load reward
-            </Text>
+            </AppText>
 
-            <Text style={styles.errorText}>
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.errorText
+              }
+            >
               {error}
-            </Text>
+            </AppText>
 
             <Pressable
               accessibilityRole="button"
@@ -259,34 +594,70 @@ export default function ServicePromotionsScreen() {
               onPress={() => {
                 void loadStatus();
               }}
-              style={({ pressed }) => [
+              style={({
+                pressed,
+              }) => [
                 styles.retryButton,
-                pressed && styles.pressed,
+
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="refresh-outline"
-                size={17}
-                color="#2563EB"
+              <AppIcon
+                name="refresh"
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
               />
 
-              <Text style={styles.retryText}>
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.retryText
+                }
+              >
                 TRY AGAIN
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         ) : (
-          /* Progress */
+          /* ==================================================
+             PROGRESS
+          ================================================== */
 
-          <View style={styles.progressCard}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressTitle}>
+          <View
+            style={
+              styles.progressCard
+            }
+          >
+            <View
+              style={
+                styles.progressHeader
+              }
+            >
+              <AppText
+                variant="bodyLarge"
+                weight="bold"
+                style={
+                  styles.progressTitle
+                }
+              >
                 Your Progress
-              </Text>
+              </AppText>
 
-              <Text style={styles.progressCount}>
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.progressCount
+                }
+              >
                 {safeProgress} / {required}
-              </Text>
+              </AppText>
             </View>
 
             <View
@@ -294,512 +665,900 @@ export default function ServicePromotionsScreen() {
               accessibilityRole="progressbar"
               accessibilityLabel="Service promotion progress"
               accessibilityValue={{
-                min: 0,
-                max: required,
-                now: safeProgress,
+                min:
+                  0,
+
+                max:
+                  required,
+
+                now:
+                  safeProgress,
               }}
-              style={styles.progressTrack}
+              style={
+                styles.progressTrack
+              }
             >
               <View
                 style={[
                   styles.progressFill,
+
                   {
-                    width: `${percentage * 100}%`,
+                    width:
+                      `${progressPercentage}%`,
                   },
                 ]}
               />
             </View>
 
-            <Text style={styles.progressMessage}>
-              {status?.rewardClaimed
-                ? "Your free service reward has already been claimed."
-                : status?.rewardUnlocked
-                  ? "Your free service is ready to claim."
-                  : `${remaining} more completed ${
-                      remaining === 1
-                        ? "booking"
-                        : "bookings"
-                    } to unlock your reward.`}
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.progressMessage
+              }
+            >
+              {progressMessage}
+            </AppText>
 
-            {/* Reward Unlocked */}
+            {/* ================================================
+                REWARD UNLOCKED
+            ================================================ */}
 
             {status?.rewardUnlocked &&
             !status.rewardClaimed ? (
-              <View style={styles.unlockedBox}>
-                <View style={styles.unlockedIcon}>
-                  <Ionicons
-                    name="gift-outline"
-                    size={24}
-                    color="#16A34A"
+              <View
+                style={
+                  styles.unlockedBox
+                }
+              >
+                <View
+                  style={
+                    styles.unlockedIcon
+                  }
+                >
+                  <AppIcon
+                    name="success"
+                    size="md"
+                    color={
+                      Colors.success
+                    }
                   />
                 </View>
 
-                <View style={styles.unlockedContent}>
-                  <Text
+                <View
+                  style={
+                    styles.rewardStateContent
+                  }
+                >
+                  <AppText
+                    variant="body"
+                    weight="bold"
                     style={
                       styles.unlockedTitle
                     }
                   >
                     Reward Unlocked
-                  </Text>
+                  </AppText>
 
-                  <Text
+                  <AppText
+                    variant="caption"
                     style={
                       styles.unlockedDescription
                     }
                   >
-                    Choose one eligible service
-                    from Fixxam.
-                  </Text>
+                    Choose one eligible service from Fixxam.
+                  </AppText>
                 </View>
               </View>
             ) : null}
 
-            {/* Already Claimed */}
+            {/* ================================================
+                CLAIMED
+            ================================================ */}
 
             {status?.rewardClaimed ? (
-              <View style={styles.claimedBox}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={24}
-                  color="#2563EB"
-                />
+              <View
+                style={
+                  styles.claimedBox
+                }
+              >
+                <View
+                  style={
+                    styles.claimedIcon
+                  }
+                >
+                  <AppIcon
+                    name="success"
+                    role="customer"
+                    size="md"
+                    color={
+                      CustomerColors.primary
+                    }
+                  />
+                </View>
 
                 <View
-                  style={styles.unlockedContent}
+                  style={
+                    styles.rewardStateContent
+                  }
                 >
-                  <Text
-                    style={styles.claimedTitle}
+                  <AppText
+                    variant="body"
+                    weight="bold"
+                    style={
+                      styles.claimedTitle
+                    }
                   >
                     Reward Claimed
-                  </Text>
+                  </AppText>
 
-                  <Text
+                  <AppText
+                    variant="caption"
                     style={
                       styles.claimedDescription
                     }
                   >
-                    You have already claimed this
-                    free service reward.
-                  </Text>
+                    You have already claimed this free service reward.
+                  </AppText>
                 </View>
               </View>
             ) : null}
 
-            {/* Claim */}
+            {/* ================================================
+                CLAIM BUTTON
+            ================================================ */}
 
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
                 status?.rewardClaimed
                   ? "Reward already claimed"
-                  : "Claim free service"
+                  : rewardReady
+                    ? "Claim free service"
+                    : "Reward not yet available"
               }
-              disabled={!rewardReady}
-              onPress={handleClaim}
-              style={({ pressed }) => [
+              accessibilityState={{
+                disabled:
+                  !rewardReady,
+              }}
+              disabled={
+                !rewardReady
+              }
+              onPress={
+                handleClaim
+              }
+              style={({
+                pressed,
+              }) => [
                 styles.claimButton,
 
-                !rewardReady &&
-                  styles.claimButtonDisabled,
+                !rewardReady
+                  ? styles.claimButtonDisabled
+                  : null,
 
                 pressed &&
-                  rewardReady &&
-                  styles.claimButtonPressed,
+                rewardReady
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              <Text
+              <AppText
+                variant="body"
+                weight="bold"
                 style={[
                   styles.claimText,
 
-                  !rewardReady &&
-                    styles.claimTextDisabled,
+                  !rewardReady
+                    ? styles.claimTextDisabled
+                    : null,
                 ]}
               >
                 {status?.rewardClaimed
                   ? "REWARD CLAIMED"
                   : "CLAIM FREE SERVICE"}
-              </Text>
+              </AppText>
 
-              <Ionicons
+              <AppIcon
                 name={
                   status?.rewardClaimed
-                    ? "checkmark"
-                    : "arrow-forward"
+                    ? "check"
+                    : "next"
                 }
-                size={19}
+                size="sm"
                 color={
                   rewardReady
-                    ? "#FFFFFF"
-                    : "#94A3B8"
+                    ? Colors.textInverse
+                    : Colors.textMuted
                 }
               />
             </Pressable>
           </View>
         )}
 
-        {/* Info */}
+        {/* ====================================================
+            INFO
+        ==================================================== */}
 
-        <View style={styles.infoBox}>
-          <Ionicons
-            name="information-circle-outline"
-            size={21}
-            color="#64748B"
-          />
+        <View
+          style={
+            styles.infoBox
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              size="sm"
+              color={
+                Colors.info
+              }
+            />
+          </View>
 
-          <Text style={styles.infoText}>
-            Only completed bookings count toward
-            this reward. Cancelled and unfinished
-            bookings do not count.
-          </Text>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.infoText
+            }
+          >
+            Only completed bookings count toward this reward. Cancelled and unfinished bookings do not count.
+          </AppText>
         </View>
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 40,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
+    screen: {
+      flex: 1,
 
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
+      paddingHorizontal: 0,
 
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
     },
 
-    elevation: 3,
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  pressed: {
-    opacity: 0.75,
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  headerText: {
-    flex: 1,
-  },
-
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-
-  subtitle: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-
-  heroCard: {
-    padding: 22,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    elevation: 3,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  iconBox: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: "#F5F3FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 17,
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  heroTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      flexDirection:
+        "row",
 
-  heroDescription: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#64748B",
-  },
-
-  progressCard: {
-    padding: 20,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      alignItems:
+        "flex-start",
     },
 
-    elevation: 3,
-  },
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  progressHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  progressTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      flexShrink: 0,
 
-  progressCount: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#7C3AED",
-  },
+      alignItems:
+        "center",
 
-  progressTrack: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#E2E8F0",
-    overflow: "hidden",
-    marginTop: 16,
-  },
+      justifyContent:
+        "center",
 
-  progressFill: {
-    height: "100%",
-    borderRadius: 6,
-    backgroundColor: "#7C3AED",
-  },
+      borderWidth: 1,
 
-  progressMessage: {
-    marginTop: 12,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
-  },
+      borderColor:
+        Colors.border,
 
-  unlockedBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "#F0FDF4",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  unlockedIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: "#DCFCE7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  unlockedContent: {
-    flex: 1,
-    marginLeft: 10,
-  },
-
-  unlockedTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#166534",
-  },
-
-  unlockedDescription: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#15803D",
-  },
-
-  claimedBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "#EFF6FF",
-  },
-
-  claimedTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#1D4ED8",
-  },
-
-  claimedDescription: {
-    marginTop: 3,
-    fontSize: 13,
-    lineHeight: 18,
-    color: "#2563EB",
-  },
-
-  claimButton: {
-    minHeight: 52,
-    marginTop: 18,
-    borderRadius: 16,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  claimButtonDisabled: {
-    backgroundColor: "#E2E8F0",
-  },
-
-  claimButtonPressed: {
-    opacity: 0.8,
-  },
-
-  claimText: {
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-    color: "#FFFFFF",
-  },
-
-  claimTextDisabled: {
-    color: "#94A3B8",
-  },
-
-  loading: {
-    minHeight: 180,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    headerText: {
+      flex: 1,
 
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: "#64748B",
-  },
+      minWidth: 0,
 
-  errorCard: {
-    padding: 20,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-
-    shadowColor: "#000000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
-    elevation: 2,
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  errorIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#FEF2F2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  errorTitle: {
-    marginTop: 10,
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      lineHeight: 21,
 
-  errorText: {
-    marginTop: 7,
-    textAlign: "center",
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#64748B",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  retryButton: {
-    marginTop: 14,
-    minHeight: 42,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    backgroundColor: "#EFF6FF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
+    /* ========================================================
+       HERO
+    ======================================================== */
 
-  retryText: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#2563EB",
-  },
+    heroCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 15,
-    backgroundColor: "#F1F5F9",
-  },
+      padding:
+        FixxamTokens.spacing.xl,
 
-  infoText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#64748B",
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    heroIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    heroTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    heroDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATE
+    ======================================================== */
+
+    stateCard: {
+      minHeight: 190,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       ERROR
+    ======================================================== */
+
+    errorCard: {
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    errorIcon: {
+      width: 56,
+
+      height: 56,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    errorTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    errorText: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    retryButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    retryText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       PROGRESS
+    ======================================================== */
+
+    progressCard: {
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    progressHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    progressTitle: {
+      flex: 1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    progressCount: {
+      flexShrink: 0,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    progressTrack: {
+      height: 12,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    progressFill: {
+      height: "100%",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    progressMessage: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       UNLOCKED
+    ======================================================== */
+
+    unlockedBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    unlockedIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    rewardStateContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    unlockedTitle: {
+      color:
+        Colors.success,
+    },
+
+    unlockedDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       CLAIMED
+    ======================================================== */
+
+    claimedBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    claimedIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    claimedTitle: {
+      color:
+        CustomerColors.primary,
+    },
+
+    claimedDescription: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CLAIM BUTTON
+    ======================================================== */
+
+    claimButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    claimButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    claimText: {
+      color:
+        Colors.textInverse,
+
+      letterSpacing:
+        0.3,
+    },
+
+    claimTextDisabled: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.infoSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

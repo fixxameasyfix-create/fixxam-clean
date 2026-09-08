@@ -4,14 +4,20 @@ import React, {
 } from "react";
 
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
+
+import Toast from "react-native-toast-message";
 
 import {
+  onAuthStateChanged,
   signOut,
 } from "firebase/auth";
 
@@ -22,7 +28,14 @@ import {
 
 import {
   AppScreen,
+  AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   auth,
@@ -65,13 +78,18 @@ type PublicWorkerProfile = {
 function cleanString(
   value: unknown,
 ): string {
-  if (
-    typeof value !== "string"
-  ) {
-    return "";
-  }
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
 
-  return value.trim();
+function isHttpUrl(
+  value: string,
+): boolean {
+  return (
+    value.startsWith("https://") ||
+    value.startsWith("http://")
+  );
 }
 
 /* ============================================================
@@ -82,11 +100,13 @@ export default function WorkerProfileScreen() {
   const {
     profile,
     loading,
-  } = useUserProfile();
+  } =
+    useUserProfile();
 
   const {
     switchRole,
-  } = useSwitchRole();
+  } =
+    useSwitchRole();
 
   /* ==========================================================
      PUBLIC PROFILE
@@ -95,86 +115,85 @@ export default function WorkerProfileScreen() {
   const [
     publicProfile,
     setPublicProfile,
-  ] = useState<PublicWorkerProfile | null>(
-    null,
-  );
+  ] =
+    useState<PublicWorkerProfile | null>(
+      null,
+    );
 
   /* ==========================================================
      PUBLIC PROFILE LISTENER
   ========================================================== */
 
   useEffect(() => {
-    const user =
-      auth.currentUser;
+    let unsubscribeProfile:
+      | (() => void)
+      | undefined;
 
-    if (!user) {
-      setPublicProfile(null);
-      return;
-    }
+    const unsubscribeAuth =
+      onAuthStateChanged(
+        auth,
+        user => {
+          unsubscribeProfile?.();
 
-    const publicProfileRef =
-      doc(
-        db,
-        "workerPublicProfiles",
-        user.uid,
-      );
+          unsubscribeProfile =
+            undefined;
 
-    const unsubscribe =
-      onSnapshot(
-        publicProfileRef,
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setPublicProfile(null);
+          if (!user) {
+            setPublicProfile(
+              null,
+            );
+
             return;
           }
 
-          const data =
-            snapshot.data() as PublicWorkerProfile;
+          const publicProfileRef =
+            doc(
+              db,
+              "workerPublicProfiles",
+              user.uid,
+            );
 
-          setPublicProfile(
-            data,
-          );
+          unsubscribeProfile =
+            onSnapshot(
+              publicProfileRef,
+              snapshot => {
+                if (
+                  !snapshot.exists()
+                ) {
+                  setPublicProfile(
+                    null,
+                  );
 
-          if (__DEV__) {
-            console.log(
-              "WORKER_PROFILE_REALTIME_UPDATE:",
-              {
-                uid:
-                  user.uid,
+                  return;
+                }
 
-                fullName:
-                  data.fullName,
+                setPublicProfile(
+                  snapshot.data() as PublicWorkerProfile,
+                );
+              },
+              error => {
+                console.error(
+                  "WORKER_PUBLIC_PROFILE_LISTENER_ERROR:",
+                  error,
+                );
 
-                name:
-                  data.name,
-
-                photoURL:
-                  data.photoURL,
-
-                photoUrl:
-                  data.photoUrl,
-
-                nestedPhotoUrl:
-                  data.workerProfile
-                    ?.photoUrl,
-
-                phoneNumber:
-                  data.phoneNumber,
+                /*
+                 * Keep main user profile
+                 * available as fallback.
+                 */
+                setPublicProfile(
+                  null,
+                );
               },
             );
-          }
-        },
-        (error) => {
-          console.error(
-            "WORKER_PUBLIC_PROFILE_LISTENER_ERROR:",
-            error,
-          );
-
-          setPublicProfile(null);
         },
       );
 
-    return unsubscribe;
+    return () => {
+      unsubscribeProfile?.();
+
+      unsubscribeAuth();
+    };
   }, []);
 
   /* ==========================================================
@@ -185,21 +204,46 @@ export default function WorkerProfileScreen() {
     loading ||
     !profile
   ) {
-    return null;
+    return (
+      <AppScreen
+        role="worker"
+      >
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <View
+            style={
+              styles.loadingIcon
+            }
+          >
+            <ActivityIndicator
+              size="large"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.loadingText
+            }
+          >
+            Loading your profile...
+          </AppText>
+        </View>
+      </AppScreen>
+    );
   }
 
   /* ==========================================================
      FULL NAME
   ========================================================== */
-
-  /*
-   * IMPORTANT:
-   *
-   * First use the realtime public profile name.
-   *
-   * This is the same name saved by
-   * Build Your Profile.
-   */
 
   const publicFullName =
     cleanString(
@@ -209,18 +253,18 @@ export default function WorkerProfileScreen() {
       publicProfile?.name,
     );
 
-  /*
-   * Fallback to the main user profile.
-   */
-
   const profileFullName =
     [
       profile.firstName,
       profile.otherName,
       profile.surname,
     ]
-      .map(cleanString)
-      .filter(Boolean)
+      .map(
+        cleanString,
+      )
+      .filter(
+        Boolean,
+      )
       .join(" ")
       .trim();
 
@@ -235,8 +279,7 @@ export default function WorkerProfileScreen() {
 
   const phone =
     cleanString(
-      publicProfile
-        ?.phoneNumber,
+      publicProfile?.phoneNumber,
     ) ||
     cleanString(
       publicProfile
@@ -251,36 +294,20 @@ export default function WorkerProfileScreen() {
      PHOTO
   ========================================================== */
 
-  /*
-   * IMPORTANT:
-   *
-   * Build Your Profile currently saves:
-   *
-   * photoURL
-   *
-   * while the public profile sync may save:
-   *
-   * workerProfile.photoUrl
-   *
-   * We support BOTH.
-   */
-
-  const publicPhotoUrl =
+  const publicPhoto =
     cleanString(
       publicProfile
         ?.workerProfile
         ?.photoUrl,
     ) ||
     cleanString(
-      publicProfile
-        ?.photoUrl,
+      publicProfile?.photoUrl,
     ) ||
     cleanString(
-      publicProfile
-        ?.photoURL,
+      publicProfile?.photoURL,
     );
 
-  const profilePhotoUrl =
+  const profilePhoto =
     cleanString(
       profile.workerProfile
         ?.photoUrl,
@@ -290,9 +317,29 @@ export default function WorkerProfileScreen() {
     );
 
   const photoUrl =
-    publicPhotoUrl ||
-    profilePhotoUrl ||
-    "";
+    publicPhoto &&
+    isHttpUrl(
+      publicPhoto,
+    )
+      ? publicPhoto
+      : profilePhoto &&
+          isHttpUrl(
+            profilePhoto,
+          )
+        ? profilePhoto
+        : "";
+
+  /* ==========================================================
+     CUSTOMER ROLE
+  ========================================================== */
+
+  const hasCustomerAccount =
+    Array.isArray(
+      profile.roles,
+    ) &&
+    profile.roles.includes(
+      "customer",
+    );
 
   /* ==========================================================
      SWITCH TO CUSTOMER
@@ -301,9 +348,7 @@ export default function WorkerProfileScreen() {
   const handleSwitchCustomer =
     async (): Promise<boolean> => {
       if (
-        !profile.roles.includes(
-          "customer",
-        )
+        !hasCustomerAccount
       ) {
         return false;
       }
@@ -325,9 +370,19 @@ export default function WorkerProfileScreen() {
         return true;
       } catch (error) {
         console.error(
-          "SWITCH CUSTOMER ERROR:",
+          "SWITCH_CUSTOMER_ERROR:",
           error,
         );
+
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Unable to switch account",
+
+          text2:
+            "Please try again.",
+        });
 
         return false;
       }
@@ -360,38 +415,61 @@ export default function WorkerProfileScreen() {
         );
       } catch (error) {
         console.error(
-          "LOGOUT ERROR:",
+          "WORKER_LOGOUT_ERROR:",
           error,
         );
+
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Unable to sign out",
+
+          text2:
+            "Please try again.",
+        });
       }
     };
 
   /* ==========================================================
-     EDIT PHOTO
+     UNCONNECTED ACTIONS
   ========================================================== */
 
-  const handleEditPhoto =
+  const handleUnavailableAction =
     () => {
-      /*
-       * Keep this callback available.
-       *
-       * If your Build Your Profile route is known,
-       * it can navigate there.
-       *
-       * We intentionally don't guess the route here.
-       */
+      Toast.show({
+        type: "info",
+
+        text1:
+          "Not available yet",
+
+        text2:
+          "This profile action is not connected yet.",
+      });
     };
+
+  /*
+   * No verified Build Your Profile
+   * route is available here.
+   *
+   * Do not invent a route.
+   */
+  const handleEditPhoto =
+    handleUnavailableAction;
 
   /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.content
         }
@@ -413,8 +491,9 @@ export default function WorkerProfileScreen() {
               phone
             }
             email={
-              profile.email ??
-              ""
+              cleanString(
+                profile.email,
+              )
             }
             photoUrl={
               photoUrl
@@ -426,8 +505,12 @@ export default function WorkerProfileScreen() {
             onEditPhoto={
               handleEditPhoto
             }
-            onNotifications={() => {}}
-            onSettings={() => {}}
+            onNotifications={
+              handleUnavailableAction
+            }
+            onSettings={
+              handleUnavailableAction
+            }
           />
         </View>
 
@@ -449,12 +532,8 @@ export default function WorkerProfileScreen() {
               profile.completedJobs ??
               0
             }
-            rating={
-              0
-            }
-            earnings={
-              0
-            }
+            rating={0}
+            earnings={0}
           />
         </View>
 
@@ -469,9 +548,7 @@ export default function WorkerProfileScreen() {
         >
           <WorkerProfile
             hasCustomerAccount={
-              profile.roles.includes(
-                "customer",
-              )
+              hasCustomerAccount
             }
             onSwitchCustomer={
               handleSwitchCustomer
@@ -479,16 +556,36 @@ export default function WorkerProfileScreen() {
             onCreateCustomer={
               handleCreateCustomer
             }
-            onJobs={() => {}}
-            onProducts={() => {}}
-            onOrders={() => {}}
-            onEarnings={() => {}}
-            onOnlineStatus={() => {}}
-            onBusinessAddress={() => {}}
-            onNotifications={() => {}}
-            onReviews={() => {}}
-            onSupport={() => {}}
-            onSettings={() => {}}
+            onJobs={
+              handleUnavailableAction
+            }
+            onProducts={
+              handleUnavailableAction
+            }
+            onOrders={
+              handleUnavailableAction
+            }
+            onEarnings={
+              handleUnavailableAction
+            }
+            onOnlineStatus={
+              handleUnavailableAction
+            }
+            onBusinessAddress={
+              handleUnavailableAction
+            }
+            onNotifications={
+              handleUnavailableAction
+            }
+            onReviews={
+              handleUnavailableAction
+            }
+            onSupport={
+              handleUnavailableAction
+            }
+            onSettings={
+              handleUnavailableAction
+            }
             onLogout={
               handleLogout
             }
@@ -506,33 +603,113 @@ export default function WorkerProfileScreen() {
 const styles =
   StyleSheet.create({
     content: {
-      paddingHorizontal: 12,
-      paddingTop: 4,
-      paddingBottom: 28,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
+      flex: 1,
+
+      minHeight: 420,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PROFILE
+    ======================================================== */
 
     profileCard: {
-      borderRadius: 17,
-      backgroundColor:
-        "#FFFFFF",
+      overflow:
+        "hidden",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      overflow: "hidden",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       STATS
+    ======================================================== */
 
     statsCard: {
-      marginTop: 8,
-      borderRadius: 17,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      overflow:
+        "hidden",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      overflow: "hidden",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       MENU
+    ======================================================== */
+
     menuSection: {
-      marginTop: 8,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
   });

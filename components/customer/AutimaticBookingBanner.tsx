@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,58 +8,109 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   onPress: () => void;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function AutomaticBookingBanner({
   onPress,
 }: Props) {
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.pressed,
-      ]}
-      onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel="Book Automatically"
       accessibilityHint="Let Fixxam find the right worker nearby"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
-      <View style={styles.iconBox}>
-        <Ionicons
-          name="sparkles-outline"
-          size={28}
-          color="#F97316"
+      {/* ========================================================
+          ICON
+      ======================================================== */}
+
+      <View
+        style={
+          styles.iconBox
+        }
+      >
+        <AppIcon
+          name="professional"
+          role="customer"
+          size="lg"
+          state="active"
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ========================================================
+          CONTENT
+      ======================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
           numberOfLines={1}
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Book Automatically
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           numberOfLines={2}
-          style={styles.description}
+          style={
+            styles.description
+          }
         >
           Let Fixxam find the right worker nearby.
         </AppText>
       </View>
 
-      <View style={styles.arrow}>
-        <Ionicons
-          name="chevron-forward"
-          size={22}
-          color="#2563EB"
+      {/* ========================================================
+          ARROW
+      ======================================================== */}
+
+      <View
+        style={
+          styles.arrow
+        }
+      >
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="active"
         />
       </View>
     </Pressable>
@@ -68,100 +121,126 @@ export default memo(
   AutomaticBookingBanner,
 );
 
-const styles = StyleSheet.create({
-  card: {
-    width: "100%",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    minHeight: 104,
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-    flexDirection: "row",
+      minHeight: 104,
 
-    alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 22,
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+      flexDirection:
+        "row",
 
-    marginBottom: 16,
+      alignItems:
+        "center",
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+      borderWidth: 1,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 3,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
 
-  pressed: {
-    opacity: 0.9,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
 
-    transform: [
-      {
-        scale: 0.99,
-      },
-    ],
-  },
+    iconBox: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-  iconBox: {
-    width: 58,
-    height: 58,
+      height:
+        FixxamTokens.size.avatarLg,
 
-    borderRadius: 18,
+      flexShrink: 0,
 
-    backgroundColor: "#FFF7ED",
+      marginRight:
+        FixxamTokens.spacing.md,
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    marginRight: 14,
+      justifyContent:
+        "center",
 
-    flexShrink: 0,
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  content: {
-    flex: 1,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    minWidth: 0,
+    content: {
+      flex: 1,
 
-    paddingRight: 8,
-  },
+      minWidth: 0,
 
-  title: {
-    color: "#0B1F3A",
+      paddingRight:
+        FixxamTokens.spacing.sm,
+    },
 
-    fontSize: 19,
-    lineHeight: 23,
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-    fontWeight: "800",
-  },
+    description: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  description: {
-    marginTop: 4,
+      lineHeight: 19,
 
-    color: "#64748B",
+      color:
+        Colors.textSecondary,
+    },
 
-    fontSize: 13,
-    lineHeight: 18,
+    arrow: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-    fontWeight: "500",
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  arrow: {
-    width: 32,
-    height: 32,
+      flexShrink: 0,
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    flexShrink: 0,
-  },
-});
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+  });

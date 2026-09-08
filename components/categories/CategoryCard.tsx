@@ -1,116 +1,264 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
-  TouchableOpacity,
-  View,
+  Pressable,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 type Props = {
   icon: string;
+
   iconColor: string;
+
   backgroundColor: string;
+
   title: string;
+
   onPress: () => void;
 };
 
-export default function CategoryCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function CategoryCard({
   icon,
   iconColor,
   backgroundColor,
   title,
   onPress,
 }: Props) {
+  const materialIcon =
+    icon as MaterialIconName;
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      style={styles.card}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={`Open ${title} services`}
       onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+
+        pressed
+          ? styles.cardPressed
+          : null,
+      ]}
     >
+      {/* ======================================================
+          SERVICE ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconContainer,
+
           {
             backgroundColor,
           },
         ]}
       >
+        {/* MaterialCommunityIcons intentionally preserved */}
         <MaterialCommunityIcons
-          name={icon as any}
-          size={22}
+          name={materialIcon}
+          size={
+            FixxamTokens.size
+              .iconMd
+          }
           color={iconColor}
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
           numberOfLines={1}
         >
           {title}
         </AppText>
       </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={18}
-        color="#94A3B8"
-      />
-    </TouchableOpacity>
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.nextIcon
+        }
+      >
+        <AppIcon
+          name="next"
+          role="customer"
+          size="xs"
+          state="muted"
+        />
+      </View>
+    </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    height: 64,
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-    backgroundColor: "#FFFFFF",
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    borderRadius: 14,
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 14,
+      alignItems:
+        "center",
 
-    marginBottom: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    cardPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-  iconContainer: {
-    width: 40,
-    height: 40,
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-    borderRadius: 12,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    justifyContent: "center",
-    alignItems: "center",
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  content: {
-    flex: 1,
-    marginLeft: 12,
-  },
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-  title: {
-    fontSize: 15,
-    color: "#0F172A",
-  },
-});
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .iconBox,
+
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       NEXT
+    ======================================================== */
+
+    nextIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+    },
+  });
+
+export default memo(
+  CategoryCard,
+);

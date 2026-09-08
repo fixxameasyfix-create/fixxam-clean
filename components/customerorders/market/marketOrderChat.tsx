@@ -8,20 +8,40 @@ import {
   StyleSheet,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+} from "expo-router";
 
-import { router } from "expo-router";
+import Toast from "react-native-toast-message";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   orderId: string;
+
   storeId?: string;
+
   sellerId?: string;
+
   storePhone?: string;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function MarketOrderChat({
   orderId,
@@ -32,21 +52,48 @@ function MarketOrderChat({
   const handleChat =
     useCallback(() => {
       const cleanOrderId =
-        orderId.trim();
+        typeof orderId === "string"
+          ? orderId.trim()
+          : "";
 
       if (!cleanOrderId) {
+        Toast.show({
+          type: "error",
+          text1: "Unable to open chat",
+          text2: "Order ID is missing.",
+        });
+
         return;
       }
 
+      const cleanStoreId =
+        typeof storeId === "string"
+          ? storeId.trim()
+          : "";
+
+      const cleanSellerId =
+        typeof sellerId === "string"
+          ? sellerId.trim()
+          : "";
+
+      const cleanStorePhone =
+        typeof storePhone === "string"
+          ? storePhone.trim()
+          : "";
+
+      /*
+       * Keep the existing market-chat route
+       * and all existing params unchanged.
+       */
       router.push(
         `/(customer)/orders/market/chat?orderId=${encodeURIComponent(
           cleanOrderId,
         )}&storeId=${encodeURIComponent(
-          storeId?.trim() ?? "",
+          cleanStoreId,
         )}&sellerId=${encodeURIComponent(
-          sellerId?.trim() ?? "",
+          cleanSellerId,
         )}&storePhone=${encodeURIComponent(
-          storePhone?.trim() ?? "",
+          cleanStorePhone,
         )}&type=market`,
       );
     }, [
@@ -63,19 +110,27 @@ function MarketOrderChat({
       }
       accessibilityRole="button"
       accessibilityLabel="Chat with store"
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.button,
-        pressed &&
-          styles.pressed,
+
+        pressed
+          ? styles.pressed
+          : null,
       ]}
     >
-      <Ionicons
-        name="chatbubble-ellipses-outline"
-        size={19}
-        color="#FFFFFF"
+      <AppIcon
+        name="messages"
+        role="customer"
+        size="sm"
+        color={
+          Colors.textInverse
+        }
       />
 
       <AppText
+        variant="caption"
         weight="bold"
         style={
           styles.text
@@ -87,39 +142,72 @@ function MarketOrderChat({
   );
 }
 
-export default memo(
-  MarketOrderChat,
-);
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedMarketOrderChat =
+  memo(
+    MarketOrderChat,
+  );
+
+MemoizedMarketOrderChat.displayName =
+  "MarketOrderChat";
+
+export default MemoizedMarketOrderChat;
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
     button: {
-      minHeight: 48,
-      borderRadius: 14,
-      backgroundColor:
-        "#2563EB",
-      borderWidth: 1,
-      borderColor:
-        "#2563EB",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     text: {
-      fontSize: 10,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     pressed: {
-      opacity: 0.8,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

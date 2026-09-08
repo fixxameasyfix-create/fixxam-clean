@@ -1,102 +1,267 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   hourlyRate?: number;
+
   onBook: () => void;
 };
 
-export default function WorkerFooter({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeRate(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function formatAmount(
+  value: number,
+): string {
+  return new Intl.NumberFormat(
+    "en-NG",
+    {
+      maximumFractionDigits: 0,
+    },
+  ).format(value);
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerFooter({
   hourlyRate,
   onBook,
 }: Props) {
+  const safeRate =
+    normalizeRate(
+      hourlyRate,
+    );
+
+  const priceLabel =
+    useMemo(
+      () =>
+        safeRate !== null
+          ? `₦${formatAmount(
+              safeRate,
+            )}/hr`
+          : "Negotiable",
+      [
+        safeRate,
+      ],
+    );
+
   return (
-    <View style={styles.container}>
-      <View>
-        <AppText style={styles.label}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          PRICE
+      ====================================================== */}
+
+      <View
+        style={
+          styles.priceContent
+        }
+      >
+        <AppText
+          variant="caption"
+          tone="secondary"
+        >
           Hourly Rate
         </AppText>
 
         <AppText
+          variant="bodyLarge"
           weight="bold"
-          style={styles.price}
+          numberOfLines={1}
+          style={
+            styles.price
+          }
         >
-          {hourlyRate != null
-            ? `₦${hourlyRate.toLocaleString()}/hr`
-            : "Negotiable"}
+          {priceLabel}
         </AppText>
       </View>
 
+      {/* ======================================================
+          BOOK
+      ====================================================== */}
+
       <Pressable
-        onPress={onBook}
-        style={({ pressed }) => [
+        accessibilityRole="button"
+        accessibilityLabel="Book this worker"
+        onPress={
+          onBook
+        }
+        style={({
+          pressed,
+        }) => [
           styles.button,
-          pressed && styles.pressed,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.buttonText}
+          style={
+            styles.buttonText
+          }
         >
           Book Now
         </AppText>
 
-        <Ionicons
-          name="arrow-forward"
-          size={18}
-          color="#FFFFFF"
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  label: {
-    fontSize: 11,
-    color: "#64748B",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-  price: {
-    marginTop: 2,
-    fontSize: 18,
-    color: "#F97316",
-  },
+      flexDirection:
+        "row",
 
-  button: {
-    flexDirection: "row",
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    backgroundColor: "#2563EB",
+      justifyContent:
+        "space-between",
 
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+      gap:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 12,
-  },
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
 
-  pressed: {
-    opacity: 0.9,
-  },
+    /* ========================================================
+       PRICE
+    ======================================================== */
 
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    marginRight: 6,
-  },
-});
+    priceContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       BUTTON
+    ======================================================== */
+
+    button: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexShrink: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    buttonText: {
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkerFooter,
+);

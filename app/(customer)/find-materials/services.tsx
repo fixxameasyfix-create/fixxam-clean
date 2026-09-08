@@ -1,13 +1,17 @@
 import React, {
+  memo,
   useEffect,
 } from "react";
 
 import {
   ActivityIndicator,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
+
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
 import {
   router,
@@ -17,7 +21,17 @@ import {
   AppText,
 } from "@/components/ui";
 
-export default function FindMaterialsServicesRoute() {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function FindMaterialsServicesRoute() {
   useEffect(() => {
     router.replace(
       "/(customer)/find-materials",
@@ -27,16 +41,26 @@ export default function FindMaterialsServicesRoute() {
   return (
     <SafeAreaView
       style={styles.container}
+      edges={[
+        "top",
+        "bottom",
+      ]}
     >
       <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="Loading services"
         style={styles.center}
       >
         <ActivityIndicator
           size="large"
-          color="#0891B2"
+          color={
+            CustomerColors.primary
+          }
         />
 
         <AppText
+          variant="body"
+          tone="secondary"
           style={styles.text}
         >
           Loading services...
@@ -46,21 +70,35 @@ export default function FindMaterialsServicesRoute() {
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+
+    backgroundColor:
+      Colors.background,
   },
 
   center: {
     flex: 1,
+
     alignItems: "center",
+
     justifyContent: "center",
+
+    paddingHorizontal:
+      FixxamTokens.spacing.lg,
   },
 
   text: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#64748B",
+    marginTop:
+      FixxamTokens.spacing.md,
   },
 });
+
+export default memo(
+  FindMaterialsServicesRoute,
+);

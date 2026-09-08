@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,12 +9,32 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
-  icon: keyof typeof Ionicons.glyphMap;
+  /*
+   * Keep string compatibility because
+   * existing callers may still pass
+   * legacy Ionicons names.
+   */
+  icon: string;
 
   title: string;
 
@@ -24,44 +47,251 @@ type Props = {
   onPress: () => void;
 };
 
-export default function WorkerMenuItem({
+/* ============================================================
+   LEGACY ICON ALIASES
+============================================================ */
+
+const ICON_ALIASES: Record<
+  string,
+  AppIconName
+> = {
+  /* PROFILE */
+  person: "profile",
+  "person-outline": "profile",
+  "person-circle-outline": "profile",
+  "people-outline": "users",
+
+  /* JOBS / WORK */
+  briefcase: "jobs",
+  "briefcase-outline": "jobs",
+  "construct-outline": "service",
+  construct: "service",
+  "hammer-outline": "service",
+  "build-outline": "service",
+
+  /* DOCUMENTS / ORDERS */
+  receipt: "file",
+  "receipt-outline": "file",
+  document: "file",
+  "document-outline": "file",
+  "document-text-outline": "file",
+
+  /* SAVED */
+  bookmark: "heart",
+  "bookmark-outline": "heart",
+  heart: "heart",
+  "heart-outline": "heart",
+
+  /* LOCATION */
+  location: "location",
+  "location-outline": "location",
+  navigate: "navigation",
+  "navigate-outline": "navigation",
+
+  /* PAYMENTS */
+  card: "payment",
+  "card-outline": "payment",
+  cash: "payment",
+  "cash-outline": "payment",
+  wallet: "wallet",
+  "wallet-outline": "wallet",
+
+  /* NOTIFICATIONS */
+  notifications: "notifications",
+  "notifications-outline":
+    "notifications",
+
+  /* REVIEWS */
+  star: "star",
+  "star-outline": "star",
+
+  /* MESSAGES */
+  chatbubble: "messages",
+  "chatbubble-outline": "messages",
+  "chatbubbles-outline": "messages",
+
+  /* CALENDAR / TIME */
+  calendar: "calendar",
+  "calendar-outline": "calendar",
+  time: "clock",
+  "time-outline": "clock",
+  timer: "clock",
+  "timer-outline": "clock",
+
+  /* CONTACT */
+  call: "phone",
+  "call-outline": "phone",
+  mail: "mail",
+  "mail-outline": "mail",
+
+  /* SECURITY */
+  lock: "lock",
+  "lock-closed-outline": "lock",
+  shield: "shield",
+  "shield-outline": "shield",
+  "shield-checkmark-outline":
+    "verified",
+
+  /* SUPPORT */
+  help: "help",
+  "help-circle": "help",
+  "help-circle-outline": "help",
+  information: "info",
+  "information-circle-outline": "info",
+
+  /* SETTINGS */
+  settings: "settings",
+  "settings-outline": "settings",
+
+  /* ACTIVITY */
+  pulse: "info",
+  "pulse-outline": "info",
+  analytics: "info",
+  "analytics-outline": "info",
+  "bar-chart-outline": "info",
+
+  /* MEDIA */
+  camera: "camera",
+  "camera-outline": "camera",
+  image: "image",
+  "image-outline": "image",
+
+  /* NAVIGATION */
+  "chevron-forward": "next",
+  "chevron-forward-outline": "next",
+  "arrow-forward": "next",
+  "arrow-forward-outline": "next",
+  "arrow-back": "back",
+  "chevron-back": "back",
+  "chevron-down": "down",
+
+  /* SWITCH */
+  "swap-horizontal": "refresh",
+  "swap-horizontal-outline": "refresh",
+  refresh: "refresh",
+  "refresh-outline": "refresh",
+
+  /* LOGOUT */
+  "log-out": "logout",
+  "log-out-outline": "logout",
+
+  /* STATUS */
+  checkmark: "check",
+  "checkmark-circle-outline": "success",
+  "alert-circle-outline": "warning",
+  "close-circle-outline": "error",
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function resolveIcon(
+  icon: string,
+): AppIconName {
+  const normalized =
+    typeof icon === "string"
+      ? icon
+          .trim()
+          .toLowerCase()
+      : "";
+
+  if (!normalized) {
+    return "service";
+  }
+
+  return (
+    ICON_ALIASES[
+      normalized
+    ] ?? "service"
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerMenuItem({
   icon,
   title,
-  iconColor = "#FF6B00",
+  iconColor,
   badge,
   value,
   onPress,
 }: Props) {
+  const resolvedIcon =
+    useMemo(
+      () =>
+        resolveIcon(icon),
+      [icon],
+    );
+
+  const safeTitle =
+    title?.trim() ||
+    "Menu item";
+
+  const safeValue =
+    typeof value === "string"
+      ? value.trim()
+      : "";
+
+  const hasBadge =
+    badge !== undefined &&
+    badge !== null &&
+    String(badge).trim()
+      .length > 0;
+
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.container,
-        pressed &&
-          styles.pressed,
-      ]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={
+        safeTitle
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.container,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
       {/* ==================================================
           LEFT
       ================================================== */}
 
-      <View style={styles.left}>
-        <View style={styles.iconBox}>
-          <Ionicons
-            name={icon}
-            size={17}
-            color={iconColor}
+      <View
+        style={styles.left}
+      >
+        <View
+          style={
+            styles.iconBox
+          }
+        >
+          <AppIcon
+            name={
+              resolvedIcon
+            }
+            role="worker"
+            size="sm"
+            color={
+              iconColor ??
+              WorkerColors.primary
+            }
           />
         </View>
 
         <AppText
+          variant="body"
           weight="bold"
-          style={styles.title}
           numberOfLines={1}
+          style={
+            styles.title
+          }
         >
-          {title}
+          {safeTitle}
         </AppText>
       </View>
 
@@ -69,37 +299,61 @@ export default function WorkerMenuItem({
           RIGHT
       ================================================== */}
 
-      <View style={styles.right}>
-        {!!value && (
+      <View
+        style={styles.right}
+      >
+        {safeValue ? (
           <AppText
-            style={styles.value}
+            variant="caption"
+            weight="semibold"
             numberOfLines={1}
+            style={
+              styles.value
+            }
           >
-            {value}
+            {safeValue}
           </AppText>
-        )}
+        ) : null}
 
-        {!!badge && (
-          <View style={styles.badge}>
+        {hasBadge ? (
+          <View
+            style={
+              styles.badge
+            }
+          >
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.badgeText}
               numberOfLines={1}
+              style={
+                styles.badgeText
+              }
             >
               {badge}
             </AppText>
           </View>
-        )}
+        ) : null}
 
-        <Ionicons
-          name="chevron-forward"
-          size={16}
-          color="#94A3B8"
+        <AppIcon
+          name="next"
+          size="xs"
+          state="muted"
+          color={
+            Colors.textMuted
+          }
         />
       </View>
     </Pressable>
   );
 }
+
+export default memo(
+  WorkerMenuItem,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
@@ -108,22 +362,36 @@ const styles =
     ======================================================== */
 
     container: {
-      minHeight: 52,
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "space-between",
+
+      justifyContent:
+        "space-between",
 
       borderBottomWidth: 1,
-      borderBottomColor: "#F1F5F9",
 
-      backgroundColor: "#FFFFFF",
+      borderBottomColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     pressed: {
-      backgroundColor: "#F8FAFC",
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     /* ========================================================
@@ -132,33 +400,47 @@ const styles =
 
     left: {
       flex: 1,
+
       minWidth: 0,
 
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     iconBox: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 12,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-      backgroundColor: "#F8FAFC",
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      marginRight: 10,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     title: {
       flex: 1,
 
-      fontSize: 13,
-      lineHeight: 18,
+      minWidth: 0,
 
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -166,19 +448,24 @@ const styles =
     ======================================================== */
 
     right: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexShrink: 0,
 
-      marginLeft: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems: "center",
     },
 
     value: {
-      maxWidth: 80,
+      maxWidth: 96,
 
-      marginRight: 8,
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 10.5,
-      color: "#16A34A",
+      color:
+        Colors.success,
     },
 
     /* ========================================================
@@ -187,24 +474,31 @@ const styles =
 
     badge: {
       minWidth: 20,
-      height: 20,
 
-      paddingHorizontal: 5,
+      minHeight: 20,
 
-      borderRadius: 10,
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-      backgroundColor: "#FF5A1F",
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      marginRight: 8,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.error,
     },
 
     badgeText: {
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
 
-      fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 14,
     },
   });

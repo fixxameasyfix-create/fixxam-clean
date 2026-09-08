@@ -1,58 +1,80 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
-/* ============================================================
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Step = {
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: AppIconName;
 };
 
-/* ============================================================
+/* ==============================================================
    CONSTANTS
-============================================================ */
+============================================================== */
 
 const STEPS: readonly Step[] = [
   {
     title: "Inspect",
-    icon: "search-outline",
+    icon: "search",
   },
   {
     title: "Confirm",
-    icon: "checkmark-circle-outline",
+    icon: "check",
   },
   {
     title: "Pay",
-    icon: "card-outline",
+    icon: "payment",
   },
 ];
 
-/* ============================================================
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
 function PayAfterDelivery() {
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* ======================================================
-          ICON
+          MAIN ICON
       ====================================================== */}
 
-      <View style={styles.iconBox}>
-        <Ionicons
-          name="shield-checkmark"
-          size={32}
-          color="#2563EB"
+      <View
+        style={
+          styles.iconBox
+        }
+      >
+        <AppIcon
+          name="shield"
+          role="customer"
+          size="md"
+          state="active"
         />
       </View>
 
@@ -60,18 +82,26 @@ function PayAfterDelivery() {
           CONTENT
       ====================================================== */}
 
-      <View style={styles.content}>
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
           numberOfLines={1}
         >
           Pay After Delivery
         </AppText>
 
         <AppText
-          style={styles.subtitle}
+          variant="caption"
+          tone="secondary"
           numberOfLines={2}
+          style={
+            styles.subtitle
+          }
         >
           Inspect your items, confirm and then pay
         </AppText>
@@ -80,176 +110,246 @@ function PayAfterDelivery() {
             STEPS
         ==================================================== */}
 
-        <View style={styles.steps}>
-          {STEPS.map((step, index) => (
-            <React.Fragment key={step.title}>
-              <View style={styles.step}>
-                <View style={styles.stepIconBox}>
-                  <Ionicons
-                    name={step.icon}
-                    size={18}
-                    color="#64748B"
-                  />
-                </View>
-
-                <AppText
-                  style={styles.stepText}
-                  numberOfLines={1}
+        <View
+          style={
+            styles.steps
+          }
+        >
+          {STEPS.map(
+            (
+              step,
+              index,
+            ) => (
+              <React.Fragment
+                key={
+                  step.title
+                }
+              >
+                <View
+                  style={
+                    styles.step
+                  }
                 >
-                  {step.title}
-                </AppText>
-              </View>
+                  <View
+                    style={
+                      styles.stepIconBox
+                    }
+                  >
+                    <AppIcon
+                      name={
+                        step.icon
+                      }
+                      role="customer"
+                      size="xs"
+                      state="muted"
+                    />
+                  </View>
 
-              {index < STEPS.length - 1 && (
-                <View style={styles.connector}>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={15}
-                    color="#CBD5E1"
-                  />
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    numberOfLines={1}
+                    style={
+                      styles.stepText
+                    }
+                  >
+                    {step.title}
+                  </AppText>
                 </View>
-              )}
-            </React.Fragment>
-          ))}
+
+                {index <
+                STEPS.length -
+                  1 ? (
+                  <View
+                    style={
+                      styles.connector
+                    }
+                  >
+                    <AppIcon
+                      name="next"
+                      role="customer"
+                      size="xs"
+                      color={
+                        Colors.disabled
+                      }
+                    />
+                  </View>
+                ) : null}
+              </React.Fragment>
+            ),
+          )}
         </View>
       </View>
     </View>
   );
 }
 
-export default memo(PayAfterDelivery);
-
-/* ============================================================
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CONTAINER
-  ========================================================== */
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
+    container: {
+      flexDirection:
+        "row",
 
-    marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 24,
+      alignItems:
+        "center",
 
-    padding: 16,
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    backgroundColor: "#EFF6FF",
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-    borderRadius: 22,
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  /* ==========================================================
-     MAIN ICON
-  ========================================================== */
+      borderWidth: 1,
 
-  iconBox: {
-    width: 58,
-    height: 58,
+      borderColor:
+        Colors.border,
 
-    borderRadius: 20,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    alignItems: "center",
-    justifyContent: "center",
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    backgroundColor: "#FFFFFF",
+    /* ========================================================
+       MAIN ICON
+    ======================================================== */
 
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
-  },
+    iconBox: {
+      width: 50,
 
-  /* ==========================================================
-     CONTENT
-  ========================================================== */
+      height: 50,
 
-  content: {
-    flex: 1,
+      flexShrink: 0,
 
-    marginLeft: 14,
+      alignItems:
+        "center",
 
-    minWidth: 0,
-  },
+      justifyContent:
+        "center",
 
-  title: {
-    fontSize: 17,
-    lineHeight: 22,
+      borderWidth: 1,
 
-    color: "#0F172A",
-  },
+      borderColor:
+        Colors.border,
 
-  subtitle: {
-    marginTop: 3,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    fontSize: 12.5,
-    lineHeight: 18,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    color: "#64748B",
-  },
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-  /* ==========================================================
-     STEPS
-  ========================================================== */
+    content: {
+      flex: 1,
 
-  steps: {
-    flexDirection: "row",
-    alignItems: "center",
+      minWidth: 0,
 
-    marginTop: 12,
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  step: {
-    alignItems: "center",
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-    minWidth: 48,
-  },
+      lineHeight: 16,
+    },
 
-  stepIconBox: {
-    width: 30,
-    height: 30,
+    /* ========================================================
+       STEPS
+    ======================================================== */
 
-    borderRadius: 10,
+    steps: {
+      flexDirection:
+        "row",
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    step: {
+      minWidth: 42,
 
-  stepText: {
-    marginTop: 4,
+      alignItems:
+        "center",
+    },
 
-    fontSize: 10.5,
-    lineHeight: 14,
+    stepIconBox: {
+      width: 28,
 
-    color: "#64748B",
+      height: 28,
 
-    textAlign: "center",
-  },
+      alignItems:
+        "center",
 
-  /* ==========================================================
-     CONNECTOR
-  ========================================================== */
+      justifyContent:
+        "center",
 
-  connector: {
-    flex: 1,
+      borderWidth: 1,
 
-    minWidth: 12,
+      borderColor:
+        Colors.border,
 
-    alignItems: "center",
-    justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.sm,
 
-    marginHorizontal: 2,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    marginBottom: 16,
-  },
-});
+    stepText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      textAlign:
+        "center",
+    },
+
+    /* ========================================================
+       CONNECTOR
+    ======================================================== */
+
+    connector: {
+      flex: 1,
+
+      minWidth: 10,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginHorizontal:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+  });
+
+export default memo(
+  PayAfterDelivery,
+);

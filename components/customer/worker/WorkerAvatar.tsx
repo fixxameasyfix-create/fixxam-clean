@@ -1,77 +1,236 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  Image,
   StyleSheet,
   View,
 } from "react-native";
 
+import {
+  Image,
+} from "expo-image";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   photoUrl?: string;
+
   online?: boolean;
 };
 
-export default function WorkerAvatar({
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const RING_SIZE = 92;
+const IMAGE_SIZE = 84;
+const STATUS_SIZE = 22;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerAvatar({
   photoUrl,
-  online,
+  online = false,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  const photo =
+    cleanString(
+      photoUrl,
+    );
+
+  /* ============================================================
+     RESET IMAGE ERROR
+  ============================================================ */
+
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+  }, [
+    photo,
+  ]);
+
+  const hasRemotePhoto =
+    Boolean(
+      photo,
+    ) &&
+    !imageFailed;
+
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={[
+        styles.wrapper,
+
+        online
+          ? styles.onlineRing
+          : styles.offlineRing,
+      ]}
+    >
+      {/* ======================================================
+          PHOTO
+      ====================================================== */}
+
       <Image
         source={
-          photoUrl
+          hasRemotePhoto
             ? {
-                uri: photoUrl,
+                uri: photo,
               }
             : require("@/assets/images/avatar-placeholder.png")
         }
-        style={styles.image}
+        style={
+          styles.image
+        }
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={
+          FixxamTokens.motion.fast
+        }
+        accessibilityLabel="Worker profile photo"
+        onError={() => {
+          if (
+            hasRemotePhoto
+          ) {
+            setImageFailed(
+              true,
+            );
+          }
+        }}
       />
 
-      {online && (
-        <View style={styles.online} />
-      )}
+      {/* ======================================================
+          ONLINE STATUS
+      ====================================================== */}
+
+      {online ? (
+        <View
+          accessibilityLabel="Worker is online"
+          style={
+            styles.onlineIndicator
+          }
+        />
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    width: 92,
-    height: 92,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    borderRadius: 46,
+const styles =
+  StyleSheet.create({
+    wrapper: {
+      width:
+        RING_SIZE,
 
-    borderWidth: 4,
-    borderColor: "#22C55E",
+      height:
+        RING_SIZE,
 
-    overflow: "visible",
+      flexShrink: 0,
 
-    justifyContent: "center",
-    alignItems: "center",
-  },
+      alignItems:
+        "center",
 
-  image: {
-    width: 84,
-    height: 84,
+      justifyContent:
+        "center",
 
-    borderRadius: 42,
-  },
+      overflow:
+        "visible",
 
-  online: {
-    position: "absolute",
+      borderWidth: 4,
 
-    right: -2,
-    bottom: -2,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    width: 22,
-    height: 22,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    borderRadius: 11,
+    onlineRing: {
+      borderColor:
+        Colors.success,
+    },
 
-    backgroundColor: "#22C55E",
+    offlineRing: {
+      borderColor:
+        Colors.border,
+    },
 
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-  },
-});
+    image: {
+      width:
+        IMAGE_SIZE,
+
+      height:
+        IMAGE_SIZE,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    onlineIndicator: {
+      position:
+        "absolute",
+
+      right: -2,
+
+      bottom: -2,
+
+      width:
+        STATUS_SIZE,
+
+      height:
+        STATUS_SIZE,
+
+      borderWidth: 3,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+  });
+
+export default memo(
+  WorkerAvatar,
+);

@@ -1,181 +1,487 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useState,
+} from "react";
 
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   value: string;
-  onChangeText: (text: string) => void;
+
+  onChangeText: (
+    text: string,
+  ) => void;
+
   onBack: () => void;
 
   loading?: boolean;
+
   onSearch?: () => void;
 };
 
-export default function SearchInput({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function SearchInput({
   value,
   onChangeText,
   onBack,
   loading = false,
   onSearch,
 }: Props) {
-  return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        activeOpacity={0.7}
-        onPress={onBack}
-        disabled={loading}
-      >
-        <Ionicons
-          name="arrow-back"
-          size={22}
-          color="#0F172A"
-        />
-      </TouchableOpacity>
+  const [
+    focused,
+    setFocused,
+  ] =
+    useState(false);
 
-      <View style={styles.searchBox}>
-        <Ionicons
+  /* ==========================================================
+     CLEAR
+  ========================================================== */
+
+  const handleClear =
+    useCallback(() => {
+      if (loading) {
+        return;
+      }
+
+      onChangeText("");
+    }, [
+      loading,
+      onChangeText,
+    ]);
+
+  /* ==========================================================
+     BACK
+  ========================================================== */
+
+  const handleBack =
+    useCallback(() => {
+      if (loading) {
+        return;
+      }
+
+      onBack();
+    }, [
+      loading,
+      onBack,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
+  return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          BACK
+      ====================================================== */}
+
+      <Pressable
+        onPress={
+          handleBack
+        }
+        disabled={
+          loading
+        }
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        accessibilityState={{
+          disabled:
+            loading,
+        }}
+        style={({
+          pressed,
+        }) => [
+          styles.backButton,
+
+          loading
+            ? styles.disabled
+            : null,
+
+          pressed &&
+          !loading
+            ? styles.pressed
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="back"
+          size="md"
+          color={
+            Colors.textPrimary
+          }
+        />
+      </Pressable>
+
+      {/* ======================================================
+          SEARCH FIELD
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.searchBox,
+
+          focused
+            ? styles.searchBoxFocused
+            : null,
+
+          loading
+            ? styles.searchBoxLoading
+            : null,
+        ]}
+      >
+        <AppIcon
           name="search"
-          size={18}
-          color="#94A3B8"
+          role="customer"
+          size="sm"
+          color={
+            focused
+              ? CustomerColors.primary
+              : Colors.textMuted
+          }
         />
 
         <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
+          value={
+            value
+          }
+          onChangeText={
+            onChangeText
+          }
+          onFocus={() => {
+            setFocused(
+              true,
+            );
+          }}
+          onBlur={() => {
+            setFocused(
+              false,
+            );
+          }}
+          onSubmitEditing={() => {
+            onSearch?.();
+          }}
           autoFocus
-          placeholder="Search workers or services..."
-          placeholderTextColor="#94A3B8"
-          returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
-          clearButtonMode="while-editing"
-          editable={!loading}
-          onSubmitEditing={onSearch}
+          editable={
+            !loading
+          }
+          placeholder="Search workers or services..."
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            CustomerColors.primary
+          }
+          returnKeyType="search"
+          clearButtonMode="never"
+          accessibilityLabel="Search workers or services"
+          accessibilityState={{
+            disabled:
+              loading,
+          }}
+          style={
+            styles.input
+          }
         />
 
-        {loading && (
-          <View style={styles.loader}>
+        {/* ====================================================
+            LOADING
+        ==================================================== */}
+
+        {loading ? (
+          <View
+            style={
+              styles.trailingControl
+            }
+          >
             <ActivityIndicator
               size="small"
-              color="#2563EB"
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
-        )}
+        ) : value.length > 0 ? (
+          /* ==================================================
+             CLEAR
+          ================================================== */
 
-        {!loading && value.length > 0 && (
-          <TouchableOpacity
-            style={styles.clearButton}
-            activeOpacity={0.7}
-            onPress={() => onChangeText("")}
+          <Pressable
+            onPress={
+              handleClear
+            }
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Clear search"
+            style={({
+              pressed,
+            }) => [
+              styles.trailingControl,
+
+              pressed
+                ? styles.clearPressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="close-circle"
-              size={19}
-              color="#94A3B8"
-            />
-          </TouchableOpacity>
-        )}
+            <View
+              style={
+                styles.clearIconBox
+              }
+            >
+              <AppIcon
+                name="close"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
+              />
+            </View>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
+/* ============================================================
+   MEMO
+============================================================ */
 
-    alignItems: "center",
+const MemoizedSearchInput =
+  memo(
+    SearchInput,
+  );
 
-    paddingHorizontal: 16,
+MemoizedSearchInput.displayName =
+  "SearchInput";
 
-    paddingTop: 12,
+export default MemoizedSearchInput;
 
-    paddingBottom: 12,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    backgroundColor: "#F8FAFC",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-  backButton: {
-    width: 42,
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    height: 42,
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 21,
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
+      flexDirection:
+        "row",
 
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    alignItems: "center",
+      backgroundColor:
+        Colors.background,
+    },
 
-    marginRight: 10,
-  },
+    /* ========================================================
+       BACK
+    ======================================================== */
 
-  searchBox: {
-    flex: 1,
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-    height: 48,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-    flexDirection: "row",
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-    alignItems: "center",
+      flexShrink: 0,
 
-    backgroundColor: "#FFFFFF",
+      alignItems:
+        "center",
 
-    borderRadius: 14,
+      justifyContent:
+        "center",
 
-    borderWidth: 1,
+      borderWidth: 1,
 
-    borderColor: "#E2E8F0",
+      borderColor:
+        Colors.border,
 
-    paddingHorizontal: 14,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  input: {
-    flex: 1,
+      backgroundColor:
+        Colors.surface,
 
-    marginLeft: 8,
+      ...FixxamTokens.shadow.card,
+    },
 
-    fontSize: 14,
+    /* ========================================================
+       SEARCH BOX
+    ======================================================== */
 
-    color: "#0F172A",
+    searchBox: {
+      flex: 1,
 
-    paddingVertical: 0,
-  },
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-  loader: {
-    marginLeft: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    width: 24,
+      flexDirection:
+        "row",
 
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    justifyContent: "center",
-  },
+      borderWidth: 1,
 
-  clearButton: {
-    marginLeft: 8,
+      borderColor:
+        Colors.border,
 
-    width: 24,
+      borderRadius:
+        FixxamTokens.radius.search,
 
-    height: 24,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    alignItems: "center",
+    searchBoxFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
 
-    justifyContent: "center",
-  },
-});
+    searchBoxLoading: {
+      opacity: 0.9,
+    },
+
+    /* ========================================================
+       INPUT
+    ======================================================== */
+
+    input: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size.inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       TRAILING CONTROL
+    ======================================================== */
+
+    trailingControl: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginRight:
+        -FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    clearIconBox: {
+      width: 26,
+
+      height: 26,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    clearPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+  });

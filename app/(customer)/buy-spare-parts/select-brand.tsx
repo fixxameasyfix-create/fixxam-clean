@@ -1,13 +1,13 @@
 import React, {
+  memo,
   useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
+  FlatList,
   Pressable,
-  SafeAreaView,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -18,1820 +18,909 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { AppText } from "@/components/ui";
-import { CustomerColors } from "@/theme/customerColors";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 type Brand = {
   id: string;
+
   name: string;
+
   description: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  iconColor: string;
-  iconBackground: string;
+
+  icon: MaterialIconName;
 };
 
-/*
- * ============================================================
- * BRAND FACTORY
- * ============================================================
- */
+type BrandCardProps = {
+  brand: Brand;
 
-const createBrand = (
+  onPress: (
+    brand: Brand,
+  ) => void;
+};
+
+/* ==============================================================
+   BRAND HELPERS
+============================================================== */
+
+function createBrand(
   name: string,
   description: string,
-  iconColor = "#2563EB",
-  iconBackground = "#EAF1FF",
-  icon: keyof typeof MaterialCommunityIcons.glyphMap =
-    "tag-outline",
-): Brand => ({
-  id: name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, ""),
-  name,
-  description,
-  icon,
-  iconColor,
-  iconBackground,
-});
+  icon: MaterialIconName = "tag-outline",
+): Brand {
+  return {
+    id: name
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]+/g,
+        "-",
+      )
+      .replace(
+        /^-|-$/g,
+        "",
+      ),
 
-/*
- * ============================================================
- * COOLING
- * ============================================================
- */
+    name,
 
-const AC_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
-    "Air conditioning",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Air conditioning",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Panasonic",
-    "Air conditioning",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Haier",
-    "Air conditioning",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Midea",
-    "Air conditioning",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Hisense",
-    "Air conditioning",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Gree",
-    "Air conditioning",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Daikin",
-    "Air conditioning",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Carrier",
-    "Air conditioning",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-];
+    description,
 
-const FRIDGE_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
-    "Refrigerators",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Refrigerators",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Haier",
-    "Refrigerators",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Hisense",
-    "Refrigerators",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Midea",
-    "Refrigerators",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Panasonic",
-    "Refrigerators",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Whirlpool",
-    "Refrigerators",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Bosch",
-    "Refrigerators",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Sharp",
-    "Refrigerators",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+    icon,
+  };
+}
 
-const FREEZER_BRANDS: Brand[] = [
-  createBrand(
-    "Haier",
-    "Freezers",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Hisense",
-    "Freezers",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Midea",
-    "Freezers",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "LG",
-    "Freezers",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Freezers",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Whirlpool",
-    "Freezers",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Scanfrost",
-    "Freezers",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Bruhm",
-    "Freezers",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+function createBrands(
+  names: readonly string[],
+  description: string,
+  icon: MaterialIconName = "tag-outline",
+): Brand[] {
+  return names.map(
+    (name) =>
+      createBrand(
+        name,
+        description,
+        icon,
+      ),
+  );
+}
 
-const COLD_ROOM_BRANDS: Brand[] = [
-  createBrand(
-    "Carrier",
+/* ==============================================================
+   COOLING
+============================================================== */
+
+const AC_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Panasonic",
+      "Haier",
+      "Midea",
+      "Hisense",
+      "Gree",
+      "Daikin",
+      "Carrier",
+    ],
+    "Air conditioning",
+  );
+
+const FRIDGE_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Haier",
+      "Hisense",
+      "Midea",
+      "Panasonic",
+      "Whirlpool",
+      "Bosch",
+      "Sharp",
+    ],
+    "Refrigerators",
+  );
+
+const FREEZER_BRANDS =
+  createBrands(
+    [
+      "Haier",
+      "Hisense",
+      "Midea",
+      "LG",
+      "Samsung",
+      "Whirlpool",
+      "Scanfrost",
+      "Bruhm",
+    ],
+    "Freezers",
+  );
+
+const COLD_ROOM_BRANDS =
+  createBrands(
+    [
+      "Carrier",
+      "Daikin",
+      "Gree",
+      "Bitzer",
+      "Copeland",
+      "Danfoss",
+    ],
     "Commercial cooling",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Daikin",
-    "Commercial cooling",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Gree",
-    "Commercial cooling",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Bitzer",
-    "Refrigeration systems",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Copeland",
-    "Refrigeration systems",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-  createBrand(
-    "Danfoss",
-    "Refrigeration systems",
-    "#DC2626",
-    "#FEECEC",
-  ),
-];
+  );
 
-const ICE_MAKER_BRANDS: Brand[] = [
-  createBrand(
-    "Scotsman",
+const ICE_MAKER_BRANDS =
+  createBrands(
+    [
+      "Scotsman",
+      "Hoshizaki",
+      "Manitowoc",
+      "Brema",
+      "Midea",
+    ],
     "Ice machines",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Hoshizaki",
-    "Ice machines",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Manitowoc",
-    "Ice machines",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Brema",
-    "Ice machines",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Midea",
-    "Ice machines",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+  );
 
-const FAN_BRANDS: Brand[] = [
-  createBrand(
-    "Binatone",
+const FAN_BRANDS =
+  createBrands(
+    [
+      "Binatone",
+      "Panasonic",
+      "Ox",
+      "Century",
+      "Qasa",
+    ],
     "Fans & ventilation",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Panasonic",
-    "Fans & ventilation",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Ox",
-    "Fans & ventilation",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Century",
-    "Fans & ventilation",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Qasa",
-    "Fans & ventilation",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+    "fan",
+  );
 
-const EXTRACTOR_FAN_BRANDS: Brand[] = [
-  createBrand(
-    "Panasonic",
+const EXTRACTOR_FAN_BRANDS =
+  createBrands(
+    [
+      "Panasonic",
+      "LG",
+      "Samsung",
+      "Midea",
+      "Haier",
+    ],
     "Ventilation",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "LG",
-    "Ventilation",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Ventilation",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Midea",
-    "Ventilation",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Haier",
-    "Ventilation",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-];
+    "fan",
+  );
 
-/*
- * ============================================================
- * KITCHEN
- * ============================================================
- */
+/* ==============================================================
+   KITCHEN
+============================================================== */
 
-const MICROWAVE_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
+const MICROWAVE_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Panasonic",
+      "Sharp",
+      "Hisense",
+      "Midea",
+    ],
     "Microwave ovens",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Microwave ovens",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Panasonic",
-    "Microwave ovens",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Sharp",
-    "Microwave ovens",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-  createBrand(
-    "Hisense",
-    "Microwave ovens",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Midea",
-    "Microwave ovens",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-];
+    "microwave",
+  );
 
-const OVEN_BRANDS: Brand[] = [
-  createBrand(
-    "Bosch",
+const OVEN_BRANDS =
+  createBrands(
+    [
+      "Bosch",
+      "LG",
+      "Samsung",
+      "Whirlpool",
+      "Midea",
+    ],
     "Ovens & cooking",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "LG",
-    "Ovens & cooking",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Ovens & cooking",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Whirlpool",
-    "Ovens & cooking",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Midea",
-    "Ovens & cooking",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-];
+    "stove",
+  );
 
-const COOKER_BRANDS: Brand[] = [
-  createBrand(
-    "Binatone",
+const COOKER_BRANDS =
+  createBrands(
+    [
+      "Binatone",
+      "Scanfrost",
+      "Bruhm",
+      "Hisense",
+      "Midea",
+    ],
     "Cookers",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Scanfrost",
-    "Cookers",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Bruhm",
-    "Cookers",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-  createBrand(
-    "Hisense",
-    "Cookers",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Midea",
-    "Cookers",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-];
+    "stove",
+  );
 
-const AIR_FRYER_BRANDS: Brand[] = [
-  createBrand(
-    "Philips",
+const AIR_FRYER_BRANDS =
+  createBrands(
+    [
+      "Philips",
+      "Ninja",
+      "Tefal",
+      "Midea",
+      "Binatone",
+    ],
     "Air fryers",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Ninja",
-    "Air fryers",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Tefal",
-    "Air fryers",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Midea",
-    "Air fryers",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Binatone",
-    "Air fryers",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+    "french-fries",
+  );
 
-const BLENDER_BRANDS: Brand[] = [
-  createBrand(
-    "Binatone",
+const BLENDER_BRANDS =
+  createBrands(
+    [
+      "Binatone",
+      "Philips",
+      "Nasco",
+      "Scanfrost",
+      "Midea",
+    ],
     "Blenders",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Philips",
-    "Blenders",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Nasco",
-    "Blenders",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Scanfrost",
-    "Blenders",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Midea",
-    "Blenders",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+    "blender-outline",
+  );
 
-const KITCHEN_SMALL_APPLIANCE_BRANDS: Brand[] = [
-  createBrand(
-    "Binatone",
+const KITCHEN_SMALL_APPLIANCE_BRANDS =
+  createBrands(
+    [
+      "Binatone",
+      "Philips",
+      "Nasco",
+      "Scanfrost",
+      "Midea",
+    ],
     "Kitchen appliances",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Philips",
-    "Kitchen appliances",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Nasco",
-    "Kitchen appliances",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Scanfrost",
-    "Kitchen appliances",
-    "#0F766E",
-    "#E6F8F5",
-  ),
-  createBrand(
-    "Midea",
-    "Kitchen appliances",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+  );
 
-/*
- * ============================================================
- * LAUNDRY
- * ============================================================
- */
+/* ==============================================================
+   LAUNDRY
+============================================================== */
 
-const WASHING_MACHINE_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
+const WASHING_MACHINE_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Hisense",
+      "Haier",
+      "Midea",
+      "Whirlpool",
+      "Bosch",
+    ],
     "Washing machines",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Washing machines",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Hisense",
-    "Washing machines",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Haier",
-    "Washing machines",
-    "#0284C7",
-    "#E5F5FF",
-  ),
-  createBrand(
-    "Midea",
-    "Washing machines",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Whirlpool",
-    "Washing machines",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Bosch",
-    "Washing machines",
-    "#DC2626",
-    "#FEECEC",
-  ),
-];
+    "washing-machine",
+  );
 
-const DRYER_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
+const DRYER_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Bosch",
+      "Whirlpool",
+      "Midea",
+    ],
     "Clothes dryers",
-    "#C026D3",
-    "#FCEBFF",
-  ),
-  createBrand(
-    "Samsung",
-    "Clothes dryers",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Bosch",
-    "Clothes dryers",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Whirlpool",
-    "Clothes dryers",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Midea",
-    "Clothes dryers",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-];
+    "tumble-dryer",
+  );
 
-const IRON_BRANDS: Brand[] = [
-  createBrand(
-    "Philips",
+const IRON_BRANDS =
+  createBrands(
+    [
+      "Philips",
+      "Binatone",
+      "Russell Hobbs",
+      "Tefal",
+    ],
     "Electric irons",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Binatone",
-    "Electric irons",
-    "#0891B2",
-    "#E5F8FC",
-  ),
-  createBrand(
-    "Russell Hobbs",
-    "Electric irons",
-    "#475569",
-    "#EEF2F6",
-  ),
-  createBrand(
-    "Tefal",
-    "Electric irons",
-    "#DC2626",
-    "#FEECEC",
-  ),
-];
+    "iron-outline",
+  );
 
-/*
- * ============================================================
- * POWER
- * ============================================================
- */
+/* ==============================================================
+   POWER
+============================================================== */
 
-const GENERATOR_BRANDS: Brand[] = [
-  createBrand(
-    "Firman",
+const GENERATOR_BRANDS =
+  createBrands(
+    [
+      "Firman",
+      "Sumec",
+      "Tiger",
+      "Elemax",
+      "Honda",
+      "Mikano",
+    ],
     "Generators",
-    "#DC2626",
-    "#FEECEC",
     "engine-outline",
-  ),
-  createBrand(
-    "Sumec",
-    "Generators",
-    "#2563EB",
-    "#EAF1FF",
-    "engine-outline",
-  ),
-  createBrand(
-    "Tiger",
-    "Generators",
-    "#D97706",
-    "#FFF3DE",
-    "engine-outline",
-  ),
-  createBrand(
-    "Elemax",
-    "Generators",
-    "#0F766E",
-    "#E6F8F5",
-    "engine-outline",
-  ),
-  createBrand(
-    "Honda",
-    "Generators",
-    "#DC2626",
-    "#FEECEC",
-    "engine-outline",
-  ),
-  createBrand(
-    "Mikano",
-    "Generators",
-    "#475569",
-    "#EEF2F6",
-    "engine-outline",
-  ),
-];
+  );
 
-const INVERTER_BRANDS: Brand[] = [
-  createBrand(
-    "Mercury",
+const INVERTER_BRANDS =
+  createBrands(
+    [
+      "Mercury",
+      "Luminous",
+      "Must",
+      "Felicity Solar",
+      "Mecer",
+    ],
     "Inverters",
-    "#2563EB",
-    "#EAF1FF",
     "sine-wave",
-  ),
-  createBrand(
-    "Luminous",
-    "Inverters",
-    "#D97706",
-    "#FFF3DE",
-    "sine-wave",
-  ),
-  createBrand(
-    "Must",
-    "Inverters",
-    "#0F766E",
-    "#E6F8F5",
-    "sine-wave",
-  ),
-  createBrand(
-    "Felicity Solar",
-    "Inverters",
-    "#CA8A04",
-    "#FFF8D9",
-    "sine-wave",
-  ),
-  createBrand(
-    "Mecer",
-    "Inverters",
-    "#7C3AED",
-    "#F1E9FF",
-    "sine-wave",
-  ),
-];
+  );
 
-const SOLAR_INVERTER_BRANDS: Brand[] = [
-  createBrand(
-    "Felicity Solar",
+const SOLAR_INVERTER_BRANDS =
+  createBrands(
+    [
+      "Felicity Solar",
+      "Must",
+      "Deye",
+      "Growatt",
+      "SMA",
+    ],
     "Solar inverters",
-    "#CA8A04",
-    "#FFF8D9",
     "solar-power",
-  ),
-  createBrand(
-    "Must",
-    "Solar inverters",
-    "#0F766E",
-    "#E6F8F5",
-    "solar-power",
-  ),
-  createBrand(
-    "Deye",
-    "Solar inverters",
-    "#2563EB",
-    "#EAF1FF",
-    "solar-power",
-  ),
-  createBrand(
-    "Growatt",
-    "Solar inverters",
-    "#16A34A",
-    "#E9F9EE",
-    "solar-power",
-  ),
-  createBrand(
-    "SMA",
-    "Solar inverters",
-    "#DC2626",
-    "#FEECEC",
-    "solar-power",
-  ),
-];
+  );
 
-const SOLAR_PANEL_BRANDS: Brand[] = [
-  createBrand(
-    "Jinko Solar",
+const SOLAR_PANEL_BRANDS =
+  createBrands(
+    [
+      "Jinko Solar",
+      "LONGi",
+      "Canadian Solar",
+      "JA Solar",
+      "Trina Solar",
+    ],
     "Solar panels",
-    "#2563EB",
-    "#EAF1FF",
     "solar-panel",
-  ),
-  createBrand(
-    "LONGi",
-    "Solar panels",
-    "#0F766E",
-    "#E6F8F5",
-    "solar-panel",
-  ),
-  createBrand(
-    "Canadian Solar",
-    "Solar panels",
-    "#DC2626",
-    "#FEECEC",
-    "solar-panel",
-  ),
-  createBrand(
-    "JA Solar",
-    "Solar panels",
-    "#7C3AED",
-    "#F1E9FF",
-    "solar-panel",
-  ),
-  createBrand(
-    "Trina Solar",
-    "Solar panels",
-    "#0891B2",
-    "#E5F8FC",
-    "solar-panel",
-  ),
-];
+  );
 
-const BATTERY_BRANDS: Brand[] = [
-  createBrand(
-    "Mercury",
+const BATTERY_BRANDS =
+  createBrands(
+    [
+      "Mercury",
+      "Felicity Solar",
+      "Luminous",
+      "Tubular",
+    ],
     "Batteries",
-    "#2563EB",
-    "#EAF1FF",
     "car-battery",
-  ),
-  createBrand(
-    "Felicity Solar",
-    "Batteries",
-    "#CA8A04",
-    "#FFF8D9",
-    "car-battery",
-  ),
-  createBrand(
-    "Luminous",
-    "Batteries",
-    "#D97706",
-    "#FFF3DE",
-    "car-battery",
-  ),
-  createBrand(
-    "Tubular",
-    "Power batteries",
-    "#16A34A",
-    "#E9F9EE",
-    "car-battery",
-  ),
-];
+  );
 
-const UPS_BRANDS: Brand[] = [
-  createBrand(
-    "APC",
+const UPS_BRANDS =
+  createBrands(
+    [
+      "APC",
+      "Mercury",
+      "Mecer",
+      "Luminous",
+    ],
     "UPS systems",
-    "#16A34A",
-    "#E9F9EE",
     "battery-charging",
-  ),
-  createBrand(
-    "Mercury",
-    "UPS systems",
-    "#2563EB",
-    "#EAF1FF",
-    "battery-charging",
-  ),
-  createBrand(
-    "Mecer",
-    "UPS systems",
-    "#7C3AED",
-    "#F1E9FF",
-    "battery-charging",
-  ),
-  createBrand(
-    "Luminous",
-    "UPS systems",
-    "#D97706",
-    "#FFF3DE",
-    "battery-charging",
-  ),
-];
+  );
 
-/*
- * ============================================================
- * AUTOMOTIVE
- * ============================================================
- */
+/* ==============================================================
+   ELECTRICAL
+============================================================== */
 
-const CAR_BRANDS: Brand[] = [
-  createBrand(
-    "Toyota",
-    "Car parts",
-    "#DC2626",
-    "#FEECEC",
-    "car-outline",
-  ),
-  createBrand(
-    "Honda",
-    "Car parts",
-    "#DC2626",
-    "#FEECEC",
-    "car-outline",
-  ),
-  createBrand(
-    "Mercedes-Benz",
-    "Car parts",
-    "#475569",
-    "#EEF2F6",
-    "car-outline",
-  ),
-  createBrand(
-    "Hyundai",
-    "Car parts",
-    "#2563EB",
-    "#EAF1FF",
-    "car-outline",
-  ),
-  createBrand(
-    "Kia",
-    "Car parts",
-    "#7C3AED",
-    "#F1E9FF",
-    "car-outline",
-  ),
-  createBrand(
-    "Nissan",
-    "Car parts",
-    "#0891B2",
-    "#E5F8FC",
-    "car-outline",
-  ),
-  createBrand(
-    "Ford",
-    "Car parts",
-    "#2563EB",
-    "#EAF1FF",
-    "car-outline",
-  ),
-];
-
-const MOTORCYCLE_BRANDS: Brand[] = [
-  createBrand(
-    "Honda",
-    "Motorcycle parts",
-    "#DC2626",
-    "#FEECEC",
-    "motorbike",
-  ),
-  createBrand(
-    "Yamaha",
-    "Motorcycle parts",
-    "#2563EB",
-    "#EAF1FF",
-    "motorbike",
-  ),
-  createBrand(
-    "Suzuki",
-    "Motorcycle parts",
-    "#DC2626",
-    "#FEECEC",
-    "motorbike",
-  ),
-  createBrand(
-    "Bajaj",
-    "Motorcycle parts",
-    "#0F766E",
-    "#E6F8F5",
-    "motorbike",
-  ),
-  createBrand(
-    "TVS",
-    "Motorcycle parts",
-    "#7C3AED",
-    "#F1E9FF",
-    "motorbike",
-  ),
-];
-
-const TRICYCLE_BRANDS: Brand[] = [
-  createBrand(
-    "Bajaj",
-    "Tricycle parts",
-    "#0F766E",
-    "#E6F8F5",
-    "rickshaw",
-  ),
-  createBrand(
-    "TVS",
-    "Tricycle parts",
-    "#7C3AED",
-    "#F1E9FF",
-    "rickshaw",
-  ),
-  createBrand(
-    "Daylong",
-    "Tricycle parts",
-    "#2563EB",
-    "#EAF1FF",
-    "rickshaw",
-  ),
-  createBrand(
-    "Piaggio",
-    "Tricycle parts",
-    "#DC2626",
-    "#FEECEC",
-    "rickshaw",
-  ),
-];
-
-const VEHICLE_ELECTRICAL_BRANDS: Brand[] = [
-  createBrand(
-    "Bosch",
-    "Automotive electrical",
-    "#DC2626",
-    "#FEECEC",
-    "engine-outline",
-  ),
-  createBrand(
-    "Denso",
-    "Automotive electrical",
-    "#2563EB",
-    "#EAF1FF",
-    "engine-outline",
-  ),
-  createBrand(
-    "Valeo",
-    "Automotive electrical",
-    "#0F766E",
-    "#E6F8F5",
-    "engine-outline",
-  ),
-  createBrand(
-    "Delphi",
-    "Automotive electrical",
-    "#7C3AED",
-    "#F1E9FF",
-    "engine-outline",
-  ),
-];
-
-const CAR_BATTERY_BRANDS: Brand[] = [
-  createBrand(
-    "Bosch",
-    "Car batteries",
-    "#DC2626",
-    "#FEECEC",
-    "car-battery",
-  ),
-  createBrand(
-    "Exide",
-    "Car batteries",
-    "#2563EB",
-    "#EAF1FF",
-    "car-battery",
-  ),
-  createBrand(
-    "Luminous",
-    "Car batteries",
-    "#D97706",
-    "#FFF3DE",
-    "car-battery",
-  ),
-  createBrand(
-    "Amaron",
-    "Car batteries",
-    "#16A34A",
-    "#E9F9EE",
-    "car-battery",
-  ),
-];
-
-/*
- * ============================================================
- * ELECTRONICS
- * ============================================================
- */
-
-const TV_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
-    "Televisions",
-    "#C026D3",
-    "#FCEBFF",
-    "television",
-  ),
-  createBrand(
-    "Samsung",
-    "Televisions",
-    "#2563EB",
-    "#EAF1FF",
-    "television",
-  ),
-  createBrand(
-    "Sony",
-    "Televisions",
-    "#475569",
-    "#EEF2F6",
-    "television",
-  ),
-  createBrand(
-    "Hisense",
-    "Televisions",
-    "#64748B",
-    "#EEF2F6",
-    "television",
-  ),
-  createBrand(
-    "TCL",
-    "Televisions",
-    "#DC2626",
-    "#FEECEC",
-    "television",
-  ),
-  createBrand(
-    "Panasonic",
-    "Televisions",
-    "#0F766E",
-    "#E6F8F5",
-    "television",
-  ),
-];
-
-const DECODER_BRANDS: Brand[] = [
-  createBrand(
-    "DSTV",
-    "Satellite receivers",
-    "#2563EB",
-    "#EAF1FF",
-    "set-top-box",
-  ),
-  createBrand(
-    "GOtv",
-    "Digital receivers",
-    "#16A34A",
-    "#E9F9EE",
-    "set-top-box",
-  ),
-  createBrand(
-    "StarTimes",
-    "Digital receivers",
-    "#DC2626",
-    "#FEECEC",
-    "set-top-box",
-  ),
-  createBrand(
-    "Strong",
-    "Satellite receivers",
-    "#475569",
-    "#EEF2F6",
-    "set-top-box",
-  ),
-];
-
-const ROUTER_BRANDS: Brand[] = [
-  createBrand(
-    "TP-Link",
-    "Network equipment",
-    "#16A34A",
-    "#E9F9EE",
-    "router-wireless",
-  ),
-  createBrand(
-    "Huawei",
-    "Network equipment",
-    "#DC2626",
-    "#FEECEC",
-    "router-wireless",
-  ),
-  createBrand(
-    "ZTE",
-    "Network equipment",
-    "#2563EB",
-    "#EAF1FF",
-    "router-wireless",
-  ),
-  createBrand(
-    "D-Link",
-    "Network equipment",
-    "#0891B2",
-    "#E5F8FC",
-    "router-wireless",
-  ),
-  createBrand(
-    "Tenda",
-    "Network equipment",
-    "#7C3AED",
-    "#F1E9FF",
-    "router-wireless",
-  ),
-];
-
-const PRINTER_BRANDS: Brand[] = [
-  createBrand(
-    "HP",
-    "Printers",
-    "#2563EB",
-    "#EAF1FF",
-    "printer-outline",
-  ),
-  createBrand(
-    "Canon",
-    "Printers",
-    "#DC2626",
-    "#FEECEC",
-    "printer-outline",
-  ),
-  createBrand(
-    "Epson",
-    "Printers",
-    "#0891B2",
-    "#E5F8FC",
-    "printer-outline",
-  ),
-  createBrand(
-    "Brother",
-    "Printers",
-    "#475569",
-    "#EEF2F6",
-    "printer-outline",
-  ),
-];
-
-const SPEAKER_BRANDS: Brand[] = [
-  createBrand(
-    "Sony",
-    "Audio equipment",
-    "#475569",
-    "#EEF2F6",
-    "speaker",
-  ),
-  createBrand(
-    "JBL",
-    "Audio equipment",
-    "#D97706",
-    "#FFF3DE",
-    "speaker",
-  ),
-  createBrand(
-    "LG",
-    "Audio equipment",
-    "#C026D3",
-    "#FCEBFF",
-    "speaker",
-  ),
-  createBrand(
-    "Samsung",
-    "Audio equipment",
-    "#2563EB",
-    "#EAF1FF",
-    "speaker",
-  ),
-  createBrand(
-    "Panasonic",
-    "Audio equipment",
-    "#0F766E",
-    "#E6F8F5",
-    "speaker",
-  ),
-];
-
-const CCTV_BRANDS: Brand[] = [
-  createBrand(
-    "Hikvision",
-    "Security cameras",
-    "#DC2626",
-    "#FEECEC",
-    "cctv",
-  ),
-  createBrand(
-    "Dahua",
-    "Security cameras",
-    "#2563EB",
-    "#EAF1FF",
-    "cctv",
-  ),
-  createBrand(
-    "TP-Link",
-    "Security cameras",
-    "#16A34A",
-    "#E9F9EE",
-    "cctv",
-  ),
-];
-
-/*
- * ============================================================
- * WATER & PLUMBING
- * ============================================================
- */
-
-const PUMP_BRANDS: Brand[] = [
-  createBrand(
-    "Pedrollo",
-    "Water pumps",
-    "#0F766E",
-    "#E6F8F5",
-    "water-pump",
-  ),
-  createBrand(
-    "Grundfos",
-    "Water pumps",
-    "#2563EB",
-    "#EAF1FF",
-    "water-pump",
-  ),
-  createBrand(
-    "Leo",
-    "Water pumps",
-    "#DC2626",
-    "#FEECEC",
-    "water-pump",
-  ),
-  createBrand(
-    "Honda",
-    "Water pumps",
-    "#DC2626",
-    "#FEECEC",
-    "water-pump",
-  ),
-  createBrand(
-    "Dayliff",
-    "Water pumps",
-    "#0891B2",
-    "#E5F8FC",
-    "water-pump",
-  ),
-];
-
-const WATER_HEATER_BRANDS: Brand[] = [
-  createBrand(
-    "Ariston",
-    "Water heaters",
-    "#2563EB",
-    "#EAF1FF",
-    "water-boiler",
-  ),
-  createBrand(
-    "Haier",
-    "Water heaters",
-    "#0284C7",
-    "#E5F5FF",
-    "water-boiler",
-  ),
-  createBrand(
-    "LG",
-    "Water heaters",
-    "#C026D3",
-    "#FCEBFF",
-    "water-boiler",
-  ),
-  createBrand(
-    "Samsung",
-    "Water heaters",
-    "#2563EB",
-    "#EAF1FF",
-    "water-boiler",
-  ),
-];
-
-const WATER_FILTER_BRANDS: Brand[] = [
-  createBrand(
-    "LG",
-    "Water filtration",
-    "#C026D3",
-    "#FCEBFF",
-    "filter-outline",
-  ),
-  createBrand(
-    "3M",
-    "Water filtration",
-    "#DC2626",
-    "#FEECEC",
-    "filter-outline",
-  ),
-  createBrand(
-    "Aquafresh",
-    "Water filtration",
-    "#0284C7",
-    "#E5F5FF",
-    "filter-outline",
-  ),
-  createBrand(
-    "Pureit",
-    "Water filtration",
-    "#0F766E",
-    "#E6F8F5",
-    "filter-outline",
-  ),
-];
-
-/*
- * ============================================================
- * WORKSHOP
- * ============================================================
- */
-
-const WORKSHOP_BRANDS: Brand[] = [
-  createBrand(
-    "Bosch",
-    "Power tools",
-    "#DC2626",
-    "#FEECEC",
-    "tools",
-  ),
-  createBrand(
-    "Makita",
-    "Power tools",
-    "#16A34A",
-    "#E9F9EE",
-    "tools",
-  ),
-  createBrand(
-    "DeWalt",
-    "Power tools",
-    "#D97706",
-    "#FFF3DE",
-    "tools",
-  ),
-  createBrand(
-    "Stanley",
-    "Power tools",
-    "#2563EB",
-    "#EAF1FF",
-    "tools",
-  ),
-  createBrand(
-    "Ingco",
-    "Power tools",
-    "#EAB308",
-    "#FFF8D9",
-    "tools",
-  ),
-];
-
-const WELDING_BRANDS: Brand[] = [
-  createBrand(
-    "Rilon",
-    "Welding machines",
-    "#2563EB",
-    "#EAF1FF",
-    "soldering-iron",
-  ),
-  createBrand(
-    "Jasic",
-    "Welding machines",
-    "#DC2626",
-    "#FEECEC",
-    "soldering-iron",
-  ),
-  createBrand(
-    "MMA",
-    "Welding machines",
-    "#475569",
-    "#EEF2F6",
-    "soldering-iron",
-  ),
-  createBrand(
-    "Ingco",
-    "Welding machines",
-    "#D97706",
-    "#FFF3DE",
-    "soldering-iron",
-  ),
-];
-
-const COMPRESSOR_BRANDS: Brand[] = [
-  createBrand(
-    "Ingersoll Rand",
-    "Air compressors",
-    "#2563EB",
-    "#EAF1FF",
-    "engine-outline",
-  ),
-  createBrand(
-    "Atlas Copco",
-    "Air compressors",
-    "#0F766E",
-    "#E6F8F5",
-    "engine-outline",
-  ),
-  createBrand(
-    "Ingco",
-    "Air compressors",
-    "#D97706",
-    "#FFF3DE",
-    "engine-outline",
-  ),
-  createBrand(
-    "Total",
-    "Air compressors",
-    "#DC2626",
-    "#FEECEC",
-    "engine-outline",
-  ),
-];
-
-/*
- * ============================================================
- * SPECIAL GROUPS
- * ============================================================
- */
-
-const ELECTRICAL_BRANDS: Brand[] = [
-  createBrand(
-    "Schneider Electric",
+const ELECTRICAL_BRANDS =
+  createBrands(
+    [
+      "Schneider Electric",
+      "ABB",
+      "Legrand",
+      "Hager",
+    ],
     "Electrical equipment",
-    "#16A34A",
-    "#E9F9EE",
-  ),
-  createBrand(
-    "ABB",
-    "Electrical equipment",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Legrand",
-    "Electrical equipment",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Hager",
-    "Electrical equipment",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
+    "flash-outline",
+  );
 
-const SOCKET_BRANDS: Brand[] = [
-  createBrand(
-    "MK Electric",
+const SOCKET_BRANDS =
+  createBrands(
+    [
+      "MK Electric",
+      "Schneider Electric",
+      "Legrand",
+      "Hager",
+    ],
     "Electrical fittings",
-    "#2563EB",
-    "#EAF1FF",
-  ),
-  createBrand(
-    "Schneider Electric",
-    "Electrical fittings",
-    "#16A34A",
-    "#E9F9EE",
-  ),
-  createBrand(
-    "Legrand",
-    "Electrical fittings",
-    "#DC2626",
-    "#FEECEC",
-  ),
-  createBrand(
-    "Hager",
-    "Electrical fittings",
-    "#7C3AED",
-    "#F1E9FF",
-  ),
-];
-
-const LIGHTING_BRANDS: Brand[] = [
-  createBrand(
-    "Philips",
-    "Lighting",
-    "#2563EB",
-    "#EAF1FF",
-    "lightbulb-outline",
-  ),
-  createBrand(
-    "Osram",
-    "Lighting",
-    "#DC2626",
-    "#FEECEC",
-    "lightbulb-outline",
-  ),
-  createBrand(
-    "GE",
-    "Lighting",
-    "#475569",
-    "#EEF2F6",
-    "lightbulb-outline",
-  ),
-  createBrand(
-    "Panasonic",
-    "Lighting",
-    "#0F766E",
-    "#E6F8F5",
-    "lightbulb-outline",
-  ),
-];
-
-const FLOOD_LIGHT_BRANDS: Brand[] = [
-  createBrand(
-    "Philips",
-    "Outdoor lighting",
-    "#2563EB",
-    "#EAF1FF",
-    "light-flood-down",
-  ),
-  createBrand(
-    "Osram",
-    "Outdoor lighting",
-    "#DC2626",
-    "#FEECEC",
-    "light-flood-down",
-  ),
-  createBrand(
-    "GE",
-    "Outdoor lighting",
-    "#475569",
-    "#EEF2F6",
-    "light-flood-down",
-  ),
-];
-
-const CABLE_BRANDS: Brand[] = [
-  createBrand(
-    "Prysmian",
-    "Electrical cables",
-    "#2563EB",
-    "#EAF1FF",
-    "cable-data",
-  ),
-  createBrand(
-    "Nexans",
-    "Electrical cables",
-    "#DC2626",
-    "#FEECEC",
-    "cable-data",
-  ),
-  createBrand(
-    "Polycab",
-    "Electrical cables",
-    "#0F766E",
-    "#E6F8F5",
-    "cable-data",
-  ),
-];
-
-const EXTENSION_BOX_BRANDS: Brand[] = [
-  createBrand(
-    "Belkin",
-    "Power extension",
-    "#2563EB",
-    "#EAF1FF",
     "power-socket",
-  ),
-  createBrand(
-    "Binatone",
+  );
+
+const LIGHTING_BRANDS =
+  createBrands(
+    [
+      "Philips",
+      "Osram",
+      "GE",
+      "Panasonic",
+    ],
+    "Lighting",
+    "lightbulb-outline",
+  );
+
+const FLOOD_LIGHT_BRANDS =
+  createBrands(
+    [
+      "Philips",
+      "Osram",
+      "GE",
+    ],
+    "Outdoor lighting",
+    "light-flood-down",
+  );
+
+const CABLE_BRANDS =
+  createBrands(
+    [
+      "Prysmian",
+      "Nexans",
+      "Polycab",
+    ],
+    "Electrical cables",
+    "cable-data",
+  );
+
+const EXTENSION_BOX_BRANDS =
+  createBrands(
+    [
+      "Belkin",
+      "Binatone",
+      "Philips",
+    ],
     "Power extension",
-    "#0891B2",
-    "#E5F8FC",
     "power-socket",
-  ),
-  createBrand(
-    "Philips",
-    "Power extension",
-    "#7C3AED",
-    "#F1E9FF",
-    "power-socket",
-  ),
-];
+  );
 
-const BATHROOM_FAUCET_BRANDS: Brand[] = [
-  createBrand(
-    "Grohe",
-    "Faucets & fittings",
-    "#475569",
-    "#EEF2F6",
-    "faucet",
-  ),
-  createBrand(
-    "Hansgrohe",
-    "Faucets & fittings",
-    "#2563EB",
-    "#EAF1FF",
-    "faucet",
-  ),
-  createBrand(
-    "Twyford",
-    "Faucets & fittings",
-    "#0F766E",
-    "#E6F8F5",
-    "faucet",
-  ),
-];
+/* ==============================================================
+   WATER & PLUMBING
+============================================================== */
 
-const SHOWER_BRANDS: Brand[] = [
-  createBrand(
-    "Grohe",
-    "Bathroom fittings",
-    "#475569",
-    "#EEF2F6",
-    "shower-head",
-  ),
-  createBrand(
-    "Hansgrohe",
-    "Bathroom fittings",
-    "#2563EB",
-    "#EAF1FF",
-    "shower-head",
-  ),
-  createBrand(
-    "Twyford",
-    "Bathroom fittings",
-    "#0F766E",
-    "#E6F8F5",
-    "shower-head",
-  ),
-];
+const PUMP_BRANDS =
+  createBrands(
+    [
+      "Pedrollo",
+      "Grundfos",
+      "Leo",
+      "Honda",
+      "Dayliff",
+    ],
+    "Water pumps",
+    "water-pump",
+  );
 
-const TOILET_BRANDS: Brand[] = [
-  createBrand(
-    "Twyford",
+const WATER_HEATER_BRANDS =
+  createBrands(
+    [
+      "Ariston",
+      "Haier",
+      "LG",
+      "Samsung",
+    ],
+    "Water heaters",
+    "water-boiler",
+  );
+
+const WATER_FILTER_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "3M",
+      "Aquafresh",
+      "Pureit",
+    ],
+    "Water filtration",
+    "filter-outline",
+  );
+
+const FAUCET_BRANDS =
+  createBrands(
+    [
+      "Grohe",
+      "Hansgrohe",
+      "Twyford",
+    ],
+    "Faucets & fittings",
+    "faucet",
+  );
+
+const SHOWER_BRANDS =
+  createBrands(
+    [
+      "Grohe",
+      "Hansgrohe",
+      "Twyford",
+    ],
+    "Bathroom fittings",
+    "shower-head",
+  );
+
+const TOILET_BRANDS =
+  createBrands(
+    [
+      "Twyford",
+      "Roca",
+      "Grohe",
+    ],
     "Toilet systems",
-    "#0F766E",
-    "#E6F8F5",
     "toilet",
-  ),
-  createBrand(
-    "Roca",
-    "Toilet systems",
-    "#2563EB",
-    "#EAF1FF",
-    "toilet",
-  ),
-  createBrand(
-    "Grohe",
-    "Bathroom systems",
-    "#475569",
-    "#EEF2F6",
-    "toilet",
-  ),
-];
+  );
 
-/*
- * ============================================================
- * EQUIPMENT -> BRANDS
- * ============================================================
- */
+/* ==============================================================
+   WORKSHOP
+============================================================== */
+
+const WORKSHOP_BRANDS =
+  createBrands(
+    [
+      "Bosch",
+      "Makita",
+      "DeWalt",
+      "Stanley",
+      "Ingco",
+    ],
+    "Power tools",
+    "tools",
+  );
+
+const WELDING_BRANDS =
+  createBrands(
+    [
+      "Rilon",
+      "Jasic",
+      "MMA",
+      "Ingco",
+    ],
+    "Welding machines",
+    "soldering-iron",
+  );
+
+const COMPRESSOR_BRANDS =
+  createBrands(
+    [
+      "Ingersoll Rand",
+      "Atlas Copco",
+      "Ingco",
+      "Total",
+    ],
+    "Air compressors",
+    "engine-outline",
+  );
+
+/* ==============================================================
+   AUTOMOTIVE
+============================================================== */
+
+const CAR_BRANDS =
+  createBrands(
+    [
+      "Toyota",
+      "Honda",
+      "Mercedes-Benz",
+      "Hyundai",
+      "Kia",
+      "Nissan",
+      "Ford",
+    ],
+    "Car parts",
+    "car-outline",
+  );
+
+const MOTORCYCLE_BRANDS =
+  createBrands(
+    [
+      "Honda",
+      "Yamaha",
+      "Suzuki",
+      "Bajaj",
+      "TVS",
+    ],
+    "Motorcycle parts",
+    "motorbike",
+  );
+
+const TRICYCLE_BRANDS =
+  createBrands(
+    [
+      "Bajaj",
+      "TVS",
+      "Daylong",
+      "Piaggio",
+    ],
+    "Tricycle parts",
+    "rickshaw",
+  );
+
+const VEHICLE_ELECTRICAL_BRANDS =
+  createBrands(
+    [
+      "Bosch",
+      "Denso",
+      "Valeo",
+      "Delphi",
+    ],
+    "Automotive electrical",
+    "engine-outline",
+  );
+
+const CAR_BATTERY_BRANDS =
+  createBrands(
+    [
+      "Bosch",
+      "Exide",
+      "Luminous",
+      "Amaron",
+    ],
+    "Car batteries",
+    "car-battery",
+  );
+
+const RADIATOR_BRANDS =
+  createBrands(
+    [
+      "Denso",
+      "Valeo",
+      "Mahle",
+    ],
+    "Radiators & cooling",
+    "radiator",
+  );
+
+/* ==============================================================
+   ELECTRONICS
+============================================================== */
+
+const TV_BRANDS =
+  createBrands(
+    [
+      "LG",
+      "Samsung",
+      "Sony",
+      "Hisense",
+      "TCL",
+      "Panasonic",
+    ],
+    "Televisions",
+    "television",
+  );
+
+const DECODER_BRANDS =
+  createBrands(
+    [
+      "DSTV",
+      "GOtv",
+      "StarTimes",
+      "Strong",
+    ],
+    "Satellite receivers",
+    "set-top-box",
+  );
+
+const ROUTER_BRANDS =
+  createBrands(
+    [
+      "TP-Link",
+      "Huawei",
+      "ZTE",
+      "D-Link",
+      "Tenda",
+    ],
+    "Network equipment",
+    "router-wireless",
+  );
+
+const PRINTER_BRANDS =
+  createBrands(
+    [
+      "HP",
+      "Canon",
+      "Epson",
+      "Brother",
+    ],
+    "Printers",
+    "printer-outline",
+  );
+
+const MONITOR_BRANDS =
+  createBrands(
+    [
+      "Samsung",
+      "LG",
+      "Dell",
+      "HP",
+      "AOC",
+    ],
+    "Computer monitors",
+    "monitor",
+  );
+
+const SPEAKER_BRANDS =
+  createBrands(
+    [
+      "Sony",
+      "JBL",
+      "LG",
+      "Samsung",
+      "Panasonic",
+    ],
+    "Audio equipment",
+    "speaker",
+  );
+
+const CCTV_BRANDS =
+  createBrands(
+    [
+      "Hikvision",
+      "Dahua",
+      "TP-Link",
+    ],
+    "Security cameras",
+    "cctv",
+  );
+
+const POS_BRANDS =
+  createBrands(
+    [
+      "Verifone",
+      "PAX",
+      "Ingenico",
+    ],
+    "POS machines",
+    "point-of-sale",
+  );
+
+/* ==============================================================
+   SECURITY
+============================================================== */
+
+const AUTOMATIC_GATE_BRANDS =
+  createBrands(
+    [
+      "FAAC",
+      "BFT",
+      "Nice",
+    ],
+    "Automatic gate systems",
+    "gate",
+  );
+
+const ELECTRIC_FENCE_BRANDS =
+  createBrands(
+    [
+      "Nemtek",
+      "JVA",
+      "Centurion",
+    ],
+    "Electric fence systems",
+    "fence",
+  );
+
+const SECURITY_ALARM_BRANDS =
+  createBrands(
+    [
+      "Hikvision",
+      "Dahua",
+      "Paradox",
+    ],
+    "Security alarms",
+    "alarm-light-outline",
+  );
+
+/* ==============================================================
+   EQUIPMENT → BRANDS
+============================================================== */
 
 const BRAND_GROUPS: Record<
   string,
   Brand[]
 > = {
   /* Cooling */
-  ac: AC_BRANDS,
-  fridge: FRIDGE_BRANDS,
-  freezer: FREEZER_BRANDS,
-  "cold-room": COLD_ROOM_BRANDS,
-  "ice-maker": ICE_MAKER_BRANDS,
-  fan: FAN_BRANDS,
+
+  ac:
+    AC_BRANDS,
+
+  fridge:
+    FRIDGE_BRANDS,
+
+  freezer:
+    FREEZER_BRANDS,
+
+  "cold-room":
+    COLD_ROOM_BRANDS,
+
+  "ice-maker":
+    ICE_MAKER_BRANDS,
+
+  fan:
+    FAN_BRANDS,
+
   "extractor-fan":
     EXTRACTOR_FAN_BRANDS,
 
   /* Kitchen */
-  microwave: MICROWAVE_BRANDS,
-  oven: OVEN_BRANDS,
+
+  microwave:
+    MICROWAVE_BRANDS,
+
+  oven:
+    OVEN_BRANDS,
+
   "electric-cooker":
     COOKER_BRANDS,
+
   "gas-cooker":
     COOKER_BRANDS,
+
   "air-fryer":
     AIR_FRYER_BRANDS,
-  blender: BLENDER_BRANDS,
+
+  blender:
+    BLENDER_BRANDS,
+
   "food-processor":
     KITCHEN_SMALL_APPLIANCE_BRANDS,
+
   "electric-kettle":
     KITCHEN_SMALL_APPLIANCE_BRANDS,
+
   toaster:
     KITCHEN_SMALL_APPLIANCE_BRANDS,
+
   "coffee-machine":
     KITCHEN_SMALL_APPLIANCE_BRANDS,
+
   "water-dispenser":
     KITCHEN_SMALL_APPLIANCE_BRANDS,
 
   /* Laundry */
+
   "washing-machine":
     WASHING_MACHINE_BRANDS,
-  dryer: DRYER_BRANDS,
-  iron: IRON_BRANDS,
+
+  dryer:
+    DRYER_BRANDS,
+
+  iron:
+    IRON_BRANDS,
 
   /* Power */
+
   generator:
     GENERATOR_BRANDS,
+
   inverter:
     INVERTER_BRANDS,
+
   "solar-inverter":
     SOLAR_INVERTER_BRANDS,
+
   "solar-panel":
     SOLAR_PANEL_BRANDS,
+
   battery:
     BATTERY_BRANDS,
+
   ups:
     UPS_BRANDS,
 
   /* Electrical */
+
   electrical:
     ELECTRICAL_BRANDS,
 
@@ -1860,6 +949,7 @@ const BRAND_GROUPS: Record<
     EXTENSION_BOX_BRANDS,
 
   /* Water */
+
   "water-pump":
     PUMP_BRANDS,
 
@@ -1879,7 +969,7 @@ const BRAND_GROUPS: Record<
     WATER_FILTER_BRANDS,
 
   faucet:
-    BATHROOM_FAUCET_BRANDS,
+    FAUCET_BRANDS,
 
   shower:
     SHOWER_BRANDS,
@@ -1888,6 +978,7 @@ const BRAND_GROUPS: Record<
     TOILET_BRANDS,
 
   /* Workshop */
+
   "drilling-machine":
     WORKSHOP_BRANDS,
 
@@ -1907,6 +998,7 @@ const BRAND_GROUPS: Record<
     WORKSHOP_BRANDS,
 
   /* Automotive */
+
   car:
     CAR_BRANDS,
 
@@ -1925,31 +1017,11 @@ const BRAND_GROUPS: Record<
   "starter-motor":
     VEHICLE_ELECTRICAL_BRANDS,
 
-  radiator: [
-    createBrand(
-      "Denso",
-      "Radiators & cooling",
-      "#2563EB",
-      "#EAF1FF",
-      "radiator",
-    ),
-    createBrand(
-      "Valeo",
-      "Radiators & cooling",
-      "#0F766E",
-      "#E6F8F5",
-      "radiator",
-    ),
-    createBrand(
-      "Mahle",
-      "Engine cooling",
-      "#DC2626",
-      "#FEECEC",
-      "radiator",
-    ),
-  ],
+  radiator:
+    RADIATOR_BRANDS,
 
   /* Electronics */
+
   tv:
     TV_BRANDS,
 
@@ -1962,43 +1034,8 @@ const BRAND_GROUPS: Record<
   printer:
     PRINTER_BRANDS,
 
-  monitor: [
-    createBrand(
-      "Samsung",
-      "Computer monitors",
-      "#2563EB",
-      "#EAF1FF",
-      "monitor",
-    ),
-    createBrand(
-      "LG",
-      "Computer monitors",
-      "#C026D3",
-      "#FCEBFF",
-      "monitor",
-    ),
-    createBrand(
-      "Dell",
-      "Computer monitors",
-      "#475569",
-      "#EEF2F6",
-      "monitor",
-    ),
-    createBrand(
-      "HP",
-      "Computer monitors",
-      "#2563EB",
-      "#EAF1FF",
-      "monitor",
-    ),
-    createBrand(
-      "AOC",
-      "Computer monitors",
-      "#DC2626",
-      "#FEECEC",
-      "monitor",
-    ),
-  ],
+  monitor:
+    MONITOR_BRANDS,
 
   speaker:
     SPEAKER_BRANDS,
@@ -2006,191 +1043,273 @@ const BRAND_GROUPS: Record<
   cctv:
     CCTV_BRANDS,
 
-  pos: [
-    createBrand(
-      "Verifone",
-      "POS machines",
-      "#2563EB",
-      "#EAF1FF",
-      "point-of-sale",
-    ),
-    createBrand(
-      "PAX",
-      "POS machines",
-      "#0F766E",
-      "#E6F8F5",
-      "point-of-sale",
-    ),
-    createBrand(
-      "Ingenico",
-      "POS machines",
-      "#475569",
-      "#EEF2F6",
-      "point-of-sale",
-    ),
-  ],
+  pos:
+    POS_BRANDS,
 
   /* Security */
-  "automatic-gate": [
-    createBrand(
-      "FAAC",
-      "Automatic gate systems",
-      "#2563EB",
-      "#EAF1FF",
-      "gate",
-    ),
-    createBrand(
-      "BFT",
-      "Automatic gate systems",
-      "#DC2626",
-      "#FEECEC",
-      "gate",
-    ),
-    createBrand(
-      "Nice",
-      "Automatic gate systems",
-      "#0F766E",
-      "#E6F8F5",
-      "gate",
-    ),
-  ],
 
-  "electric-fence": [
-    createBrand(
-      "Nemtek",
-      "Electric fence systems",
-      "#D97706",
-      "#FFF3DE",
-      "fence",
-    ),
-    createBrand(
-      "JVA",
-      "Electric fence systems",
-      "#2563EB",
-      "#EAF1FF",
-      "fence",
-    ),
-    createBrand(
-      "Centurion",
-      "Security systems",
-      "#DC2626",
-      "#FEECEC",
-      "fence",
-    ),
-  ],
+  "automatic-gate":
+    AUTOMATIC_GATE_BRANDS,
 
-  "security-alarm": [
-    createBrand(
-      "Hikvision",
-      "Security alarms",
-      "#DC2626",
-      "#FEECEC",
-      "alarm-light-outline",
-    ),
-    createBrand(
-      "Dahua",
-      "Security alarms",
-      "#2563EB",
-      "#EAF1FF",
-      "alarm-light-outline",
-    ),
-    createBrand(
-      "Paradox",
-      "Security alarms",
-      "#7C3AED",
-      "#F1E9FF",
-      "alarm-light-outline",
-    ),
-  ],
+  "electric-fence":
+    ELECTRIC_FENCE_BRANDS,
+
+  "security-alarm":
+    SECURITY_ALARM_BRANDS,
 };
 
-/*
- * ============================================================
- * SCREEN
- * ============================================================
- */
+/* ==============================================================
+   BRAND CARD
+============================================================== */
+
+const BrandCard =
+  memo(function BrandCard({
+    brand,
+    onPress,
+  }: BrandCardProps) {
+    const handlePress =
+      useCallback(() => {
+        onPress(
+          brand,
+        );
+      }, [
+        brand,
+        onPress,
+      ]);
+
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Choose ${brand.name}`}
+        accessibilityHint={`Select ${brand.name} as the equipment brand`}
+        onPress={
+          handlePress
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.brandCard,
+
+          pressed
+            ? styles.brandCardPressed
+            : null,
+        ]}
+      >
+        {/* ====================================================
+            BRAND ICON
+        ==================================================== */}
+
+        <View
+          style={
+            styles.brandIcon
+          }
+        >
+          {/* MaterialCommunityIcons intentionally preserved */}
+          <MaterialCommunityIcons
+            name={
+              brand.icon
+            }
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        {/* ====================================================
+            CONTENT
+        ==================================================== */}
+
+        <View
+          style={
+            styles.brandContent
+          }
+        >
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={1}
+          >
+            {brand.name}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.brandDescription
+            }
+          >
+            {brand.description}
+          </AppText>
+        </View>
+
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="muted"
+        />
+      </Pressable>
+    );
+  });
+
+/* ==============================================================
+   SEPARATOR
+============================================================== */
+
+function BrandSeparator() {
+  return (
+    <View
+      style={
+        styles.separator
+      }
+    />
+  );
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function SelectBrandScreen() {
   const params =
     useLocalSearchParams<{
       equipment?: string;
+
       equipmentLabel?: string;
     }>();
 
-  const [search, setSearch] =
+  const [
+    search,
+    setSearch,
+  ] =
     useState("");
 
-  /*
-   * Normalize equipment params once.
-   */
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
+    useState(false);
 
-  const equipmentId = useMemo(
-    () =>
-      String(
-        params.equipment ?? "",
-      ).trim(),
-    [params.equipment],
-  );
+  /* ============================================================
+     PARAMS
+  ============================================================ */
 
-  const equipmentLabel = useMemo(
-    () =>
-      String(
-        params.equipmentLabel ?? "",
-      ).trim() ||
-      "Your Equipment",
-    [params.equipmentLabel],
-  );
+  const equipmentId =
+    useMemo(
+      () =>
+        String(
+          params.equipment ??
+            "",
+        ).trim(),
+      [
+        params.equipment,
+      ],
+    );
 
-  /*
-   * ==========================================================
-   * BRANDS
-   * ==========================================================
-   */
+  const equipmentLabel =
+    useMemo(
+      () =>
+        String(
+          params.equipmentLabel ??
+            "",
+        ).trim() ||
+        "Your Equipment",
+      [
+        params.equipmentLabel,
+      ],
+    );
 
-  const brands = useMemo(() => {
-    return BRAND_GROUPS[
-      equipmentId
-    ] ?? [];
-  }, [equipmentId]);
+  /* ============================================================
+     BRANDS
+  ============================================================ */
 
-  /*
-   * ==========================================================
-   * SEARCH
-   * ==========================================================
-   */
+  const brands =
+    useMemo(
+      () =>
+        BRAND_GROUPS[
+          equipmentId
+        ] ?? [],
+      [
+        equipmentId,
+      ],
+    );
+
+  /* ============================================================
+     SEARCH
+  ============================================================ */
+
+  const cleanSearch =
+    search.trim();
+
+  const hasSearch =
+    cleanSearch.length >
+    0;
 
   const filteredBrands =
     useMemo(() => {
-      const value =
-        search
-          .trim()
-          .toLowerCase();
-
-      if (!value) {
+      if (
+        !hasSearch
+      ) {
         return brands;
       }
+
+      const query =
+        cleanSearch.toLowerCase();
 
       return brands.filter(
         (brand) =>
           brand.name
             .toLowerCase()
-            .includes(value) ||
+            .includes(
+              query,
+            ) ||
           brand.description
             .toLowerCase()
-            .includes(value),
+            .includes(
+              query,
+            ),
       );
-    }, [brands, search]);
+    }, [
+      brands,
+      cleanSearch,
+      hasSearch,
+    ]);
 
-  /*
-   * ==========================================================
-   * NAVIGATION
-   * ==========================================================
-   */
+  const hasBrandCatalog =
+    brands.length > 0;
+
+  const hasSearchResults =
+    filteredBrands.length >
+    0;
+
+  /* ============================================================
+     BACK
+  ============================================================ */
 
   const handleBack =
     useCallback(() => {
-      router.back();
+      if (
+        router.canGoBack()
+      ) {
+        router.back();
+
+        return;
+      }
+
+      router.replace(
+        "/(customer)/buy-spare-parts/choose-equipment",
+      );
     }, []);
+
+  /* ============================================================
+     CONTINUE
+  ============================================================ */
 
   const handleContinue =
     useCallback(
@@ -2198,8 +1317,13 @@ export default function SelectBrandScreen() {
         brandId: string,
         brandName: string,
       ) => {
-        if (!equipmentId) {
-          router.back();
+        if (
+          !equipmentId
+        ) {
+          router.replace(
+            "/(customer)/buy-spare-parts/choose-equipment",
+          );
+
           return;
         }
 
@@ -2208,13 +1332,16 @@ export default function SelectBrandScreen() {
             "/(customer)/buy-spare-parts/find-part",
 
           params: {
-            source: "equipment",
+            source:
+              "equipment",
 
             equipmentId,
+
             equipmentName:
               equipmentLabel,
 
             brandId,
+
             brandName,
           },
         });
@@ -2225,16 +1352,28 @@ export default function SelectBrandScreen() {
       ],
     );
 
+  /* ============================================================
+     SELECT BRAND
+  ============================================================ */
+
   const handleSelectBrand =
     useCallback(
-      (brand: Brand) => {
+      (
+        brand: Brand,
+      ) => {
         handleContinue(
           brand.id,
           brand.name,
         );
       },
-      [handleContinue],
+      [
+        handleContinue,
+      ],
     );
+
+  /* ============================================================
+     OTHER BRAND
+  ============================================================ */
 
   const handleOtherBrand =
     useCallback(() => {
@@ -2242,975 +1381,1136 @@ export default function SelectBrandScreen() {
         "other",
         "Other Brand",
       );
-    }, [handleContinue]);
+    }, [
+      handleContinue,
+    ]);
+
+  /* ============================================================
+     CLEAR SEARCH
+  ============================================================ */
 
   const handleClearSearch =
     useCallback(() => {
-      setSearch("");
+      setSearch(
+        "",
+      );
     }, []);
 
-  /*
-   * ==========================================================
-   * BRAND CARD
-   * ==========================================================
-   */
+  /* ============================================================
+     RENDER BRAND
+  ============================================================ */
 
-  const renderBrandCard =
+  const renderBrand =
     useCallback(
-      (brand: Brand) => {
-        return (
-          <Pressable
-            key={brand.id}
-            onPress={() =>
-              handleSelectBrand(
-                brand,
-              )
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Choose ${brand.name}`}
-            accessibilityHint={`Select ${brand.name} as the equipment brand`}
-            style={({
-              pressed,
-            }) => [
-              styles.brandCard,
-              pressed &&
-                styles.brandCardPressed,
-            ]}
-          >
-            <View
-              style={[
-                styles.brandIcon,
-                {
-                  backgroundColor:
-                    brand.iconBackground,
-                },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name={
-                  brand.icon
-                }
-                size={27}
-                color={
-                  brand.iconColor
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.brandContent
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.brandTitle
-                }
-                numberOfLines={1}
-              >
-                {brand.name}
-              </AppText>
-
-              <AppText
-                style={
-                  styles.brandDescription
-                }
-                numberOfLines={1}
-              >
-                {
-                  brand.description
-                }
-              </AppText>
-            </View>
-
-            <Ionicons
-              name="chevron-forward"
-              size={21}
-              color={
-                CustomerColors.textSecondary
-              }
-            />
-          </Pressable>
-        );
-      },
-      [handleSelectBrand],
+      ({
+        item,
+      }: {
+        item: Brand;
+      }) => (
+        <BrandCard
+          brand={
+            item
+          }
+          onPress={
+            handleSelectBrand
+          }
+        />
+      ),
+      [
+        handleSelectBrand,
+      ],
     );
 
-  /*
-   * ==========================================================
-   * RENDER
-   * ==========================================================
-   */
+  /* ============================================================
+     LIST HEADER
+  ============================================================ */
 
-  return (
-    <SafeAreaView
-      style={styles.safeArea}
-    >
+  const listHeader = (
+    <>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <View
-        style={styles.container}
+        style={
+          styles.header
+        }
       >
-        <ScrollView
-          showsVerticalScrollIndicator={
-            false
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={8}
+          onPress={
+            handleBack
           }
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={
-            styles.content
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.backButtonPressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="back"
+            role="customer"
+            size="sm"
+            state="default"
+          />
+        </Pressable>
+
+        <View
+          style={
+            styles.headerContent
           }
         >
-          {/* HEADER */}
-
-          <View
-            style={styles.header}
+          <AppText
+            variant="heading1"
+            weight="bold"
+            numberOfLines={1}
           >
-            <Pressable
-              onPress={
-                handleBack
-              }
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              style={({
-                pressed,
-              }) => [
-                styles.backButton,
-                pressed &&
-                  styles.backButtonPressed,
-              ]}
-            >
-              <Ionicons
-                name="arrow-back"
-                size={22}
-                color={
-                  CustomerColors.textPrimary
-                }
-              />
-            </Pressable>
+            Select Brand
+          </AppText>
 
-            <View
-              style={
-                styles.headerContent
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.headerTitle
-                }
-                numberOfLines={1}
-              >
-                Select Brand
-              </AppText>
-
-              <AppText
-                style={
-                  styles.headerSubtitle
-                }
-                numberOfLines={1}
-              >
-                {equipmentLabel}
-              </AppText>
-            </View>
-          </View>
-
-          {/* INTRO */}
-
-          <View
-            style={styles.helpCard}
-          >
-            <View
-              style={styles.helpIcon}
-            >
-              <MaterialCommunityIcons
-                name="tag-outline"
-                size={28}
-                color="#1459C7"
-              />
-            </View>
-
-            <View
-              style={
-                styles.helpContent
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.helpTitle
-                }
-                numberOfLines={2}
-              >
-                What brand is your{" "}
-                {equipmentLabel}?
-              </AppText>
-
-              <AppText
-                style={
-                  styles.helpText
-                }
-              >
-                Choose the brand to
-                help us find compatible
-                spare parts.
-              </AppText>
-            </View>
-          </View>
-
-          {/* SEARCH */}
-
-          {brands.length > 0 ? (
-            <View
-              style={
-                styles.searchBox
-              }
-            >
-              <Ionicons
-                name="search-outline"
-                size={21}
-                color={
-                  CustomerColors.textSecondary
-                }
-              />
-
-              <TextInput
-                value={search}
-                onChangeText={
-                  setSearch
-                }
-                placeholder="Search brand..."
-                placeholderTextColor={
-                  CustomerColors.textSecondary
-                }
-                style={
-                  styles.searchInput
-                }
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="search"
-                accessibilityLabel="Search brand"
-              />
-
-              {search.length >
-              0 ? (
-                <Pressable
-                  onPress={
-                    handleClearSearch
-                  }
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear brand search"
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={19}
-                    color={
-                      CustomerColors.textSecondary
-                    }
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {/* SECTION HEADER */}
-
-          <View
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
             style={
-              styles.sectionHeader
+              styles.headerSubtitle
             }
           >
-            <View
-              style={
-                styles.sectionHeaderText
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.sectionTitle
-                }
-              >
-                {brands.length >
-                0
-                  ? search.trim()
-                    ? "Search results"
-                    : "Available brands"
-                  : "Brand selection"}
-              </AppText>
+            {equipmentLabel}
+          </AppText>
+        </View>
+      </View>
 
-              <AppText
-                style={
-                  styles.sectionSubtitle
-                }
-              >
-                {brands.length >
-                0
-                  ? `${filteredBrands.length} ${
-                      filteredBrands.length ===
-                      1
-                        ? "brand"
-                        : "brands"
-                    } available`
-                  : "You can continue without selecting a brand"}
-              </AppText>
-            </View>
+      {/* ======================================================
+          INTRO
+      ====================================================== */}
 
-            {brands.length >
-            0 ? (
-              <View
-                style={
-                  styles.countBadge
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.countText
-                  }
-                >
-                  {
-                    filteredBrands.length
-                  }
-                </AppText>
-              </View>
-            ) : null}
-          </View>
+      <AppCard
+        role="customer"
+        variant="accent"
+        style={
+          styles.helpCard
+        }
+      >
+        <View
+          style={
+            styles.helpIcon
+          }
+        >
+          {/* MaterialCommunityIcons intentionally preserved */}
+          <MaterialCommunityIcons
+            name="tag-outline"
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
 
-          {/* BRANDS */}
+        <View
+          style={
+            styles.helpContent
+          }
+        >
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+          >
+            What brand is your{" "}
+            {equipmentLabel}?
+          </AppText>
 
-          {filteredBrands.length >
-          0 ? (
-            <View
-              style={styles.list}
-            >
-              {filteredBrands.map(
-                renderBrandCard,
-              )}
-            </View>
-          ) : null}
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.helpText
+            }
+          >
+            Choose the brand to help
+            Fixxam find compatible
+            spare parts.
+          </AppText>
+        </View>
+      </AppCard>
 
-          {/* NO BRAND CATALOG */}
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
 
-          {brands.length ===
-          0 ? (
-            <View
-              style={
-                styles.noBrandCard
-              }
-            >
-              <View
-                style={
-                  styles.noBrandIcon
-                }
-              >
-                <MaterialCommunityIcons
-                  name="tag-off-outline"
-                  size={29}
-                  color="#2563EB"
-                />
-              </View>
+      {hasBrandCatalog ? (
+        <View
+          style={[
+            styles.searchBox,
 
-              <AppText
-                weight="bold"
-                style={
-                  styles.noBrandTitle
-                }
-              >
-                Brand is not required
-              </AppText>
+            searchFocused
+              ? styles.searchBoxFocused
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="search"
+            role="customer"
+            size="sm"
+            state={
+              searchFocused
+                ? "active"
+                : "muted"
+            }
+          />
 
-              <AppText
-                center
-                style={
-                  styles.noBrandText
-                }
-              >
-                You can continue with
-                your{" "}
-                {equipmentLabel} and
-                describe the part
-                you need.
-              </AppText>
+          <TextInput
+            value={
+              search
+            }
+            onChangeText={
+              setSearch
+            }
+            onFocus={() =>
+              setSearchFocused(
+                true,
+              )
+            }
+            onBlur={() =>
+              setSearchFocused(
+                false,
+              )
+            }
+            placeholder="Search brand..."
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            selectionColor={
+              CustomerColors.primary
+            }
+            autoCapitalize="words"
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search brand"
+            style={
+              styles.searchInput
+            }
+          />
 
-              <Pressable
-                onPress={
-                  handleOtherBrand
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Continue without brand"
-                style={({
-                  pressed,
-                }) => [
-                  styles.continueButton,
-                  pressed &&
-                    styles.continueButtonPressed,
-                ]}
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.continueButtonText
-                  }
-                >
-                  Continue Without
-                  Brand
-                </AppText>
-
-                <Ionicons
-                  name="arrow-forward"
-                  size={18}
-                  color={
-                    CustomerColors.background
-                  }
-                />
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* SEARCH EMPTY */}
-
-          {brands.length >
-            0 &&
-          filteredBrands.length ===
-            0 ? (
-            <View
-              style={
-                styles.emptyState
-              }
-            >
-              <View
-                style={
-                  styles.emptyIcon
-                }
-              >
-                <Ionicons
-                  name="search-outline"
-                  size={27}
-                  color={
-                    CustomerColors.textSecondary
-                  }
-                />
-              </View>
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.emptyTitle
-                }
-              >
-                Brand not found
-              </AppText>
-
-              <AppText
-                center
-                style={
-                  styles.emptyText
-                }
-              >
-                We can still help
-                you find the right
-                part without
-                selecting a brand.
-              </AppText>
-
-              <Pressable
-                onPress={
-                  handleOtherBrand
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Continue without selecting a brand"
-                style={({
-                  pressed,
-                }) => [
-                  styles.continueButton,
-                  pressed &&
-                    styles.continueButtonPressed,
-                ]}
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.continueButtonText
-                  }
-                >
-                  Continue Without
-                  Brand
-                </AppText>
-
-                <Ionicons
-                  name="arrow-forward"
-                  size={18}
-                  color={
-                    CustomerColors.background
-                  }
-                />
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* DON'T KNOW BRAND */}
-
-          {brands.length >
-          0 ? (
+          {hasSearch ? (
             <Pressable
-              onPress={
-                handleOtherBrand
-              }
               accessibilityRole="button"
-              accessibilityLabel="I don't know the brand"
+              accessibilityLabel="Clear brand search"
+              hitSlop={8}
+              onPress={
+                handleClearSearch
+              }
               style={({
                 pressed,
               }) => [
-                styles.bottomHelp,
-                pressed &&
-                  styles.bottomHelpPressed,
+                styles.searchAction,
+
+                pressed
+                  ? styles.searchActionPressed
+                  : null,
               ]}
             >
-              <View
-                style={
-                  styles.bottomHelpIcon
-                }
-              >
-                <Ionicons
-                  name="help-outline"
-                  size={20}
-                  color="#E87920"
-                />
-              </View>
-
-              <View
-                style={
-                  styles.bottomHelpContent
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.bottomHelpTitle
-                  }
-                >
-                  I don't know the
-                  brand
-                </AppText>
-
-                <AppText
-                  style={
-                    styles.bottomHelpText
-                  }
-                >
-                  That's okay.
-                  Continue and we'll
-                  help you find a
-                  compatible part.
-                </AppText>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={
-                  CustomerColors.textSecondary
-                }
+              <AppIcon
+                name="close"
+                role="customer"
+                size="xs"
+                state="muted"
               />
             </Pressable>
           ) : null}
-        </ScrollView>
+        </View>
+      ) : null}
+
+      {/* ======================================================
+          SECTION
+      ====================================================== */}
+
+      <View
+        style={
+          styles.sectionHeader
+        }
+      >
+        <View
+          style={
+            styles.sectionHeaderText
+          }
+        >
+          <AppText
+            variant="heading3"
+            weight="bold"
+          >
+            {!hasBrandCatalog
+              ? "Brand selection"
+              : hasSearch
+                ? "Search results"
+                : "Available brands"}
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.sectionSubtitle
+            }
+          >
+            {!hasBrandCatalog
+              ? "You can continue without selecting a brand."
+              : `${filteredBrands.length} ${
+                  filteredBrands.length ===
+                  1
+                    ? "brand"
+                    : "brands"
+                } available`}
+          </AppText>
+        </View>
+
+        {hasBrandCatalog ? (
+          <View
+            style={
+              styles.countBadge
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.countText
+              }
+            >
+              {
+                filteredBrands.length
+              }
+            </AppText>
+          </View>
+        ) : null}
       </View>
-    </SafeAreaView>
+    </>
+  );
+
+  /* ============================================================
+     EMPTY STATE
+  ============================================================ */
+
+  const listEmpty =
+    !hasBrandCatalog ? (
+      <AppCard
+        role="customer"
+        variant="accent"
+        style={
+          styles.noBrandCard
+        }
+      >
+        <View
+          style={
+            styles.noBrandIcon
+          }
+        >
+          {/* MaterialCommunityIcons intentionally preserved */}
+          <MaterialCommunityIcons
+            name="tag-off-outline"
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          center
+          style={
+            styles.emptyTitle
+          }
+        >
+          Brand is not required
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.emptyText
+          }
+        >
+          Continue with your{" "}
+          {equipmentLabel}. Fixxam can
+          still help find compatible
+          parts.
+        </AppText>
+
+        <AppButton
+          title="Continue Without Brand"
+          role="customer"
+          onPress={
+            handleOtherBrand
+          }
+          style={
+            styles.continueButton
+          }
+        />
+      </AppCard>
+    ) : !hasSearchResults ? (
+      <View
+        style={
+          styles.emptyState
+        }
+      >
+        <View
+          style={
+            styles.emptySearchIcon
+          }
+        >
+          <AppIcon
+            name="search"
+            role="customer"
+            size="lg"
+            state="muted"
+          />
+        </View>
+
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          center
+          style={
+            styles.emptyTitle
+          }
+        >
+          Brand not found
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.emptyText
+          }
+        >
+          We can still help you find
+          the right part without
+          selecting a brand.
+        </AppText>
+
+        <AppButton
+          title="Continue Without Brand"
+          role="customer"
+          onPress={
+            handleOtherBrand
+          }
+          style={
+            styles.continueButton
+          }
+        />
+      </View>
+    ) : null;
+
+  /* ============================================================
+     FOOTER
+  ============================================================ */
+
+  const listFooter =
+    hasBrandCatalog &&
+    hasSearchResults ? (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="I don't know the brand"
+        onPress={
+          handleOtherBrand
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.bottomHelp,
+
+          pressed
+            ? styles.bottomHelpPressed
+            : null,
+        ]}
+      >
+        <View
+          style={
+            styles.bottomHelpIcon
+          }
+        >
+          <AppIcon
+            name="help"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        </View>
+
+        <View
+          style={
+            styles.bottomHelpContent
+          }
+        >
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+          >
+            I don't know the brand
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.bottomHelpText
+            }
+          >
+            That's okay. Continue and
+            we'll help you find a
+            compatible part.
+          </AppText>
+        </View>
+
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          state="muted"
+        />
+      </Pressable>
+    ) : null;
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
+  return (
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
+      <FlatList
+        data={
+          filteredBrands
+        }
+        keyExtractor={(
+          item,
+        ) =>
+          item.id
+        }
+        renderItem={
+          renderBrand
+        }
+        ItemSeparatorComponent={
+          BrandSeparator
+        }
+        ListHeaderComponent={
+          listHeader
+        }
+        ListEmptyComponent={
+          listEmpty
+        }
+        ListFooterComponent={
+          listFooter
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={8}
+        contentContainerStyle={
+          styles.content
+        }
+        style={
+          styles.screen
+        }
+      />
+    </AppScreen>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F6F8FC",
-  },
+const styles =
+  StyleSheet.create({
+    screen: {
+      flex: 1,
 
-  container: {
-    flex: 1,
-    backgroundColor: "#F6F8FC",
-  },
-
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 34,
-  },
-
-  header: {
-    minHeight: 76,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor:
-      CustomerColors.background,
-    borderWidth: 1,
-    borderColor:
-      CustomerColors.border,
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#0F172A",
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      backgroundColor:
+        Colors.background,
     },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
 
-  backButtonPressed: {
-    opacity: 0.75,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  headerContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-
-  headerTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    color:
-      CustomerColors.textPrimary,
-  },
-
-  headerSubtitle: {
-    marginTop: 2,
-    fontSize: 12.5,
-    lineHeight: 18,
-    color:
-      CustomerColors.textSecondary,
-  },
-
-  helpCard: {
-    minHeight: 100,
-    marginTop: 7,
-    padding: 14,
-    borderRadius: 21,
-    backgroundColor: "#EEF5FF",
-    borderWidth: 1,
-    borderColor: "#D8E7FA",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  helpIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 17,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  helpContent: {
-    flex: 1,
-    marginLeft: 13,
-  },
-
-  helpTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    color:
-      CustomerColors.textPrimary,
-  },
-
-  helpText: {
-    marginTop: 4,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color:
-      CustomerColors.textSecondary,
-  },
-
-  searchBox: {
-    height: 52,
-    marginTop: 14,
-    paddingHorizontal: 14,
-    borderRadius: 17,
-    backgroundColor:
-      CustomerColors.background,
-    borderWidth: 1,
-    borderColor:
-      CustomerColors.border,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  searchInput: {
-    flex: 1,
-    height: "100%",
-    marginLeft: 9,
-    paddingVertical: 0,
-    fontSize: 14,
-    color:
-      CustomerColors.textPrimary,
-  },
-
-  sectionHeader: {
-    marginTop: 22,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
-  },
-
-  sectionHeaderText: {
-    flex: 1,
-    paddingRight: 12,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    lineHeight: 23,
-    color:
-      CustomerColors.textPrimary,
-  },
-
-  sectionSubtitle: {
-    marginTop: 2,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color:
-      CustomerColors.textSecondary,
-  },
-
-  countBadge: {
-    minWidth: 34,
-    height: 34,
-    paddingHorizontal: 8,
-    borderRadius: 17,
-    backgroundColor: "#EAF2FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  countText: {
-    fontSize: 12,
-    color: "#1459C7",
-  },
-
-  list: {
-    gap: 10,
-  },
-
-  brandCard: {
-    minHeight: 82,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderRadius: 20,
-    backgroundColor:
-      CustomerColors.background,
-    borderWidth: 1,
-    borderColor:
-      CustomerColors.border,
-    flexDirection: "row",
-    alignItems: "center",
-
-    shadowColor: "#0F172A",
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
-    shadowOpacity: 0.045,
-    shadowRadius: 8,
-    elevation: 1,
-  },
 
-  brandCardPressed: {
-    opacity: 0.82,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  brandIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor:
-      "rgba(15, 23, 42, 0.04)",
-  },
+    header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
 
-  brandContent: {
-    flex: 1,
-    marginLeft: 13,
-    paddingRight: 8,
-  },
+      flexDirection:
+        "row",
 
-  brandTitle: {
-    fontSize: 15,
-    lineHeight: 20,
-    color:
-      CustomerColors.textPrimary,
-  },
+      alignItems:
+        "center",
 
-  brandDescription: {
-    marginTop: 3,
-    fontSize: 11.5,
-    lineHeight: 17,
-    color:
-      CustomerColors.textSecondary,
-  },
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
 
-  noBrandCard: {
-    marginTop: 4,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    borderRadius: 21,
-    backgroundColor: "#EEF5FF",
-    borderWidth: 1,
-    borderColor: "#D8E7FA",
-    alignItems: "center",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  noBrandIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  noBrandTitle: {
-    marginTop: 11,
-    fontSize: 16,
-    color:
-      CustomerColors.textPrimary,
-  },
+      alignItems:
+        "center",
 
-  noBrandText: {
-    maxWidth: 300,
-    marginTop: 5,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color:
-      CustomerColors.textSecondary,
-  },
+      justifyContent:
+        "center",
 
-  emptyState: {
-    paddingVertical: 30,
-    paddingHorizontal: 20,
-    alignItems: "center",
-  },
+      borderWidth: 1,
 
-  emptyIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 19,
-    backgroundColor: "#EEF2F7",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderColor:
+        Colors.border,
 
-  emptyTitle: {
-    marginTop: 10,
-    fontSize: 15,
-    color:
-      CustomerColors.textPrimary,
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  emptyText: {
-    maxWidth: 290,
-    marginTop: 4,
-    fontSize: 11.5,
-    lineHeight: 18,
-    color:
-      CustomerColors.textSecondary,
-  },
+      backgroundColor:
+        Colors.surface,
 
-  continueButton: {
-    minHeight: 44,
-    marginTop: 14,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    backgroundColor:
-      CustomerColors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  continueButtonPressed: {
-    opacity: 0.8,
-  },
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-  continueButtonText: {
-    fontSize: 11.5,
-    color:
-      CustomerColors.background,
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  bottomHelp: {
-    minHeight: 75,
-    marginTop: 15,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 19,
-    backgroundColor: "#FFF8EF",
-    borderWidth: 1,
-    borderColor: "#F7E5CC",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  bottomHelpPressed: {
-    opacity: 0.8,
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  bottomHelpIcon: {
-    width: 43,
-    height: 43,
-    borderRadius: 14,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    headerContent: {
+      flex: 1,
 
-  bottomHelpContent: {
-    flex: 1,
-    marginLeft: 11,
-    paddingRight: 6,
-  },
+      minWidth: 0,
 
-  bottomHelpTitle: {
-    fontSize: 12.5,
-    lineHeight: 17,
-    color:
-      CustomerColors.textPrimary,
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  bottomHelpText: {
-    marginTop: 2,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color:
-      CustomerColors.textSecondary,
-  },
-});
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       HELP
+    ======================================================== */
+
+    helpCard: {
+      minHeight: 100,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+    },
+
+    helpIcon: {
+      width:
+        FixxamTokens.size.fab,
+
+      height:
+        FixxamTokens.size.fab,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    helpContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    helpText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       SEARCH
+    ======================================================== */
+
+    searchBox: {
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingLeft:
+        FixxamTokens.spacing.md,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    searchBoxFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
+
+    searchInput: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal: 0,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    searchAction: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+    },
+
+    searchActionPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
+
+    /* ========================================================
+       SECTION
+    ======================================================== */
+
+    sectionHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    sectionHeaderText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      paddingRight:
+        FixxamTokens.spacing.md,
+    },
+
+    sectionSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    countBadge: {
+      minWidth: 34,
+
+      height: 34,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    countText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       BRAND CARD
+    ======================================================== */
+
+    brandCard: {
+      minHeight:
+        FixxamTokens.size
+          .roleCardHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    brandCardPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    brandIcon: {
+      width:
+        FixxamTokens.size.fab,
+
+      height:
+        FixxamTokens.size.fab,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    brandContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
+
+    brandDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    separator: {
+      height:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    noBrandCard: {
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.xl,
+    },
+
+    noBrandIcon: {
+      width:
+        FixxamTokens.size.fabLarge,
+
+      height:
+        FixxamTokens.size.fabLarge,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    emptyState: {
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+    },
+
+    emptySearchIcon: {
+      width:
+        FixxamTokens.size.fabLarge,
+
+      height:
+        FixxamTokens.size.fabLarge,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    emptyText: {
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    continueButton: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    /* ========================================================
+       OTHER BRAND
+    ======================================================== */
+
+    bottomHelp: {
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    bottomHelpPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    bottomHelpIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    bottomHelpContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    bottomHelpText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+  });

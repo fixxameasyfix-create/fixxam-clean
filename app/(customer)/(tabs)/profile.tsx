@@ -1,5 +1,7 @@
 import React, {
+  memo,
   useCallback,
+  useMemo,
   useState,
 } from "react";
 
@@ -11,18 +13,36 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
-
-import { signOut } from "firebase/auth";
+import {
+  router,
+} from "expo-router";
 
 import {
+  signOut,
+} from "firebase/auth";
+
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
-import { auth } from "@/firebase/config";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+import {
+  auth,
+} from "@/firebase/config";
 
 import useUserProfile from "@/hooks/auth/useUserProfile";
 import useSwitchRole from "@/hooks/auth/useSwitchRole";
@@ -34,6 +54,59 @@ import CustomerProfile from "@/components/profile/CustomerProfile";
 import AuthRequiredModa from "@/components/auth/AuthRequiredModa";
 
 /* ============================================================
+   TYPES
+============================================================ */
+
+type GuestAccountItem = {
+  icon: AppIconName;
+
+  title: string;
+};
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const GUEST_ACCOUNT_ITEMS: GuestAccountItem[] = [
+  {
+    icon: "profile",
+    title: "Profile",
+  },
+  {
+    icon: "jobs",
+    title: "Orders",
+  },
+  {
+    icon: "heart",
+    title: "Saved",
+  },
+  {
+    icon: "info",
+    title: "Promotions",
+  },
+  {
+    icon: "location",
+    title: "Addresses",
+  },
+  {
+    icon: "payment",
+    title: "Payment Methods",
+  },
+  {
+    icon: "notifications",
+    title: "Notifications",
+  },
+  {
+    icon: "star",
+    title: "Reviews",
+  },
+  {
+    icon: "settings",
+    title: "Settings",
+  },
+];
+
+/* ============================================================
    SCREEN
 ============================================================ */
 
@@ -41,16 +114,44 @@ export default function CustomerProfileScreen() {
   const {
     profile,
     loading,
-  } = useUserProfile();
+  } =
+    useUserProfile();
 
   const {
     switchRole,
-  } = useSwitchRole();
+  } =
+    useSwitchRole();
 
   const [
     authModaVisible,
     setAuthModaVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  /* ==========================================================
+     PROFILE STATE
+  ========================================================== */
+
+  const hasWorkerAccount =
+    profile?.roles?.includes(
+      "worker",
+    ) ?? false;
+
+  const profileName =
+    useMemo(() => {
+      if (!profile) {
+        return "";
+      }
+
+      return [
+        profile.firstName,
+        profile.otherName,
+        profile.surname,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    }, [profile]);
 
   /* ==========================================================
      AUTH MODAL
@@ -58,7 +159,9 @@ export default function CustomerProfileScreen() {
 
   const handleCloseAuthModal =
     useCallback(() => {
-      setAuthModaVisible(false);
+      setAuthModaVisible(
+        false,
+      );
     }, []);
 
   /* ==========================================================
@@ -79,12 +182,15 @@ export default function CustomerProfileScreen() {
   const handleWorker =
     useCallback(async () => {
       if (!profile) {
-        setAuthModaVisible(true);
+        setAuthModaVisible(
+          true,
+        );
+
         return;
       }
 
       if (
-        profile.roles.includes(
+        profile.roles?.includes(
           "worker",
         )
       ) {
@@ -155,22 +261,54 @@ export default function CustomerProfileScreen() {
     }, []);
 
   /* ==========================================================
+     LOGIN
+  ========================================================== */
+
+  const handleLogin =
+    useCallback(() => {
+      router.push(
+        "/(auth)/login" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     SIGN UP
+  ========================================================== */
+
+  const handleSignup =
+    useCallback(() => {
+      router.push(
+        "/(auth)/customer-signup" as never,
+      );
+    }, []);
+
+  /* ==========================================================
      LOGOUT
   ========================================================== */
 
   const handleLogout =
     useCallback(async () => {
       try {
-        await signOut(auth);
+        await signOut(
+          auth,
+        );
 
         router.replace(
           "/(auth)/login" as never,
         );
       } catch (error) {
         console.error(
-          "CUSTOMER LOGOUT ERROR:",
+          "CUSTOMER_LOGOUT_ERROR:",
           error,
         );
+
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to log out",
+          text2:
+            "Please try again.",
+        });
       }
     }, []);
 
@@ -180,7 +318,10 @@ export default function CustomerProfileScreen() {
 
   if (loading) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <View
           style={
             styles.loadingContainer
@@ -188,10 +329,14 @@ export default function CustomerProfileScreen() {
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -209,11 +354,15 @@ export default function CustomerProfileScreen() {
 
   if (!profile) {
     return (
-      <AppScreen>
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
         <ScrollView
           showsVerticalScrollIndicator={
             false
           }
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={
             styles.guestContent
           }
@@ -232,10 +381,11 @@ export default function CustomerProfileScreen() {
                 styles.guestAvatar
               }
             >
-              <Ionicons
-                name="person-outline"
-                size={30}
-                color="#64748B"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="lg"
+                state="muted"
               />
             </View>
 
@@ -245,6 +395,7 @@ export default function CustomerProfileScreen() {
               }
             >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 style={
                   styles.guestName
@@ -254,18 +405,19 @@ export default function CustomerProfileScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.guestStatus
                 }
               >
-                Sign in to manage your
-                account
+                Sign in to manage your account
               </AppText>
             </View>
           </View>
 
           {/* ==================================================
-              AUTH
+              ACCOUNT ACCESS
           ================================================== */}
 
           <View
@@ -283,10 +435,13 @@ export default function CustomerProfileScreen() {
                   styles.authCardIcon
                 }
               >
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={19}
-                  color="#2563EB"
+                <AppIcon
+                  name="lock"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
                 />
               </View>
 
@@ -296,6 +451,7 @@ export default function CustomerProfileScreen() {
                 }
               >
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
                   style={
                     styles.authCardTitle
@@ -305,12 +461,13 @@ export default function CustomerProfileScreen() {
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.authCardDescription
                   }
                 >
-                  Login to access your
-                  personal profile.
+                  Login to access your personal profile.
                 </AppText>
               </View>
             </View>
@@ -318,28 +475,32 @@ export default function CustomerProfileScreen() {
             {/* LOGIN */}
 
             <Pressable
-              onPress={() =>
-                router.push(
-                  "/(auth)/login" as never,
-                )
+              onPress={
+                handleLogin
               }
+              accessibilityRole="button"
+              accessibilityLabel="Login to Fixxam"
               style={({
                 pressed,
               }) => [
                 styles.loginButton,
-                pressed &&
-                  styles.buttonPressed,
+
+                pressed
+                  ? styles.buttonPressed
+                  : null,
               ]}
-              accessibilityRole="button"
-              accessibilityLabel="Login to Fixxam"
             >
-              <Ionicons
-                name="log-in-outline"
-                size={19}
-                color="#FFFFFF"
+              <AppIcon
+                name="lock"
+                role="customer"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.loginButtonText
@@ -352,28 +513,32 @@ export default function CustomerProfileScreen() {
             {/* SIGN UP */}
 
             <Pressable
-              onPress={() =>
-                router.push(
-                  "/(auth)/customer-signup" as never,
-                )
+              onPress={
+                handleSignup
               }
+              accessibilityRole="button"
+              accessibilityLabel="Create a Fixxam customer account"
               style={({
                 pressed,
               }) => [
                 styles.signupButton,
-                pressed &&
-                  styles.signupPressed,
+
+                pressed
+                  ? styles.signupPressed
+                  : null,
               ]}
-              accessibilityRole="button"
-              accessibilityLabel="Create a Fixxam account"
             >
-              <Ionicons
-                name="person-add-outline"
-                size={19}
-                color="#2563EB"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
               />
 
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.signupButtonText
@@ -394,6 +559,7 @@ export default function CustomerProfileScreen() {
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.sectionTitle
@@ -402,50 +568,21 @@ export default function CustomerProfileScreen() {
               My Account
             </AppText>
 
-            <GuestProfileRow
-              icon="person-outline"
-              title="Profile"
-            />
-
-            <GuestProfileRow
-              icon="receipt-outline"
-              title="Orders"
-            />
-
-            <GuestProfileRow
-              icon="bookmark-outline"
-              title="Saved"
-            />
-
-            <GuestProfileRow
-              icon="pricetag-outline"
-              title="Promotions"
-            />
-
-            <GuestProfileRow
-              icon="location-outline"
-              title="Addresses"
-            />
-
-            <GuestProfileRow
-              icon="card-outline"
-              title="Payment Methods"
-            />
-
-            <GuestProfileRow
-              icon="notifications-outline"
-              title="Notifications"
-            />
-
-            <GuestProfileRow
-              icon="star-outline"
-              title="Reviews"
-            />
-
-            <GuestProfileRow
-              icon="settings-outline"
-              title="Settings"
-            />
+            {GUEST_ACCOUNT_ITEMS.map(
+              (item) => (
+                <GuestProfileRow
+                  key={
+                    item.title
+                  }
+                  icon={
+                    item.icon
+                  }
+                  title={
+                    item.title
+                  }
+                />
+              ),
+            )}
           </View>
 
           {/* ==================================================
@@ -456,25 +593,31 @@ export default function CustomerProfileScreen() {
             onPress={
               handleWorker
             }
+            accessibilityRole="button"
+            accessibilityLabel="Become a Fixxam worker"
+            accessibilityHint="Opens worker account registration"
             style={({
               pressed,
             }) => [
               styles.workerCard,
-              pressed &&
-                styles.workerCardPressed,
+
+              pressed
+                ? styles.workerCardPressed
+                : null,
             ]}
-            accessibilityRole="button"
-            accessibilityLabel="Become a Fixxam worker"
           >
             <View
               style={
                 styles.workerIcon
               }
             >
-              <Ionicons
-                name="construct-outline"
-                size={22}
-                color="#F97316"
+              <AppIcon
+                name="service"
+                role="worker"
+                size="md"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
 
@@ -484,6 +627,7 @@ export default function CustomerProfileScreen() {
               }
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.workerTitle
@@ -493,20 +637,20 @@ export default function CustomerProfileScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.workerDescription
                 }
               >
-                Offer your professional
-                services and connect with
-                customers.
+                Offer your professional services and connect with customers.
               </AppText>
             </View>
 
-            <Ionicons
-              name="chevron-forward"
-              size={19}
-              color="#94A3B8"
+            <AppIcon
+              name="next"
+              size="sm"
+              state="muted"
             />
           </Pressable>
         </ScrollView>
@@ -530,7 +674,10 @@ export default function CustomerProfileScreen() {
   ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
@@ -549,13 +696,9 @@ export default function CustomerProfileScreen() {
           }
         >
           <CustomerProfileHeader
-            name={[
-              profile.firstName,
-              profile.otherName,
-              profile.surname,
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            name={
+              profileName
+            }
             phone={
               profile.phone
             }
@@ -614,6 +757,7 @@ export default function CustomerProfileScreen() {
           }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             style={
               styles.menuTitle
@@ -624,47 +768,33 @@ export default function CustomerProfileScreen() {
 
           <CustomerProfile
             hasWorkerAccount={
-              profile.roles.includes(
-                "worker",
-              )
+              hasWorkerAccount
             }
-
             onBecomeWorker={
               handleWorker
             }
-
             onSwitchWorker={
               handleWorker
             }
-
             onProfile={
               handleProfile
             }
-
             onActivity={
               handleActivity
             }
-
             onSaved={() => {}}
-
             onAddresses={() => {}}
-
             onPayments={() => {}}
-
             onNotifications={
               handleNotifications
             }
-
             onReviews={() => {}}
-
             onSupport={
               handleSupport
             }
-
             onSettings={
               handleSettings
             }
-
             onLogout={
               handleLogout
             }
@@ -679,53 +809,66 @@ export default function CustomerProfileScreen() {
    GUEST PROFILE ROW
 ============================================================ */
 
-function GuestProfileRow({
-  icon,
-  title,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-}) {
-  return (
-    <View
-      style={
-        styles.guestRow
-      }
-    >
-      <View
-        style={
-          styles.guestRowIcon
-        }
-      >
-        <Ionicons
-          name={icon}
-          size={18}
-          color="#64748B"
-        />
-      </View>
+const GuestProfileRow =
+  memo(
+    function GuestProfileRow({
+      icon,
+      title,
+    }: {
+      icon: AppIconName;
 
-      <AppText
-        style={
-          styles.guestRowTitle
-        }
-      >
-        {title}
-      </AppText>
+      title: string;
+    }) {
+      return (
+        <View
+          style={
+            styles.guestRow
+          }
+        >
+          <View
+            style={
+              styles.guestRowIcon
+            }
+          >
+            <AppIcon
+              name={icon}
+              size="sm"
+              state="muted"
+            />
+          </View>
 
-      <Ionicons
-        name="lock-closed-outline"
-        size={14}
-        color="#94A3B8"
-      />
+          <AppText
+            variant="body"
+            style={
+              styles.guestRowTitle
+            }
+          >
+            {title}
+          </AppText>
 
-      <Ionicons
-        name="chevron-forward"
-        size={17}
-        color="#CBD5E1"
-      />
-    </View>
+          <AppIcon
+            name="lock"
+            size="xs"
+            state="muted"
+          />
+
+          <View
+            style={
+              styles.guestRowArrow
+            }
+          >
+            <AppIcon
+              name="next"
+              size="xs"
+              color={
+                Colors.disabled
+              }
+            />
+          </View>
+        </View>
+      );
+    },
   );
-}
 
 /* ============================================================
    STYLES
@@ -733,191 +876,365 @@ function GuestProfileRow({
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     content: {
-      paddingHorizontal: 12,
-      paddingTop: 4,
-      paddingBottom: 28,
-    },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    loadingContainer: {
-      flex: 1,
-      minHeight: 300,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+      paddingTop:
+        FixxamTokens.spacing.xs,
 
-    loadingText: {
-      marginTop: 8,
-      fontSize: 12,
-      color: "#64748B",
-    },
-
-    profileCard: {
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-      overflow: "hidden",
-    },
-
-    statsCard: {
-      marginTop: 8,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-      overflow: "hidden",
-    },
-
-    menuSection: {
-      marginTop: 8,
-    },
-
-    menuTitle: {
-      marginLeft: 3,
-      marginBottom: 5,
-      fontSize: 13,
-      color: "#0F172A",
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ========================================================
-       GUEST
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
+      flex: 1,
+
+      minHeight: 300,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       AUTHENTICATED PROFILE
+    ======================================================== */
+
+    profileCard: {
+      overflow:
+        "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    statsCard: {
+      overflow:
+        "hidden",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    menuSection: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    menuTitle: {
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       GUEST CONTENT
     ======================================================== */
 
     guestContent: {
-      paddingHorizontal: 12,
-      paddingTop: 4,
-      paddingBottom: 28,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
+    /* ========================================================
+       GUEST PROFILE
+    ======================================================== */
+
     guestProfileCard: {
-      marginTop: 6,
-      padding: 12,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     guestAvatar: {
-      width: 58,
-      height: 58,
-      borderRadius: 18,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     guestProfileContent: {
       flex: 1,
-      marginLeft: 11,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     guestName: {
-      fontSize: 16,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     guestStatus: {
-      marginTop: 3,
-      fontSize: 10.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
-       AUTH
+       AUTH CARD
     ======================================================== */
 
     authCard: {
-      marginTop: 8,
-      padding: 12,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     authCardHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     authCardIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     authCardHeaderText: {
       flex: 1,
-      marginLeft: 10,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     authCardTitle: {
-      fontSize: 13,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     authCardDescription: {
-      marginTop: 2,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
     },
 
+    /* ========================================================
+       LOGIN
+    ======================================================== */
+
     loginButton: {
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
+      minHeight:
+        FixxamTokens.size.buttonSmallHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     loginButtonText: {
-      fontSize: 13,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
+    /* ========================================================
+       SIGNUP
+    ======================================================== */
+
     signupButton: {
-      marginTop: 7,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1.5,
-      borderColor: "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
+      minHeight:
+        FixxamTokens.size.buttonSmallHeight,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     signupButtonText: {
-      fontSize: 13,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     buttonPressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     signupPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
@@ -927,96 +1244,184 @@ const styles =
     ======================================================== */
 
     sectionCard: {
-      marginTop: 8,
-      paddingTop: 11,
-      paddingBottom: 2,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
+      overflow:
+        "hidden",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxs,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      overflow: "hidden",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     sectionTitle: {
-      paddingHorizontal: 12,
-      marginBottom: 4,
-      fontSize: 13,
-      color: "#0F172A",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     guestRow: {
       minHeight: 52,
-      marginHorizontal: 10,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderTopWidth: 1,
-      borderTopColor: "#F1F5F9",
-      flexDirection: "row",
-      alignItems: "center",
+
+      borderTopColor:
+        Colors.divider,
     },
 
     guestRowIcon: {
       width: 36,
+
       height: 36,
-      borderRadius: 11,
-      backgroundColor: "#F8FAFC",
-      alignItems: "center",
-      justifyContent: "center",
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     guestRowTitle: {
       flex: 1,
-      marginLeft: 10,
-      fontSize: 12.5,
-      color: "#1E293B",
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    guestRowArrow: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
     },
 
     /* ========================================================
-       WORKER
+       WORKER CTA
     ======================================================== */
 
     workerCard: {
-      marginTop: 8,
-      padding: 12,
-      borderRadius: 17,
-      backgroundColor: "#FFF7ED",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#FED7AA",
-      flexDirection: "row",
-      alignItems: "center",
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     workerCardPressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
     workerIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     workerContent: {
       flex: 1,
-      marginLeft: 10,
-      marginRight: 7,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     workerTitle: {
-      fontSize: 14,
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     workerDescription: {
-      marginTop: 2,
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
     },
   });

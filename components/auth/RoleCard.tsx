@@ -1,138 +1,207 @@
-import React from "react";
+import React, { memo } from "react";
+
 import {
-  View,
-  TouchableOpacity,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { Text } from "react-native";
+import AppCard from "@/components/ui/AppCard";
+import AppIcon from "@/components/ui/AppIcon";
+import type { AppIconName } from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+export interface RoleCardProps {
   title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  onPress: () => void;
-};
 
-export default function RoleCard({
+  description: string;
+
+  icon: AppIconName;
+
+  role?: FixxamRole;
+
+  selected?: boolean;
+
+  onPress: () => void;
+
+  /*
+   * Legacy support.
+   * New code should use role instead.
+   */
+  color?: string;
+}
+
+function RoleCard({
   title,
   description,
   icon,
-  color,
+  role = "customer",
+  selected = false,
   onPress,
-}: Props) {
+  color,
+}: RoleCardProps) {
+  const roleColors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const accentColor =
+    color ?? roleColors.primary;
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
+    <AppCard
+      role={role}
+      variant={
+        selected
+          ? "accent"
+          : "default"
+      }
       onPress={onPress}
-      style={[
-        styles.card,
-        {
-          borderColor: color,
-        },
-      ]}
+      accessibilityLabel={`${title}. ${description}`}
+      style={styles.card}
     >
-      
-     <View style={styles.left}>
-  <View
-    style={[
-      styles.iconContainer,
-      {
-        backgroundColor: `${color}15`,
-      },
-    ]}
-  >
-    <Ionicons
-  name={icon}
-  size={20}
-  color={color}
-/>
-  </View>
+      <View style={styles.content}>
+        <View style={styles.left}>
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                backgroundColor:
+                  roleColors.primarySoft,
+              },
+            ]}
+          >
+            <AppIcon
+              name={icon}
+              role={role}
+              size="md"
+              color={accentColor}
+              strokeWidth="medium"
+            />
+          </View>
 
-  <View style={styles.textContainer}>
-  <Text style={styles.title}>
-    {title}
-  </Text>
+          <View style={styles.textContainer}>
+            <AppText
+              variant="bodyLarge"
+              weight="semibold"
+              numberOfLines={1}
+            >
+              {title}
+            </AppText>
 
-  <Text style={styles.description}>
-    {description}
-  </Text>
-</View>
-</View>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={2}
+              style={styles.description}
+            >
+              {description}
+            </AppText>
+          </View>
+        </View>
 
-<Ionicons
-  name="chevron-forward"
-  size={20}
-  color={color}
-  style={styles.arrow}
-/>
-
-    </TouchableOpacity>
-   )
-   };
-
+        {selected ? (
+          <View
+            style={[
+              styles.selectedIcon,
+              {
+                backgroundColor:
+                  roleColors.primary,
+              },
+            ]}
+          >
+            <AppIcon
+              name="check"
+              role={role}
+              size="xs"
+              color={roleColors.white}
+              strokeWidth="strong"
+            />
+          </View>
+        ) : (
+          <AppIcon
+            name="next"
+            role={role}
+            size="sm"
+            color={accentColor}
+            strokeWidth="medium"
+          />
+        )}
+      </View>
+    </AppCard>
+  );
+}
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#FFFFFF",
+    minHeight:
+      FixxamTokens.size.roleCardHeight,
 
-    height: 82,
+    padding:
+      FixxamTokens.spacing.md,
+  },
 
-    borderWidth: 1,
-    borderRadius: 16,
-    borderColor: "#E5E7EB",
-
-    paddingHorizontal: 14,
-
+  content: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
 
   left: {
+    flex: 1,
+
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+
+    minWidth: 0,
   },
 
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width:
+      FixxamTokens.size.iconBox,
 
-    justifyContent: "center",
+    height:
+      FixxamTokens.size.iconBox,
+
     alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.iconButton,
   },
 
   textContainer: {
     flex: 1,
-    marginLeft: 12,
-  },
+    minWidth: 0,
 
-  title: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
+    marginLeft:
+      FixxamTokens.spacing.md,
   },
 
   description: {
-    fontSize: 13,
-    color: "#6B7280",
-    marginTop: 2,
+    marginTop:
+      FixxamTokens.spacing.xxs,
   },
 
-  arrow: {
-    marginLeft: 10,
+  selectedIcon: {
+    width: 28,
+    height: 28,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
   },
 });
+
+export default memo(RoleCard);

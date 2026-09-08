@@ -1,44 +1,112 @@
-import React from "react";
+import React, {
+  memo,
+  type ReactNode,
+} from "react";
 
-import { View, StyleSheet } from "react-native";
+import {
+  StyleProp,
+  StyleSheet,
+  View,
+  ViewStyle,
+} from "react-native";
 
-import { AppText } from "@/components/ui";
-import { Spacing } from "@/theme";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import { FixxamTokens } from "@/theme";
+
+export interface SectionHeaderProps {
   title: string;
-  subtitle?: string;
-};
 
-export default function SectionHeader({
+  subtitle?: string;
+
+  rightComponent?: ReactNode;
+
+  style?: StyleProp<ViewStyle>;
+
+  /*
+   * Controls spacing below the header.
+   */
+  withBottomSpacing?: boolean;
+}
+
+function SectionHeader({
   title,
   subtitle,
-}: Props) {
+  rightComponent,
+  style,
+  withBottomSpacing = true,
+}: SectionHeaderProps) {
   return (
-    <View style={styles.container}>
-      <AppText size="xl" weight="bold">
-        {title}
-      </AppText>
+    <View
+      style={[
+        styles.container,
 
-      {subtitle && (
+        withBottomSpacing
+          ? styles.bottomSpacing
+          : null,
+
+        style,
+      ]}
+    >
+      <View style={styles.textContainer}>
         <AppText
-          size="sm"
-          color="#64748B"
-          style={styles.subtitle}
+          variant="heading3"
+          numberOfLines={2}
         >
-          {subtitle}
+          {title}
         </AppText>
-      )}
+
+        {subtitle ? (
+          <AppText
+            variant="body"
+            tone="secondary"
+            numberOfLines={3}
+            style={styles.subtitle}
+          >
+            {subtitle}
+          </AppText>
+        ) : null}
+      </View>
+
+      {rightComponent ? (
+        <View style={styles.right}>
+          {rightComponent}
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Spacing.lg,
+    width: "100%",
+
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+
+  bottomSpacing: {
+    marginBottom:
+      FixxamTokens.spacing.md,
+  },
+
+  textContainer: {
+    flex: 1,
+    minWidth: 0,
   },
 
   subtitle: {
-    marginTop: 4,
+    marginTop:
+      FixxamTokens.spacing.xs,
+  },
+
+  right: {
+    flexShrink: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
   },
 });
+
+export default memo(SectionHeader);

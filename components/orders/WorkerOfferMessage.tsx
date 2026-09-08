@@ -1,53 +1,134 @@
-import React, { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+} from "react";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   message?: string | null;
 };
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 function WorkerOfferMessage({
   message,
 }: Props) {
-  if (!message?.trim()) {
+  const safeMessage =
+    typeof message === "string"
+      ? message.trim()
+      : "";
+
+  if (!safeMessage) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
-      <Ionicons
-        name="chatbubble-ellipses-outline"
-        size={17}
-        color="#64748B"
-      />
+    <View
+      style={styles.container}
+    >
+      <View
+        style={styles.iconContainer}
+      >
+        <AppIcon
+          name="messages"
+          size="xs"
+          color={
+            Colors.textSecondary
+          }
+        />
+      </View>
 
-      <AppText style={styles.message}>
-        "{message.trim()}"
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={styles.message}
+      >
+        “{safeMessage}”
       </AppText>
     </View>
   );
 }
 
-export default memo(WorkerOfferMessage);
+export default memo(
+  WorkerOfferMessage,
+);
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 10,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  message: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#475569",
-  },
-});
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    iconContainer: {
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    message: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 17,
+    },
+  });

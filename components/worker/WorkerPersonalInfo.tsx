@@ -1,5 +1,11 @@
-import React from "react";
-import { StyleSheet } from "react-native";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
+import {
+  StyleSheet,
+} from "react-native";
 
 import {
   AppCard,
@@ -7,17 +13,46 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   firstName: string;
+
   surname: string;
+
   otherName: string;
 
-  setFirstName: (value: string) => void;
-  setSurname: (value: string) => void;
-  setOtherName: (value: string) => void;
+  setFirstName: (
+    value: string,
+  ) => void;
+
+  setSurname: (
+    value: string,
+  ) => void;
+
+  setOtherName: (
+    value: string,
+  ) => void;
 };
 
-export default function WorkerPersonalInfo({
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_NAME_LENGTH = 20;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerPersonalInfo({
   firstName,
   surname,
   otherName,
@@ -25,98 +60,192 @@ export default function WorkerPersonalInfo({
   setSurname,
   setOtherName,
 }: Props) {
+  const handleFirstNameChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setFirstName(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [setFirstName],
+    );
+
+  const handleSurnameChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setSurname(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [setSurname],
+    );
+
+  const handleOtherNameChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setOtherName(
+          value.slice(
+            0,
+            MAX_NAME_LENGTH,
+          ),
+        );
+      },
+      [setOtherName],
+    );
+
   return (
-    <AppCard style={styles.card}>
-      {/* HEADER */}
+    <AppCard
+      role="worker"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ==================================================
+          HEADER
+      ================================================== */}
 
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         What's your full name?
       </AppText>
 
-      <AppText style={styles.subtitle}>
-        Enter your name as you'd like it to
-        appear on your Fixxam worker profile.
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Enter your name as you'd like it to appear on your Fixxam worker profile.
       </AppText>
 
-      {/* FIRST NAME */}
+      {/* ==================================================
+          FIRST NAME
+      ================================================== */}
 
       <AppInput
         label="First name *"
         placeholder="Enter your first name"
-        value={firstName}
-        onChangeText={(value) =>
-          setFirstName(
-            value.slice(0, 20),
-          )
+        value={
+          firstName
+        }
+        onChangeText={
+          handleFirstNameChange
         }
         variant="worker"
       />
 
-      {/* SURNAME */}
+      {/* ==================================================
+          SURNAME
+      ================================================== */}
 
       <AppInput
         label="Surname *"
         placeholder="Enter your surname"
-        value={surname}
-        onChangeText={(value) =>
-          setSurname(
-            value.slice(0, 20),
-          )
+        value={
+          surname
+        }
+        onChangeText={
+          handleSurnameChange
         }
         variant="worker"
       />
 
-      {/* OTHER NAME */}
+      {/* ==================================================
+          OTHER NAME
+      ================================================== */}
 
       <AppInput
         label="Other name"
         placeholder="Optional"
-        value={otherName}
-        onChangeText={(value) =>
-          setOtherName(
-            value.slice(0, 20),
-          )
+        value={
+          otherName
+        }
+        onChangeText={
+          handleOtherNameChange
         }
         variant="worker"
       />
 
-      <AppText style={styles.hint}>
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.hint
+        }
+      >
         Other name is optional.
       </AppText>
     </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 4,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 18,
-  },
+export default memo(
+  WorkerPersonalInfo,
+);
 
-  title: {
-    fontSize: 20,
-    lineHeight: 26,
-    color: "#0F172A",
-    marginBottom: 4,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  subtitle: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-    marginBottom: 18,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-  hint: {
-    fontSize: 11,
-    lineHeight: 16,
-    color: "#64748B",
-    marginTop: -2,
-  },
-});
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    hint: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

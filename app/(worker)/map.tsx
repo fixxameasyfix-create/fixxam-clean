@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -7,8 +8,6 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -18,7 +17,9 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import MapView, {
   Marker,
@@ -27,26 +28,43 @@ import MapView, {
 } from "react-native-maps";
 
 import {
+  onAuthStateChanged,
+} from "firebase/auth";
+
+import {
   doc,
   onSnapshot,
 } from "firebase/firestore";
 
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  AppLoader,
+} from "@/components/common";
 
 import {
   auth,
   db,
 } from "@/firebase/config";
 
-/* ============================================================
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Coordinate = {
   latitude: number;
+
   longitude: number;
 };
 
@@ -54,9 +72,19 @@ type LiveLocation = Coordinate & {
   updatedAt?: unknown;
 };
 
+type FirestoreCoordinate = {
+  latitude?: number | null;
+
+  longitude?: number | null;
+
+  updatedAt?: unknown;
+};
+
 type BookingLocation = {
   latitude?: number | null;
+
   longitude?: number | null;
+
   address?: string | null;
 };
 
@@ -71,198 +99,329 @@ type BookingData = {
 
   longitude?: number | null;
 
-  location?: BookingLocation | null;
+  location?:
+    | BookingLocation
+    | null;
 
-  liveLocation?: {
-    latitude?: number | null;
-    longitude?: number | null;
-    updatedAt?: unknown;
-  } | null;
+  /*
+   * Current booking schema.
+   */
+  workerLiveLocation?:
+    | FirestoreCoordinate
+    | null;
+
+  /*
+   * Legacy compatibility.
+   */
+  liveLocation?:
+    | FirestoreCoordinate
+    | null;
 
   status?: string;
 };
 
-/* ============================================================
+type RouteParams = {
+  orderId?:
+    | string
+    | string[];
+};
+
+type MapStateProps = {
+  icon:
+    | "lock"
+    | "location"
+    | "error";
+
+  title: string;
+
+  description: string;
+
+  onBack: () => void;
+};
+
+/* ==============================================================
    HELPERS
-============================================================ */
+============================================================== */
 
 function resolveParam(
-  value: string | string[] | undefined,
+  value:
+    | string
+    | string[]
+    | undefined,
 ): string {
-  if (typeof value === "string") {
+  if (
+    typeof value ===
+    "string"
+  ) {
     return value.trim();
   }
 
-  if (Array.isArray(value)) {
-    return value[0]?.trim() || "";
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0]?.trim() ??
+      ""
+    );
   }
 
   return "";
 }
 
-function isValidCoordinate(
+function safeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function createCoordinate(
   latitude: unknown,
   longitude: unknown,
-): latitude is number {
-  return (
-    typeof latitude === "number" &&
-    Number.isFinite(latitude) &&
-    latitude >= -90 &&
-    latitude <= 90 &&
-    typeof longitude === "number" &&
-    Number.isFinite(longitude) &&
-    longitude >= -180 &&
-    longitude <= 180
-  );
-}
-
-function getCustomerCoordinate(
-  data: BookingData,
 ): Coordinate | null {
-  const directLatitude =
-    data.latitude;
-
-  const directLongitude =
-    data.longitude;
-
   if (
-    isValidCoordinate(
-      directLatitude,
-      directLongitude,
-    )
-  ) {
-    return {
-      latitude: directLatitude,
-      longitude:
-        directLongitude as number,
-    };
-  }
-
-  const nestedLatitude =
-    data.location?.latitude;
-
-  const nestedLongitude =
-    data.location?.longitude;
-
-  if (
-    isValidCoordinate(
-      nestedLatitude,
-      nestedLongitude,
-    )
-  ) {
-    return {
-      latitude: nestedLatitude,
-      longitude:
-        nestedLongitude as number,
-    };
-  }
-
-  return null;
-}
-
-function getWorkerLiveLocation(
-  data: BookingData,
-): LiveLocation | null {
-  const latitude =
-    data.liveLocation?.latitude;
-
-  const longitude =
-    data.liveLocation?.longitude;
-
-  if (
-    !isValidCoordinate(
+    typeof latitude !==
+      "number" ||
+    !Number.isFinite(
       latitude,
+    ) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    typeof longitude !==
+      "number" ||
+    !Number.isFinite(
       longitude,
-    )
+    ) ||
+    longitude < -180 ||
+    longitude > 180
   ) {
     return null;
   }
 
   return {
     latitude,
-    longitude:
-      longitude as number,
-    updatedAt:
-      data.liveLocation
-        ?.updatedAt,
+
+    longitude,
   };
 }
 
-/* ============================================================
+function getCustomerCoordinate(
+  data: BookingData,
+): Coordinate | null {
+  const direct =
+    createCoordinate(
+      data.latitude,
+      data.longitude,
+    );
+
+  if (direct) {
+    return direct;
+  }
+
+  return createCoordinate(
+    data.location?.latitude,
+    data.location?.longitude,
+  );
+}
+
+function getWorkerLiveLocation(
+  data: BookingData,
+): LiveLocation | null {
+  const source =
+    data.workerLiveLocation ??
+    data.liveLocation;
+
+  if (!source) {
+    return null;
+  }
+
+  const coordinate =
+    createCoordinate(
+      source.latitude,
+      source.longitude,
+    );
+
+  if (!coordinate) {
+    return null;
+  }
+
+  return {
+    ...coordinate,
+
+    updatedAt:
+      source.updatedAt,
+  };
+}
+
+function getBookingAddress(
+  data: BookingData,
+): string {
+  return (
+    safeString(
+      data.address,
+    ) ||
+    safeString(
+      data.location?.address,
+    )
+  );
+}
+
+/* ==============================================================
    SCREEN
-============================================================ */
+============================================================== */
 
 export default function WorkerMapScreen() {
+  const insets =
+    useSafeAreaInsets();
+
   const params =
-    useLocalSearchParams<{
-      orderId?: string | string[];
-    }>();
+    useLocalSearchParams<RouteParams>();
 
-  const orderId = useMemo(
-    () =>
-      resolveParam(
+  const orderId =
+    useMemo(
+      () =>
+        resolveParam(
+          params.orderId,
+        ),
+      [
         params.orderId,
-      ),
-    [params.orderId],
-  );
+      ],
+    );
 
-  /* ==========================================================
-     STATE
-  ========================================================== */
+  /* ============================================================
+     AUTH
+  ============================================================ */
+
+  const [
+    authReady,
+    setAuthReady,
+  ] =
+    useState(false);
+
+  const [
+    userId,
+    setUserId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  /* ============================================================
+     LOCATION STATE
+  ============================================================ */
 
   const [
     customerLocation,
     setCustomerLocation,
-  ] = useState<Coordinate | null>(
-    null,
-  );
+  ] =
+    useState<
+      Coordinate | null
+    >(null);
 
   const [
     workerLocation,
     setWorkerLocation,
-  ] = useState<LiveLocation | null>(
-    null,
-  );
+  ] =
+    useState<
+      LiveLocation | null
+    >(null);
 
   const [
     address,
     setAddress,
-  ] = useState("");
+  ] =
+    useState("");
+
+  /* ============================================================
+     UI STATE
+  ============================================================ */
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<
+      string | null
+    >(null);
 
   const [
     mapReady,
     setMapReady,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  /* ==========================================================
+  /* ============================================================
      MAP REF
-  ========================================================== */
+  ============================================================ */
 
   const mapRef =
-    useRef<MapView | null>(null);
+    useRef<MapView | null>(
+      null,
+    );
 
-  /* ==========================================================
-     FIRESTORE LISTENER
-  ========================================================== */
+  /* ============================================================
+     AUTH LISTENER
+  ============================================================ */
 
   useEffect(() => {
-    const currentUser =
-      auth.currentUser;
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        user => {
+          const uid =
+            user?.uid?.trim() ??
+            "";
 
-    if (!currentUser) {
-      setLoading(false);
+          setUserId(
+            uid || null,
+          );
+
+          setAuthReady(
+            true,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, []);
+
+  /* ============================================================
+     FIRESTORE BOOKING LISTENER
+  ============================================================ */
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    setCustomerLocation(
+      null,
+    );
+
+    setWorkerLocation(
+      null,
+    );
+
+    setAddress(
+      "",
+    );
+
+    setError(
+      null,
+    );
+
+    if (!userId) {
+      setLoading(
+        false,
+      );
 
       setError(
         "Please sign in to view this location.",
@@ -272,7 +431,9 @@ export default function WorkerMapScreen() {
     }
 
     if (!orderId) {
-      setLoading(false);
+      setLoading(
+        false,
+      );
 
       setError(
         "This order could not be found.",
@@ -281,27 +442,42 @@ export default function WorkerMapScreen() {
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
-    const bookingRef = doc(
-      db,
-      "bookings",
-      orderId,
+    setLoading(
+      true,
     );
+
+    const bookingRef =
+      doc(
+        db,
+        "bookings",
+        orderId,
+      );
 
     const unsubscribe =
       onSnapshot(
         bookingRef,
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
+            setCustomerLocation(
+              null,
+            );
 
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setCustomerLocation(null);
-            setWorkerLocation(null);
-            setLoading(false);
+            setWorkerLocation(
+              null,
+            );
+
+            setAddress(
+              "",
+            );
 
             setError(
               "This order no longer exists.",
+            );
+
+            setLoading(
+              false,
             );
 
             return;
@@ -310,36 +486,52 @@ export default function WorkerMapScreen() {
           const data =
             snapshot.data() as BookingData;
 
-          /* ==================================================
-             ACCESS CHECK
-          ================================================== */
+          /* ================================================
+             ACCESS
+          ================================================ */
 
           const isCustomer =
-            data.customerId ===
-            currentUser.uid;
+            safeString(
+              data.customerId,
+            ) ===
+            userId;
 
           const isWorker =
-            data.workerId ===
-            currentUser.uid;
+            safeString(
+              data.workerId,
+            ) ===
+            userId;
 
           if (
             !isCustomer &&
             !isWorker
           ) {
-            setCustomerLocation(null);
-            setWorkerLocation(null);
-            setLoading(false);
+            setCustomerLocation(
+              null,
+            );
+
+            setWorkerLocation(
+              null,
+            );
+
+            setAddress(
+              "",
+            );
 
             setError(
               "You do not have access to this order location.",
             );
 
+            setLoading(
+              false,
+            );
+
             return;
           }
 
-          /* ==================================================
-             CUSTOMER LOCATION
-          ================================================== */
+          /* ================================================
+             CUSTOMER
+          ================================================ */
 
           const customer =
             getCustomerCoordinate(
@@ -350,9 +542,9 @@ export default function WorkerMapScreen() {
             customer,
           );
 
-          /* ==================================================
-             WORKER LIVE LOCATION
-          ================================================== */
+          /* ================================================
+             WORKER
+          ================================================ */
 
           const worker =
             getWorkerLiveLocation(
@@ -363,35 +555,33 @@ export default function WorkerMapScreen() {
             worker,
           );
 
-          /* ==================================================
+          /* ================================================
              ADDRESS
-          ================================================== */
-
-          const resolvedAddress =
-            typeof data.address ===
-            "string"
-              ? data.address.trim()
-              : typeof data.location
-                    ?.address ===
-                  "string"
-                ? data.location.address.trim()
-                : "";
+          ================================================ */
 
           setAddress(
-            resolvedAddress,
+            getBookingAddress(
+              data,
+            ),
           );
 
-          setLoading(false);
-          setError(null);
-        },
+          setError(
+            null,
+          );
 
-        (snapshotError) => {
+          setLoading(
+            false,
+          );
+        },
+        snapshotError => {
           console.error(
-            "WORKER_MAP_LISTENER_ERROR",
+            "FIXXAM_WORKER_MAP_LISTENER_ERROR:",
             snapshotError,
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
           setError(
             "Unable to load this order location.",
@@ -400,53 +590,73 @@ export default function WorkerMapScreen() {
       );
 
     return unsubscribe;
-  }, [orderId]);
+  }, [
+    authReady,
+    orderId,
+    userId,
+  ]);
 
-  /* ==========================================================
+  /* ============================================================
      INITIAL REGION
-  ========================================================== */
+  ============================================================ */
 
   const initialRegion =
-    useMemo<Region | undefined>(() => {
-      if (!customerLocation) {
-        return undefined;
-      }
+    useMemo<
+      Region | undefined
+    >(
+      () => {
+        if (
+          !customerLocation
+        ) {
+          return undefined;
+        }
 
-      return {
-        latitude:
-          customerLocation.latitude,
+        return {
+          latitude:
+            customerLocation.latitude,
 
-        longitude:
-          customerLocation.longitude,
+          longitude:
+            customerLocation.longitude,
 
-        latitudeDelta:
-          0.025,
+          latitudeDelta:
+            0.025,
 
-        longitudeDelta:
-          0.025,
-      };
-    }, [customerLocation]);
+          longitudeDelta:
+            0.025,
+        };
+      },
+      [
+        customerLocation,
+      ],
+    );
 
-  /* ==========================================================
-     FIT ALL LOCATIONS
-  ========================================================== */
+  /* ============================================================
+     FIT LOCATIONS
+  ============================================================ */
 
   const fitLocations =
     useCallback(() => {
-      if (!mapRef.current) {
+      const map =
+        mapRef.current;
+
+      if (!map) {
         return;
       }
 
       const coordinates: Coordinate[] =
         [];
 
-      if (customerLocation) {
+      if (
+        customerLocation
+      ) {
         coordinates.push(
           customerLocation,
         );
       }
 
-      if (workerLocation) {
+      if (
+        workerLocation
+      ) {
         coordinates.push({
           latitude:
             workerLocation.latitude,
@@ -456,12 +666,18 @@ export default function WorkerMapScreen() {
         });
       }
 
-      if (coordinates.length === 0) {
+      if (
+        coordinates.length ===
+        0
+      ) {
         return;
       }
 
-      if (coordinates.length === 1) {
-        mapRef.current.animateToRegion(
+      if (
+        coordinates.length ===
+        1
+      ) {
+        map.animateToRegion(
           {
             latitude:
               coordinates[0]
@@ -483,17 +699,21 @@ export default function WorkerMapScreen() {
         return;
       }
 
-      mapRef.current.fitToCoordinates(
+      map.fitToCoordinates(
         coordinates,
         {
           edgePadding: {
-            top: 180,
-            right: 70,
-            bottom: 220,
-            left: 70,
+            top: 190,
+
+            right: 72,
+
+            bottom: 210,
+
+            left: 72,
           },
 
-          animated: true,
+          animated:
+            true,
         },
       );
     }, [
@@ -501,60 +721,63 @@ export default function WorkerMapScreen() {
       workerLocation,
     ]);
 
-  /* ==========================================================
-     AUTO FIT WHEN LOCATION CHANGES
-  ========================================================== */
+  /* ============================================================
+     AUTO FIT
+  ============================================================ */
 
   useEffect(() => {
-    if (!mapReady) {
-      return;
-    }
-
     if (
-      !customerLocation &&
-      !workerLocation
+      !mapReady ||
+      (
+        !customerLocation &&
+        !workerLocation
+      )
     ) {
       return;
     }
 
     const timer =
-      setTimeout(() => {
-        fitLocations();
-      }, 250);
+      setTimeout(
+        () => {
+          fitLocations();
+        },
+        250,
+      );
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(
+        timer,
+      );
     };
   }, [
-    mapReady,
     customerLocation,
-    workerLocation,
     fitLocations,
+    mapReady,
+    workerLocation,
   ]);
 
-  /* ==========================================================
-     BACK
-  ========================================================== */
+  /* ============================================================
+     ACTIONS
+  ============================================================ */
 
   const handleBack =
     useCallback(() => {
       router.back();
     }, []);
 
-  /* ==========================================================
-     CUSTOMER LOCATION
-  ========================================================== */
-
   const handleCustomerLocation =
     useCallback(() => {
+      const map =
+        mapRef.current;
+
       if (
-        !mapRef.current ||
+        !map ||
         !customerLocation
       ) {
         return;
       }
 
-      mapRef.current.animateToRegion(
+      map.animateToRegion(
         {
           latitude:
             customerLocation.latitude,
@@ -570,22 +793,23 @@ export default function WorkerMapScreen() {
         },
         500,
       );
-    }, [customerLocation]);
-
-  /* ==========================================================
-     WORKER LOCATION
-  ========================================================== */
+    }, [
+      customerLocation,
+    ]);
 
   const handleWorkerLocation =
     useCallback(() => {
+      const map =
+        mapRef.current;
+
       if (
-        !mapRef.current ||
+        !map ||
         !workerLocation
       ) {
         return;
       }
 
-      mapRef.current.animateToRegion(
+      map.animateToRegion(
         {
           latitude:
             workerLocation.latitude,
@@ -601,106 +825,30 @@ export default function WorkerMapScreen() {
         },
         500,
       );
-    }, [workerLocation]);
-
-  /* ==========================================================
-     BOTH LOCATIONS
-  ========================================================== */
+    }, [
+      workerLocation,
+    ]);
 
   const handleShowBoth =
     useCallback(() => {
       fitLocations();
-    }, [fitLocations]);
+    }, [
+      fitLocations,
+    ]);
 
-  /* ==========================================================
-     AUTH ERROR
-  ========================================================== */
-
-  if (!auth.currentUser) {
-    return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
-        }
-      >
-        <View
-          style={
-            styles.errorContainer
-          }
-        >
-          <View
-            style={
-              styles.errorIcon
-            }
-          >
-            <Ionicons
-              name="lock-closed-outline"
-              size={30}
-              color="#2563EB"
-            />
-          </View>
-
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Sign in required
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            Please sign in to view this
-            location.
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleBack
-            }
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={17}
-              color="#FFFFFF"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.backButtonText
-              }
-            >
-              GO BACK
-            </AppText>
-          </Pressable>
-        </View>
-      </AppScreen>
-    );
-  }
-
-  /* ==========================================================
-     LOADING / ERROR
-  ========================================================== */
+  /* ============================================================
+     LOADING
+  ============================================================ */
 
   if (
-    loading &&
-    !customerLocation
+    !authReady ||
+    loading
   ) {
     return (
       <AppScreen
+        role="worker"
         contentContainerStyle={
-          styles.screen
+          styles.stateScreen
         }
       >
         <View
@@ -708,12 +856,15 @@ export default function WorkerMapScreen() {
             styles.center
           }
         >
-          <ActivityIndicator
-            size="small"
-            color="#2563EB"
+          <AppLoader
+            role="worker"
+            size="sm"
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
               styles.loadingText
             }
@@ -725,125 +876,60 @@ export default function WorkerMapScreen() {
     );
   }
 
+  /* ============================================================
+     ERROR
+  ============================================================ */
+
   if (
-    error &&
-    !customerLocation
+    error ||
+    !userId
   ) {
+    const signInRequired =
+      !userId;
+
     return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
+      <MapState
+        icon={
+          signInRequired
+            ? "lock"
+            : "location"
         }
-      >
-        <View
-          style={
-            styles.errorContainer
-          }
-        >
-          <View
-            style={
-              styles.errorIcon
-            }
-          >
-            <Ionicons
-              name="location-outline"
-              size={30}
-              color="#2563EB"
-            />
-          </View>
-
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Location unavailable
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {error}
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleBack
-            }
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={17}
-              color="#FFFFFF"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.backButtonText
-              }
-            >
-              GO BACK
-            </AppText>
-          </Pressable>
-        </View>
-      </AppScreen>
+        title={
+          signInRequired
+            ? "Sign in required"
+            : "Location unavailable"
+        }
+        description={
+          error ??
+          "Please sign in to view this location."
+        }
+        onBack={
+          handleBack
+        }
+      />
     );
   }
+
+  /* ============================================================
+     NO CUSTOMER LOCATION
+  ============================================================ */
 
   if (!initialRegion) {
     return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
+      <MapState
+        icon="location"
+        title="No service location"
+        description="This order does not have a valid customer location."
+        onBack={
+          handleBack
         }
-      >
-        <View
-          style={
-            styles.center
-          }
-        >
-          <Ionicons
-            name="location-outline"
-            size={32}
-            color="#64748B"
-          />
-
-          <AppText
-            weight="bold"
-            style={
-              styles.emptyTitle
-            }
-          >
-            No service location
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.emptyText
-            }
-          >
-            This order does not have a
-            valid customer location.
-          </AppText>
-        </View>
-      </AppScreen>
+      />
     );
   }
 
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  /* ============================================================
+     MAP
+  ============================================================ */
 
   return (
     <View
@@ -852,7 +938,9 @@ export default function WorkerMapScreen() {
       }
     >
       <MapView
-        ref={mapRef}
+        ref={
+          mapRef
+        }
         style={
           styles.map
         }
@@ -862,21 +950,31 @@ export default function WorkerMapScreen() {
         initialRegion={
           initialRegion
         }
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        toolbarEnabled={false}
+        showsUserLocation={
+          false
+        }
+        showsMyLocationButton={
+          false
+        }
+        showsCompass={
+          false
+        }
+        toolbarEnabled={
+          false
+        }
         rotateEnabled
         pitchEnabled
         onMapReady={() =>
-          setMapReady(true)
+          setMapReady(
+            true,
+          )
         }
       >
-        {/* ==================================================
-            CUSTOMER LOCATION
-        ================================================== */}
+        {/* ======================================================
+            CUSTOMER MARKER
+        ====================================================== */}
 
-        {customerLocation && (
+        {customerLocation ? (
           <Marker
             coordinate={
               customerLocation
@@ -892,20 +990,22 @@ export default function WorkerMapScreen() {
                 styles.customerMarker
               }
             >
-              <Ionicons
+              <AppIcon
                 name="home"
-                size={20}
-                color="#FFFFFF"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
           </Marker>
-        )}
+        ) : null}
 
-        {/* ==================================================
-            WORKER LIVE LOCATION
-        ================================================== */}
+        {/* ======================================================
+            WORKER MARKER
+        ====================================================== */}
 
-        {workerLocation && (
+        {workerLocation ? (
           <Marker
             coordinate={{
               latitude:
@@ -922,206 +1022,218 @@ export default function WorkerMapScreen() {
                 styles.workerMarker
               }
             >
-              <Ionicons
-                name="person"
-                size={19}
-                color="#FFFFFF"
+              <AppIcon
+                name="profile"
+                role="worker"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
           </Marker>
-        )}
+        ) : null}
       </MapView>
 
-      {/* ======================================================
-          TOP HEADER
-      ====================================================== */}
+      {/* ========================================================
+          TOP OVERLAY
+      ======================================================== */}
 
       <View
         pointerEvents="box-none"
-        style={
-          styles.topOverlay
-        }
+        style={[
+          styles.topOverlay,
+
+          {
+            top:
+              insets.top +
+              FixxamTokens.spacing.sm,
+          },
+        ]}
       >
-        <Pressable
-          onPress={
-            handleBack
+        <View
+          style={
+            styles.headerRow
           }
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          style={({ pressed }) => [
-            styles.iconButton,
-            pressed &&
-              styles.buttonPressed,
-          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={22}
-            color="#0F172A"
+          <AppButton
+            title=""
+            role="worker"
+            variant="outline"
+            size="sm"
+            leftIconName="back"
+            onPress={
+              handleBack
+            }
+            style={
+              styles.backControl
+            }
           />
-        </Pressable>
+
+          <View
+            style={
+              styles.titleCard
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.title
+              }
+            >
+              Service Location
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.subtitle
+              }
+            >
+              {workerLocation
+                ? "Your live location is active"
+                : "Customer service location"}
+            </AppText>
+          </View>
+        </View>
+
+        {/* ======================================================
+            STATUS
+        ====================================================== */}
 
         <View
           style={
-            styles.titleCard
+            styles.statusCard
           }
         >
-          <AppText
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Service Location
-          </AppText>
+          <View
+            style={[
+              styles.statusIndicator,
 
-          <AppText
+              workerLocation
+                ? styles.statusIndicatorLive
+                : styles.statusIndicatorWaiting,
+            ]}
+          />
+
+          <View
             style={
-              styles.subtitle
+              styles.statusContent
             }
           >
-            {workerLocation
-              ? "Your live location is active"
-              : "Customer service location"}
-          </AppText>
+            <AppText
+              variant="caption"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.statusTitle
+              }
+            >
+              {workerLocation
+                ? "LIVE LOCATION ACTIVE"
+                : "CUSTOMER LOCATION"}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={2}
+              style={
+                styles.statusText
+              }
+            >
+              {workerLocation
+                ? "Your current location is being updated on this order."
+                : "Your live location is not available yet."}
+            </AppText>
+          </View>
         </View>
       </View>
 
-      {/* ======================================================
-          LIVE STATUS
-      ====================================================== */}
-
-      <View
-        style={
-          styles.statusCard
-        }
-      >
-        <View
-          style={[
-            styles.statusDot,
-            workerLocation
-              ? styles.statusDotLive
-              : styles.statusDotWaiting,
-          ]}
-        />
-
-        <View
-          style={
-            styles.statusContent
-          }
-        >
-          <AppText
-            weight="bold"
-            style={
-              styles.statusTitle
-            }
-          >
-            {workerLocation
-              ? "LIVE LOCATION ACTIVE"
-              : "CUSTOMER LOCATION"}
-          </AppText>
-
-          <AppText
-            style={
-              styles.statusText
-            }
-          >
-            {workerLocation
-              ? "Your current location is being updated on this order."
-              : "Your live location is not available yet."}
-          </AppText>
-        </View>
-      </View>
-
-      {/* ======================================================
+      {/* ========================================================
           MAP CONTROLS
-      ====================================================== */}
+      ======================================================== */}
 
       <View
-        style={
-          styles.locationButtons
-        }
+        pointerEvents="box-none"
+        style={[
+          styles.locationButtons,
+
+          {
+            bottom:
+              insets.bottom +
+              128,
+          },
+        ]}
       >
-        <Pressable
+        <MapControlButton
+          icon="home"
+          color={
+            Colors.info
+          }
+          accessibilityLabel="Show customer location"
           onPress={
             handleCustomerLocation
           }
-          accessibilityRole="button"
-          accessibilityLabel="Show customer location"
-          style={({ pressed }) => [
-            styles.locationButton,
-            pressed &&
-              styles.buttonPressed,
-          ]}
-        >
-          <Ionicons
-            name="home-outline"
-            size={19}
-            color="#2563EB"
-          />
-        </Pressable>
+        />
 
-        {workerLocation && (
-          <Pressable
-            onPress={
-              handleWorkerLocation
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Show worker location"
-            style={({ pressed }) => [
-              styles.locationButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="person-outline"
-              size={19}
-              color="#16A34A"
+        {workerLocation ? (
+          <>
+            <MapControlButton
+              icon="profile"
+              color={
+                WorkerColors.primary
+              }
+              accessibilityLabel="Show worker location"
+              onPress={
+                handleWorkerLocation
+              }
             />
-          </Pressable>
-        )}
 
-        {workerLocation && (
-          <Pressable
-            onPress={
-              handleShowBoth
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Show both locations"
-            style={({ pressed }) => [
-              styles.locationButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="scan-outline"
-              size={19}
-              color="#0F172A"
+            <MapControlButton
+              icon="locate"
+              color={
+                Colors.textPrimary
+              }
+              accessibilityLabel="Show both locations"
+              onPress={
+                handleShowBoth
+              }
             />
-          </Pressable>
-        )}
+          </>
+        ) : null}
       </View>
 
-      {/* ======================================================
-          BOTTOM SERVICE LOCATION
-      ====================================================== */}
+      {/* ========================================================
+          BOTTOM CARD
+      ======================================================== */}
 
       <View
-        style={
-          styles.bottomCard
-        }
+        style={[
+          styles.bottomCard,
+
+          {
+            bottom:
+              insets.bottom +
+              FixxamTokens.spacing.md,
+          },
+        ]}
       >
         <View
           style={
             styles.bottomIcon
           }
         >
-          <Ionicons
+          <AppIcon
             name="location"
-            size={19}
-            color="#2563EB"
+            size="sm"
+            color={
+              Colors.info
+            }
           />
         </View>
 
@@ -1131,7 +1243,9 @@ export default function WorkerMapScreen() {
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
+            numberOfLines={1}
             style={
               styles.bottomTitle
             }
@@ -1140,6 +1254,8 @@ export default function WorkerMapScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={2}
             style={
               styles.bottomAddress
@@ -1150,358 +1266,575 @@ export default function WorkerMapScreen() {
           </AppText>
         </View>
 
-        {!mapReady && (
-          <ActivityIndicator
-            size="small"
-            color="#2563EB"
+        {!mapReady ? (
+          <AppLoader
+            role="worker"
+            size="sm"
           />
-        )}
+        ) : null}
       </View>
     </View>
   );
 }
 
-/* ============================================================
+/* ==============================================================
+   MAP CONTROL
+============================================================== */
+
+const MapControlButton =
+  memo(
+    function MapControlButton({
+      icon,
+      color,
+      accessibilityLabel,
+      onPress,
+    }: {
+      icon:
+        | "home"
+        | "profile"
+        | "locate";
+
+      color: string;
+
+      accessibilityLabel: string;
+
+      onPress: () => void;
+    }) {
+      return (
+        <AppButton
+          title=""
+          role="worker"
+          variant="outline"
+          size="sm"
+          leftIconName={
+            icon
+          }
+          accessibilityLabel={
+            accessibilityLabel
+          }
+          onPress={
+            onPress
+          }
+          style={
+            styles.mapControlButton
+          }
+        />
+      );
+    },
+  );
+
+MapControlButton.displayName =
+  "WorkerMapControlButton";
+
+/* ==============================================================
+   STATE
+============================================================== */
+
+function MapState({
+  icon,
+  title,
+  description,
+  onBack,
+}: MapStateProps) {
+  return (
+    <AppScreen
+      role="worker"
+      contentContainerStyle={
+        styles.stateScreen
+      }
+    >
+      <View
+        style={
+          styles.center
+        }
+      >
+        <View
+          style={
+            styles.stateIcon
+          }
+        >
+          <AppIcon
+            name={
+              icon
+            }
+            role="worker"
+            size="lg"
+            color={
+              WorkerColors.primary
+            }
+          />
+        </View>
+
+        <AppText
+          variant="heading2"
+          weight="bold"
+          center
+          style={
+            styles.stateTitle
+          }
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.stateText
+          }
+        >
+          {description}
+        </AppText>
+
+        <AppButton
+          title="Go Back"
+          role="worker"
+          variant="primary"
+          leftIconName="back"
+          onPress={
+            onBack
+          }
+          style={
+            styles.stateButton
+          }
+        />
+      </View>
+    </AppScreen>
+  );
+}
+
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
-    screen: {
+    stateScreen: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     mapContainer: {
       flex: 1,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     map: {
       ...StyleSheet.absoluteFillObject,
     },
 
-    /* ========================================================
-       TOP
-    ======================================================== */
+    /* ==========================================================
+       TOP OVERLAY
+    ========================================================== */
 
     topOverlay: {
-      position: "absolute",
-      top: 52,
-      left: 16,
-      right: 16,
-      flexDirection: "row",
-      alignItems: "center",
+      position:
+        "absolute",
+
+      left:
+        FixxamTokens.spacing.md,
+
+      right:
+        FixxamTokens.spacing.md,
     },
 
-    iconButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+    headerRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    backControl: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      minWidth:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal: 0,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     titleCard: {
       flex: 1,
-      marginLeft: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 14,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
-    /* ========================================================
+    /* ==========================================================
        STATUS
-    ======================================================== */
+    ========================================================== */
 
     statusCard: {
-      position: "absolute",
-      top: 116,
-      left: 16,
-      right: 16,
       minHeight: 60,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 15,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    statusDot: {
-      width: 11,
-      height: 11,
-      borderRadius: 6,
+    statusIndicator: {
+      width: 10,
+
+      height: 10,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
-    statusDotLive: {
+    statusIndicatorLive: {
       backgroundColor:
-        "#16A34A",
+        Colors.success,
     },
 
-    statusDotWaiting: {
+    statusIndicatorWaiting: {
       backgroundColor:
-        "#F59E0B",
+        Colors.warning,
     },
 
     statusContent: {
       flex: 1,
-      marginLeft: 9,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     statusTitle: {
-      fontSize: 9.5,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     statusText: {
-      marginTop: 2,
-      fontSize: 9,
-      lineHeight: 13,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
-    /* ========================================================
+    /* ==========================================================
        MARKERS
-    ======================================================== */
+    ========================================================== */
 
     customerMarker: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
+      width: 42,
+
+      height: 42,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 3,
+
       borderColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.info,
+
+      ...FixxamTokens.shadow.card,
     },
 
     workerMarker: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#16A34A",
-      alignItems: "center",
-      justifyContent: "center",
+      width: 44,
+
+      height: 44,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 3,
+
       borderColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    /* ========================================================
-       LOCATION BUTTONS
-    ======================================================== */
+    /* ==========================================================
+       MAP CONTROLS
+    ========================================================== */
 
     locationButtons: {
-      position: "absolute",
-      right: 16,
-      bottom: 166,
-      gap: 8,
+      position:
+        "absolute",
+
+      right:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    locationButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+    mapControlButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      minWidth:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal: 0,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    /* ========================================================
-       BOTTOM CARD
-    ======================================================== */
+    /* ==========================================================
+       BOTTOM
+    ========================================================== */
 
     bottomCard: {
-      position: "absolute",
-      left: 16,
-      right: 16,
-      bottom: 24,
+      position:
+        "absolute",
+
+      left:
+        FixxamTokens.spacing.md,
+
+      right:
+        FixxamTokens.spacing.md,
+
       minHeight: 76,
-      padding: 12,
-      borderRadius: 18,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.14,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 5,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     bottomIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.infoSoft,
     },
 
     bottomContent: {
       flex: 1,
-      marginLeft: 10,
-      marginRight: 8,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     bottomTitle: {
-      fontSize: 9.5,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     bottomAddress: {
-      marginTop: 3,
-      fontSize: 9.5,
-      lineHeight: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
-    /* ========================================================
-       ERROR / EMPTY
-    ======================================================== */
+    /* ==========================================================
+       STATES
+    ========================================================== */
 
     center: {
       flex: 1,
-      minHeight: 500,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 30,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 10,
-      fontSize: 11,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
 
-    errorContainer: {
-      flex: 1,
-      minHeight: 500,
-      paddingHorizontal: 30,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    stateIcon: {
+      width:
+        FixxamTokens.size.fabLarge,
 
-    errorIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
+      height:
+        FixxamTokens.size.fabLarge,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        WorkerColors.primarySoft,
     },
 
-    errorTitle: {
-      marginTop: 14,
-      fontSize: 17,
-      color: "#0F172A",
+    stateTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
-    errorText: {
-      marginTop: 7,
-      fontSize: 11.5,
-      lineHeight: 18,
-      color: "#64748B",
+    stateText: {
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
-    emptyTitle: {
-      marginTop: 12,
-      fontSize: 16,
-      color: "#0F172A",
-    },
+    stateButton: {
+      width: "100%",
 
-    emptyText: {
-      marginTop: 7,
-      fontSize: 11,
-      lineHeight: 17,
-      color: "#64748B",
-    },
-
-    backButton: {
-      marginTop: 18,
-      minHeight: 42,
-      paddingHorizontal: 16,
-      borderRadius: 11,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-    },
-
-    backButtonText: {
-      fontSize: 9,
-      color: "#FFFFFF",
-    },
-
-    buttonPressed: {
-      opacity: 0.82,
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

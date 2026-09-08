@@ -1,44 +1,103 @@
 import React, {
   forwardRef,
+  memo,
+  useCallback,
   useMemo,
+  type ReactNode,
 } from "react";
 
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
 import BottomSheet, {
-  BottomSheetScrollView,
   BottomSheetBackdrop,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
 
-import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-type Props = {
+import AppButton from "@/components/ui/AppButton";
+import AppText from "@/components/ui/AppText";
+
+import {
+  Colors,
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppFilterSheetProps {
+  children: ReactNode;
+
   title?: string;
-  children: React.ReactNode;
+
+  role?: FixxamRole;
+
+  applyText?: string;
+
+  resetText?: string;
+
+  applying?: boolean;
+
+  applyDisabled?: boolean;
+
   onApply: () => void;
+
   onReset?: () => void;
-};
+
+  onClose?: () => void;
+}
 
 const AppFilterSheet = forwardRef<
-  BottomSheet,
-  Props
+  React.ElementRef<typeof BottomSheet>,
+  AppFilterSheetProps
 >(
   (
     {
-      title = "Filters",
       children,
+
+      title = "Filters",
+
+      role = "customer",
+
+      applyText = "Apply filters",
+
+      resetText = "Reset",
+
+      applying = false,
+
+      applyDisabled = false,
+
       onApply,
+
       onReset,
+
+      onClose,
     },
-    ref
+    ref,
   ) => {
+    const insets = useSafeAreaInsets();
+
     const snapPoints = useMemo(
-      () => ["70%"],
-      []
+      () => ["72%", "88%"],
+      [],
+    );
+
+    const renderBackdrop = useCallback(
+      (
+        props: BottomSheetBackdropProps,
+      ) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.32}
+          pressBehavior="close"
+        />
+      ),
+      [],
     );
 
     return (
@@ -47,71 +106,188 @@ const AppFilterSheet = forwardRef<
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-            opacity={0.45}
-          />
-        )}
+        backdropComponent={renderBackdrop}
         backgroundStyle={styles.background}
+        handleIndicatorStyle={styles.handle}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        onClose={onClose}
       >
-        <BottomSheetScrollView
-          contentContainerStyle={styles.content}
-        >
-          <AppText
-            weight="bold"
-            style={styles.title}
-          >
-            {title}
-          </AppText>
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <AppText
+              variant="heading2"
+              numberOfLines={1}
+            >
+              {title}
+            </AppText>
 
-          {children}
-
-          <View style={styles.footer}>
-            {onReset && (
-              <AppButton
-                title="Reset"
-                variant="customer"
-                onPress={onReset}
-              />
-            )}
-
-            <View style={{ height: 12 }} />
-
-            <AppButton
-              title="Apply"
-              onPress={onApply}
-            />
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={styles.subtitle}
+            >
+              Refine your results
+            </AppText>
           </View>
+
+          {onReset ? (
+            <AppButton
+              title={resetText}
+              role={role}
+              variant="ghost"
+              size="sm"
+              disabled={applying}
+              onPress={onReset}
+            />
+          ) : null}
+        </View>
+
+        <BottomSheetScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={
+            styles.content
+          }
+        >
+          {children}
         </BottomSheetScrollView>
+
+        <View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: Math.max(
+                insets.bottom,
+                FixxamTokens.spacing.lg,
+              ),
+            },
+          ]}
+        >
+          {onReset ? (
+            <AppButton
+              title={resetText}
+              role={role}
+              variant="outline"
+              disabled={applying}
+              onPress={onReset}
+              style={styles.secondaryAction}
+            />
+          ) : null}
+
+          <AppButton
+            title={applyText}
+            role={role}
+            loading={applying}
+            disabled={applyDisabled}
+            onPress={onApply}
+            style={styles.primaryAction}
+          />
+        </View>
       </BottomSheet>
     );
-  }
+  },
 );
 
-export default AppFilterSheet;
+AppFilterSheet.displayName =
+  "AppFilterSheet";
 
 const styles = StyleSheet.create({
   background: {
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.surface,
+
+    borderTopLeftRadius:
+      FixxamTokens.radius.bottomSheet,
+
+    borderTopRightRadius:
+      FixxamTokens.radius.bottomSheet,
+  },
+
+  handle: {
+    width: 40,
+    height: 4,
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      Colors.borderStrong,
+  },
+
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+
+    paddingHorizontal:
+      FixxamTokens.spacing.xl,
+
+    paddingTop:
+      FixxamTokens.spacing.sm,
+
+    paddingBottom:
+      FixxamTokens.spacing.md,
+
+    borderBottomWidth:
+      StyleSheet.hairlineWidth,
+
+    borderBottomColor:
+      Colors.divider,
+  },
+
+  headerText: {
+    flex: 1,
+    minWidth: 0,
+
+    marginRight:
+      FixxamTokens.spacing.md,
+  },
+
+  subtitle: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
   },
 
   content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
+    paddingHorizontal:
+      FixxamTokens.spacing.xl,
 
-  title: {
-    fontSize: 22,
-    color: "#0F172A",
-    marginBottom: 20,
+    paddingTop:
+      FixxamTokens.spacing.lg,
+
+    paddingBottom:
+      FixxamTokens.spacing.xxl,
   },
 
   footer: {
-    marginTop: 30,
+    flexDirection: "row",
+
+    gap:
+      FixxamTokens.spacing.sm,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.xl,
+
+    paddingTop:
+      FixxamTokens.spacing.md,
+
+    borderTopWidth:
+      StyleSheet.hairlineWidth,
+
+    borderTopColor:
+      Colors.divider,
+
+    backgroundColor:
+      Colors.surface,
+  },
+
+  secondaryAction: {
+    flex: 1,
+  },
+
+  primaryAction: {
+    flex: 1.4,
   },
 });
+
+export default memo(AppFilterSheet);

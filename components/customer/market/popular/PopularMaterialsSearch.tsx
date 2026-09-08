@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useState,
+} from "react";
 
 import {
   StyleSheet,
@@ -8,63 +11,147 @@ import {
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   value: string;
-  onChangeText: (text: string) => void;
+
+  onChangeText: (
+    text: string,
+  ) => void;
 };
 
-export default function PopularMaterialsSearch({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function PopularMaterialsSearch({
   value,
   onChangeText,
 }: Props) {
+  const [
+    focused,
+    setFocused,
+  ] = useState(false);
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+
+        focused
+          ? styles.containerFocused
+          : null,
+      ]}
+    >
       <MaterialCommunityIcons
         name="magnify"
         size={22}
-        color="#94A3B8"
+        color={
+          focused
+            ? CustomerColors.primary
+            : Colors.textMuted
+        }
       />
 
       <TextInput
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={
+          onChangeText
+        }
+        onFocus={() =>
+          setFocused(true)
+        }
+        onBlur={() =>
+          setFocused(false)
+        }
         placeholder="Search materials, tools..."
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={
+          Colors.textMuted
+        }
         style={styles.input}
         returnKeyType="search"
         autoCorrect={false}
         autoCapitalize="none"
         clearButtonMode="while-editing"
+        accessibilityLabel="Search materials and tools"
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 54,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+const styles =
+  StyleSheet.create({
+    container: {
+      height:
+        FixxamTokens.size
+          .inputHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
-    elevation: 2,
-  },
 
-  input: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    color: "#111827",
-  },
-});
+    containerFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+  });
+
+export default memo(
+  PopularMaterialsSearch,
+);

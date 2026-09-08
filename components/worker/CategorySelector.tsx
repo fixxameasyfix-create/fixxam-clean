@@ -1,71 +1,173 @@
-import React, { useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
+
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
 import categories from "@/assets/data/categories.json";
 import subcategories from "@/assets/data/subcategories.json";
 
 import SearchableModalPicker from "@/components/selectors/SearchableModalPicker";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   category: string;
+
   subcategory: string;
-  setCategory: (value: string) => void;
-  setSubcategory: (value: string) => void;
+
+  setCategory: (
+    value: string,
+  ) => void;
+
+  setSubcategory: (
+    value: string,
+  ) => void;
+
   onResetServices: () => void;
 };
 
-export default function CategorySelector({
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const CATEGORY_OPTIONS =
+  categories as string[];
+
+const SUBCATEGORY_MAP =
+  subcategories as Record<
+    string,
+    string[]
+  >;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function CategorySelector({
   category,
   subcategory,
   setCategory,
   setSubcategory,
   onResetServices,
 }: Props) {
-  const availableSubcategories = useMemo(() => {
-    const data =
-      subcategories as Record<string, string[]>;
+  const availableSubcategories =
+    useMemo(() => {
+      if (!category) {
+        return [];
+      }
 
-    return category
-      ? data[category] || []
-      : [];
-  }, [category]);
+      return (
+        SUBCATEGORY_MAP[
+          category
+        ] ?? []
+      );
+    }, [category]);
+
+  const handleCategorySelect =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setCategory(value);
+
+        setSubcategory("");
+
+        onResetServices();
+      },
+      [
+        onResetServices,
+        setCategory,
+        setSubcategory,
+      ],
+    );
+
+  const handleSubcategorySelect =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        setSubcategory(value);
+
+        onResetServices();
+      },
+      [
+        onResetServices,
+        setSubcategory,
+      ],
+    );
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <SearchableModalPicker
         label="Category"
         placeholder="Select Category"
-        value={category}
-        data={categories as string[]}
-        onSelect={(value) => {
-          setCategory(value);
-          setSubcategory("");
-          onResetServices();
-        }}
+        value={
+          category
+        }
+        data={
+          CATEGORY_OPTIONS
+        }
+        onSelect={
+          handleCategorySelect
+        }
       />
 
-      <View style={styles.space} />
+      <View
+        style={
+          styles.space
+        }
+      />
 
       <SearchableModalPicker
         label="Subcategory"
         placeholder="Select Subcategory"
-        value={subcategory}
-        data={availableSubcategories}
-        onSelect={(value) => {
-          setSubcategory(value);
-          onResetServices();
-        }}
+        value={
+          subcategory
+        }
+        data={
+          availableSubcategories
+        }
+        onSelect={
+          handleSubcategorySelect
+        }
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 8,
-  },
+export default memo(
+  CategorySelector,
+);
 
-  space: {
-    height: 6,
-  },
-});
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    space: {
+      height:
+        FixxamTokens.spacing.xs,
+    },
+  });

@@ -1,4 +1,8 @@
-import React, { memo, useCallback } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,11 +10,17 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
@@ -18,10 +28,13 @@ import {
 
 type CustomerCounterOfferCardProps = {
   amount: number;
+
   message?: string | null;
 
   onAccept: () => void;
+
   onCounter: () => void;
+
   onDecline: () => void;
 
   disabled?: boolean;
@@ -31,10 +44,27 @@ type CustomerCounterOfferCardProps = {
    HELPERS
 ============================================================== */
 
+function normalizeAmount(
+  amount: number,
+): number {
+  if (
+    !Number.isFinite(amount) ||
+    amount < 0
+  ) {
+    return 0;
+  }
+
+  return amount;
+}
+
 function formatAmount(
   amount: number,
 ): string {
-  return `₦${amount.toLocaleString("en-NG")}`;
+  return `₦${normalizeAmount(
+    amount,
+  ).toLocaleString("en-NG", {
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 /* ==============================================================
@@ -49,54 +79,109 @@ function CustomerCounterOfferCard({
   onDecline,
   disabled = false,
 }: CustomerCounterOfferCardProps) {
-  const handleAccept = useCallback(() => {
-    if (disabled) {
-      return;
-    }
+  const formattedAmount =
+    useMemo(
+      () =>
+        formatAmount(
+          amount,
+        ),
+      [amount],
+    );
 
-    onAccept();
-  }, [disabled, onAccept]);
+  const safeMessage =
+    useMemo(() => {
+      if (
+        typeof message !==
+        "string"
+      ) {
+        return "";
+      }
 
-  const handleCounter = useCallback(() => {
-    if (disabled) {
-      return;
-    }
+      return message.trim();
+    }, [message]);
 
-    onCounter();
-  }, [disabled, onCounter]);
+  const handleAccept =
+    useCallback(() => {
+      if (disabled) {
+        return;
+      }
 
-  const handleDecline = useCallback(() => {
-    if (disabled) {
-      return;
-    }
+      onAccept();
+    }, [
+      disabled,
+      onAccept,
+    ]);
 
-    onDecline();
-  }, [disabled, onDecline]);
+  const handleCounter =
+    useCallback(() => {
+      if (disabled) {
+        return;
+      }
+
+      onCounter();
+    }, [
+      disabled,
+      onCounter,
+    ]);
+
+  const handleDecline =
+    useCallback(() => {
+      if (disabled) {
+        return;
+      }
+
+      onDecline();
+    }, [
+      disabled,
+      onDecline,
+    ]);
 
   return (
-    <View style={styles.card}>
+    <AppCard
+      style={styles.card}
+    >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons
-            name="swap-horizontal-outline"
-            size={24}
-            color="#2563EB"
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
+          <AppIcon
+            name="swap"
+            role="customer"
+            size="md"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        <View style={styles.headerContent}>
+        <View
+          style={
+            styles.headerContent
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
             style={styles.title}
           >
             COUNTER OFFER RECEIVED
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Worker has responded to your offer.
           </AppText>
         </View>
@@ -106,28 +191,49 @@ function CustomerCounterOfferCard({
           OFFER
       ====================================================== */}
 
-      <View style={styles.offerBox}>
-        <AppText style={styles.offerLabel}>
+      <View
+        style={styles.offerBox}
+      >
+        <AppText
+          variant="caption"
+          weight="semibold"
+          tone="muted"
+          style={
+            styles.offerLabel
+          }
+        >
           WORKER COUNTER OFFER
         </AppText>
 
         <AppText
+          variant="heading2"
           weight="bold"
           style={styles.amount}
         >
-          {formatAmount(amount)}
+          {formattedAmount}
         </AppText>
 
-        {message?.trim() ? (
-          <View style={styles.messageBox}>
-            <Ionicons
-              name="chatbubble-outline"
-              size={17}
-              color="#64748B"
+        {safeMessage ? (
+          <View
+            style={
+              styles.messageBox
+            }
+          >
+            <AppIcon
+              name="messages"
+              role="customer"
+              size="xs"
+              state="muted"
             />
 
-            <AppText style={styles.message}>
-              "{message.trim()}"
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.message
+              }
+            >
+              {safeMessage}
             </AppText>
           </View>
         ) : null}
@@ -138,31 +244,48 @@ function CustomerCounterOfferCard({
       ====================================================== */}
 
       <Pressable
-        onPress={handleAccept}
-        disabled={disabled}
+        onPress={
+          handleAccept
+        }
+        disabled={
+          disabled
+        }
         accessibilityRole="button"
-        accessibilityLabel={`Accept worker counter offer of ${formatAmount(
-          amount,
-        )}`}
-        style={({ pressed }) => [
+        accessibilityLabel={`Accept worker counter offer of ${formattedAmount}`}
+        accessibilityState={{
+          disabled,
+        }}
+        style={({
+          pressed,
+        }) => [
           styles.acceptButton,
-          disabled && styles.disabledButton,
+
+          disabled
+            ? styles.disabledButton
+            : null,
+
           pressed &&
-            !disabled &&
-            styles.pressedButton,
+          !disabled
+            ? styles.pressedButton
+            : null,
         ]}
       >
-        <Ionicons
-          name="checkmark-circle-outline"
-          size={20}
-          color="#FFFFFF"
+        <AppIcon
+          name="success"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.acceptText}
+          style={
+            styles.acceptText
+          }
         >
-          ACCEPT {formatAmount(amount)}
+          ACCEPT {formattedAmount}
         </AppText>
       </Pressable>
 
@@ -170,62 +293,105 @@ function CustomerCounterOfferCard({
           SECONDARY ACTIONS
       ====================================================== */}
 
-      <View style={styles.secondaryActions}>
+      <View
+        style={
+          styles.secondaryActions
+        }
+      >
         <Pressable
-          onPress={handleCounter}
-          disabled={disabled}
+          onPress={
+            handleCounter
+          }
+          disabled={
+            disabled
+          }
           accessibilityRole="button"
           accessibilityLabel="Send counter offer"
-          style={({ pressed }) => [
+          accessibilityState={{
+            disabled,
+          }}
+          style={({
+            pressed,
+          }) => [
             styles.counterButton,
-            disabled && styles.disabledButton,
+
+            disabled
+              ? styles.disabledButton
+              : null,
+
             pressed &&
-              !disabled &&
-              styles.pressedButton,
+            !disabled
+              ? styles.pressedButton
+              : null,
           ]}
         >
-          <Ionicons
-            name="swap-horizontal-outline"
-            size={18}
-            color="#2563EB"
+          <AppIcon
+            name="swap"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.counterText}
+            style={
+              styles.counterText
+            }
           >
             COUNTER
           </AppText>
         </Pressable>
 
         <Pressable
-          onPress={handleDecline}
-          disabled={disabled}
+          onPress={
+            handleDecline
+          }
+          disabled={
+            disabled
+          }
           accessibilityRole="button"
           accessibilityLabel="Decline worker counter offer"
-          style={({ pressed }) => [
+          accessibilityState={{
+            disabled,
+          }}
+          style={({
+            pressed,
+          }) => [
             styles.declineButton,
-            disabled && styles.disabledButton,
+
+            disabled
+              ? styles.disabledButton
+              : null,
+
             pressed &&
-              !disabled &&
-              styles.pressedButton,
+            !disabled
+              ? styles.pressedButton
+              : null,
           ]}
         >
-          <Ionicons
-            name="close-circle-outline"
-            size={18}
-            color="#DC2626"
+          <AppIcon
+            name="error"
+            size="xs"
+            color={
+              Colors.error
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.declineText}
+            style={
+              styles.declineText
+            }
           >
             DECLINE
           </AppText>
         </Pressable>
       </View>
-    </View>
+    </AppCard>
   );
 }
 
@@ -237,173 +403,282 @@ export default memo(
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#F8FAFF",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  /* ============================================================
-     HEADER
-  ============================================================ */
+      padding:
+        FixxamTokens.spacing.md,
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      gap:
+        FixxamTokens.spacing.sm,
 
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderWidth: 1,
 
-  headerContent: {
-    flex: 1,
-    marginLeft: 11,
-  },
+      borderColor:
+        CustomerColors.primarySoft,
 
-  title: {
-    fontSize: 12,
-    color: "#2563EB",
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  subtitle: {
-    marginTop: 4,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#64748B",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  /* ============================================================
-     OFFER
-  ============================================================ */
+      ...FixxamTokens.shadow.card,
+    },
 
-  offerBox: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 15,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  offerLabel: {
-    fontSize: 8.5,
-    letterSpacing: 0.8,
-    color: "#94A3B8",
-  },
+    header: {
+      flexDirection: "row",
 
-  amount: {
-    marginTop: 5,
-    fontSize: 25,
-    color: "#0F172A",
-  },
+      alignItems: "center",
+    },
 
-  messageBox: {
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+    iconContainer: {
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-  message: {
-    flex: 1,
-    marginLeft: 7,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#475569",
-  },
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-  /* ============================================================
-     ACCEPT
-  ============================================================ */
+      flexShrink: 0,
 
-  acceptButton: {
-    height: 49,
-    marginTop: 13,
-    borderRadius: 12,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
+      alignItems: "center",
 
-  acceptText: {
-    fontSize: 10.5,
-    color: "#FFFFFF",
-  },
+      justifyContent: "center",
 
-  /* ============================================================
-     SECONDARY
-  ============================================================ */
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  secondaryActions: {
-    marginTop: 8,
-    flexDirection: "row",
-    gap: 8,
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-  counterButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#93C5FD",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
+    headerContent: {
+      flex: 1,
 
-  counterText: {
-    fontSize: 9.5,
-    color: "#2563EB",
-  },
+      minWidth: 0,
 
-  declineButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#FCA5A5",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
 
-  declineText: {
-    fontSize: 9.5,
-    color: "#DC2626",
-  },
+    title: {
+      color:
+        CustomerColors.primary,
+    },
 
-  /* ============================================================
-     STATES
-  ============================================================ */
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
 
-  disabledButton: {
-    opacity: 0.45,
-  },
+    /* ========================================================
+       OFFER
+    ======================================================== */
 
-  pressedButton: {
-    opacity: 0.85,
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-});
+    offerBox: {
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    offerLabel: {
+      letterSpacing: 0.8,
+    },
+
+    amount: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    messageBox: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
+
+      flexDirection: "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    message: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    /* ========================================================
+       ACCEPT
+    ======================================================== */
+
+    acceptButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    acceptText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       SECONDARY
+    ======================================================== */
+
+    secondaryActions: {
+      flexDirection: "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    counterButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    counterText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    declineButton: {
+      flex: 1,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    declineText: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    disabledButton: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressedButton: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

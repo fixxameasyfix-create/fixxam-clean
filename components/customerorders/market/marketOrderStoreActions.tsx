@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useMemo,
 } from "react";
 
 import {
@@ -10,18 +11,40 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  normalizeMarketStatus,
+} from "./marketOrder.utils";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   status: string;
+
   storePhone?: string;
+
   onCancel: () => void;
+
   onChat: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function MarketOrderStoreActions({
   status,
@@ -29,22 +52,71 @@ function MarketOrderStoreActions({
   onCancel,
   onChat,
 }: Props) {
+  /* ==========================================================
+     STATUS
+  ========================================================== */
+
+  const normalizedStatus =
+    useMemo(
+      () =>
+        normalizeMarketStatus(
+          status,
+        ),
+      [
+        status,
+      ],
+    );
+
   const canCancel =
-    status === "pending";
+    normalizedStatus ===
+    "pending";
+
+  /* ==========================================================
+     PHONE
+  ========================================================== */
+
+  const cleanPhone =
+    useMemo(() => {
+      if (
+        typeof storePhone !==
+        "string"
+      ) {
+        return "";
+      }
+
+      return storePhone
+        .trim()
+        .replace(
+          /[^+\d]/g,
+          "",
+        );
+    }, [
+      storePhone,
+    ]);
+
+  const phoneUnavailable =
+    cleanPhone.length === 0;
+
+  /* ==========================================================
+     CALL STORE
+  ========================================================== */
 
   const handleCall =
     useCallback(async () => {
-      const phone =
-        typeof storePhone ===
-          "string"
-          ? storePhone.trim()
-          : "";
+      if (!cleanPhone) {
+        Toast.show({
+          type: "info",
+          text1:
+            "Phone unavailable",
+          text2:
+            "The store phone number is not available for this order.",
+        });
 
-      if (!phone) {
         return;
       }
 
-      const url = `tel:${phone}`;
+      const url =
+        `tel:${cleanPhone}`;
 
       try {
         const supported =
@@ -52,18 +124,44 @@ function MarketOrderStoreActions({
             url,
           );
 
-        if (supported) {
-          await Linking.openURL(
-            url,
-          );
+        if (!supported) {
+          Toast.show({
+            type: "error",
+            text1:
+              "Calling unavailable",
+            text2:
+              "Your device cannot make phone calls.",
+          });
+
+          return;
         }
-      } catch (error) {
+
+        await Linking.openURL(
+          url,
+        );
+      } catch (
+        error
+      ) {
         console.error(
           "MARKET_ORDER_CALL_STORE_ERROR:",
           error,
         );
+
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to call store",
+          text2:
+            "Please try again.",
+        });
       }
-    }, [storePhone]);
+    }, [
+      cleanPhone,
+    ]);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <View
@@ -71,9 +169,9 @@ function MarketOrderStoreActions({
         styles.container
       }
     >
-      {/* ====================================================
+      {/* ======================================================
           CANCEL
-      ==================================================== */}
+      ====================================================== */}
 
       {canCancel ? (
         <Pressable
@@ -82,20 +180,27 @@ function MarketOrderStoreActions({
           }
           accessibilityRole="button"
           accessibilityLabel="Cancel order"
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.actionButton,
             styles.cancelButton,
-            pressed &&
-              styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="close-circle-outline"
-            size={19}
-            color="#DC2626"
+          <AppIcon
+            name="close"
+            size="sm"
+            color={
+              Colors.error
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.cancelText
@@ -106,54 +211,64 @@ function MarketOrderStoreActions({
         </Pressable>
       ) : null}
 
-      {/* ====================================================
+      {/* ======================================================
           CALL STORE
-      ==================================================== */}
+      ====================================================== */}
 
       <Pressable
         onPress={
           handleCall
         }
-        disabled={
-          !storePhone
-        }
         accessibilityRole="button"
-        accessibilityLabel="Call store"
-        style={({ pressed }) => [
+        accessibilityLabel={
+          phoneUnavailable
+            ? "Store phone unavailable"
+            : "Call store"
+        }
+        style={({
+          pressed,
+        }) => [
           styles.actionButton,
           styles.callButton,
-          !storePhone &&
-            styles.disabledButton,
-          pressed &&
-            storePhone &&
-            styles.pressed,
+
+          phoneUnavailable
+            ? styles.disabledButton
+            : null,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="call-outline"
-          size={19}
+        <AppIcon
+          name="phone"
+          role="customer"
+          size="sm"
           color={
-            storePhone
-              ? "#2563EB"
-              : "#94A3B8"
+            phoneUnavailable
+              ? Colors.textMuted
+              : CustomerColors.primary
           }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
           style={[
             styles.callText,
-            !storePhone &&
-              styles.disabledText,
+
+            phoneUnavailable
+              ? styles.disabledText
+              : null,
           ]}
         >
           CALL STORE
         </AppText>
       </Pressable>
 
-      {/* ====================================================
+      {/* ======================================================
           CHAT STORE
-      ==================================================== */}
+      ====================================================== */}
 
       <Pressable
         onPress={
@@ -161,20 +276,28 @@ function MarketOrderStoreActions({
         }
         accessibilityRole="button"
         accessibilityLabel="Chat with store"
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.actionButton,
           styles.chatButton,
-          pressed &&
-            styles.pressed,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="chatbubble-ellipses-outline"
-          size={19}
-          color="#FFFFFF"
+        <AppIcon
+          name="messages"
+          role="customer"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
           style={
             styles.chatText
@@ -187,84 +310,145 @@ function MarketOrderStoreActions({
   );
 }
 
-export default memo(
-  MarketOrderStoreActions,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
+const MemoizedMarketOrderStoreActions =
+  memo(
+    MarketOrderStoreActions,
+  );
+
+MemoizedMarketOrderStoreActions.displayName =
+  "MarketOrderStoreActions";
+
+export default MemoizedMarketOrderStoreActions;
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 12,
-      gap: 8,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
+
+    /* ========================================================
+       BUTTON
+    ======================================================== */
 
     actionButton: {
-      minHeight: 48,
-      borderRadius: 14,
-      flexDirection: "row",
-      alignItems: "center",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
       borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.button,
     },
 
+    /* ========================================================
+       CANCEL
+    ======================================================== */
+
     cancelButton: {
-      backgroundColor:
-        "#FEF2F2",
       borderColor:
-        "#FECACA",
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     cancelText: {
-      fontSize: 10,
-      color: "#DC2626",
+      color:
+        Colors.error,
     },
 
+    /* ========================================================
+       CALL
+    ======================================================== */
+
     callButton: {
-      backgroundColor:
-        "#EFF6FF",
       borderColor:
-        "#BFDBFE",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     callText: {
-      fontSize: 10,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
+    /* ========================================================
+       CHAT
+    ======================================================== */
+
     chatButton: {
-      backgroundColor:
-        "#2563EB",
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     chatText: {
-      fontSize: 10,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
+    /* ========================================================
+       DISABLED
+    ======================================================== */
+
     disabledButton: {
-      backgroundColor:
-        "#F8FAFC",
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     disabledText: {
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
     pressed: {
-      opacity: 0.8,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

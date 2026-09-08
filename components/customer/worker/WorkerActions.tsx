@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,15 +8,32 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   onReview: () => void;
+
   onCall: () => void;
+
   onFavorite: () => void;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function WorkerActions({
   onReview,
@@ -22,78 +41,128 @@ function WorkerActions({
   onFavorite,
 }: Props) {
   return (
-    <View style={styles.container}>
-      {/* REVIEWS */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          REVIEWS
+      ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.actionButton,
-          pressed && styles.pressed,
-        ]}
-        onPress={onReview}
         accessibilityRole="button"
         accessibilityLabel="View worker reviews"
+        onPress={
+          onReview
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.actionButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="star-outline"
-          size={18}
-          color="#F59E0B"
+        <AppIcon
+          name="star"
+          role="customer"
+          size="sm"
+          color={
+            Colors.warning
+          }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.actionText}
+          numberOfLines={1}
+          style={
+            styles.actionText
+          }
         >
           Reviews
         </AppText>
       </Pressable>
 
-      {/* CALL */}
+      {/* ======================================================
+          CALL
+      ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.actionButton,
-          styles.callButton,
-          pressed && styles.pressed,
-        ]}
-        onPress={onCall}
         accessibilityRole="button"
         accessibilityLabel="Call worker"
+        onPress={
+          onCall
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.actionButton,
+          styles.callButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="call-outline"
-          size={18}
-          color="#FFFFFF"
+        <AppIcon
+          name="phone"
+          role="customer"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.callText}
+          numberOfLines={1}
+          style={
+            styles.callText
+          }
         >
           Call
         </AppText>
       </Pressable>
 
-      {/* SAVE */}
+      {/* ======================================================
+          SAVE
+      ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.actionButton,
-          pressed && styles.pressed,
-        ]}
-        onPress={onFavorite}
         accessibilityRole="button"
         accessibilityLabel="Save worker"
+        onPress={
+          onFavorite
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.actionButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="heart-outline"
-          size={18}
-          color="#CBD5E1"
+        <AppIcon
+          name="heart"
+          role="customer"
+          size="sm"
+          state="muted"
         />
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.actionText}
+          numberOfLines={1}
+          style={
+            styles.actionText
+          }
         >
           Save
         </AppText>
@@ -102,53 +171,110 @@ function WorkerActions({
   );
 }
 
-export default memo(WorkerActions);
+/* ==============================================================
+   STYLES
+============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    gap: 6,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flexDirection:
+        "row",
 
-  actionButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
+      gap:
+        FixxamTokens.spacing.sm,
 
-  callButton: {
-    backgroundColor: "#F97316",
-    borderColor: "#F97316",
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-  actionText: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    color: "#0F172A",
-  },
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-  callText: {
-    fontSize: 10.5,
-    lineHeight: 14,
-    color: "#FFFFFF",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-  pressed: {
-    opacity: 0.78,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+    /* ========================================================
+       ACTION
+    ======================================================== */
+
+    actionButton: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    actionText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       CALL
+    ======================================================== */
+
+    callButton: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    callText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkerActions,
+);

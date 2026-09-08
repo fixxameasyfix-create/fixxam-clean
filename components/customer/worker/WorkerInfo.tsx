@@ -1,31 +1,120 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   firstName: string;
+
   surname: string;
 
   category?: string;
+
   subcategory?: string;
 
   rating: number;
+
   totalReviews: number;
 
   state?: string;
+
   lga?: string;
 
   hourlyRate?: number;
 };
 
-export default function WorkerInfo({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeRating(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+function normalizeCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      value,
+    ),
+  );
+}
+
+function formatRate(
+  value: number,
+): string {
+  return new Intl.NumberFormat(
+    "en-NG",
+    {
+      maximumFractionDigits: 0,
+    },
+  ).format(value);
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerInfo({
   firstName,
   surname,
   category,
@@ -36,130 +125,343 @@ export default function WorkerInfo({
   lga,
   hourlyRate,
 }: Props) {
-  const location = [lga, state]
-    .filter(Boolean)
-    .join(", ");
+  /* ============================================================
+     NAME
+  ============================================================ */
+
+  const workerName =
+    useMemo(() => {
+      const name =
+        [
+          cleanString(
+            firstName,
+          ),
+          cleanString(
+            surname,
+          ),
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(
+            " ",
+          );
+
+      return (
+        name ||
+        "Worker"
+      );
+    }, [
+      firstName,
+      surname,
+    ]);
+
+  /* ============================================================
+     SERVICE
+  ============================================================ */
+
+  const serviceLabel =
+    useMemo(() => {
+      const cleanCategory =
+        cleanString(
+          category,
+        );
+
+      const cleanSubcategory =
+        cleanString(
+          subcategory,
+        );
+
+      if (
+        cleanCategory &&
+        cleanSubcategory
+      ) {
+        return `${cleanCategory} • ${cleanSubcategory}`;
+      }
+
+      return (
+        cleanSubcategory ||
+        cleanCategory
+      );
+    }, [
+      category,
+      subcategory,
+    ]);
+
+  /* ============================================================
+     LOCATION
+  ============================================================ */
+
+  const location =
+    useMemo(
+      () =>
+        [
+          cleanString(
+            lga,
+          ),
+          cleanString(
+            state,
+          ),
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(
+            ", ",
+          ),
+      [
+        lga,
+        state,
+      ],
+    );
+
+  /* ============================================================
+     SAFE VALUES
+  ============================================================ */
+
+  const safeRating =
+    normalizeRating(
+      rating,
+    );
+
+  const safeReviews =
+    normalizeCount(
+      totalReviews,
+    );
+
+  const safeHourlyRate =
+    typeof hourlyRate ===
+      "number" &&
+    Number.isFinite(
+      hourlyRate,
+    ) &&
+    hourlyRate >= 0
+      ? hourlyRate
+      : null;
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.container}>
-      {/* NAME */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          NAME
+      ====================================================== */}
 
       <AppText
+        variant="bodyMedium"
         weight="bold"
         numberOfLines={1}
-        style={styles.name}
       >
-        {firstName} {surname}
+        {workerName}
       </AppText>
 
-      {/* RATING */}
+      {/* ======================================================
+          RATING
+      ====================================================== */}
 
-      <View style={styles.ratingRow}>
-        <Ionicons
+      <View
+        style={
+          styles.metaRow
+        }
+      >
+        <AppIcon
           name="star"
-          size={12}
-          color="#F59E0B"
+          role="customer"
+          size="xs"
+          color={
+            Colors.warning
+          }
         />
 
-        <AppText style={styles.meta}>
-          {rating.toFixed(1)}
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.metaText
+          }
+        >
+          {safeRating.toFixed(
+            1,
+          )}
         </AppText>
 
-        <AppText style={styles.meta}>
-          ({totalReviews})
+        <AppText
+          variant="caption"
+          tone="muted"
+          style={
+            styles.reviewText
+          }
+        >
+          ({safeReviews})
         </AppText>
       </View>
 
-      {/* CATEGORY */}
+      {/* ======================================================
+          CATEGORY
+      ====================================================== */}
 
-      {!!category && (
+      {serviceLabel ? (
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
-          style={styles.category}
+          style={
+            styles.category
+          }
         >
-          {subcategory
-            ? `${category} • ${subcategory}`
-            : category}
+          {serviceLabel}
         </AppText>
-      )}
+      ) : null}
 
-      {/* LOCATION */}
+      {/* ======================================================
+          LOCATION
+      ====================================================== */}
 
-      {!!location && (
-        <View style={styles.locationRow}>
-          <Ionicons
-            name="location-outline"
-            size={12}
-            color="#64748B"
+      {location ? (
+        <View
+          style={
+            styles.locationRow
+          }
+        >
+          <AppIcon
+            name="location"
+            role="customer"
+            size="xs"
+            state="muted"
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
-            style={styles.meta}
+            style={
+              styles.locationText
+            }
           >
             {location}
           </AppText>
         </View>
-      )}
+      ) : null}
 
-      {/* HOURLY RATE */}
+      {/* ======================================================
+          HOURLY RATE
+      ====================================================== */}
 
-      {hourlyRate != null && (
+      {safeHourlyRate !==
+      null ? (
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.price}
+          numberOfLines={1}
+          style={
+            styles.price
+          }
         >
-          ₦{hourlyRate.toLocaleString()}/hr
+          ₦
+          {formatRate(
+            safeHourlyRate,
+          )}
+          /hr
         </AppText>
-      )}
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    marginHorizontal: 8,
-    minWidth: 0,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  name: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: "#0F172A",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
 
-  ratingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-  },
+      minWidth: 0,
 
-  category: {
-    marginTop: 2,
-    fontSize: 10,
-    lineHeight: 14,
-    color: "#475569",
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
 
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 2,
-    minWidth: 0,
-  },
+    /* ========================================================
+       META
+    ======================================================== */
 
-  meta: {
-    marginLeft: 3,
-    fontSize: 9.5,
-    lineHeight: 13,
-    color: "#64748B",
-  },
+    metaRow: {
+      flexDirection:
+        "row",
 
-  price: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#F97316",
-  },
-});
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    metaText: {
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+    },
+
+    reviewText: {
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       SERVICE
+    ======================================================== */
+
+    category: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       LOCATION
+    ======================================================== */
+
+    locationRow: {
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    locationText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       PRICE
+    ======================================================== */
+
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        CustomerColors.primary,
+    },
+  });
+
+export default memo(
+  WorkerInfo,
+);

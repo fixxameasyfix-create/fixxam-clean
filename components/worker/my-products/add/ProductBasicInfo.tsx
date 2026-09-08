@@ -3,18 +3,40 @@ import React from "react";
 import {
   Pressable,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppInput,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   productName: string;
-  onChangeProductName: (value: string) => void;
+
+  onChangeProductName: (
+    value: string,
+  ) => void;
+
   category: string;
+
   onSelectCategory: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function ProductBasicInfo({
   productName,
@@ -22,109 +44,225 @@ export default function ProductBasicInfo({
   category,
   onSelectCategory,
 }: Props) {
+  const hasCategory =
+    category.trim().length > 0;
+
   return (
-    <View style={styles.container}>
-      {/* PRODUCT NAME */}
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          PRODUCT NAME
+      ====================================================== */}
 
-      <View style={styles.field}>
-        <AppText
-          weight="bold"
-          style={styles.label}
-        >
-          Product Name
-        </AppText>
-
-        <TextInput
-          value={productName}
-          onChangeText={onChangeProductName}
+      <View
+        style={
+          styles.field
+        }
+      >
+        <AppInput
+          role="worker"
+          label="Product Name"
           placeholder="Enter product name"
-          placeholderTextColor="#94A3B8"
-          style={styles.input}
+          value={
+            productName
+          }
+          onChangeText={
+            onChangeProductName
+          }
           autoCapitalize="sentences"
-          autoCorrect={false}
+          autoCorrect={
+            false
+          }
+          returnKeyType="next"
+          accessibilityLabel="Product name"
         />
       </View>
 
-      {/* CATEGORY */}
+      {/* ======================================================
+          CATEGORY
+      ====================================================== */}
 
-      <View style={styles.field}>
+      <View
+        style={
+          styles.field
+        }
+      >
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.label}
+          style={
+            styles.label
+          }
         >
           Category
         </AppText>
 
         <Pressable
-          onPress={onSelectCategory}
+          onPress={
+            onSelectCategory
+          }
           accessibilityRole="button"
           accessibilityLabel="Select product category"
-          style={({ pressed }) => [
-            styles.input,
-            pressed && styles.pressed,
+          accessibilityHint="Opens the product category selector"
+          style={({
+            pressed,
+          }) => [
+            styles.categoryInput,
+
+            pressed
+              ? styles.categoryInputPressed
+              : null,
           ]}
         >
           <AppText
-            style={[
-              styles.category,
-              !category && styles.placeholder,
-            ]}
+            variant="body"
             numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[
+              styles.categoryText,
+
+              !hasCategory
+                ? styles.placeholder
+                : null,
+            ]}
           >
-            {category || "Select Category"}
+            {hasCategory
+              ? category
+              : "Select Category"}
           </AppText>
+
+          <View
+            style={
+              styles.categoryIcon
+            }
+          >
+            <AppIcon
+              name="down"
+              role="worker"
+              size="xs"
+              color={
+                hasCategory
+                  ? WorkerColors.primary
+                  : Colors.textMuted
+              }
+            />
+          </View>
         </Pressable>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 12,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  field: {
-    marginBottom: 10,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-  label: {
-    marginBottom: 4,
-    fontSize: 11,
-    lineHeight: 15,
-    color: "#0F172A",
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  input: {
-    height: 40,
+    field: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-    borderRadius: 10,
+    label: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+      color:
+        Colors.textPrimary,
+    },
 
-    backgroundColor: "#FFFFFF",
+    /* ========================================================
+       CATEGORY
+    ======================================================== */
 
-    paddingHorizontal: 11,
+    categoryInput: {
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-    justifyContent: "center",
+      paddingLeft:
+        FixxamTokens.spacing.md,
 
-    fontSize: 12,
-    color: "#0F172A",
-  },
+      paddingRight:
+        FixxamTokens.spacing.xs,
 
-  category: {
-    fontSize: 12,
-    lineHeight: 16,
-    color: "#0F172A",
-  },
+      flexDirection:
+        "row",
 
-  placeholder: {
-    color: "#94A3B8",
-  },
+      alignItems:
+        "center",
 
-  pressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.99 }],
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.input,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    categoryText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    placeholder: {
+      color:
+        Colors.textMuted,
+    },
+
+    categoryIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    categoryInputPressed: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

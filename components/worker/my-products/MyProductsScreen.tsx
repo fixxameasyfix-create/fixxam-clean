@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
   Pressable,
@@ -6,12 +8,21 @@ import {
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import ProductSearch from "./ProductSearch";
 import CategoryChips from "./CategoryChips";
@@ -19,156 +30,277 @@ import ProductBanner from "./ProductBanner";
 import ProductTabs from "./ProductTabs";
 import ProductList from "./ProductList";
 
+/* ============================================================
+   SCREEN
+============================================================ */
+
 export default function MyProductsScreen() {
-  const handleSeeAll = () => {
-    router.push("/(worker)/products");
-  };
+  /* ==========================================================
+     SEE ALL
+  ========================================================== */
+
+  const handleSeeAll =
+    useCallback(() => {
+      router.push(
+        "/(worker)/products",
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <AppScreen
-      contentContainerStyle={styles.container}
+      role="worker"
+      contentContainerStyle={
+        styles.screen
+      }
     >
-      {/* SEARCH */}
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
+
       <ProductSearch />
 
-      {/* CATEGORIES */}
+      {/* ======================================================
+          CATEGORIES
+      ====================================================== */}
+
       <CategoryChips />
 
-      {/* BANNER */}
+      {/* ======================================================
+          BANNER
+      ====================================================== */}
+
       <ProductBanner />
 
-      {/* TABS */}
+      {/* ======================================================
+          TABS
+      ====================================================== */}
+
       <ProductTabs />
 
-      {/* PRODUCTS HEADER */}
-      <View style={styles.productsHeader}>
-        <View style={styles.headerText}>
+      {/* ======================================================
+          PRODUCTS HEADER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.productsHeader
+        }
+      >
+        <View
+          style={
+            styles.headerText
+          }
+        >
           <AppText
+            variant="heading2"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             My Products
           </AppText>
 
-          <AppText style={styles.subtitle}>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.subtitle
+            }
+          >
             Manage your products
           </AppText>
         </View>
 
         <Pressable
+          onPress={
+            handleSeeAll
+          }
+          hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="See all products"
           accessibilityHint="Opens all products"
-          hitSlop={10}
-          onPress={handleSeeAll}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.seeAllButton,
-            pressed && styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.seeAllText}
+            style={
+              styles.seeAllText
+            }
           >
             See All
           </AppText>
 
-          <AppText
-            weight="bold"
-            style={styles.arrow}
-          >
-            ›
-          </AppText>
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
+          />
         </Pressable>
       </View>
 
-      {/* PRODUCTS */}
-      <ProductList showSeeAll={false} />
+      {/* ======================================================
+          PRODUCTS
+      ====================================================== */}
 
-      <View style={styles.bottomSpace} />
+      <ProductList
+        showSeeAll={
+          false
+        }
+      />
+
+      <View
+        style={
+          styles.bottomSpace
+        }
+      />
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    /*
-     * Moves the WHOLE page down:
-     * Search
-     * Categories
-     * Banner
-     * Tabs
-     * My Products
-     * Product cards
-     */
-    paddingTop: 35,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-    paddingBottom: 10,
+    screen: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    backgroundColor: "#F8FAFC",
+      paddingTop:
+        FixxamTokens.spacing.xl,
 
-    flexGrow: 0,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.sm,
 
-  productsHeader: {
-    width: "100%",
+      backgroundColor:
+        Colors.background,
+    },
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    /* ========================================================
+       PRODUCTS HEADER
+    ======================================================== */
 
-    marginTop: 1,
-    marginBottom: 11,
-  },
+    productsHeader: {
+      width: "100%",
 
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-  },
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  title: {
-    fontSize: 24,
-    lineHeight: 29,
-    color: "#111827",
-  },
+      flexDirection:
+        "row",
 
-  subtitle: {
-    marginTop: 2,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#94A3B8",
-  },
+      alignItems:
+        "center",
 
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
+      justifyContent:
+        "space-between",
 
-    paddingVertical: 8,
-    paddingLeft: 10,
-    paddingRight: 2,
+      gap:
+        FixxamTokens.spacing.md,
+    },
 
-    marginLeft: 12,
-  },
+    headerText: {
+      flex: 1,
 
-  seeAllText: {
-    fontSize: 15,
-    color: "#F97316",
-  },
+      minWidth: 0,
+    },
 
-  arrow: {
-    marginLeft: 2,
-    fontSize: 22,
-    lineHeight: 22,
-    color: "#F97316",
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  pressed: {
-    opacity: 0.6,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-  bottomSpace: {
-    height: 40,
-  },
-});
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SEE ALL
+    ======================================================== */
+
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingRight:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    seeAllText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       BOTTOM
+    ======================================================== */
+
+    bottomSpace: {
+      height:
+        FixxamTokens.spacing.xxl,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

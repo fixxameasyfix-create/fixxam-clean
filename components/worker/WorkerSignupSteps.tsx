@@ -1,208 +1,304 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
+
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
+  FixxamTokens,
   WorkerColors,
 } from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   step: number;
+
   totalSteps?: number;
+
   variant?: "customer" | "worker";
 };
 
-export default function WorkerSignupSteps({
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const STEP_TITLES = [
+  "Personal Information",
+  "Contact Information",
+  "Professional Information",
+  "Security & Photo",
+  "Review Information",
+] as const;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerSignupSteps({
   step,
   totalSteps = 5,
   variant = "worker",
 }: Props) {
+  const safeTotalSteps =
+    Math.max(
+      1,
+      Math.floor(totalSteps),
+    );
+
+  const safeStep =
+    Math.min(
+      safeTotalSteps,
+      Math.max(
+        1,
+        Math.floor(step),
+      ),
+    );
+
   const primary =
     variant === "worker"
       ? WorkerColors.primary
       : CustomerColors.primary;
 
+  const title =
+    useMemo(
+      () =>
+        STEP_TITLES[
+          safeStep - 1
+        ] ?? `Step ${safeStep}`,
+      [safeStep],
+    );
+
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <AppText
+        variant="body"
         weight="bold"
-        style={styles.stepText}
+        center
+        style={
+          styles.stepText
+        }
       >
-        Step {step} of {totalSteps}
+        Step {safeStep} of {safeTotalSteps}
       </AppText>
 
-      <View style={styles.progressContainer}>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{
+          min: 1,
+          max: safeTotalSteps,
+          now: safeStep,
+        }}
+        style={
+          styles.progressContainer
+        }
+      >
         {Array.from({
-          length: totalSteps,
-        }).map((_, index) => {
-          const active =
-            index + 1 <= step;
+          length:
+            safeTotalSteps,
+        }).map(
+          (
+            _,
+            index,
+          ) => {
+            const stepNumber =
+              index + 1;
 
-          const current =
-            index + 1 === step;
+            const active =
+              stepNumber <=
+              safeStep;
 
-          return (
-            <React.Fragment
-              key={index}
-            >
-              <View
-                style={[
-                  styles.circle,
-                  {
-                    backgroundColor:
-                      active
-                        ? primary
-                        : "#F3F4F6",
+            const current =
+              stepNumber ===
+              safeStep;
 
-                    borderColor:
-                      active
-                        ? primary
-                        : "#D1D5DB",
+            const connectorActive =
+              stepNumber <
+              safeStep;
 
-                    transform: [
-                      {
-                        scale: current
-                          ? 1.1
-                          : 1,
-                      },
-                    ],
-                  },
-                ]}
+            return (
+              <React.Fragment
+                key={
+                  stepNumber
+                }
               >
-                <AppText
+                <View
                   style={[
-                    styles.number,
+                    styles.circle,
+
                     {
-                      color: active
-                        ? "#FFFFFF"
-                        : "#94A3B8",
+                      backgroundColor:
+                        active
+                          ? primary
+                          : Colors.disabledBackground,
+
+                      borderColor:
+                        active
+                          ? primary
+                          : Colors.disabled,
+
+                      transform: [
+                        {
+                          scale:
+                            current
+                              ? 1.1
+                              : 1,
+                        },
+                      ],
                     },
                   ]}
                 >
-                  {index + 1}
-                </AppText>
-              </View>
-
-              {index !==
-                totalSteps - 1 && (
-                <View
-                  style={[
-                    styles.line,
+                  <AppText
+                    variant="bodyLarge"
+                    weight="bold"
+                    style={{
+                      color:
+                        active
+                          ? Colors.textInverse
+                          : Colors.textMuted,
+                    }}
+                  >
                     {
-                      backgroundColor:
-                        index + 1 <
-                        step
-                          ? primary
-                          : "#E5E7EB",
-                    },
-                  ]}
-                />
-              )}
-            </React.Fragment>
-          );
-        })}
+                      stepNumber
+                    }
+                  </AppText>
+                </View>
+
+                {index !==
+                safeTotalSteps -
+                  1 ? (
+                  <View
+                    style={[
+                      styles.line,
+
+                      {
+                        backgroundColor:
+                          connectorActive
+                            ? primary
+                            : Colors.divider,
+                      },
+                    ]}
+                  />
+                ) : null}
+              </React.Fragment>
+            );
+          },
+        )}
       </View>
 
       <AppText
-        style={styles.title}
+        variant="heading2"
+        weight="bold"
+        center
+        style={[
+          styles.title,
+
+          {
+            color:
+              primary,
+          },
+        ]}
       >
-        {step === 1 &&
-          "Personal Information"}
-
-        {step === 2 &&
-          "Contact Information"}
-
-        {step === 3 &&
-          "Professional Information"}
-
-        {step === 4 &&
-          "Security & Photo"}
-
-        {step === 5 &&
-          "Review Information"}
+        {title}
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 18,
-    marginTop: 12,
-    marginBottom: 22,
-  },
+export default memo(
+  WorkerSignupSteps,
+);
 
-  stepText: {
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#64748B",
-    marginBottom: 10,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  status: {
-    textAlign: "center",
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#16A34A",
-    marginBottom: 18,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-  progressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  circle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-
-    borderWidth: 2,
-
-    justifyContent: "center",
-    alignItems: "center",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
 
-    elevation: 2,
-  },
+    stepText: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  number: {
-    fontSize: 17,
-    fontWeight: "800",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  line: {
-    flex: 1,
-    height: 4,
+    progressContainer: {
+      flexDirection:
+        "row",
 
-    marginHorizontal: 8,
+      alignItems:
+        "center",
 
-    borderRadius: 999,
-  },
+      justifyContent:
+        "center",
 
-  title: {
-    textAlign: "center",
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-    fontSize: 22,
-    fontWeight: "800",
+    circle: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-    color: "#0B2D6B",
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-    marginTop: 2,
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      borderWidth: 2,
+
+      justifyContent:
+        "center",
+
+      alignItems:
+        "center",
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    line: {
+      flex: 1,
+
+      height: 4,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+  });

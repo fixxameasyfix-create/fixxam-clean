@@ -4,8 +4,6 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
-  Alert,
   StyleSheet,
   View,
 } from "react-native";
@@ -23,6 +21,8 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 
+import Toast from "react-native-toast-message";
+
 import {
   AppButton,
   AppCard,
@@ -34,6 +34,7 @@ import {
 } from "@/firebase/config";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
@@ -80,19 +81,20 @@ const DEFAULT_SERVICE_ICON =
   "tools";
 
 const DEFAULT_SERVICE_COLOR =
-  "#2563EB";
+  CustomerColors.primary;
 
 const DEFAULT_SERVICE_BACKGROUND =
-  "#EFF6FF";
+  CustomerColors.primarySoft;
 
 /* ==============================================================
-   STRING HELPER
+   HELPERS
 ============================================================== */
 
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
@@ -122,9 +124,9 @@ export default function ResultActions({
 
   const handleBookProfessional =
     useCallback(async () => {
-      /* ========================================================
-         SERVICE ID
-      ======================================================== */
+      if (loading) {
+        return;
+      }
 
       const resolvedServiceId =
         cleanString(
@@ -132,23 +134,16 @@ export default function ResultActions({
         );
 
       if (!resolvedServiceId) {
-        Alert.alert(
-          "Service unavailable",
-          "The selected service could not be identified.",
-        );
+        Toast.show({
+          type: "error",
 
-        console.error(
-          "RESULT_ACTIONS_MISSING_SERVICE_ID",
-          {
-            serviceId,
-            serviceName,
-          },
-        );
+          text1:
+            "Service unavailable",
 
-        return;
-      }
+          text2:
+            "The selected service could not be identified.",
+        });
 
-      if (loading) {
         return;
       }
 
@@ -156,7 +151,7 @@ export default function ResultActions({
 
       try {
         /* ======================================================
-           START WITH PASSED VALUES
+           FALLBACK DATA FROM AI RESULT
         ====================================================== */
 
         let resolvedServiceName =
@@ -188,18 +183,7 @@ export default function ResultActions({
           );
 
         /* ======================================================
-           LOAD EXACT SERVICE DOCUMENT
-           
-           This is the important fix.
-           
-           services/{serviceId}
-           
-           gives us the exact:
-           - name
-           - icon
-           - color
-           - backgroundColor
-           - categoryId
+           LOAD AUTHORITATIVE SERVICE METADATA
         ====================================================== */
 
         try {
@@ -246,13 +230,6 @@ export default function ResultActions({
                 serviceData.categoryId,
               );
 
-            /*
-             * Firestore is authoritative.
-             *
-             * This guarantees the same icon
-             * used by CategoryCard / ServicesGrid.
-             */
-
             if (firestoreName) {
               resolvedServiceName =
                 firestoreName;
@@ -281,29 +258,18 @@ export default function ResultActions({
               resolvedCategoryId =
                 firestoreCategoryId;
             }
-          } else {
-            console.warn(
-              "SERVICE_DOCUMENT_NOT_FOUND",
-              {
-                serviceId:
-                  resolvedServiceId,
-              },
-            );
           }
         } catch (
-          serviceError
+          metadataError
         ) {
           /*
-           * Do not break navigation just
-           * because service metadata read failed.
-           *
-           * We keep the values supplied by
-           * the AI result as fallback.
+           * Metadata failure must not block
+           * navigation when valid fallback
+           * values were already supplied.
            */
-
           console.error(
-            "LOAD_SERVICE_METADATA_ERROR",
-            serviceError,
+            "LOAD_SERVICE_METADATA_ERROR:",
+            metadataError,
           );
         }
 
@@ -314,52 +280,21 @@ export default function ResultActions({
         if (
           !resolvedServiceName
         ) {
-          Alert.alert(
-            "Service unavailable",
-            "The selected service name could not be identified.",
-          );
+          Toast.show({
+            type: "error",
 
-          console.error(
-            "RESULT_ACTIONS_MISSING_SERVICE_NAME",
-            {
-              serviceId:
-                resolvedServiceId,
-              serviceName,
-            },
-          );
+            text1:
+              "Service unavailable",
+
+            text2:
+              "The selected service name could not be identified.",
+          });
 
           return;
         }
 
         /* ======================================================
-           DEBUG
-        ====================================================== */
-
-        console.log(
-          "BOOK_PROFESSIONAL_RESOLVED_SERVICE",
-          {
-            serviceId:
-              resolvedServiceId,
-
-            serviceName:
-              resolvedServiceName,
-
-            serviceIcon:
-              resolvedServiceIcon,
-
-            serviceColor:
-              resolvedServiceColor,
-
-            serviceBackgroundColor:
-              resolvedServiceBackgroundColor,
-
-            categoryId:
-              resolvedCategoryId,
-          },
-        );
-
-        /* ======================================================
-           NAVIGATE TO WORKERS
+           NAVIGATION
         ====================================================== */
 
         router.push({
@@ -367,58 +302,26 @@ export default function ResultActions({
             "/(customer)/details/workers/[id]",
 
           params: {
-            /* --------------------------------------------------
-               ROUTE ID
-            -------------------------------------------------- */
-
             id:
               resolvedServiceId,
-
-            /* --------------------------------------------------
-               SERVICE ID
-            -------------------------------------------------- */
 
             serviceId:
               resolvedServiceId,
 
-            /* --------------------------------------------------
-               SERVICE NAME
-            -------------------------------------------------- */
-
             serviceName:
               resolvedServiceName,
-
-            /* --------------------------------------------------
-               BACKWARD COMPATIBILITY
-            -------------------------------------------------- */
 
             service:
               resolvedServiceName,
 
-            /* --------------------------------------------------
-               EXACT SERVICE ICON
-            -------------------------------------------------- */
-
             serviceIcon:
               resolvedServiceIcon,
-
-            /* --------------------------------------------------
-               EXACT SERVICE COLOR
-            -------------------------------------------------- */
 
             serviceColor:
               resolvedServiceColor,
 
-            /* --------------------------------------------------
-               EXACT SERVICE BACKGROUND
-            -------------------------------------------------- */
-
             serviceBackgroundColor:
               resolvedServiceBackgroundColor,
-
-            /* --------------------------------------------------
-               CATEGORY
-            -------------------------------------------------- */
 
             ...(resolvedCategoryId
               ? {
@@ -428,33 +331,36 @@ export default function ResultActions({
               : {}),
           },
         });
-      } catch (
-        error
-      ) {
+      } catch (error) {
         console.error(
-          "BOOK_PROFESSIONAL_NAVIGATION_ERROR",
+          "BOOK_PROFESSIONAL_NAVIGATION_ERROR:",
           error,
         );
 
-        Alert.alert(
-          "Unable to continue",
-          "We could not open the professional list. Please try again.",
-        );
+        Toast.show({
+          type: "error",
+
+          text1:
+            "Unable to continue",
+
+          text2:
+            "We could not open the professional list. Please try again.",
+        });
       } finally {
         setLoading(false);
       }
     }, [
-      serviceId,
-      serviceName,
-      serviceIcon,
-      serviceColor,
-      serviceBackgroundColor,
       categoryId,
       loading,
+      serviceBackgroundColor,
+      serviceColor,
+      serviceIcon,
+      serviceId,
+      serviceName,
     ]);
 
   /* ============================================================
-     TRY AGAIN
+     ANALYZE AGAIN
   ============================================================ */
 
   const handleTryAgain =
@@ -472,8 +378,8 @@ export default function ResultActions({
         },
       });
     }, [
-      problem,
       loading,
+      problem,
     ]);
 
   /* ============================================================
@@ -482,18 +388,14 @@ export default function ResultActions({
 
   return (
     <AppCard
-      style={
-        styles.card
-      }
+      style={styles.card}
     >
       {/* ========================================================
           HEADER
       ======================================================== */}
 
       <View
-        style={
-          styles.header
-        }
+        style={styles.header}
       >
         <View
           style={
@@ -502,7 +404,7 @@ export default function ResultActions({
         >
           <MaterialCommunityIcons
             name="lightning-bolt"
-            size={16}
+            size={18}
             color={
               CustomerColors.primary
             }
@@ -510,65 +412,55 @@ export default function ResultActions({
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
-          style={
-            styles.title
-          }
+          style={styles.title}
         >
           Next Action
         </AppText>
       </View>
 
       {/* ========================================================
-          BUTTONS
+          ACTIONS
       ======================================================== */}
 
       <View
-        style={
-          styles.buttons
-        }
+        style={styles.buttons}
       >
-        {!!serviceId && (
+        {Boolean(
+          cleanString(
+            serviceId,
+          ),
+        ) ? (
           <AppButton
             title={
-              loading
-                ? "Opening..."
-                : professionalRequired
+              professionalRequired
                 ? "Book Professional"
                 : "Find Professionals"
             }
+            role="customer"
+            variant="primary"
+            loading={loading}
+            disabled={loading}
             onPress={
               handleBookProfessional
             }
-            disabled={
-              loading
-            }
             style={
-              styles.primaryButton
-            }
-            leftIcon={
-              loading ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
-              ) : undefined
+              styles.button
             }
           />
-        )}
+        ) : null}
 
         <AppButton
           title="Analyze Again"
+          role="customer"
+          variant="outline"
+          disabled={loading}
           onPress={
             handleTryAgain
           }
-          disabled={
-            loading
-          }
-          variant="outline"
           style={
-            styles.secondaryButton
+            styles.button
           }
         />
       </View>
@@ -586,57 +478,48 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     header: {
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
     },
 
     iconContainer: {
-      width: 30,
+      width: 36,
 
-      height: 30,
+      height: 36,
 
-      borderRadius: 15,
+      alignItems: "center",
 
-      alignItems:
-        "center",
+      justifyContent: "center",
 
-      justifyContent:
-        "center",
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        CustomerColors.diagnosisBackground,
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginLeft: 8,
+      flex: 1,
 
-      fontSize: 17,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
     buttons: {
-      gap: 8,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    primaryButton: {
+    button: {
       width: "100%",
-
-      minHeight: 44,
-
-      borderRadius: 12,
-    },
-
-    secondaryButton: {
-      width: "100%",
-
-      minHeight: 44,
-
-      borderRadius: 12,
     },
   });

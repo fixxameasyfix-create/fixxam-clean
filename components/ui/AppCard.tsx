@@ -1,45 +1,158 @@
-import React from "react";
+import type { ReactNode } from "react";
+import React, { memo } from "react";
+
 import {
-  View,
-  ViewProps,
+  Pressable,
+  StyleProp,
   StyleSheet,
+  ViewStyle,
 } from "react-native";
 
 import {
   CustomerColors,
-  FixxamColors,
   FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
 } from "@/theme";
 
-interface AppCardProps extends ViewProps {}
+type CardVariant =
+  | "default"
+  | "outlined"
+  | "elevated"
+  | "accent";
 
-export default function AppCard({
-  style,
+export interface AppCardProps {
+  children: ReactNode;
+
+  role?: FixxamRole;
+
+  variant?: CardVariant;
+
+  onPress?: () => void;
+
+  disabled?: boolean;
+
+  accessibilityLabel?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppCard({
   children,
-  ...props
+  role = "customer",
+  variant = "default",
+  onPress,
+  disabled = false,
+  accessibilityLabel,
+  style,
 }: AppCardProps) {
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const isInteractive =
+    typeof onPress === "function";
+
+  const variantStyle = {
+    default: {
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+      borderWidth: 1,
+    },
+
+    outlined: {
+      backgroundColor: colors.card,
+      borderColor: colors.borderStrong,
+      borderWidth: 1,
+    },
+
+    elevated: {
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+      borderWidth: StyleSheet.hairlineWidth,
+    },
+
+    accent: {
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary,
+      borderWidth: 1,
+    },
+  }[variant];
+
   return (
-    <View
-      {...props}
-      style={[styles.card, style]}
+    <Pressable
+      accessibilityRole={
+        isInteractive ? "button" : undefined
+      }
+      accessibilityLabel={
+        accessibilityLabel
+      }
+      accessibilityState={{
+        disabled:
+          isInteractive
+            ? disabled
+            : undefined,
+      }}
+      disabled={
+        disabled || !isInteractive
+      }
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+
+        variantStyle,
+
+        variant === "elevated"
+          ? FixxamTokens.shadow.card
+          : null,
+
+        pressed &&
+        isInteractive &&
+        !disabled
+          ? styles.pressed
+          : null,
+
+        disabled
+          ? styles.disabled
+          : null,
+
+        style,
+      ]}
     >
       {children}
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: FixxamColors.white,
+    borderRadius:
+      FixxamTokens.radius.card,
 
-    borderRadius: FixxamTokens.radius.md,
+    padding:
+      FixxamTokens.spacing.card,
+  },
 
-    paddingHorizontal: FixxamTokens.spacing.lg,
-    paddingVertical: FixxamTokens.spacing.lg,
+  pressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
 
-    borderWidth: 1,
-    borderColor: CustomerColors.border,
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
+      },
+    ],
+  },
 
-    ...FixxamTokens.shadow.card,
+  disabled: {
+    opacity:
+      FixxamTokens.motion
+        .disabledOpacity,
   },
 });
+
+export default memo(AppCard);

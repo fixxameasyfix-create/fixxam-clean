@@ -1,30 +1,68 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
-    ActivityIndicator,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { FirebaseError } from "firebase/app";
+import {
+  router,
+} from "expo-router";
 
 import {
-    claim90DayReward,
-    get90DayRewardStatus,
-    type RewardStatus,
+  FirebaseError,
+} from "firebase/app";
+
+import Toast from "react-native-toast-message";
+
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
+  claim90DayReward,
+  get90DayRewardStatus,
+  type RewardStatus,
 } from "../../../services/rewards/90DayReward";
 
-const REWARD_DAYS = 90;
+/* ============================================================
+   CONSTANTS
+============================================================ */
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof FirebaseError) {
-    switch (error.code) {
+const REWARD_DAYS =
+  90;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error instanceof FirebaseError
+  ) {
+    switch (
+      error.code
+    ) {
       case "functions/unauthenticated":
         return "Please sign in to claim your daily reward.";
 
@@ -34,843 +72,1962 @@ function getErrorMessage(error: unknown): string {
       case "functions/failed-precondition":
         return "This reward is not available for claiming.";
 
+      case "functions/unavailable":
+        return "The reward service is temporarily unavailable. Please try again.";
+
       default:
-        return error.message || "Something went wrong.";
+        return (
+          error.message ||
+          "Something went wrong."
+        );
     }
   }
 
   return "Something went wrong. Please try again.";
 }
 
+function getSafeInteger(
+  value: unknown,
+  fallback = 0,
+): number {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return fallback;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      parsed,
+    ),
+  );
+}
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ============================================================
+   SCREEN
+============================================================ */
+
 export default function SpecialOfferScreen() {
-  const [reward, setReward] =
-    useState<RewardStatus | null>(null);
+  const [
+    reward,
+    setReward,
+  ] =
+    useState<RewardStatus | null>(
+      null,
+    );
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
 
-  const loadReward = useCallback(async () => {
-    try {
-      setError(null);
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(false);
 
-      const status =
-        await get90DayRewardStatus();
+  const [
+    claiming,
+    setClaiming,
+  ] =
+    useState(false);
 
-      setReward(status);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const [
+    error,
+    setError,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const claimInFlight =
+    useRef(false);
+
+  /* ==========================================================
+     LOAD REWARD
+  ========================================================== */
+
+  const loadReward =
+    useCallback(async () => {
+      try {
+        setError(
+          null,
+        );
+
+        const status =
+          await get90DayRewardStatus();
+
+        if (!status) {
+          throw new Error(
+            "REWARD_STATUS_EMPTY",
+          );
+        }
+
+        setReward(
+          status,
+        );
+      } catch (
+        loadError
+      ) {
+        console.error(
+          "90_DAY_REWARD_STATUS_ERROR:",
+          loadError,
+        );
+
+        setError(
+          getErrorMessage(
+            loadError,
+          ),
+        );
+      } finally {
+        setLoading(
+          false,
+        );
+
+        setRefreshing(
+          false,
+        );
+      }
+    }, []);
 
   useEffect(() => {
     void loadReward();
-  }, [loadReward]);
+  }, [
+    loadReward,
+  ]);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    void loadReward();
-  }, [loadReward]);
+  /* ==========================================================
+     REFRESH
+  ========================================================== */
 
-  const handleClaim = useCallback(async () => {
-    if (!reward?.canClaimToday || claiming) {
-      return;
-    }
+  const handleRefresh =
+    useCallback(() => {
+      if (
+        refreshing
+      ) {
+        return;
+      }
 
-    try {
-      setClaiming(true);
-      setError(null);
+      setRefreshing(
+        true,
+      );
 
-      const result =
-        await claim90DayReward();
+      void loadReward();
+    }, [
+      loadReward,
+      refreshing,
+    ]);
 
-      setReward(result);
-    } catch (err) {
-      setError(getErrorMessage(err));
+  /* ==========================================================
+     DAILY CLAIM
+  ========================================================== */
 
-      // Refresh in case another request/device
-      // already changed the reward state.
-      await loadReward();
-    } finally {
-      setClaiming(false);
-    }
-  }, [claiming, loadReward, reward?.canClaimToday]);
+  const handleClaim =
+    useCallback(async () => {
+      if (
+        !reward?.canClaimToday ||
+        claimInFlight.current ||
+        claiming
+      ) {
+        return;
+      }
 
- 
-const handleFreeServiceClaim = useCallback(() => {
-  if (!reward?.rewardUnlocked || reward.rewardClaimed) {
-    return;
-  }
+      claimInFlight.current =
+        true;
 
-  router.push({
-    pathname: "/(customer)/details/categories",
-    params: {
-      reward: "90-day-free-service",
-    },
-  });
-}, [
-  reward?.rewardClaimed,
-  reward?.rewardUnlocked,
-]);
+      setClaiming(
+        true,
+      );
+
+      try {
+        const result =
+          await claim90DayReward();
+
+        setReward(
+          result,
+        );
+
+        setError(
+          null,
+        );
+
+        showSuccessToast(
+          "Reward claimed",
+          "Today's reward has been added to your streak.",
+        );
+      } catch (
+        claimError
+      ) {
+        console.error(
+          "90_DAY_REWARD_CLAIM_ERROR:",
+          claimError,
+        );
+
+        showErrorToast(
+          "Unable to claim reward",
+          getErrorMessage(
+            claimError,
+          ),
+        );
+
+        /*
+         * Refresh because another request
+         * or another device may already
+         * have changed the reward state.
+         */
+        await loadReward();
+      } finally {
+        claimInFlight.current =
+          false;
+
+        setClaiming(
+          false,
+        );
+      }
+    }, [
+      claiming,
+      loadReward,
+      reward?.canClaimToday,
+    ]);
+
+  /* ==========================================================
+     FREE SERVICE
+  ========================================================== */
+
+  const handleFreeServiceClaim =
+    useCallback(() => {
+      if (
+        !reward?.rewardUnlocked ||
+        reward.rewardClaimed
+      ) {
+        return;
+      }
+
+      router.push({
+        pathname:
+          "/(customer)/details/categories",
+
+        params: {
+          reward:
+            "90-day-free-service",
+        },
+      });
+    }, [
+      reward?.rewardClaimed,
+      reward?.rewardUnlocked,
+    ]);
+
+  /* ==========================================================
+     DERIVED REWARD STATE
+  ========================================================== */
+
+  const streakDay =
+    Math.min(
+      getSafeInteger(
+        reward?.streakDay,
+      ),
+      REWARD_DAYS,
+    );
+
+  const progress =
+    Math.min(
+      Math.max(
+        streakDay /
+          REWARD_DAYS,
+        0,
+      ),
+      1,
+    );
+
+  const progressNumber =
+    Math.round(
+      progress * 100,
+    );
+
+  const progressPercentage =
+    `${progressNumber}%` as `${number}%`;
+
+  const daysRemaining =
+    Math.min(
+      REWARD_DAYS,
+      getSafeInteger(
+        reward?.daysRemaining,
+        Math.max(
+          REWARD_DAYS -
+            streakDay,
+          0,
+        ),
+      ),
+    );
+
+  const rewardUnlocked =
+    Boolean(
+      reward?.rewardUnlocked,
+    );
+
+  const rewardClaimed =
+    Boolean(
+      reward?.rewardClaimed,
+    );
+
+  const canClaimToday =
+    Boolean(
+      reward?.canClaimToday,
+    );
+
+  const dailyClaimTitle =
+    canClaimToday
+      ? "Claim today's reward"
+      : "Today's reward claimed";
+
+  const dailyClaimDescription =
+    canClaimToday
+      ? "Claim today to continue your 90-day streak."
+      : "Come back tomorrow to continue your streak.";
+
+  const rewardStatusLabel =
+    useMemo(() => {
+      if (
+        rewardClaimed
+      ) {
+        return "REWARD CLAIMED";
+      }
+
+      return "1 FREE SERVICE";
+    }, [
+      rewardClaimed,
+    ]);
+
+  /* ==========================================================
+     LOADING
+  ========================================================== */
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator
-          size="large"
-          color="#2563EB"
-        />
+      <AppScreen
+        role="customer"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <ActivityIndicator
+            size="large"
+            color={
+              CustomerColors.primary
+            }
+          />
 
-        <Text style={styles.loadingText}>
-          Loading your reward...
-        </Text>
-      </View>
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading your reward...
+          </AppText>
+        </View>
+      </AppScreen>
     );
   }
 
-  const streakDay = reward?.streakDay ?? 0;
-
-  const progress =
-    Math.min(streakDay / REWARD_DAYS, 1);
-
-  const progressPercentage =
-  `${Math.round(progress * 100)}%` as `${number}%`;
-
-  const daysRemaining =
-    reward?.daysRemaining ??
-    Math.max(REWARD_DAYS - streakDay, 0);
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={
+          false
+        }
+        contentContainerStyle={
+          styles.content
+        }
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
+            refreshing={
+              refreshing
+            }
+            onRefresh={
+              handleRefresh
+            }
+            tintColor={
+              CustomerColors.primary
+            }
+            colors={[
+              CustomerColors.primary,
+            ]}
+            progressBackgroundColor={
+              Colors.surface
+            }
           />
         }
       >
-        {/* Header */}
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
-        <View style={styles.header}>
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
             hitSlop={10}
-            onPress={() => router.back()}
-            style={styles.backButton}
+            onPress={() => {
+              router.back();
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color="#0F172A"
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
-          <View style={styles.headerText}>
-            <Text style={styles.title}>
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading1"
+              weight="bold"
+              style={
+                styles.title
+              }
+            >
               90-Day Reward
-            </Text>
+            </AppText>
 
-            <Text style={styles.subtitle}>
-              Claim every day and keep your streak
-              alive for a free Fixxam service.
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.subtitle
+              }
+            >
+              Claim every day and keep your streak alive for a free Fixxam service.
+            </AppText>
           </View>
         </View>
 
-        {/* Error */}
+        {/* ====================================================
+            ERROR
+        ==================================================== */}
 
-        {error && (
-          <View style={styles.errorBox}>
-            <Ionicons
-              name="alert-circle-outline"
-              size={21}
-              color="#DC2626"
-            />
-
-            <Text style={styles.errorText}>
-              {error}
-            </Text>
-          </View>
-        )}
-
-        {/* Hero */}
-
-        <View style={styles.heroCard}>
-          <View style={styles.heroIcon}>
-            <Ionicons
-              name="gift-outline"
-              size={38}
-              color="#CA8A04"
-            />
-          </View>
-
-          <Text style={styles.heroTitle}>
-            Fixxam 90-Day Reward
-          </Text>
-
-          <Text style={styles.heroDescription}>
-            Claim one reward every day. Stay
-            consistent for 90 days to unlock
-            one free service.
-          </Text>
-        </View>
-
-        {/* Progress */}
-
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <View>
-              <Text style={styles.progressTitle}>
-                YOUR STREAK
-              </Text>
-
-              <Text style={styles.dayText}>
-                Day {streakDay} / {REWARD_DAYS}
-              </Text>
+        {error ? (
+          <View
+            style={
+              styles.errorBox
+            }
+          >
+            <View
+              style={
+                styles.errorIcon
+              }
+            >
+              <AppIcon
+                name="error"
+                size="sm"
+                color={
+                  Colors.error
+                }
+              />
             </View>
 
-            <View style={styles.dayBadge}>
-              <Ionicons
-                name="flame-outline"
-                size={18}
-                color="#EA580C"
+            <View
+              style={
+                styles.errorContent
+              }
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.errorTitle
+                }
+              >
+                Unable to update reward
+              </AppText>
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.errorText
+                }
+              >
+                {error}
+              </AppText>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Try loading reward again"
+                onPress={() => {
+                  void loadReward();
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.retryButton,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name="refresh"
+                  role="customer"
+                  size="xs"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.retryText
+                  }
+                >
+                  TRY AGAIN
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        {/* ====================================================
+            HERO
+        ==================================================== */}
+
+        <View
+          style={
+            styles.heroCard
+          }
+        >
+          <View
+            style={
+              styles.heroIcon
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="lg"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading2"
+            weight="bold"
+            style={
+              styles.heroTitle
+            }
+          >
+            Fixxam 90-Day Reward
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.heroDescription
+            }
+          >
+            Claim one reward every day. Stay consistent for 90 days to unlock one free service.
+          </AppText>
+        </View>
+
+        {/* ====================================================
+            PROGRESS
+        ==================================================== */}
+
+        <View
+          style={
+            styles.progressCard
+          }
+        >
+          <View
+            style={
+              styles.progressHeader
+            }
+          >
+            <View
+              style={
+                styles.progressHeaderContent
+              }
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.progressTitle
+                }
+              >
+                YOUR STREAK
+              </AppText>
+
+              <AppText
+                variant="heading2"
+                weight="bold"
+                style={
+                  styles.dayText
+                }
+              >
+                Day {streakDay} / {REWARD_DAYS}
+              </AppText>
+            </View>
+
+            <View
+              style={
+                styles.dayBadge
+              }
+              accessibilityLabel={`${streakDay} day streak`}
+            >
+              <AppIcon
+                name="calendar"
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
               />
 
-              <Text style={styles.dayBadgeText}>
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.dayBadgeText
+                }
+              >
                 {streakDay}
-              </Text>
+              </AppText>
             </View>
           </View>
 
           <View
-            style={styles.progressTrack}
             accessible
             accessibilityRole="progressbar"
+            accessibilityLabel="90 day reward progress"
             accessibilityValue={{
-              min: 0,
-              max: REWARD_DAYS,
-              now: streakDay,
+              min:
+                0,
+
+              max:
+                REWARD_DAYS,
+
+              now:
+                streakDay,
             }}
+            style={
+              styles.progressTrack
+            }
           >
             <View
               style={[
                 styles.progressFill,
+
                 {
-                  width: progressPercentage,
+                  width:
+                    progressPercentage,
                 },
               ]}
             />
           </View>
 
-          <View style={styles.progressFooter}>
-            <Text style={styles.progressFooterText}>
+          <View
+            style={
+              styles.progressFooter
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.progressFooterText
+              }
+            >
               {daysRemaining > 0
-                ? `${daysRemaining} days to go`
+                ? `${daysRemaining} ${
+                    daysRemaining === 1
+                      ? "day"
+                      : "days"
+                  } to go`
                 : "90 days completed"}
-            </Text>
+            </AppText>
 
-            <Text style={styles.progressFooterText}>
-              {progressPercentage}
-            </Text>
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.progressPercentage
+              }
+            >
+              {progressNumber}%
+            </AppText>
           </View>
         </View>
 
-        {/* Daily Claim */}
+        {/* ====================================================
+            DAILY CLAIM
+        ==================================================== */}
 
-        {!reward?.rewardUnlocked && (
-          <View style={styles.claimCard}>
-            <View style={styles.claimIcon}>
-              <Ionicons
+        {!rewardUnlocked ? (
+          <View
+            style={
+              styles.claimCard
+            }
+          >
+            <View
+              style={[
+                styles.claimIcon,
+
+                !canClaimToday
+                  ? styles.claimedTodayIcon
+                  : null,
+              ]}
+            >
+              <AppIcon
                 name={
-                  reward?.canClaimToday
-                    ? "calendar-outline"
-                    : "checkmark-circle-outline"
+                  canClaimToday
+                    ? "calendar"
+                    : "success"
                 }
-                size={28}
+                role="customer"
+                size="md"
                 color={
-                  reward?.canClaimToday
-                    ? "#2563EB"
-                    : "#16A34A"
+                  canClaimToday
+                    ? CustomerColors.primary
+                    : Colors.success
                 }
               />
             </View>
 
-            <Text style={styles.claimTitle}>
-              {reward?.canClaimToday
-                ? "Claim today's reward"
-                : "Today's reward claimed"}
-            </Text>
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              style={
+                styles.claimTitle
+              }
+            >
+              {dailyClaimTitle}
+            </AppText>
 
-            <Text style={styles.claimDescription}>
-              {reward?.canClaimToday
-                ? "Claim today to continue your 90-day streak."
-                : "Come back tomorrow to continue your streak."}
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.claimDescription
+              }
+            >
+              {dailyClaimDescription}
+            </AppText>
 
             <Pressable
               disabled={
-                !reward?.canClaimToday ||
+                !canClaimToday ||
                 claiming
               }
-              onPress={handleClaim}
+              onPress={() => {
+                void handleClaim();
+              }}
               accessibilityRole="button"
-              accessibilityLabel="Claim today's reward"
+              accessibilityLabel={
+                canClaimToday
+                  ? "Claim today's reward"
+                  : "Today's reward already claimed"
+              }
               accessibilityState={{
                 disabled:
-                  !reward?.canClaimToday ||
+                  !canClaimToday ||
                   claiming,
-                busy: claiming,
+
+                busy:
+                  claiming,
               }}
-              style={({ pressed }) => [
+              style={({
+                pressed,
+              }) => [
                 styles.claimButton,
-                !reward?.canClaimToday &&
-                  styles.claimButtonDisabled,
+
+                !canClaimToday ||
+                claiming
+                  ? styles.claimButtonDisabled
+                  : null,
+
                 pressed &&
-                  reward?.canClaimToday &&
-                  styles.pressed,
+                canClaimToday &&
+                !claiming
+                  ? styles.pressed
+                  : null,
               ]}
             >
               {claiming ? (
                 <ActivityIndicator
                   size="small"
-                  color="#FFFFFF"
+                  color={
+                    Colors.textInverse
+                  }
                 />
               ) : (
                 <>
-                  <Text
+                  <AppText
+                    variant="body"
+                    weight="bold"
                     style={[
                       styles.claimButtonText,
-                      !reward?.canClaimToday &&
-                        styles.claimButtonTextDisabled,
+
+                      !canClaimToday
+                        ? styles.claimButtonTextDisabled
+                        : null,
                     ]}
                   >
-                    {reward?.canClaimToday
+                    {canClaimToday
                       ? "CLAIM TODAY"
                       : "CLAIMED TODAY"}
-                  </Text>
+                  </AppText>
 
-                  <Ionicons
+                  <AppIcon
                     name={
-                      reward?.canClaimToday
-                        ? "arrow-forward"
-                        : "checkmark"
+                      canClaimToday
+                        ? "next"
+                        : "check"
                     }
-                    size={19}
+                    size="sm"
                     color={
-                      reward?.canClaimToday
-                        ? "#FFFFFF"
-                        : "#64748B"
+                      canClaimToday
+                        ? Colors.textInverse
+                        : Colors.textMuted
                     }
                   />
                 </>
               )}
             </Pressable>
           </View>
-        )}
+        ) : null}
 
-        {/* Unlocked Reward */}
+        {/* ====================================================
+            UNLOCKED REWARD
+        ==================================================== */}
 
-        {reward?.rewardUnlocked && (
-          <View style={styles.unlockedCard}>
-            <View style={styles.unlockedIcon}>
-              <Ionicons
-                name="trophy-outline"
-                size={34}
-                color="#CA8A04"
+        {rewardUnlocked ? (
+          <View
+            style={
+              styles.unlockedCard
+            }
+          >
+            <View
+              style={
+                styles.unlockedIcon
+              }
+            >
+              <AppIcon
+                name="success"
+                size="lg"
+                color={
+                  Colors.success
+                }
               />
             </View>
 
-            <Text style={styles.unlockedTitle}>
-              🎉 Congratulations!
-            </Text>
+            <AppText
+              variant="heading2"
+              weight="bold"
+              style={
+                styles.unlockedTitle
+              }
+            >
+              Congratulations!
+            </AppText>
 
-            <Text style={styles.unlockedDescription}>
-              You completed your 90-day streak.
-              Your free service reward is now
-              unlocked.
-            </Text>
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.unlockedDescription
+              }
+            >
+              You completed your 90-day streak. Your free service reward is now unlocked.
+            </AppText>
 
-            <View style={styles.freeServiceBox}>
-              <Text style={styles.freeServiceLabel}>
+            <View
+              style={
+                styles.freeServiceBox
+              }
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.freeServiceLabel
+                }
+              >
                 YOUR REWARD
-              </Text>
+              </AppText>
 
-              <Text style={styles.freeServiceTitle}>
-                1 FREE SERVICE
-              </Text>
-            </View>
+              <AppText
+                variant="heading2"
+                weight="bold"
+                style={[
+                  styles.freeServiceTitle,
 
-            {!reward.rewardClaimed && (
-              <Pressable
-                onPress={handleFreeServiceClaim}
-                accessibilityRole="button"
-                accessibilityLabel="Claim free service"
-                style={({ pressed }) => [
-                  styles.freeServiceButton,
-                  pressed && styles.pressed,
+                  rewardClaimed
+                    ? styles.freeServiceTitleClaimed
+                    : null,
                 ]}
               >
-                <Text style={styles.freeServiceButtonText}>
-                  CLAIM FREE SERVICE
-                </Text>
+                {rewardStatusLabel}
+              </AppText>
+            </View>
 
-                <Ionicons
-                  name="arrow-forward"
-                  size={20}
-                  color="#FFFFFF"
+            {!rewardClaimed ? (
+              <Pressable
+                onPress={
+                  handleFreeServiceClaim
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Claim free service"
+                style={({
+                  pressed,
+                }) => [
+                  styles.freeServiceButton,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.freeServiceButtonText
+                  }
+                >
+                  CLAIM FREE SERVICE
+                </AppText>
+
+                <AppIcon
+                  name="next"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
                 />
               </Pressable>
+            ) : (
+              <View
+                style={
+                  styles.rewardClaimedBox
+                }
+              >
+                <AppIcon
+                  name="success"
+                  size="sm"
+                  color={
+                    Colors.success
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.rewardClaimedText
+                  }
+                >
+                  This free service reward has already been claimed.
+                </AppText>
+              </View>
             )}
           </View>
-        )}
+        ) : null}
 
-        {/* How It Works */}
+        {/* ====================================================
+            HOW IT WORKS
+        ==================================================== */}
 
-        <View style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Ionicons
-              name="information-circle-outline"
-              size={22}
-              color="#2563EB"
+        <View
+          style={
+            styles.infoCard
+          }
+        >
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              size="sm"
+              color={
+                Colors.info
+              }
             />
           </View>
 
-          <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>
+          <View
+            style={
+              styles.infoContent
+            }
+          >
+            <AppText
+              variant="body"
+              weight="bold"
+              style={
+                styles.infoTitle
+              }
+            >
               How it works
-            </Text>
+            </AppText>
 
-            <Text style={styles.infoText}>
-              Claim once each day to increase your
-              streak. If you stay away for 7 days,
-              your streak starts again from Day 1.
-            </Text>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.infoText
+              }
+            >
+              Claim once each day to increase your streak. If you stay away for 7 days, your streak starts again from Day 1.
+            </AppText>
           </View>
         </View>
 
-        {/* Terms */}
+        {/* ====================================================
+            TERMS
+        ==================================================== */}
 
-        <View style={styles.termsCard}>
-          <Text style={styles.termsTitle}>
+        <View
+          style={
+            styles.termsCard
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.termsTitle
+            }
+          >
             Reward terms
-          </Text>
+          </AppText>
 
-          <Text style={styles.termsText}>
-            Daily claims are limited to one per day.
-            A streak resets after 7 days without a
-            claim. Completing Day 90 unlocks one
-            eligible free service.
-          </Text>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.termsText
+            }
+          >
+            Daily claims are limited to one per day. A streak resets after 7 days without a claim. Completing Day 90 unlocks one eligible free service.
+          </AppText>
         </View>
       </ScrollView>
-    </View>
+    </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 54,
-    paddingBottom: 40,
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F8FAFC",
-  },
+    screen: {
+      flex: 1,
 
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: "#64748B",
-  },
+      paddingHorizontal: 0,
 
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 20,
-  },
+      paddingTop: 0,
 
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
     },
-  },
 
-  headerText: {
-    flex: 1,
-  },
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  title: {
-    fontSize: 28,
-    lineHeight: 34,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-  subtitle: {
-    marginTop: 6,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
-
-  errorBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    marginBottom: 16,
-  },
-
-  errorText: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#B91C1C",
-  },
-
-  heroCard: {
-    padding: 22,
-    borderRadius: 24,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
-  },
 
-  heroIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: "#FEFCE8",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 18,
-  },
+    loadingContainer: {
+      flex: 1,
 
-  heroTitle: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      alignItems:
+        "center",
 
-  heroDescription: {
-    marginTop: 8,
-    fontSize: 15,
-    lineHeight: 23,
-    color: "#64748B",
-  },
+      justifyContent:
+        "center",
 
-  progressCard: {
-    padding: 20,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
     },
-  },
 
-  progressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
 
-  progressTitle: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    color: "#64748B",
-  },
-
-  dayText: {
-    marginTop: 3,
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
-
-  dayBadge: {
-    minWidth: 48,
-    height: 42,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: "#FFF7ED",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  dayBadgeText: {
-    marginLeft: 5,
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#EA580C",
-  },
-
-  progressTrack: {
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#E2E8F0",
-    overflow: "hidden",
-  },
-
-  progressFill: {
-    height: "100%",
-    borderRadius: 6,
-    backgroundColor: "#2563EB",
-  },
-
-  progressFooter: {
-    marginTop: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  progressFooterText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-
-  claimCard: {
-    padding: 20,
-    borderRadius: 22,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 16,
-    elevation: 3,
-    shadowColor: "#000000",
-    shadowOpacity: 0.06,
-    shadowRadius: 9,
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      color:
+        Colors.textSecondary,
     },
-  },
 
-  claimIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  claimTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+    header: {
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-  claimDescription: {
-    marginTop: 6,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#64748B",
-  },
+      flexDirection:
+        "row",
 
-  claimButton: {
-    minHeight: 54,
-    marginTop: 18,
-    borderRadius: 17,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
+      alignItems:
+        "flex-start",
+    },
 
-  claimButtonDisabled: {
-    backgroundColor: "#E2E8F0",
-  },
+    backButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  claimButtonText: {
-    marginRight: 8,
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-    color: "#FFFFFF",
-  },
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-  claimButtonTextDisabled: {
-    color: "#64748B",
-  },
+      flexShrink: 0,
 
-  unlockedCard: {
-    padding: 22,
-    borderRadius: 24,
-    backgroundColor: "#FFFBEB",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    marginBottom: 16,
-  },
+      alignItems:
+        "center",
 
-  unlockedIcon: {
-    width: 66,
-    height: 66,
-    borderRadius: 20,
-    backgroundColor: "#FEF3C7",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 15,
-  },
+      justifyContent:
+        "center",
 
-  unlockedTitle: {
-    fontSize: 23,
-    lineHeight: 29,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      borderWidth: 1,
 
-  unlockedDescription: {
-    marginTop: 7,
-    fontSize: 14,
-    lineHeight: 21,
-    color: "#64748B",
-  },
+      borderColor:
+        Colors.border,
 
-  freeServiceBox: {
-    marginTop: 18,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  freeServiceLabel: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 0.7,
-    color: "#A16207",
-  },
+      backgroundColor:
+        Colors.surface,
 
-  freeServiceTitle: {
-    marginTop: 3,
-    fontSize: 21,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  freeServiceButton: {
-    minHeight: 54,
-    marginTop: 16,
-    borderRadius: 17,
-    backgroundColor: "#2563EB",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
+    headerText: {
+      flex: 1,
 
-  freeServiceButtonText: {
-    marginRight: 8,
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-    color: "#FFFFFF",
-  },
+      minWidth: 0,
 
-  infoCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: "#EFF6FF",
-    marginBottom: 16,
-  },
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
 
-  infoIcon: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  infoContent: {
-    flex: 1,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  infoTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#0F172A",
-  },
+      lineHeight: 21,
 
-  infoText: {
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 19,
-    color: "#64748B",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  termsCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "#F1F5F9",
-  },
+    /* ========================================================
+       ERROR
+    ======================================================== */
 
-  termsTitle: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#475569",
-  },
+    errorBox: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  termsText: {
-    marginTop: 5,
-    fontSize: 12,
-    lineHeight: 18,
-    color: "#64748B",
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  pressed: {
-    opacity: 0.78,
-  },
-});
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    errorIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    errorContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    errorTitle: {
+      color:
+        Colors.error,
+    },
+
+    errorText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    retryButton: {
+      alignSelf:
+        "flex-start",
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    retryText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       HERO
+    ======================================================== */
+
+    heroCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    heroIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    heroTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    heroDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PROGRESS
+    ======================================================== */
+
+    progressCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    progressHeader: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    progressHeaderContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    progressTitle: {
+      letterSpacing:
+        0.8,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    dayText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    dayBadge: {
+      minWidth:
+        FixxamTokens.size.minimumTouchTarget,
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    dayBadgeText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    progressTrack: {
+      height: 12,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    progressFill: {
+      height: "100%",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    progressFooter: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    progressFooterText: {
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    progressPercentage: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       DAILY CLAIM
+    ======================================================== */
+
+    claimCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    claimIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    claimedTodayIcon: {
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    claimTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    claimDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    claimButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    claimButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    claimButtonText: {
+      color:
+        Colors.textInverse,
+
+      letterSpacing:
+        0.4,
+    },
+
+    claimButtonTextDisabled: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       UNLOCKED
+    ======================================================== */
+
+    unlockedCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    unlockedIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    unlockedTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    unlockedDescription: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    freeServiceBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    freeServiceLabel: {
+      letterSpacing:
+        0.7,
+
+      color:
+        Colors.success,
+    },
+
+    freeServiceTitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    freeServiceTitleClaimed: {
+      color:
+        Colors.success,
+    },
+
+    freeServiceButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    freeServiceButtonText: {
+      color:
+        Colors.textInverse,
+
+      letterSpacing:
+        0.3,
+    },
+
+    rewardClaimedBox: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    rewardClaimedText: {
+      flex: 1,
+
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       INFO
+    ======================================================== */
+
+    infoCard: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.infoSoft,
+    },
+
+    infoIcon: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    infoContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    infoTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    infoText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 19,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       TERMS
+    ======================================================== */
+
+    termsCard: {
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    termsTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    termsText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PRESS
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

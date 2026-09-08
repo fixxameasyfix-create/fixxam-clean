@@ -9,7 +9,13 @@ import {
   onSnapshot,
   query,
   where,
+  type FirestoreError,
 } from "firebase/firestore";
+
+import {
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
 
 import {
   auth,
@@ -61,6 +67,32 @@ type UseWorkerOrdersResult = {
 };
 
 /* ============================================================
+   HELPERS
+============================================================ */
+
+function getFirebaseErrorMessage(
+  error: unknown,
+): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    "message" in error
+  ) {
+    const firebaseError =
+      error as FirestoreError;
+
+    return `${firebaseError.code}: ${firebaseError.message}`;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown Firestore error.";
+}
+
+/* ============================================================
    HOOK
 ============================================================ */
 
@@ -82,28 +114,22 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
   ========================================================== */
 
   useEffect(() => {
-    const workerId =
-      auth.currentUser?.uid;
+    let mounted = true;
 
-    if (!workerId) {
-      setServiceOrders([]);
-      setMarketOrders([]);
-      setLoading(false);
-      setError(
-        "Please sign in to view your orders.",
-      );
+    let unsubscribeBookings:
+      | (() => void)
+      | undefined;
 
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
+    let unsubscribeMarket:
+      | (() => void)
+      | undefined;
 
     let bookingsReady = false;
     let marketReady = false;
 
     const updateLoading = () => {
       if (
+        mounted &&
         bookingsReady &&
         marketReady
       ) {
@@ -111,144 +137,240 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
       }
     };
 
-    /* ========================================================
-       SERVICE BOOKINGS
-    ======================================================== */
+    const handleUser = (
+      user: User | null,
+    ) => {
+      if (!mounted) {
+        return;
+      }
 
-    const bookingsQuery = query(
-      collection(
-        db,
-        "bookings",
-      ),
-      where(
-        "workerId",
-        "==",
-        workerId,
-      ),
-    );
+      /* ======================================================
+         NOT SIGNED IN
+      ====================================================== */
 
-    const unsubscribeBookings =
-      onSnapshot(
-        bookingsQuery,
-        (snapshot) => {
-          const nextOrders =
-            snapshot.docs
-              .map((document) =>
-                mapWorkerServiceOrder(
-                  document.id,
-                  document.data(),
-                ),
-              )
-              .filter(
-                (
-                  order: WorkerServiceOrder,
-                ) =>
-                  order.deletedByWorker !==
-                  true,
-              )
-              .sort(
-                (
-                  a: WorkerServiceOrder,
-                  b: WorkerServiceOrder,
-                ) =>
-                  getOrderTimestamp(
-                    b.createdAt,
-                  ) -
-                  getOrderTimestamp(
-                    a.createdAt,
-                  ),
-              );
+      if (!user) {
+        setServiceOrders([]);
+        setMarketOrders([]);
+        setLoading(false);
+        setError(
+          "Please sign in to view your orders.",
+        );
 
-          setServiceOrders(
-            nextOrders,
-          );
+        return;
+      }
 
-          bookingsReady = true;
-          updateLoading();
-        },
-        (listenerError) => {
-          console.error(
-            "WORKER_SERVICE_ORDERS_ERROR",
-            listenerError,
-          );
+      const workerId =
+        user.uid.trim();
 
-          setError(
-            "Unable to load service orders.",
-          );
+      if (!workerId) {
+        setServiceOrders([]);
+        setMarketOrders([]);
+        setLoading(false);
+        setError(
+          "Unable to identify the worker account.",
+        );
 
-          bookingsReady = true;
-          updateLoading();
-        },
+        return;
+      }
+
+      /* ======================================================
+         RESET
+      ====================================================== */
+
+      setLoading(true);
+      setError(null);
+
+      bookingsReady = false;
+      marketReady = false;
+
+      /* ======================================================
+         SERVICE BOOKINGS
+      ====================================================== */
+
+      const bookingsQuery = query(
+        collection(
+          db,
+          "bookings",
+        ),
+        where(
+          "workerId",
+          "==",
+          workerId,
+        ),
       );
 
+      unsubscribeBookings =
+        onSnapshot(
+          bookingsQuery,
+
+          (snapshot) => {
+            if (!mounted) {
+              return;
+            }
+
+            const nextOrders =
+              snapshot.docs
+                .map((document) =>
+                  mapWorkerServiceOrder(
+                    document.id,
+                    document.data(),
+                  ),
+                )
+                .filter(
+                  (
+                    order: WorkerServiceOrder,
+                  ) =>
+                    order.deletedByWorker !==
+                    true,
+                )
+                .sort(
+                  (
+                    a: WorkerServiceOrder,
+                    b: WorkerServiceOrder,
+                  ) =>
+                    getOrderTimestamp(
+                      b.createdAt,
+                    ) -
+                    getOrderTimestamp(
+                      a.createdAt,
+                    ),
+                );
+
+            setServiceOrders(
+              nextOrders,
+            );
+
+            bookingsReady = true;
+            updateLoading();
+          },
+
+          (listenerError) => {
+            if (!mounted) {
+              return;
+            }
+
+            console.error(
+              "WORKER_SERVICE_ORDERS_ERROR",
+              {
+                code:
+                  listenerError.code,
+                message:
+                  listenerError.message,
+              },
+            );
+
+            setServiceOrders([]);
+
+            setError(
+              `Unable to load service orders: ${getFirebaseErrorMessage(
+                listenerError,
+              )}`,
+            );
+
+            bookingsReady = true;
+            updateLoading();
+          },
+        );
+
+      /* ======================================================
+         MARKET ORDERS
+      ====================================================== */
+
+      const marketOrdersQuery =
+        query(
+          collection(
+            db,
+            "orders",
+          ),
+          where(
+            "workerId",
+            "==",
+            workerId,
+          ),
+        );
+
+      unsubscribeMarket =
+        onSnapshot(
+          marketOrdersQuery,
+
+          (snapshot) => {
+            if (!mounted) {
+              return;
+            }
+
+            const nextOrders =
+              snapshot.docs
+                .map((document) =>
+                  mapWorkerMarketOrder(
+                    document.id,
+                    document.data(),
+                  ),
+                )
+                .filter(
+                  (
+                    order: WorkerMarketOrder,
+                  ) =>
+                    order.deletedByWorker !==
+                    true,
+                )
+                .sort(
+                  (
+                    a: WorkerMarketOrder,
+                    b: WorkerMarketOrder,
+                  ) =>
+                    getOrderTimestamp(
+                      b.createdAt,
+                    ) -
+                    getOrderTimestamp(
+                      a.createdAt,
+                    ),
+                );
+
+            setMarketOrders(
+              nextOrders,
+            );
+
+            marketReady = true;
+            updateLoading();
+          },
+
+          (listenerError) => {
+            if (!mounted) {
+              return;
+            }
+
+            console.error(
+              "WORKER_MARKET_ORDERS_ERROR",
+              {
+                code:
+                  listenerError.code,
+                message:
+                  listenerError.message,
+              },
+            );
+
+            setMarketOrders([]);
+
+            setError(
+              `Unable to load market orders: ${getFirebaseErrorMessage(
+                listenerError,
+              )}`,
+            );
+
+            marketReady = true;
+            updateLoading();
+          },
+        );
+    };
+
     /* ========================================================
-       MARKET ORDERS
+       AUTH STATE
     ======================================================== */
 
-    const marketOrdersQuery = query(
-      collection(
-        db,
-        "orders",
-      ),
-      where(
-        "workerId",
-        "==",
-        workerId,
-      ),
-    );
-
-    const unsubscribeMarket =
-      onSnapshot(
-        marketOrdersQuery,
-        (snapshot) => {
-          const nextOrders =
-            snapshot.docs
-              .map((document) =>
-                mapWorkerMarketOrder(
-                  document.id,
-                  document.data(),
-                ),
-              )
-              .filter(
-                (
-                  order: WorkerMarketOrder,
-                ) =>
-                  order.deletedByWorker !==
-                  true,
-              )
-              .sort(
-                (
-                  a: WorkerMarketOrder,
-                  b: WorkerMarketOrder,
-                ) =>
-                  getOrderTimestamp(
-                    b.createdAt,
-                  ) -
-                  getOrderTimestamp(
-                    a.createdAt,
-                  ),
-              );
-
-          setMarketOrders(
-            nextOrders,
-          );
-
-          marketReady = true;
-          updateLoading();
-        },
-        (listenerError) => {
-          console.error(
-            "WORKER_MARKET_ORDERS_ERROR",
-            listenerError,
-          );
-
-          setError(
-            "Unable to load market orders.",
-          );
-
-          marketReady = true;
-          updateLoading();
-        },
+    const unsubscribeAuth =
+      onAuthStateChanged(
+        auth,
+        handleUser,
       );
 
     /* ========================================================
@@ -256,9 +378,14 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
     ======================================================== */
 
     return () => {
-      unsubscribeBookings();
-      unsubscribeMarket();
-    };
+  mounted = false;
+
+  unsubscribeAuth();
+
+  unsubscribeBookings?.();
+
+  unsubscribeMarket?.();
+};
   }, []);
 
   /* ==========================================================

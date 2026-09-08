@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -9,18 +12,51 @@ import {
   AppButton,
 } from "@/components/ui";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   status: string;
+
   loading?: boolean;
 
   onOnTheWay: () => void;
+
   onArrived: () => void;
+
   onStartJob: () => void;
+
   onRequestCash: () => void;
+
   onConfirmPayment: () => void;
 };
 
-export default function WorkerOrderActions({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeStatus(
+  value: string,
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(
+      /[\s-]+/g,
+      "_",
+    );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerOrderActions({
   status,
   loading = false,
   onOnTheWay,
@@ -29,142 +65,227 @@ export default function WorkerOrderActions({
   onRequestCash,
   onConfirmPayment,
 }: Props) {
-  /*
-   * ============================================================
-   * BOOKED
-   * ============================================================
-   *
-   * Customer has accepted the worker's offer.
-   * Worker can now start travelling.
-   */
+  const normalizedStatus =
+    useMemo(
+      () =>
+        normalizeStatus(
+          status,
+        ),
+      [status],
+    );
 
-  if (status === "booked") {
+  /* ==========================================================
+     BOOKED
+  ========================================================== */
+
+  if (
+    normalizedStatus ===
+    "booked"
+  ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="I'm On The Way"
-          loading={loading}
-          onPress={onOnTheWay}
+          role="worker"
+          variant="primary"
+          loading={
+            loading
+          }
+          disabled={
+            loading
+          }
+          onPress={
+            onOnTheWay
+          }
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * ON THE WAY
-   * ============================================================
-   */
+  /* ==========================================================
+     ON THE WAY
+  ========================================================== */
 
-  if (status === "on_the_way") {
+  if (
+    normalizedStatus ===
+    "on_the_way"
+  ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="I've Arrived"
-          loading={loading}
-          onPress={onArrived}
+          role="worker"
+          variant="primary"
+          loading={
+            loading
+          }
+          disabled={
+            loading
+          }
+          onPress={
+            onArrived
+          }
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * ARRIVED
-   * ============================================================
-   */
+  /* ==========================================================
+     ARRIVED
+  ========================================================== */
 
-  if (status === "arrived") {
+  if (
+    normalizedStatus ===
+    "arrived"
+  ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="Start Job"
-          loading={loading}
-          onPress={onStartJob}
+          role="worker"
+          variant="primary"
+          loading={
+            loading
+          }
+          disabled={
+            loading
+          }
+          onPress={
+            onStartJob
+          }
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * IN PROGRESS
-   * ============================================================
-   */
+  /* ==========================================================
+     IN PROGRESS
+  ========================================================== */
 
-  if (status === "in_progress") {
+  if (
+    normalizedStatus ===
+    "in_progress"
+  ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="Request Cash Payment"
-          loading={loading}
-          onPress={onRequestCash}
+          role="worker"
+          variant="primary"
+          loading={
+            loading
+          }
+          disabled={
+            loading
+          }
+          onPress={
+            onRequestCash
+          }
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * AWAITING CUSTOMER PAYMENT
-   * ============================================================
-   */
+  /* ==========================================================
+     AWAITING CUSTOMER PAYMENT
+  ========================================================== */
 
-  if (status === "awaiting_cash") {
+  if (
+    normalizedStatus ===
+    "awaiting_cash"
+  ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="Waiting for Payment"
-          loading={false}
+          role="worker"
+          variant="secondary"
           disabled
           onPress={() => {}}
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * PAYMENT PENDING CONFIRMATION
-   * ============================================================
-   *
-   * Customer has indicated payment.
-   * Worker confirms receipt.
-   */
+  /* ==========================================================
+     PAYMENT PENDING CONFIRMATION
+  ========================================================== */
 
   if (
-    status ===
+    normalizedStatus ===
     "payment_pending_confirmation"
   ) {
     return (
-      <View style={styles.container}>
+      <ActionContainer>
         <AppButton
           title="Confirm Payment"
-          loading={loading}
-          onPress={onConfirmPayment}
+          role="worker"
+          variant="primary"
+          loading={
+            loading
+          }
+          disabled={
+            loading
+          }
+          onPress={
+            onConfirmPayment
+          }
         />
-      </View>
+      </ActionContainer>
     );
   }
 
-  /*
-   * ============================================================
-   * NO ACTION
-   * ============================================================
-   *
-   * pending
-   * pending_estimate
-   * negotiating
-   * completed
-   * cancelled
-   */
+  /* ==========================================================
+     NO ACTION
+  ========================================================== */
 
   return null;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 20,
-    marginBottom: 40,
-  },
-});
+/* ============================================================
+   ACTION CONTAINER
+============================================================ */
+
+function ActionContainer({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      {children}
+    </View>
+  );
+}
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerOrderActions.displayName =
+  "WorkerOrderActions";
+
+export default memo(
+  WorkerOrderActions,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.xxl,
+    },
+  });

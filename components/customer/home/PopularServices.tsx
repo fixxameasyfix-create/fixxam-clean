@@ -1,20 +1,34 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
-
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import {
+  router,
+} from "expo-router";
 
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import ServiceIcon from "@/components/common/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import usePopularServices from "@/hooks/services/usePopularServices";
 
@@ -24,10 +38,22 @@ import usePopularServices from "@/hooks/services/usePopularServices";
 
 type PopularService = {
   id: string;
+
   name: string;
+
   icon?: string | null;
+
   color?: string | null;
+
   backgroundColor?: string | null;
+};
+
+type ServiceCardProps = {
+  service: PopularService;
+
+  onPress: (
+    service: PopularService,
+  ) => void;
 };
 
 /* ==============================================================
@@ -37,11 +63,148 @@ type PopularService = {
 const DEFAULT_ICON =
   "tools";
 
-const DEFAULT_ICON_COLOR =
-  "#EA580C";
+const SERVICE_CARD_WIDTH =
+  154;
 
-const DEFAULT_BACKGROUND_COLOR =
-  "#FFF7E8";
+const SERVICE_CARD_HEIGHT =
+  138;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ==============================================================
+   SERVICE CARD
+============================================================== */
+
+const ServiceCard = memo(
+  function ServiceCard({
+    service,
+    onPress,
+  }: ServiceCardProps) {
+    const serviceName =
+      cleanText(
+        service.name,
+      ) || "Service";
+
+    const serviceIcon =
+      cleanText(
+        service.icon,
+      ) ||
+      DEFAULT_ICON;
+
+    const iconColor =
+      cleanText(
+        service.color,
+      ) ||
+      CustomerColors.primary;
+
+    const iconBackground =
+      cleanText(
+        service.backgroundColor,
+      ) ||
+      CustomerColors.primarySoft;
+
+    return (
+      <Pressable
+        onPress={() =>
+          onPress(service)
+        }
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${serviceName}`}
+        accessibilityHint="View workers for this service"
+        style={({
+          pressed,
+        }) => [
+          styles.cardWrapper,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
+      >
+        <AppCard
+          role="customer"
+          style={styles.card}
+        >
+          {/* ==================================================
+              SERVICE ICON
+
+              Uses common ServiceIcon so Firebase
+              MaterialCommunityIcons render exactly
+              like CategoryCard/HomeCategories.
+          ================================================== */}
+
+          <ServiceIcon
+            icon={
+              serviceIcon
+            }
+            color={
+              iconColor
+            }
+            backgroundColor={
+              iconBackground
+            }
+            size={
+              FixxamTokens.size
+                .iconLg
+            }
+            containerSize={
+              FixxamTokens.size
+                .iconBox
+            }
+            borderRadius={
+              FixxamTokens.radius.md
+            }
+          />
+
+          {/* ==================================================
+              SERVICE NAME
+          ================================================== */}
+
+          <AppText
+            variant="body"
+            weight="bold"
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            style={
+              styles.name
+            }
+          >
+            {serviceName}
+          </AppText>
+
+          {/* ==================================================
+              ARROW
+          ================================================== */}
+
+          <View
+            style={
+              styles.arrow
+            }
+          >
+            <AppIcon
+              name="next"
+              role="customer"
+              size="xs"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
+        </AppCard>
+      </Pressable>
+    );
+  },
+);
 
 /* ==============================================================
    COMPONENT
@@ -55,102 +218,208 @@ export default function PopularServices() {
     usePopularServices();
 
   /* ============================================================
-     LOADING / EMPTY
+     SAFE SERVICES
   ============================================================ */
 
-  if (
-    loading ||
-    !services?.length
-  ) {
-    return null;
-  }
+  const safeServices =
+    useMemo<PopularService[]>(
+      () =>
+        Array.isArray(
+          services,
+        )
+          ? (
+              services as PopularService[]
+            ).filter(
+              (service) =>
+                Boolean(
+                  cleanText(
+                    service.id,
+                  ),
+                ) &&
+                Boolean(
+                  cleanText(
+                    service.name,
+                  ),
+                ),
+            )
+          : [],
+      [services],
+    );
 
   /* ============================================================
      OPEN SERVICE
   ============================================================ */
 
-  const handleServicePress = (
-    service: PopularService,
-  ) => {
-    const serviceId =
-      service.id?.trim();
+  const handleServicePress =
+    useCallback(
+      (
+        service:
+          PopularService,
+      ) => {
+        const serviceId =
+          cleanText(
+            service.id,
+          );
 
-    const serviceName =
-      service.name?.trim();
+        const serviceName =
+          cleanText(
+            service.name,
+          );
 
-    if (
-      !serviceId ||
-      !serviceName
-    ) {
-      console.warn(
-        "POPULAR_SERVICE_INVALID:",
-        service,
-      );
+        if (
+          !serviceId ||
+          !serviceName
+        ) {
+          console.warn(
+            "POPULAR_SERVICE_INVALID:",
+            service,
+          );
 
-      return;
-    }
+          return;
+        }
 
-    /* ----------------------------------------------------------
-       RESOLVE CATEGORY-CARD VISUALS
-    ---------------------------------------------------------- */
+        const serviceIcon =
+          cleanText(
+            service.icon,
+          ) ||
+          DEFAULT_ICON;
 
-    const resolvedIcon =
-      service.icon?.trim() ||
-      DEFAULT_ICON;
+        const serviceColor =
+          cleanText(
+            service.color,
+          ) ||
+          CustomerColors.primary;
 
-    const resolvedColor =
-      service.color?.trim() ||
-      DEFAULT_ICON_COLOR;
-
-    const resolvedBackgroundColor =
-      service.backgroundColor?.trim() ||
-      DEFAULT_BACKGROUND_COLOR;
-
-    /* ----------------------------------------------------------
-       NAVIGATE TO WORKERS
-    ---------------------------------------------------------- */
-
-    router.push({
-      pathname:
-        "/(customer)/details/workers/[id]",
-
-      params: {
-        /*
-         * Existing dynamic route parameter.
-         */
-        id: serviceId,
+        const serviceBackgroundColor =
+          cleanText(
+            service.backgroundColor,
+          ) ||
+          CustomerColors.primarySoft;
 
         /*
-         * Explicit service identity.
+         * Preserve existing route
+         * and params exactly.
          */
-        serviceId,
+        router.push({
+          pathname:
+            "/(customer)/details/workers/[id]",
 
-        serviceName,
+          params: {
+            id:
+              serviceId,
 
-        /*
-         * IMPORTANT:
-         * Same MaterialCommunityIcons name
-         * used by CategoryCard.
-         */
-        serviceIcon:
-          resolvedIcon,
+            serviceId,
 
-        /*
-         * Same icon color used
-         * by CategoryCard.
-         */
-        serviceColor:
-          resolvedColor,
+            serviceName,
 
-        /*
-         * Same icon background used
-         * by CategoryCard.
-         */
-        serviceBackgroundColor:
-          resolvedBackgroundColor,
+            serviceIcon,
+
+            serviceColor,
+
+            serviceBackgroundColor,
+          },
+        });
       },
-    });
-  };
+      [],
+    );
+
+  /* ============================================================
+     SEE ALL
+  ============================================================ */
+
+  const handleSeeAll =
+    useCallback(() => {
+      router.push(
+        "/services",
+      );
+    }, []);
+
+  /* ============================================================
+     RENDER SERVICE
+  ============================================================ */
+
+  const renderService =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: PopularService;
+      }) => (
+        <ServiceCard
+          service={item}
+          onPress={
+            handleServicePress
+          }
+        />
+      ),
+      [
+        handleServicePress,
+      ],
+    );
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  if (loading) {
+    return (
+      <View
+        style={
+          styles.container
+        }
+      >
+        <View
+          style={
+            styles.header
+          }
+        >
+          <AppText
+            variant="heading3"
+            weight="bold"
+            style={
+              styles.title
+            }
+          >
+            Popular Services
+          </AppText>
+        </View>
+
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading services...
+          </AppText>
+        </View>
+      </View>
+    );
+  }
+
+  /* ============================================================
+     EMPTY
+  ============================================================ */
+
+  if (
+    safeServices.length ===
+    0
+  ) {
+    return null;
+  }
 
   /* ============================================================
      RENDER
@@ -172,7 +441,9 @@ export default function PopularServices() {
         }
       >
         <AppText
+          variant="heading3"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.title
           }
@@ -181,10 +452,8 @@ export default function PopularServices() {
         </AppText>
 
         <Pressable
-          onPress={() =>
-            router.push(
-              "/services",
-            )
+          onPress={
+            handleSeeAll
           }
           accessibilityRole="button"
           accessibilityLabel="See all popular services"
@@ -194,11 +463,13 @@ export default function PopularServices() {
           }) => [
             styles.seeAllButton,
 
-            pressed &&
-              styles.pressed,
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.seeAll
@@ -206,6 +477,15 @@ export default function PopularServices() {
           >
             See All
           </AppText>
+
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
         </Pressable>
       </View>
 
@@ -216,12 +496,13 @@ export default function PopularServices() {
       <FlatList
         horizontal
         data={
-          services as PopularService[]
+          safeServices
         }
         keyExtractor={(
           item,
-        ) =>
-          item.id
+        ) => item.id}
+        renderItem={
+          renderService
         }
         showsHorizontalScrollIndicator={
           false
@@ -229,113 +510,10 @@ export default function PopularServices() {
         contentContainerStyle={
           styles.list
         }
-        renderItem={({
-          item,
-        }) => {
-          /* ----------------------------------------------------
-             SAFE VISUAL VALUES
-          ---------------------------------------------------- */
-
-          const icon =
-            item.icon?.trim() ||
-            DEFAULT_ICON;
-
-          const iconColor =
-            item.color?.trim() ||
-            DEFAULT_ICON_COLOR;
-
-          const backgroundColor =
-            item.backgroundColor?.trim() ||
-            DEFAULT_BACKGROUND_COLOR;
-
-          return (
-            <Pressable
-              onPress={() =>
-                handleServicePress(
-                  item,
-                )
-              }
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.name}`}
-              accessibilityHint="View workers for this service"
-              style={({
-                pressed,
-              }) => [
-                styles.cardWrapper,
-
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <AppCard
-                style={
-                  styles.card
-                }
-              >
-                {/* ==============================================
-                    ICON
-                ============================================== */}
-
-                <View
-                  style={[
-                    styles.iconBox,
-
-                    {
-                      backgroundColor,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={
-                      icon as React.ComponentProps<
-                        typeof MaterialCommunityIcons
-                      >["name"]
-                    }
-                    size={27}
-                    color={
-                      iconColor
-                    }
-                  />
-                </View>
-
-                {/* ==============================================
-                    SERVICE NAME
-                ============================================== */}
-
-                <AppText
-                  weight="bold"
-                  numberOfLines={
-                    2
-                  }
-                  ellipsizeMode="tail"
-                  style={
-                    styles.name
-                  }
-                >
-                  {
-                    item.name
-                  }
-                </AppText>
-
-                {/* ==============================================
-                    ARROW
-                ============================================== */}
-
-                <View
-                  style={
-                    styles.arrow
-                  }
-                >
-                  <MaterialCommunityIcons
-                    name="arrow-right"
-                    size={19}
-                    color="#2563EB"
-                  />
-                </View>
-              </AppCard>
-            </Pressable>
-          );
-        }}
+        initialNumToRender={5}
+        maxToRenderPerBatch={8}
+        windowSize={3}
+        keyboardShouldPersistTaps="handled"
       />
     </View>
   );
@@ -352,8 +530,11 @@ const styles =
     ========================================================== */
 
     container: {
-      marginTop: 2,
-      marginBottom: 20,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     /* ==========================================================
@@ -361,44 +542,56 @@ const styles =
     ========================================================== */
 
     header: {
-      flexDirection:
-        "row",
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      alignItems:
-        "center",
+      flexDirection: "row",
+
+      alignItems: "center",
 
       justifyContent:
         "space-between",
-
-      marginBottom: 11,
     },
 
     title: {
-      fontSize: 17,
+      flex: 1,
 
-      lineHeight: 22,
+      minWidth: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
 
       color:
-        "#111827",
+        Colors.textPrimary,
     },
 
     seeAllButton: {
-      minHeight: 32,
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      alignItems:
-        "center",
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
 
       justifyContent:
         "center",
 
-      paddingHorizontal: 3,
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     seeAll: {
-      fontSize: 12.5,
-
       color:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
     /* ==========================================================
@@ -406,86 +599,52 @@ const styles =
     ========================================================== */
 
     list: {
-      paddingRight: 8,
-    },
-
-    /* ==========================================================
-       CARD WRAPPER
-    ========================================================== */
-
-    cardWrapper: {
-      width: 154,
-
-      marginRight: 10,
+      paddingRight:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
        CARD
     ========================================================== */
 
+    cardWrapper: {
+      width:
+        SERVICE_CARD_WIDTH,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
     card: {
-      width: 154,
+      width:
+        SERVICE_CARD_WIDTH,
 
-      height: 138,
+      height:
+        SERVICE_CARD_HEIGHT,
 
-      paddingHorizontal: 13,
+      padding:
+        FixxamTokens.spacing.md,
 
-      paddingVertical: 13,
+      position: "relative",
 
-      borderRadius: 18,
+      alignItems:
+        "flex-start",
 
-      backgroundColor:
-        "#FFFFFF",
+      justifyContent:
+        "flex-start",
 
       borderWidth: 1,
 
       borderColor:
-        "#E5E7EB",
+        Colors.border,
 
-      alignItems:
-        "flex-start",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      justifyContent:
-        "flex-start",
+      backgroundColor:
+        Colors.surface,
 
-      position:
-        "relative",
-
-      shadowColor:
-        "#0F172A",
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      shadowOpacity:
-        0.06,
-
-      shadowRadius:
-        6,
-
-      elevation: 2,
-    },
-
-    /* ==========================================================
-       ICON
-    ========================================================== */
-
-    iconBox: {
-      width: 54,
-
-      height: 54,
-
-      borderRadius: 17,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginBottom: 12,
+      ...FixxamTokens.shadow.card,
     },
 
     /* ==========================================================
@@ -495,12 +654,13 @@ const styles =
     name: {
       width: "82%",
 
-      fontSize: 13.5,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 18,
 
       color:
-        "#111827",
+        Colors.textPrimary,
     },
 
     /* ==========================================================
@@ -508,27 +668,46 @@ const styles =
     ========================================================== */
 
     arrow: {
-      position:
-        "absolute",
+      position: "absolute",
 
-      right: 11,
+      right:
+        FixxamTokens.spacing.sm,
 
-      bottom: 10,
+      bottom:
+        FixxamTokens.spacing.sm,
 
-      width: 25,
+      width: 28,
 
-      height: 25,
+      height: 28,
 
-      borderRadius: 8,
-
-      alignItems:
-        "center",
+      alignItems: "center",
 
       justifyContent:
         "center",
 
+      borderRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
-        "#EFF6FF",
+        CustomerColors.primarySoft,
+    },
+
+    /* ==========================================================
+       LOADING
+    ========================================================== */
+
+    loadingContainer: {
+      minHeight: 120,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
@@ -536,11 +715,15 @@ const styles =
     ========================================================== */
 
     pressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

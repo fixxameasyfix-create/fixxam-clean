@@ -6,48 +6,83 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   hasCustomerAccount: boolean;
+
   onPress: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function WorkerQuickAction({
   hasCustomerAccount,
   onPress,
 }: Props) {
+  const title =
+    hasCustomerAccount
+      ? "Switch to Customer"
+      : "Create Customer Account";
+
+  const subtitle =
+    hasCustomerAccount
+      ? "Book services & shop products."
+      : "Book services & purchase products.";
+
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={
+      accessibilityLabel={title}
+      accessibilityHint={
         hasCustomerAccount
-          ? "Switch to customer"
-          : "Create customer account"
+          ? "Switches to your customer account"
+          : "Starts customer account setup"
       }
       style={({ pressed }) => [
         styles.container,
-        pressed && styles.pressed,
+
+        pressed
+          ? styles.pressed
+          : null,
       ]}
     >
       {/* ==================================================
           ICON
       ================================================== */}
 
-      <View style={styles.iconContainer}>
-        <Ionicons
+      <View
+        style={
+          styles.iconContainer
+        }
+      >
+        <AppIcon
           name={
             hasCustomerAccount
-              ? "swap-horizontal"
-              : "person-add-outline"
+              ? "refresh"
+              : "profile"
           }
-          size={18}
-          color="#16A34A"
+          role="customer"
+          size="sm"
+          color={
+            CustomerColors.primary
+          }
         />
       </View>
 
@@ -55,24 +90,27 @@ export default function WorkerQuickAction({
           CONTENT
       ================================================== */}
 
-      <View style={styles.content}>
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
           numberOfLines={1}
+          style={styles.title}
         >
-          {hasCustomerAccount
-            ? "Switch to Customer"
-            : "Create Customer Account"}
+          {title}
         </AppText>
 
         <AppText
-          style={styles.subtitle}
-          numberOfLines={1}
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
+          style={
+            styles.subtitle
+          }
         >
-          {hasCustomerAccount
-            ? "Book services & shop products."
-            : "Book services & purchase products."}
+          {subtitle}
         </AppText>
       </View>
 
@@ -80,14 +118,22 @@ export default function WorkerQuickAction({
           ARROW
       ================================================== */}
 
-      <Ionicons
-        name="chevron-forward"
-        size={16}
-        color="#94A3B8"
+      <AppIcon
+        name="next"
+        role="customer"
+        size="xs"
+        state="muted"
+        color={
+          Colors.textMuted
+        }
       />
     </Pressable>
   );
 }
+
+/* ============================================================
+   STYLES
+============================================================ */
 
 const styles =
   StyleSheet.create({
@@ -96,32 +142,31 @@ const styles =
     ======================================================== */
 
     container: {
-      marginHorizontal: 0,
-      marginBottom: 8,
+      minHeight: 60,
 
-      minHeight: 58,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 10,
-      paddingVertical: 9,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 16,
-
-      backgroundColor: "#F0FDF4",
-
-      borderWidth: 1,
-      borderColor: "#DCFCE7",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
-      alignItems: "center",
-    },
 
-    pressed: {
-      opacity: 0.8,
-      transform: [
-        {
-          scale: 0.99,
-        },
-      ],
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     /* ========================================================
@@ -129,15 +174,25 @@ const styles =
     ======================================================== */
 
     iconContainer: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 12,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-      backgroundColor: "#DCFCE7",
+      flexShrink: 0,
 
       alignItems: "center",
+
       justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     /* ========================================================
@@ -146,25 +201,43 @@ const styles =
 
     content: {
       flex: 1,
+
       minWidth: 0,
 
-      marginLeft: 10,
-      marginRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 12.5,
-      lineHeight: 17,
-
-      color: "#166534",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 9.5,
-      lineHeight: 14,
+      lineHeight: 16,
+    },
 
-      color: "#64748B",
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

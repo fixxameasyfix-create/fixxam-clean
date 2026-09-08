@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,7 +8,19 @@ import {
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 export type SearchFilterType =
   | "all"
@@ -15,111 +29,216 @@ export type SearchFilterType =
 
 type Props = {
   value: SearchFilterType;
+
   onChange: (
     value: SearchFilterType,
   ) => void;
 };
 
-const filters: SearchFilterType[] = [
-  "all",
-  "services",
-  "workers",
+type FilterItem = {
+  value: SearchFilterType;
+
+  label: string;
+};
+
+/* ============================================================
+   FILTERS
+============================================================ */
+
+const FILTERS: FilterItem[] = [
+  {
+    value: "all",
+    label: "All",
+  },
+  {
+    value: "services",
+    label: "Services",
+  },
+  {
+    value: "workers",
+    label: "Workers",
+  },
 ];
 
-export default function SearchFilter({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function SearchFilter({
   value,
   onChange,
 }: Props) {
   return (
-    <View style={styles.container}>
-      <View style={styles.tabs}>
-        {filters.map((item) => {
-          const active = value === item;
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        accessibilityRole="tablist"
+        style={
+          styles.tabs
+        }
+      >
+        {FILTERS.map(
+          filter => {
+            const active =
+              value ===
+              filter.value;
 
-          return (
-            <Pressable
-              key={item}
-              onPress={() => onChange(item)}
-              accessibilityRole="tab"
-              accessibilityState={{
-                selected: active,
-              }}
-              accessibilityLabel={`Filter by ${item}`}
-              style={({ pressed }) => [
-                styles.button,
-                active && styles.activeButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <AppText
-                weight="bold"
-                style={[
-                  styles.text,
-                  active && styles.activeText,
+            return (
+              <Pressable
+                key={
+                  filter.value
+                }
+                onPress={() => {
+                  if (!active) {
+                    onChange(
+                      filter.value,
+                    );
+                  }
+                }}
+                accessibilityRole="tab"
+                accessibilityLabel={`${filter.label} search results`}
+                accessibilityState={{
+                  selected:
+                    active,
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.button,
+
+                  active
+                    ? styles.activeButton
+                    : null,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
                 ]}
               >
-                {item.charAt(0).toUpperCase() +
-                  item.slice(1)}
-              </AppText>
-            </Pressable>
-          );
-        })}
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  numberOfLines={1}
+                  style={[
+                    styles.text,
+
+                    active
+                      ? styles.activeText
+                      : null,
+                  ]}
+                >
+                  {filter.label}
+                </AppText>
+              </Pressable>
+            );
+          },
+        )}
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  tabs: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+const MemoizedSearchFilter =
+  memo(
+    SearchFilter,
+  );
 
-  button: {
-    minWidth: 76,
-    height: 38,
+MemoizedSearchFilter.displayName =
+  "SearchFilter";
 
-    paddingHorizontal: 16,
+export default MemoizedSearchFilter;
 
-    borderRadius: 12,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    alignItems: "center",
-    justifyContent: "center",
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    backgroundColor: "#FFFFFF",
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+    tabs: {
+      flexDirection:
+        "row",
 
-  activeButton: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
+      alignItems:
+        "center",
 
-  text: {
-    fontSize: 12.5,
-    lineHeight: 17,
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-    color: "#64748B",
-  },
+    button: {
+      flex: 1,
 
-  activeText: {
-    color: "#FFFFFF",
-  },
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-  pressed: {
-    opacity: 0.8,
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    activeButton: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    text: {
+      textAlign:
+        "center",
+
+      color:
+        Colors.textSecondary,
+    },
+
+    activeText: {
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

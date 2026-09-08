@@ -1,4 +1,7 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Pressable,
@@ -11,24 +14,44 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
 import type {
   WorkerFilterType,
   WorkerOrderCounts,
 } from "@/types/workerOrders";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   selectedFilter: WorkerFilterType;
+
   counts: WorkerOrderCounts;
+
   totalJobs: number;
+
   onChange: (
     filter: WorkerFilterType,
   ) => void;
 };
 
-const FILTERS: {
+type FilterItem = {
   key: WorkerFilterType;
+
   label: string;
-}[] = [
+};
+
+/* ==============================================================
+   FILTERS
+============================================================== */
+
+const FILTERS: readonly FilterItem[] = [
   {
     key: "all",
     label: "All",
@@ -51,89 +74,145 @@ const FILTERS: {
   },
 ];
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function WorkerOrdersFilters({
   selectedFilter,
   counts,
   totalJobs,
   onChange,
 }: Props) {
+  const handleChange =
+    useCallback(
+      (
+        filter: WorkerFilterType,
+      ) => {
+        if (
+          selectedFilter ===
+          filter
+        ) {
+          return;
+        }
+
+        onChange(
+          filter,
+        );
+      },
+      [
+        onChange,
+        selectedFilter,
+      ],
+    );
+
   return (
     <ScrollView
       horizontal
-      showsHorizontalScrollIndicator={false}
+      showsHorizontalScrollIndicator={
+        false
+      }
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={
         styles.container
       }
     >
-      {FILTERS.map((filter) => {
-        const active =
-          selectedFilter ===
-          filter.key;
+      {FILTERS.map(
+        filter => {
+          const active =
+            selectedFilter ===
+            filter.key;
 
-        const count =
-          getFilterCount(
-            filter.key,
-            counts,
-            totalJobs,
-          );
+          const count =
+            getFilterCount(
+              filter.key,
+              counts,
+              totalJobs,
+            );
 
-        return (
-          <Pressable
-            key={filter.key}
-            onPress={() =>
-              onChange(
-                filter.key,
-              )
-            }
-            accessibilityRole="button"
-            accessibilityState={{
-              selected: active,
-            }}
-            style={[
-              styles.button,
-              active &&
-                styles.buttonActive,
-            ]}
-          >
-            <AppText
-              weight={
-                active
-                  ? "bold"
-                  : "regular"
+          return (
+            <Pressable
+              key={
+                filter.key
               }
-              style={[
-                styles.text,
-                active &&
-                  styles.textActive,
-              ]}
-            >
-              {filter.label}
-            </AppText>
+              onPress={() => {
+                handleChange(
+                  filter.key,
+                );
+              }}
+              accessibilityRole="tab"
+              accessibilityLabel={`${filter.label}, ${count}`}
+              accessibilityState={{
+                selected:
+                  active,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.button,
 
-            <View
-              style={[
-                styles.count,
-                active &&
-                  styles.countActive,
+                active
+                  ? styles.buttonActive
+                  : null,
+
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
               <AppText
-                weight="bold"
+                variant="caption"
+                weight={
+                  active
+                    ? "bold"
+                    : "regular"
+                }
+                numberOfLines={1}
                 style={[
-                  styles.countText,
-                  active &&
-                    styles.countTextActive,
+                  styles.text,
+
+                  active
+                    ? styles.textActive
+                    : null,
                 ]}
               >
-                {count}
+                {filter.label}
               </AppText>
-            </View>
-          </Pressable>
-        );
-      })}
+
+              <View
+                style={[
+                  styles.count,
+
+                  active
+                    ? styles.countActive
+                    : null,
+                ]}
+              >
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={[
+                    styles.countText,
+
+                    active
+                      ? styles.countTextActive
+                      : null,
+                  ]}
+                >
+                  {count}
+                </AppText>
+              </View>
+            </Pressable>
+          );
+        },
+      )}
     </ScrollView>
   );
 }
+
+/* ==============================================================
+   COUNT
+============================================================== */
 
 function getFilterCount(
   filter: WorkerFilterType,
@@ -159,65 +238,142 @@ function getFilterCount(
   }
 }
 
+/* ==============================================================
+   MEMO
+============================================================== */
+
+WorkerOrdersFilters.displayName =
+  "WorkerOrdersFilters";
+
 export default memo(
   WorkerOrdersFilters,
 );
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 7,
-    paddingTop: 11,
-    paddingBottom: 12,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  button: {
-    minHeight: 38,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  buttonActive: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
-  text: {
-    fontSize: 10,
-    color: "#334155",
-  },
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-  textActive: {
-    color: "#FFFFFF",
-  },
+    /* ==========================================================
+       FILTER
+    ========================================================== */
 
-  count: {
-    minWidth: 19,
-    height: 19,
-    paddingHorizontal: 4,
-    borderRadius: 10,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    button: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
 
-  countActive: {
-    backgroundColor:
-      "rgba(255,255,255,0.20)",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  countText: {
-    fontSize: 8,
-    color: "#64748B",
-  },
+      flexDirection:
+        "row",
 
-  countTextActive: {
-    color: "#FFFFFF",
-  },
-});
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    buttonActive: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    text: {
+      color:
+        Colors.textSecondary,
+    },
+
+    textActive: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ==========================================================
+       COUNT
+    ========================================================== */
+
+    count: {
+      minWidth: 24,
+
+      minHeight: 24,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    countActive: {
+      backgroundColor:
+        Colors.surface,
+    },
+
+    countText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    countTextActive: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ==========================================================
+       STATE
+    ========================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useCallback,
 } from "react";
 
 import {
@@ -8,82 +9,124 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
 
 import {
-  router,
-} from "expo-router";
-
-import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+export interface OrdersHeaderProps {
   authenticated: boolean;
+
   onManage: () => void;
-};
+}
 
 function OrdersHeader({
   authenticated,
   onManage,
-}: Props) {
+}: OrdersHeaderProps) {
+  const handleBack =
+    useCallback(() => {
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+
+      router.replace(
+        "/(customer)/(tabs)/home",
+      );
+    }, []);
+
+  const handleManage =
+    useCallback(() => {
+      if (!authenticated) {
+        return;
+      }
+
+      onManage();
+    }, [
+      authenticated,
+      onManage,
+    ]);
+
   return (
     <View style={styles.header}>
       <Pressable
-        onPress={() => router.back()}
         accessibilityRole="button"
         accessibilityLabel="Go back"
+        hitSlop={8}
+        onPress={handleBack}
         style={({ pressed }) => [
-          styles.button,
-          pressed && styles.pressed,
+          styles.iconButton,
+
+          pressed
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="chevron-back"
-          size={20}
-          color="#0F172A"
+        <AppIcon
+          name="back"
+          role="customer"
+          size="sm"
         />
       </Pressable>
 
-      <View style={styles.text}>
+      <View style={styles.textContainer}>
         <AppText
-          weight="bold"
-          style={styles.title}
+          variant="heading3"
+          numberOfLines={1}
         >
           My Orders
         </AppText>
 
         <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
           style={styles.subtitle}
         >
-          Track and manage your
-          service requests
+          Track and manage your service requests
         </AppText>
       </View>
 
       <Pressable
-        disabled={!authenticated}
-        onPress={onManage}
         accessibilityRole="button"
         accessibilityLabel="Manage orders"
+        accessibilityState={{
+          disabled:
+            !authenticated,
+        }}
+        disabled={!authenticated}
+        hitSlop={8}
+        onPress={handleManage}
         style={({ pressed }) => [
-          styles.button,
+          styles.iconButton,
 
-          !authenticated &&
-            styles.disabled,
+          authenticated
+            ? null
+            : styles.disabledButton,
 
           pressed &&
-            authenticated &&
-            styles.pressed,
+          authenticated
+            ? styles.pressed
+            : null,
         ]}
       >
-        <Ionicons
-          name="options-outline"
-          size={20}
-          color={
+        <AppIcon
+          name="settings"
+          role="customer"
+          size="sm"
+          state={
             authenticated
-              ? "#0F172A"
-              : "#CBD5E1"
+              ? "active"
+              : "muted"
           }
         />
       </Pressable>
@@ -91,51 +134,86 @@ function OrdersHeader({
   );
 }
 
-export default memo(OrdersHeader);
+const styles = StyleSheet.create({
+  header: {
+    minHeight:
+      FixxamTokens.size.headerHeight,
 
-const styles =
-  StyleSheet.create({
-    header: {
-      minHeight: 52,
-      flexDirection: "row",
-      alignItems: "center",
-    },
+    width: "100%",
 
-    button: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1,
-      borderColor: "#E2E8F0",
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    flexDirection: "row",
+    alignItems: "center",
+  },
 
-    disabled: {
-      backgroundColor: "#F8FAFC",
-      opacity: 0.7,
-    },
+  iconButton: {
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
 
-    text: {
-      flex: 1,
-      minWidth: 0,
-      marginHorizontal: 9,
-    },
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
 
-    title: {
-      fontSize: 19,
-      color: "#0F172A",
-    },
+    flexShrink: 0,
 
-    subtitle: {
-      marginTop: 1,
-      fontSize: 9.5,
-      color: "#64748B",
-    },
+    alignItems: "center",
+    justifyContent: "center",
 
-    pressed: {
-      opacity: 0.7,
-      transform: [{ scale: 0.97 }],
-    },
-  });
+    borderWidth: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.iconButton,
+
+    backgroundColor:
+      Colors.surface,
+  },
+
+  textContainer: {
+    flex: 1,
+    minWidth: 0,
+
+    marginHorizontal:
+      FixxamTokens.spacing.md,
+  },
+
+  subtitle: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
+
+  disabledButton: {
+    borderColor:
+      Colors.border,
+
+    backgroundColor:
+      Colors.disabledBackground,
+
+    opacity:
+      FixxamTokens.motion
+        .disabledOpacity,
+  },
+
+  pressed: {
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
+
+    backgroundColor:
+      CustomerColors.primarySoft,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
+      },
+    ],
+  },
+});
+
+export default memo(
+  OrdersHeader,
+);

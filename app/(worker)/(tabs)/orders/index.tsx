@@ -7,14 +7,15 @@ import React, {
 
 import {
   ActivityIndicator,
-  ScrollView,
+  FlatList,
+  type ListRenderItemInfo,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
   onAuthStateChanged,
@@ -29,9 +30,16 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   auth,
@@ -52,13 +60,13 @@ import WorkerMarketOrderCard from "@/components/workerorders/WorkerMarketOrderCa
 
 import type {
   WorkerFilterType,
+  WorkerMarketOrder,
   WorkerOrder,
   WorkerOrderCounts,
-  WorkerMarketOrder,
 } from "@/types/workerOrders";
 
 /* ==============================================================
-   FIRESTORE DATA
+   TYPES
 ============================================================== */
 
 type FirestoreData = Record<
@@ -66,19 +74,19 @@ type FirestoreData = Record<
   unknown
 >;
 
-/* ==============================================================
-   COMBINED ITEM
-============================================================== */
-
 type CombinedOrder =
   | {
       type: "service";
+
       order: WorkerOrder;
+
       createdAt: number;
     }
   | {
       type: "market";
+
       order: WorkerMarketOrder;
+
       createdAt: number;
     };
 
@@ -94,9 +102,16 @@ export default function WorkerOrdersScreen() {
   const [
     user,
     setUser,
-  ] = useState<User | null>(
-    auth.currentUser,
-  );
+  ] =
+    useState<User | null>(
+      auth.currentUser,
+    );
+
+  const [
+    authReady,
+    setAuthReady,
+  ] =
+    useState(false);
 
   /* ============================================================
      FILTER
@@ -105,9 +120,10 @@ export default function WorkerOrdersScreen() {
   const [
     selectedFilter,
     setSelectedFilter,
-  ] = useState<WorkerFilterType>(
-    "all",
-  );
+  ] =
+    useState<WorkerFilterType>(
+      "all",
+    );
 
   /* ============================================================
      SERVICE ORDERS
@@ -116,9 +132,24 @@ export default function WorkerOrdersScreen() {
   const [
     serviceOrders,
     setServiceOrders,
-  ] = useState<WorkerOrder[]>(
-    [],
-  );
+  ] =
+    useState<WorkerOrder[]>(
+      [],
+    );
+
+  const [
+    serviceLoading,
+    setServiceLoading,
+  ] =
+    useState(false);
+
+  const [
+    serviceError,
+    setServiceError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   /* ============================================================
      MARKET ORDERS
@@ -127,32 +158,27 @@ export default function WorkerOrdersScreen() {
   const [
     marketOrders,
     setMarketOrders,
-  ] = useState<WorkerMarketOrder[]>(
-    [],
-  );
-
-  /* ============================================================
-     LOADING
-  ============================================================ */
+  ] =
+    useState<
+      WorkerMarketOrder[]
+    >([]);
 
   const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  /* ============================================================
-     ERROR
-  ============================================================ */
+    marketLoading,
+    setMarketLoading,
+  ] =
+    useState(false);
 
   const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  );
+    marketError,
+    setMarketError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   /* ============================================================
-     AUTH + FIRESTORE LISTENERS
+     AUTH + FIRESTORE
   ============================================================ */
 
   useEffect(() => {
@@ -167,9 +193,9 @@ export default function WorkerOrdersScreen() {
     const unsubscribeAuth =
       onAuthStateChanged(
         auth,
-        (currentUser) => {
+        currentUser => {
           /* -----------------------------------------------
-             CLEAN OLD LISTENERS
+             REMOVE PREVIOUS LISTENERS
           ------------------------------------------------ */
 
           unsubscribeBookings?.();
@@ -181,16 +207,46 @@ export default function WorkerOrdersScreen() {
           unsubscribeMarket =
             undefined;
 
+          setAuthReady(
+            true,
+          );
+
+          /* -----------------------------------------------
+             RESET USER DATA
+          ------------------------------------------------ */
+
+          setServiceOrders(
+            [],
+          );
+
+          setMarketOrders(
+            [],
+          );
+
+          setServiceError(
+            null,
+          );
+
+          setMarketError(
+            null,
+          );
+
           /* -----------------------------------------------
              SIGNED OUT
           ------------------------------------------------ */
 
           if (!currentUser) {
-            setUser(null);
-            setServiceOrders([]);
-            setMarketOrders([]);
-            setError(null);
-            setLoading(false);
+            setUser(
+              null,
+            );
+
+            setServiceLoading(
+              false,
+            );
+
+            setMarketLoading(
+              false,
+            );
 
             return;
           }
@@ -203,22 +259,25 @@ export default function WorkerOrdersScreen() {
             currentUser,
           );
 
-          setLoading(true);
-          setError(null);
+          setServiceLoading(
+            true,
+          );
+
+          setMarketLoading(
+            true,
+          );
 
           /* ==================================================
              SERVICE ORDERS
           ================================================== */
 
-          const bookingsRef =
-            collection(
-              db,
-              "bookings",
-            );
-
           const bookingsQuery =
             query(
-              bookingsRef,
+              collection(
+                db,
+                "bookings",
+              ),
+
               where(
                 "workerId",
                 "==",
@@ -230,17 +289,14 @@ export default function WorkerOrdersScreen() {
             onSnapshot(
               bookingsQuery,
 
-              (snapshot) => {
+              snapshot => {
                 const nextOrders =
                   snapshot.docs
-                    .map(
-                      (
-                        document,
-                      ) =>
-                        normalizeWorkerOrder(
-                          document.id,
-                          document.data(),
-                        ),
+                    .map(document =>
+                      normalizeWorkerOrder(
+                        document.id,
+                        document.data(),
+                      ),
                     )
                     .sort(
                       (
@@ -259,24 +315,27 @@ export default function WorkerOrdersScreen() {
                   nextOrders,
                 );
 
-                setLoading(
-                  false,
+                setServiceError(
+                  null,
                 );
 
-                setError(null);
+                setServiceLoading(
+                  false,
+                );
               },
 
-              (listenerError) => {
+              listenerError => {
                 console.error(
                   "WORKER_SERVICE_ORDERS_ERROR:",
                   listenerError,
                 );
 
-                setServiceOrders([]);
-                setLoading(false);
+                setServiceLoading(
+                  false,
+                );
 
-                setError(
-                  "Unable to load your jobs. Please try again.",
+                setServiceError(
+                  "Some service jobs could not be loaded.",
                 );
               },
             );
@@ -285,15 +344,13 @@ export default function WorkerOrdersScreen() {
              MARKET ORDERS
           ================================================== */
 
-          const marketRef =
-            collection(
-              db,
-              "orders",
-            );
-
           const marketQuery =
             query(
-              marketRef,
+              collection(
+                db,
+                "orders",
+              ),
+
               where(
                 "workerId",
                 "==",
@@ -305,17 +362,14 @@ export default function WorkerOrdersScreen() {
             onSnapshot(
               marketQuery,
 
-              (snapshot) => {
+              snapshot => {
                 const nextOrders =
                   snapshot.docs
-                    .map(
-                      (
-                        document,
-                      ) =>
-                        normalizeWorkerMarketOrder(
-                          document.id,
-                          document.data(),
-                        ),
+                    .map(document =>
+                      normalizeWorkerMarketOrder(
+                        document.id,
+                        document.data(),
+                      ),
                     )
                     .sort(
                       (
@@ -334,20 +388,28 @@ export default function WorkerOrdersScreen() {
                   nextOrders,
                 );
 
-                /*
-                 * Important:
-                 * Do not turn off loading here because
-                 * service listener also controls initial loading.
-                 */
+                setMarketError(
+                  null,
+                );
+
+                setMarketLoading(
+                  false,
+                );
               },
 
-              (listenerError) => {
+              listenerError => {
                 console.error(
                   "WORKER_MARKET_ORDERS_ERROR:",
                   listenerError,
                 );
 
-                setMarketOrders([]);
+                setMarketLoading(
+                  false,
+                );
+
+                setMarketError(
+                  "Some market orders could not be loaded.",
+                );
               },
             );
         },
@@ -355,10 +417,42 @@ export default function WorkerOrdersScreen() {
 
     return () => {
       unsubscribeBookings?.();
+
       unsubscribeMarket?.();
+
       unsubscribeAuth();
     };
   }, []);
+
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  const loading =
+    serviceLoading ||
+    marketLoading;
+
+  /* ============================================================
+     ERROR
+  ============================================================ */
+
+  const error =
+    useMemo(() => {
+      if (
+        serviceError &&
+        marketError
+      ) {
+        return "Unable to load your jobs. Please try again.";
+      }
+
+      return (
+        serviceError ??
+        marketError
+      );
+    }, [
+      marketError,
+      serviceError,
+    ]);
 
   /* ============================================================
      COUNTS
@@ -367,22 +461,33 @@ export default function WorkerOrdersScreen() {
   const counts =
     useMemo<WorkerOrderCounts>(
       () => {
-        const result: WorkerOrderCounts = {
-          all: 0,
-          pending: 0,
-          active: 0,
-          completed: 0,
-          cancelled: 0,
-        };
+        const result: WorkerOrderCounts =
+          {
+            all: 0,
 
-        for (const order of serviceOrders) {
+            pending: 0,
+
+            active: 0,
+
+            completed: 0,
+
+            cancelled: 0,
+          };
+
+        for (
+          const order of
+          serviceOrders
+        ) {
           addStatusCount(
             result,
             order.status,
           );
         }
 
-        for (const order of marketOrders) {
+        for (
+          const order of
+          marketOrders
+        ) {
           addStatusCount(
             result,
             order.status,
@@ -396,40 +501,40 @@ export default function WorkerOrdersScreen() {
         return result;
       },
       [
-        serviceOrders,
         marketOrders,
+        serviceOrders,
       ],
     );
 
   /* ============================================================
-     FILTER SERVICE ORDERS
+     FILTERED SERVICE ORDERS
   ============================================================ */
 
   const filteredServiceOrders =
     useMemo(
       () =>
         serviceOrders.filter(
-          (order) =>
+          order =>
             matchesFilter(
               order.status,
               selectedFilter,
             ),
         ),
       [
-        serviceOrders,
         selectedFilter,
+        serviceOrders,
       ],
     );
 
   /* ============================================================
-     FILTER MARKET ORDERS
+     FILTERED MARKET ORDERS
   ============================================================ */
 
   const filteredMarketOrders =
     useMemo(
       () =>
         marketOrders.filter(
-          (order) =>
+          order =>
             matchesFilter(
               order.status,
               selectedFilter,
@@ -442,7 +547,7 @@ export default function WorkerOrdersScreen() {
     );
 
   /* ============================================================
-     COMBINE ORDERS
+     COMBINED ORDERS
   ============================================================ */
 
   const combinedOrders =
@@ -450,9 +555,12 @@ export default function WorkerOrdersScreen() {
       () => {
         const serviceItems: CombinedOrder[] =
           filteredServiceOrders.map(
-            (order) => ({
-              type: "service",
+            order => ({
+              type:
+                "service",
+
               order,
+
               createdAt:
                 getTimestampMillis(
                   order.createdAt,
@@ -462,9 +570,12 @@ export default function WorkerOrdersScreen() {
 
         const marketItems: CombinedOrder[] =
           filteredMarketOrders.map(
-            (order) => ({
-              type: "market",
+            order => ({
+              type:
+                "market",
+
               order,
+
               createdAt:
                 getTimestampMillis(
                   order.createdAt,
@@ -476,19 +587,22 @@ export default function WorkerOrdersScreen() {
           ...serviceItems,
           ...marketItems,
         ].sort(
-          (a, b) =>
+          (
+            a,
+            b,
+          ) =>
             b.createdAt -
             a.createdAt,
         );
       },
       [
-        filteredServiceOrders,
         filteredMarketOrders,
+        filteredServiceOrders,
       ],
     );
 
   /* ============================================================
-     TOTAL JOBS
+     TOTAL
   ============================================================ */
 
   const totalJobs =
@@ -506,10 +620,14 @@ export default function WorkerOrdersScreen() {
 
   /* ============================================================
      MANAGE
+
+     Existing screen has no verified route/action for Manage.
+     Preserve behavior instead of inventing navigation.
   ============================================================ */
 
   const handleManage =
     useCallback(() => {
+      // Intentionally left without navigation.
     }, []);
 
   /* ============================================================
@@ -529,15 +647,18 @@ export default function WorkerOrdersScreen() {
     );
 
   /* ============================================================
-     SERVICE ORDER PRESS
+     SERVICE ORDER
   ============================================================ */
 
   const handleServiceOrderPress =
     useCallback(
-      (order: WorkerOrder) => {
+      (
+        order: WorkerOrder,
+      ) => {
         router.push({
           pathname:
             "/(worker)/orders/[orderId]",
+
           params: {
             orderId:
               order.id,
@@ -548,7 +669,7 @@ export default function WorkerOrdersScreen() {
     );
 
   /* ============================================================
-     MARKET ORDER PRESS
+     MARKET ORDER
   ============================================================ */
 
   const handleMarketOrderPress =
@@ -559,6 +680,7 @@ export default function WorkerOrdersScreen() {
         router.push({
           pathname:
             "/(worker)/orders/market/[market]",
+
           params: {
             market:
               order.id,
@@ -569,78 +691,139 @@ export default function WorkerOrdersScreen() {
     );
 
   /* ============================================================
+     RENDER ORDER
+  ============================================================ */
+
+  const renderOrder =
+    useCallback(
+      ({
+        item,
+      }: ListRenderItemInfo<CombinedOrder>) => {
+        if (
+          item.type ===
+          "service"
+        ) {
+          return (
+            <WorkerServiceOrderCard
+              order={
+                item.order
+              }
+              onPress={
+                handleServiceOrderPress
+              }
+            />
+          );
+        }
+
+        return (
+          <WorkerMarketOrderCard
+            order={
+              item.order
+            }
+            onPress={
+              handleMarketOrderPress
+            }
+          />
+        );
+      },
+      [
+        handleMarketOrderPress,
+        handleServiceOrderPress,
+      ],
+    );
+
+  /* ============================================================
+     AUTH RESOLVING
+  ============================================================ */
+
+  if (!authReady) {
+    return (
+      <AppScreen
+        role="worker"
+        contentContainerStyle={
+          styles.stateScreen
+        }
+      >
+        <ActivityIndicator
+          size="large"
+          color={
+            WorkerColors.primary
+          }
+        />
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.stateText
+          }
+        >
+          Loading your account...
+        </AppText>
+      </AppScreen>
+    );
+  }
+
+  /* ============================================================
      NOT AUTHENTICATED
   ============================================================ */
 
   if (!user) {
     return (
       <AppScreen
+        role="worker"
         contentContainerStyle={
-          styles.screen
+          styles.stateScreen
         }
       >
         <View
           style={
-            styles.authContainer
+            styles.authIcon
           }
         >
-          <View
-            style={
-              styles.authIcon
+          <AppIcon
+            name="profile"
+            role="worker"
+            size="lg"
+            color={
+              WorkerColors.primary
             }
-          >
-            <Ionicons
-              name="person-outline"
-              size={28}
-              color="#2563EB"
-            />
-          </View>
-
-          <AppText
-            weight="bold"
-            style={
-              styles.authTitle
-            }
-          >
-            Sign in required
-          </AppText>
-
-          <AppText
-            center
-            style={
-              styles.authText
-            }
-          >
-            Please sign in to view
-            your jobs.
-          </AppText>
+          />
         </View>
+
+        <AppText
+          variant="heading3"
+          weight="bold"
+          center
+          style={
+            styles.authTitle
+          }
+        >
+          Sign in required
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.authText
+          }
+        >
+          Please sign in to view your jobs.
+        </AppText>
       </AppScreen>
     );
   }
 
   /* ============================================================
-     SCREEN
+     LIST HEADER
   ============================================================ */
 
-  return (
-    <AppScreen
-      contentContainerStyle={
-        styles.screen
-      }
-    >
-      <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.content
-        }
-      >
-        {/* ======================================================
-            HEADER
-        ====================================================== */}
-
+  const listHeader =
+    (
+      <>
         <WorkerOrdersHeader
           onBack={
             handleBack
@@ -650,10 +833,6 @@ export default function WorkerOrdersScreen() {
           }
         />
 
-        {/* ======================================================
-            OVERVIEW
-        ====================================================== */}
-
         <WorkerOrdersOverview
           counts={
             counts
@@ -662,10 +841,6 @@ export default function WorkerOrdersScreen() {
             handleManage
           }
         />
-
-        {/* ======================================================
-            FILTERS
-        ====================================================== */}
 
         <WorkerOrdersFilters
           selectedFilter={
@@ -682,26 +857,38 @@ export default function WorkerOrdersScreen() {
           }
         />
 
-        {/* ======================================================
-            ERROR
-        ====================================================== */}
-
         {error ? (
           <View
             style={
               styles.errorContainer
             }
           >
-            <AppText
-              weight="bold"
+            <View
               style={
-                styles.errorTitle
+                styles.errorHeader
               }
             >
-              Something went wrong
-            </AppText>
+              <AppIcon
+                name="error"
+                size="sm"
+                color={
+                  Colors.error
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.errorTitle
+                }
+              >
+                Some jobs could not be loaded
+              </AppText>
+            </View>
 
             <AppText
+              variant="caption"
               style={
                 styles.errorText
               }
@@ -710,87 +897,95 @@ export default function WorkerOrdersScreen() {
             </AppText>
           </View>
         ) : null}
+      </>
+    );
 
-        {/* ======================================================
-            LOADING
-        ====================================================== */}
+  /* ============================================================
+     SCREEN
+  ============================================================ */
 
-        {loading ? (
-          <View
-            style={
-              styles.loadingContainer
-            }
-          >
-            <ActivityIndicator
-              size="small"
-              color="#2563EB"
-            />
-
-            <AppText
+  return (
+    <AppScreen
+      role="worker"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
+      <FlatList
+        data={
+          loading
+            ? []
+            : combinedOrders
+        }
+        renderItem={
+          renderOrder
+        }
+        keyExtractor={
+          item =>
+            `${item.type}-${item.order.id}`
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={
+          styles.content
+        }
+        ListHeaderComponent={
+          listHeader
+        }
+        ItemSeparatorComponent={
+          OrderSeparator
+        }
+        ListEmptyComponent={
+          loading ? (
+            <View
               style={
-                styles.loadingText
+                styles.loadingContainer
               }
             >
-              Loading your jobs...
-            </AppText>
-          </View>
-        ) : combinedOrders.length ===
-          0 ? (
-          <WorkerOrdersEmpty
-            filter={
-              selectedFilter
-            }
-          />
-        ) : (
-          <View
-            style={
-              styles.ordersList
-            }
-          >
-            {combinedOrders.map(
-              (item) => {
-                /* ==========================================
-                   SERVICE
-                ========================================== */
-
-                if (
-                  item.type ===
-                  "service"
-                ) {
-                  return (
-                    <WorkerServiceOrderCard
-                      key={`service-${item.order.id}`}
-                      order={
-                        item.order
-                      }
-                      onPress={
-                        handleServiceOrderPress
-                      }
-                    />
-                  );
+              <ActivityIndicator
+                size="small"
+                color={
+                  WorkerColors.primary
                 }
+              />
 
-                /* ==========================================
-                   MARKET
-                ========================================== */
-
-                return (
-                  <WorkerMarketOrderCard
-                    key={`market-${item.order.id}`}
-                    order={
-                      item.order
-                    }
-                    onPress={
-                      handleMarketOrderPress
-                    }
-                  />
-                );
-              },
-            )}
-          </View>
-        )}
-      </ScrollView>
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.loadingText
+                }
+              >
+                Loading your jobs...
+              </AppText>
+            </View>
+          ) : error ? null : (
+            <WorkerOrdersEmpty
+              filter={
+                selectedFilter
+              }
+            />
+          )
+        }
+      />
     </AppScreen>
+  );
+}
+
+/* ==============================================================
+   SEPARATOR
+============================================================== */
+
+function OrderSeparator() {
+  return (
+    <View
+      style={
+        styles.orderSeparator
+      }
+    />
   );
 }
 
@@ -803,27 +998,32 @@ function addStatusCount(
   status: unknown,
 ) {
   const normalized =
-    normalizeStatus(status);
+    normalizeStatus(
+      status,
+    );
 
   switch (normalized) {
     case "pending":
-      counts.pending += 1;
+      counts.pending +=
+        1;
       break;
 
     case "accepted":
     case "in-progress":
-    case "in_progress":
-      counts.active += 1;
+      counts.active +=
+        1;
       break;
 
     case "completed":
-      counts.completed += 1;
+      counts.completed +=
+        1;
       break;
 
     case "cancelled":
     case "canceled":
     case "expired":
-      counts.cancelled += 1;
+      counts.cancelled +=
+        1;
       break;
   }
 }
@@ -837,7 +1037,9 @@ function matchesFilter(
   filter: WorkerFilterType,
 ): boolean {
   const normalized =
-    normalizeStatus(status);
+    normalizeStatus(
+      status,
+    );
 
   switch (filter) {
     case "pending":
@@ -851,9 +1053,7 @@ function matchesFilter(
         normalized ===
           "accepted" ||
         normalized ===
-          "in-progress" ||
-        normalized ===
-          "in_progress"
+          "in-progress"
       );
 
     case "completed":
@@ -947,15 +1147,15 @@ function normalizeWorkerOrder(
       data.requestedAt,
     );
 
-  const status =
-    normalizeWorkerStatus(
-      data.status,
-    );
-
   const serviceIcon =
     getString(
       data.serviceIcon,
       "tools",
+    );
+
+  const offerAmount =
+    getOptionalNumber(
+      data.offerAmount,
     );
 
   return {
@@ -998,16 +1198,15 @@ function normalizeWorkerOrder(
         }
       : {}),
 
-    status,
+    status:
+      normalizeWorkerStatus(
+        data.status,
+      ),
 
-    ...(getOptionalNumber(
-      data.offerAmount,
-    ) !== undefined
+    ...(offerAmount !==
+    undefined
       ? {
-          offerAmount:
-            getOptionalNumber(
-              data.offerAmount,
-            ),
+          offerAmount,
         }
       : {}),
 
@@ -1031,15 +1230,6 @@ function normalizeWorkerMarketOrder(
 ): WorkerMarketOrder {
   /* ============================================================
      PRODUCTS
-     
-     IMPORTANT:
-     The product image/name is normally stored inside:
-     
-     products[0].image
-     products[0].name
-     
-     This is the reason the Order Details page can show
-     the image while the WorkerMarketOrderCard could not.
   ============================================================ */
 
   const products =
@@ -1058,10 +1248,6 @@ function normalizeWorkerMarketOrder(
             product !== null,
         )
       : [];
-
-  /* ============================================================
-     FIRST PRODUCT
-  ============================================================ */
 
   const firstProduct =
     products[0];
@@ -1084,16 +1270,6 @@ function normalizeWorkerMarketOrder(
 
   /* ============================================================
      PRODUCT IMAGE
-     
-     Priority:
-     
-     1. products[0].image
-     2. products[0].productImage
-     3. products[0].imageUrl
-     4. products[0].photo
-     5. old top-level productImage
-     6. old top-level image
-     7. old top-level imageUrl
   ============================================================ */
 
   const productImage =
@@ -1173,17 +1349,6 @@ function normalizeWorkerMarketOrder(
 
   /* ============================================================
      ITEM COUNT
-     
-     Use the real products array first.
-     
-     Example:
-     
-     Car Battery x3
-     Hammer x1
-     Tool x1
-     Other x1
-     
-     = 6 items
   ============================================================ */
 
   const calculatedItemCount =
@@ -1248,10 +1413,6 @@ function normalizeWorkerMarketOrder(
 
     productName,
 
-    /*
-     * This is the important field for
-     * WorkerMarketOrderCard.
-     */
     ...(productImage
       ? {
           productImage,
@@ -1308,7 +1469,9 @@ function normalizeWorkerStatus(
   value: unknown,
 ): WorkerOrder["status"] {
   const status =
-    normalizeStatus(value);
+    normalizeStatus(
+      value,
+    );
 
   switch (status) {
     case "accepted":
@@ -1341,7 +1504,9 @@ function normalizeWorkerMarketStatus(
   value: unknown,
 ): WorkerMarketOrder["status"] {
   const status =
-    normalizeStatus(value);
+    normalizeStatus(
+      value,
+    );
 
   switch (status) {
     case "accepted":
@@ -1373,7 +1538,10 @@ function normalizeWorkerMarketStatus(
 function getString(
   ...values: unknown[]
 ): string {
-  for (const value of values) {
+  for (
+    const value of
+    values
+  ) {
     if (
       typeof value ===
         "string" &&
@@ -1399,35 +1567,61 @@ function getString(
    NUMBER
 ============================================================== */
 
+function parseSafeNumber(
+  value: unknown,
+): number | undefined {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value ===
+      "string" &&
+    value.trim()
+  ) {
+    const parsed =
+      Number(
+        value
+          .replace(
+            /[₦,\s]/g,
+            "",
+          )
+          .trim(),
+      );
+
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
 function getNumber(
   ...values: unknown[]
 ): number {
-  for (const value of values) {
-    if (
-      typeof value ===
-        "number" &&
-      Number.isFinite(
+  for (
+    const value of
+    values
+  ) {
+    const parsed =
+      parseSafeNumber(
         value,
-      )
-    ) {
-      return value;
-    }
+      );
 
     if (
-      typeof value ===
-        "string" &&
-      value.trim()
+      parsed !==
+      undefined
     ) {
-      const parsed =
-        Number(value);
-
-      if (
-        Number.isFinite(
-          parsed,
-        )
-      ) {
-        return parsed;
-      }
+      return parsed;
     }
   }
 
@@ -1441,32 +1635,20 @@ function getNumber(
 function getOptionalNumber(
   ...values: unknown[]
 ): number | undefined {
-  for (const value of values) {
-    if (
-      typeof value ===
-        "number" &&
-      Number.isFinite(
+  for (
+    const value of
+    values
+  ) {
+    const parsed =
+      parseSafeNumber(
         value,
-      )
-    ) {
-      return value;
-    }
+      );
 
     if (
-      typeof value ===
-        "string" &&
-      value.trim()
+      parsed !==
+      undefined
     ) {
-      const parsed =
-        Number(value);
-
-      if (
-        Number.isFinite(
-          parsed,
-        )
-      ) {
-        return parsed;
-      }
+      return parsed;
     }
   }
 
@@ -1483,9 +1665,7 @@ function getTimestampMillis(
   if (
     typeof value ===
       "number" &&
-    Number.isFinite(
-      value,
-    )
+    Number.isFinite(value)
   ) {
     return value;
   }
@@ -1515,6 +1695,7 @@ function getTimestampMillis(
     const timestamp =
       value as {
         toMillis?: () => number;
+
         toDate?: () => Date;
       };
 
@@ -1553,7 +1734,10 @@ function getTimestampMillis(
 function getOrderDate(
   ...values: unknown[]
 ): string {
-  for (const value of values) {
+  for (
+    const value of
+    values
+  ) {
     if (
       typeof value ===
       "string"
@@ -1571,15 +1755,22 @@ function getOrderDate(
         value,
       );
 
-    if (millis > 0) {
+    if (
+      millis > 0
+    ) {
       return new Date(
         millis,
       ).toLocaleDateString(
         "en-NG",
         {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
+          day:
+            "numeric",
+
+          month:
+            "short",
+
+          year:
+            "numeric",
         },
       );
     }
@@ -1594,91 +1785,184 @@ function getOrderDate(
 
 const styles =
   StyleSheet.create({
+    /* ==========================================================
+       SCREEN
+    ========================================================== */
+
     screen: {
       flex: 1,
+
       width: "100%",
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 14,
-      paddingTop: 6,
-      paddingBottom: 30,
+      flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    ordersList: {
-      gap: 8,
+    orderSeparator: {
+      height:
+        FixxamTokens.spacing.sm,
     },
+
+    /* ==========================================================
+       LOADING
+    ========================================================== */
 
     loadingContainer: {
       minHeight: 220,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
     },
 
     loadingText: {
-      marginTop: 8,
-      fontSize: 10,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ==========================================================
+       ERROR
+    ========================================================== */
+
     errorContainer: {
-      marginTop: 5,
-      padding: 12,
-      borderRadius: 12,
-      backgroundColor:
-        "#FEF2F2",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#FECACA",
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    errorHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     errorTitle: {
-      fontSize: 10,
-      color: "#B91C1C",
+      flex: 1,
+
+      color:
+        Colors.error,
     },
 
     errorText: {
-      marginTop: 3,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#DC2626",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 18,
+
+      color:
+        Colors.error,
     },
 
-    authContainer: {
+    /* ==========================================================
+       AUTH / INITIAL STATE
+    ========================================================== */
+
+    stateScreen: {
       flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 30,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    stateText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
 
     authIcon: {
-      width: 60,
-      height: 60,
-      borderRadius: 19,
-      backgroundColor:
-        "#EFF6FF",
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     authTitle: {
-      marginTop: 13,
-      fontSize: 16,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     authText: {
-      marginTop: 5,
-      fontSize: 10,
-      lineHeight: 15,
-      color: "#64748B",
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
   });

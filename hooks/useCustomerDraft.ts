@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+import {
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import {
   saveCustomerDraft,
@@ -6,11 +11,27 @@ import {
   clearCustomerDraft,
 } from "@/utils/customerSignupDraft";
 
+type CustomerDraft = {
+  step?: number;
+
+  firstName?: string;
+  surname?: string;
+  otherName?: string;
+
+  email?: string;
+  emailOtp?: string;
+  emailVerified?: boolean;
+
+  phone?: string;
+  otp?: string;
+  phoneVerified?: boolean;
+
+  acceptedTerms?: boolean;
+};
+
 type Props = {
   step: number;
-  setStep: React.Dispatch<
-    React.SetStateAction<number>
-  >;
+  setStep: Dispatch<SetStateAction<number>>;
 
   firstName: string;
   setFirstName: (value: string) => void;
@@ -28,9 +49,7 @@ type Props = {
   setEmailOtp: (value: string) => void;
 
   emailVerified: boolean;
-  setEmailVerified: (
-    value: boolean
-  ) => void;
+  setEmailVerified: (value: boolean) => void;
 
   phone: string;
   setPhone: (value: string) => void;
@@ -39,14 +58,10 @@ type Props = {
   setOtp: (value: string) => void;
 
   phoneVerified: boolean;
-  setPhoneVerified: (
-    value: boolean
-  ) => void;
+  setPhoneVerified: (value: boolean) => void;
 
   acceptedTerms: boolean;
-  setAcceptedTerms: (
-    value: boolean
-  ) => void;
+  setAcceptedTerms: (value: boolean) => void;
 };
 
 export function useCustomerDraft({
@@ -82,42 +97,92 @@ export function useCustomerDraft({
 
   acceptedTerms,
   setAcceptedTerms,
-
 }: Props) {
-
   const [visible, setVisible] =
     useState(false);
 
   const [draft, setDraft] =
-    useState<any>(null);
+    useState<CustomerDraft | null>(null);
 
+  /*
+   * LOAD EXISTING DRAFT
+   */
   useEffect(() => {
+    let mounted = true;
 
-    loadCustomerDraft().then(
-      (draft) => {
+    const loadDraft = async () => {
+      try {
+        const savedDraft =
+          await loadCustomerDraft();
 
-        if (!draft) return;
+        if (!mounted || !savedDraft) {
+          return;
+        }
 
         const hasData =
-          draft.firstName ||
-          draft.surname ||
-          draft.otherName ||
-          draft.email ||
-          draft.phone;
+          Boolean(savedDraft.firstName) ||
+          Boolean(savedDraft.surname) ||
+          Boolean(savedDraft.otherName) ||
+          Boolean(savedDraft.email) ||
+          Boolean(savedDraft.phone);
 
-        if (!hasData) return;
+        if (!hasData) {
+          return;
+        }
 
-        setDraft(draft);
+        setDraft(
+          savedDraft as CustomerDraft,
+        );
+
         setVisible(true);
-
+      } catch (error) {
+        console.error(
+          "FIXXAM_CUSTOMER_DRAFT_LOAD_ERROR:",
+          error,
+        );
       }
-    );
+    };
 
+    void loadDraft();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  /*
+   * SAVE DRAFT
+   */
   useEffect(() => {
+    const saveDraft = async () => {
+      try {
+        await saveCustomerDraft({
+          step,
 
-  saveCustomerDraft({
+          firstName,
+          surname,
+          otherName,
 
+          email,
+          emailOtp,
+          emailVerified,
+
+          phone,
+          otp,
+          phoneVerified,
+
+          acceptedTerms,
+        });
+      } catch (error) {
+        console.error(
+          "FIXXAM_CUSTOMER_DRAFT_SAVE_ERROR:",
+          error,
+        );
+      }
+    };
+
+    void saveDraft();
+  }, [
     step,
 
     firstName,
@@ -133,74 +198,94 @@ export function useCustomerDraft({
     phoneVerified,
 
     acceptedTerms,
+  ]);
 
-  });
+  /*
+   * CONTINUE DRAFT
+   */
+  const continueDraft = () => {
+    if (!draft) {
+      return;
+    }
 
-}, [
+    setStep(
+      typeof draft.step === "number"
+        ? draft.step
+        : 1,
+    );
 
-  step,
+    setFirstName(
+      draft.firstName ?? "",
+    );
 
-  firstName,
-  surname,
-  otherName,
+    setSurname(
+      draft.surname ?? "",
+    );
 
-  email,
-  emailOtp,
-  emailVerified,
+    setOtherName(
+      draft.otherName ?? "",
+    );
 
-  phone,
-  otp,
-  phoneVerified,
+    setEmail(
+      draft.email ?? "",
+    );
 
-  acceptedTerms,
+    setEmailOtp(
+      draft.emailOtp ?? "",
+    );
 
-]);
-const continueDraft = () => {
+    setEmailVerified(
+      draft.emailVerified === true,
+    );
 
-  if (!draft) return;
+    setPhone(
+      draft.phone ?? "",
+    );
 
-  setStep(draft.step);
+    setOtp(
+      draft.otp ?? "",
+    );
 
-  setFirstName(draft.firstName);
-  setSurname(draft.surname);
-  setOtherName(draft.otherName);
+    setPhoneVerified(
+      draft.phoneVerified === true,
+    );
 
-  setEmail(draft.email);
-  setEmailOtp(draft.emailOtp);
-  setEmailVerified(draft.emailVerified);
+    setAcceptedTerms(
+      draft.acceptedTerms === true,
+    );
 
-  setPhone(draft.phone);
-  setOtp(draft.otp);
-  setPhoneVerified(draft.phoneVerified);
+    setVisible(false);
+  };
 
-  setAcceptedTerms(
-    draft.acceptedTerms
-  );
+  /*
+   * START OVER
+   */
+  const startOver = async () => {
+    try {
+      await clearCustomerDraft();
 
-  setVisible(false);
+      setDraft(null);
+      setVisible(false);
+    } catch (error) {
+      console.error(
+        "FIXXAM_CUSTOMER_DRAFT_CLEAR_ERROR:",
+        error,
+      );
+    }
+  };
 
-};
+  /*
+   * CLOSE
+   */
+  const close = () => {
+    setVisible(false);
+  };
 
-const startOver = async () => {
-
-  await clearCustomerDraft();
-
-  setVisible(false);
-
-};
-
-const close = () => {
-
-  setVisible(false);
-
-};
-
-return {
-  visible,
-  draft,
-  continueDraft,
-  startOver,
-  close,
-};
-
+  return {
+    visible,
+    draft,
+    continueDraft,
+    startOver,
+    close,
+  };
 }

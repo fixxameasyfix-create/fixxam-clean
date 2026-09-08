@@ -6,144 +6,222 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-type Props = {
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
+/* ============================================================
+   TYPES
+============================================================ */
+
+type Props = {
   hasWorkerAccount: boolean;
 
   onPress: () => void;
-
 };
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function CustomerQuickAction({
-
   hasWorkerAccount,
-
   onPress,
-
 }: Props) {
+  const title =
+    hasWorkerAccount
+      ? "Switch to Worker"
+      : "Become a Worker";
+
+  const subtitle =
+    hasWorkerAccount
+      ? "Start receiving jobs and manage your business."
+      : "Create your worker account and begin earning.";
 
   return (
-
     <Pressable
       onPress={onPress}
-      style={styles.container}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={
+        hasWorkerAccount
+          ? "Switches to your worker account"
+          : "Starts worker account registration"
+      }
+      style={({ pressed }) => [
+        styles.container,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
 
-      <View style={styles.iconContainer}>
-
-        <Ionicons
+      <View
+        style={styles.iconContainer}
+      >
+        <AppIcon
           name={
             hasWorkerAccount
-              ? "swap-horizontal"
-              : "briefcase"
+              ? "refresh"
+              : "service"
           }
-          size={28}
-          color="#2563EB"
+          role="worker"
+          size="lg"
+          color={
+            WorkerColors.primary
+          }
         />
-
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
+          numberOfLines={1}
           style={styles.title}
         >
-
-          {hasWorkerAccount
-            ? "Switch to Worker"
-            : "Become a Worker"}
-
+          {title}
         </AppText>
 
-        <AppText style={styles.subtitle}>
-
-          {hasWorkerAccount
-            ? "Start receiving jobs and manage your business."
-            : "Create your worker account and begin earning."}
-
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={styles.subtitle}
+        >
+          {subtitle}
         </AppText>
-
       </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={22}
-        color="#94A3B8"
+      {/* ======================================================
+          ARROW
+      ====================================================== */}
+
+      <AppIcon
+        name="next"
+        size="sm"
+        state="muted"
       />
-
     </Pressable>
-
   );
-
 }
 
-const styles = StyleSheet.create({
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
 
-    marginHorizontal: 16,
+    container: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    marginBottom: 20,
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    padding: 18,
+      padding:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 20,
+      flexDirection: "row",
 
-    backgroundColor: "#EFF6FF",
+      alignItems: "center",
 
-    flexDirection: "row",
+      borderWidth: 1,
 
-    alignItems: "center",
+      borderColor:
+        WorkerColors.primary,
 
-  },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-  iconContainer: {
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
 
-    width: 56,
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-    height: 56,
+    iconContainer: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-    borderRadius: 28,
+      height:
+        FixxamTokens.size.avatarLg,
 
-    backgroundColor: "#DBEAFE",
+      flexShrink: 0,
 
-    justifyContent: "center",
+      alignItems: "center",
 
-    alignItems: "center",
+      justifyContent: "center",
 
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  content: {
+      backgroundColor:
+        Colors.surface,
+    },
 
-    flex: 1,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    marginHorizontal: 14,
+    content: {
+      flex: 1,
 
-  },
+      minWidth: 0,
 
-  title: {
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+    },
 
-    fontSize: 17,
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-    color: "#1E3A8A",
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-  },
+      lineHeight: 18,
+    },
 
-  subtitle: {
+    /* ========================================================
+       PRESSED
+    ======================================================== */
 
-    marginTop: 4,
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    color: "#64748B",
-
-    lineHeight: 20,
-
-  },
-
-});
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

@@ -1,26 +1,50 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
-  ActivityIndicator,
   StyleSheet,
   View,
 } from "react-native";
 
-export default function ServicesLoading() {
+import {
+  AppLoader,
+} from "@/components/common";
+
+import {
+  FixxamTokens,
+} from "@/theme";
+
+function ServicesLoading() {
   return (
-    <View style={styles.container}>
-      <ActivityIndicator
-        size="large"
-        color="#FF6B00"
+    <View
+      style={
+        styles.container
+      }
+      accessibilityLiveRegion="polite"
+    >
+      <AppLoader
+        role="customer"
+        size="sm"
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 80,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+export default memo(
+  ServicesLoading,
+);
+
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+  });

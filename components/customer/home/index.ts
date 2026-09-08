@@ -30,9 +30,6 @@ export {
     default as RecentlyViewed
 } from "./RecentlyViewed";
 
-export {
-    default as PromotionBanner
-} from "./PromotionBanner";
 
 export {
     default as EmergencyCallModal

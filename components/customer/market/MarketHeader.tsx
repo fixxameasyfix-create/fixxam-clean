@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -9,53 +11,66 @@ import {
   AppText,
 } from "@/components/ui";
 
-export default function MarketHeader() {
-  return (
-    <View style={styles.container}>
-      <View>
-        <AppText
-          weight="bold"
-          style={styles.title}
-        >
-          Market
-        </AppText>
+import {
+  FixxamTokens,
+} from "@/theme";
 
-        <AppText
-          style={styles.subtitle}
-        >
-          Buy quality materials for your service
-        </AppText>
-      </View>
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function MarketHeader() {
+  return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      <AppText
+        variant="heading2"
+        weight="bold"
+      >
+        Market
+      </AppText>
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Buy quality materials for your service
+      </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    justifyContent: "space-between",
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    alignItems: "center",
+      paddingTop:
+        FixxamTokens.spacing.lg,
 
-    paddingHorizontal: 24,
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-    paddingTop: 19,
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-    paddingBottom: 20,
-  },
+      lineHeight: 20,
+    },
+  });
 
-  title: {
-    fontSize: 35,
-
-    color: "#111827",
-  },
-
-  subtitle: {
-    marginTop: 4,
-
-    color: "#6B7280",
-
-    fontSize: 15,
-  },
-});
+export default memo(
+  MarketHeader,
+);

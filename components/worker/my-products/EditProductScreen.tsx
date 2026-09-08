@@ -1,4 +1,6 @@
 import React, {
+  useCallback,
+  useMemo,
   useState,
 } from "react";
 
@@ -15,6 +17,11 @@ import {
   AppScreen,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
 import useEditProduct from "@/hooks/worker/useEditProduct";
 
 import CategoryPicker from "./CategoryPicker";
@@ -29,6 +36,41 @@ import ProductFooter from "./add/ProductFooter";
 import AddProductDiscount from "./AddProductDiscount";
 
 /* ============================================================
+   TYPES
+============================================================ */
+
+type EditProductParams = {
+  id?:
+    | string
+    | string[];
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+/* ============================================================
    EDIT PRODUCT SCREEN
 ============================================================ */
 
@@ -37,19 +79,33 @@ export default function EditProductScreen() {
      ROUTE PARAMS
   ========================================================== */
 
-  const {
-    id,
-  } =
-    useLocalSearchParams<{
-      id: string;
-    }>();
+  const params =
+    useLocalSearchParams<EditProductParams>();
+
+  const productId =
+    useMemo(
+      () =>
+        getParamString(
+          params.id,
+        ),
+      [
+        params.id,
+      ],
+    );
 
   /* ==========================================================
      PRODUCT HOOK
   ========================================================== */
 
   const product =
-    useEditProduct(id);
+    useEditProduct(
+      productId,
+    );
+
+  const isSaving =
+    Boolean(
+      product.saving,
+    );
 
   /* ==========================================================
      CATEGORY PICKER
@@ -58,13 +114,66 @@ export default function EditProductScreen() {
   const [
     categoryPickerVisible,
     setCategoryPickerVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  const openCategoryPicker =
+    useCallback(() => {
+      if (isSaving) {
+        return;
+      }
+
+      setCategoryPickerVisible(
+        true,
+      );
+    }, [
+      isSaving,
+    ]);
+
+  const closeCategoryPicker =
+    useCallback(() => {
+      setCategoryPickerVisible(
+        false,
+      );
+    }, []);
+
+  const handleCategorySelect =
+    useCallback(
+      (
+        selectedCategory: string,
+      ) => {
+        if (isSaving) {
+          return;
+        }
+
+        const normalizedCategory =
+          selectedCategory.trim();
+
+        if (
+          !normalizedCategory
+        ) {
+          return;
+        }
+
+        product.setCategory(
+          normalizedCategory,
+        );
+
+        setCategoryPickerVisible(
+          false,
+        );
+      },
+      [
+        isSaving,
+        product.setCategory,
+      ],
+    );
 
   /* ==========================================================
      WAIT FOR PRODUCT ID
   ========================================================== */
 
-  if (!id) {
+  if (!productId) {
     return null;
   }
 
@@ -73,12 +182,18 @@ export default function EditProductScreen() {
   ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="worker"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <ScrollView
         showsVerticalScrollIndicator={
           false
         }
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={
           styles.container
         }
@@ -113,11 +228,9 @@ export default function EditProductScreen() {
           category={
             product.category
           }
-          onSelectCategory={() => {
-            setCategoryPickerVisible(
-              true,
-            );
-          }}
+          onSelectCategory={
+            openCategoryPicker
+          }
         />
 
         {/* ====================================================
@@ -161,9 +274,6 @@ export default function EditProductScreen() {
           }
           onChangeDays={
             product.setDiscountDays
-          }
-          onActivate={
-            product.activateDiscount
           }
         />
 
@@ -231,22 +341,12 @@ export default function EditProductScreen() {
         value={
           product.category
         }
-        onClose={() => {
-          setCategoryPickerVisible(
-            false,
-          );
-        }}
-        onSelect={(
-          category,
-        ) => {
-          product.setCategory(
-            category,
-          );
-
-          setCategoryPickerVisible(
-            false,
-          );
-        }}
+        onClose={
+          closeCategoryPicker
+        }
+        onSelect={
+          handleCategorySelect
+        }
       />
     </AppScreen>
   );
@@ -258,16 +358,29 @@ export default function EditProductScreen() {
 
 const styles =
   StyleSheet.create({
+    screen: {
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
+    },
+
     container: {
       flexGrow: 1,
 
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingTop: 16,
+      paddingTop:
+        FixxamTokens.spacing.lg,
 
-      paddingBottom: 40,
-
-      backgroundColor:
-        "#F8FAFC",
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
   });

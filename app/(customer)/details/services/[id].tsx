@@ -1,22 +1,25 @@
-import React, { useCallback } from "react";
+import React, {
+  useCallback,
+} from "react";
 
 import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 import {
   router,
   useLocalSearchParams,
 } from "expo-router";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
 import CategoryCard from "@/components/categories/CategoryCard";
 
@@ -26,21 +29,75 @@ import type {
   ServiceCardData,
 } from "@/firebase/mappers/serviceMapper";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   SEPARATOR
+============================================================== */
+
+function ServiceSeparator() {
+  return (
+    <View
+      style={
+        styles.separator
+      }
+    />
+  );
+}
+
 /* ==============================================================
    SCREEN
 ============================================================== */
 
 export default function ServicesScreen() {
-  const {
-    id,
-    categoryId,
-    reward,
-  } =
+  const params =
     useLocalSearchParams<{
       id?: string;
+
       categoryId?: string;
+
       reward?: string;
     }>();
+
+  const subcategoryId =
+    cleanString(
+      params.id,
+    );
+
+  const categoryId =
+    cleanString(
+      params.categoryId,
+    );
+
+  const reward =
+    cleanString(
+      params.reward,
+    );
+
+  /* ============================================================
+     SERVICES
+  ============================================================ */
 
   const {
     services,
@@ -48,7 +105,18 @@ export default function ServicesScreen() {
     refreshing,
     onRefresh,
   } =
-    useServicesBySubcategory(id);
+    useServicesBySubcategory(
+      subcategoryId,
+    );
+
+  /* ============================================================
+     BACK
+  ============================================================ */
+
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
 
   /* ============================================================
      OPEN WORKERS
@@ -56,27 +124,35 @@ export default function ServicesScreen() {
 
   const handleServicePress =
     useCallback(
-      (service: ServiceCardData) => {
+      (
+        service:
+          ServiceCardData,
+      ) => {
         const serviceId =
-          service.id.trim();
+          cleanString(
+            service.id,
+          );
 
         const serviceName =
-          service.name.trim();
+          cleanString(
+            service.name,
+          );
 
-        if (!serviceId) {
-          return;
-        }
-
-        if (!serviceName) {
+        if (
+          !serviceId ||
+          !serviceName
+        ) {
           return;
         }
 
         /*
-         * Keep the EXACT icon that came from
-         * the selected service.
+         * Keep the EXACT icon coming
+         * from the selected service.
          */
         const serviceIcon =
-          service.icon.trim();
+          cleanString(
+            service.icon,
+          );
 
         router.push({
           pathname:
@@ -86,7 +162,8 @@ export default function ServicesScreen() {
             /*
              * Route ID
              */
-            id: serviceId,
+            id:
+              serviceId,
 
             /*
              * Service ID
@@ -96,7 +173,8 @@ export default function ServicesScreen() {
             /*
              * Service name
              */
-            service: serviceName,
+            service:
+              serviceName,
 
             /*
              * EXACT SERVICE ICON
@@ -127,141 +205,236 @@ export default function ServicesScreen() {
           },
         });
       },
-      [categoryId, reward],
+      [
+        categoryId,
+        reward,
+      ],
+    );
+
+  /* ============================================================
+     RENDER SERVICE
+  ============================================================ */
+
+  const renderService =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ServiceCardData;
+      }) => (
+        <CategoryCard
+          /*
+           * EXACT SERVICE ICON
+           */
+          icon={
+            item.icon
+          }
+          iconColor={
+            item.color
+          }
+          backgroundColor={
+            item.backgroundColor
+          }
+          title={
+            item.name
+          }
+          onPress={() =>
+            handleServicePress(
+              item,
+            )
+          }
+        />
+      ),
+      [
+        handleServicePress,
+      ],
     );
 
   /* ============================================================
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
-      <SafeAreaView
-        style={styles.container}
+      <AppScreen
+        role="customer"
+        padded={false}
       >
         <View
-          style={styles.center}
+          style={
+            styles.loadingContainer
+          }
         >
           <ActivityIndicator
             size="large"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading services...
+          </AppText>
         </View>
-      </SafeAreaView>
+      </AppScreen>
     );
   }
 
   /* ============================================================
-     SCREEN
+     UI
   ============================================================ */
 
   return (
-    <SafeAreaView
-      style={styles.container}
+    <AppScreen
+      role="customer"
+      padded={false}
     >
-      {/* HEADER */}
-
       <View
-        style={styles.header}
+        style={
+          styles.container
+        }
       >
-        <Pressable
-          style={styles.backButton}
-          onPress={() =>
-            router.back()
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={8}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color="#0F172A"
-          />
-        </Pressable>
-
-        <AppText
-          weight="bold"
-          style={styles.title}
-        >
-          Services
-        </AppText>
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
         <View
-          style={styles.placeholder}
-        />
-      </View>
-
-      {/* SERVICES */}
-
-      <FlatList
-        data={services}
-        keyExtractor={(item) =>
-          item.id
-        }
-        renderItem={({
-          item,
-        }) => (
-          <CategoryCard
-            /*
-             * EXACT SERVICE ICON
-             */
-            icon={item.icon}
-            iconColor={
-              item.color
+          style={
+            styles.header
+          }
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={8}
+            onPress={
+              handleBack
             }
-            backgroundColor={
-              item.backgroundColor
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.backButtonPressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="back"
+              role="customer"
+              size="sm"
+              state="default"
+            />
+          </Pressable>
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            center
+            numberOfLines={1}
+            style={
+              styles.title
             }
-            title={item.name}
-            onPress={() =>
-              handleServicePress(
-                item,
-              )
+          >
+            Services
+          </AppText>
+
+          <View
+            pointerEvents="none"
+            style={
+              styles.placeholder
             }
           />
-        )}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        showsVerticalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.content
-        }
-        ListEmptyComponent={
-          <View
-            style={styles.empty}
-          >
-            <Ionicons
-              name="construct-outline"
-              size={52}
-              color="#CBD5E1"
-            />
+        </View>
 
-            <AppText
-              weight="bold"
+        {/* ====================================================
+            SERVICES
+        ==================================================== */}
+
+        <FlatList
+          data={
+            services
+          }
+          keyExtractor={(
+            item,
+          ) =>
+            item.id
+          }
+          renderItem={
+            renderService
+          }
+          ItemSeparatorComponent={
+            ServiceSeparator
+          }
+          refreshing={
+            refreshing
+          }
+          onRefresh={
+            onRefresh
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.content
+          }
+          ListEmptyComponent={
+            <View
               style={
-                styles.emptyTitle
+                styles.empty
               }
             >
-              No Services Found
-            </AppText>
+              <View
+                style={
+                  styles.emptyIcon
+                }
+              >
+                <AppIcon
+                  name="service"
+                  role="customer"
+                  size="xl"
+                  state="muted"
+                />
+              </View>
 
-            <AppText
-              center
-              style={
-                styles.emptyText
-              }
-            >
-              There are no services
-              available in this
-              category yet.
-            </AppText>
-          </View>
-        }
-      />
-    </SafeAreaView>
+              <AppText
+                variant="bodyLarge"
+                weight="bold"
+                center
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No Services Found
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.emptyText
+                }
+              >
+                There are no services
+                available in this
+                category yet.
+              </AppText>
+            </View>
+          }
+        />
+      </View>
+    </AppScreen>
   );
 }
 
@@ -273,101 +446,201 @@ const styles =
   StyleSheet.create({
     container: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
+      minHeight:
+        FixxamTokens.size
+          .headerHeight,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      justifyContent:
-        "space-between",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingHorizontal: 16,
-
-      paddingTop: 8,
-
-      paddingBottom: 16,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     backButton: {
-      width: 40,
-      height: 44,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 22,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      backgroundColor:
-        "#FFFFFF",
-
-      justifyContent:
-        "center",
+      flexShrink: 0,
 
       alignItems:
         "center",
 
-      shadowColor:
-        "#000000",
+      justifyContent:
+        "center",
 
-      shadowOpacity:
-        0.08,
+      borderWidth: 1,
 
-      shadowRadius: 6,
+      borderColor:
+        Colors.border,
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-      elevation: 2,
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    backButtonPressed: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
     title: {
-      fontSize: 22,
-      color: "#0F172A",
+      flex: 1,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     placeholder: {
-      width: 44,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
     },
+
+    /* ========================================================
+       LIST
+    ======================================================== */
 
     content: {
-      paddingHorizontal: 16,
-      paddingBottom: 24,
       flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    center: {
+    separator: {
+      height:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
+
+    loadingContainer: {
       flex: 1,
-      justifyContent:
-        "center",
+
       alignItems:
         "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.background,
     },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     empty: {
       flex: 1,
-      justifyContent:
-        "center",
+
       alignItems:
         "center",
-      paddingTop: 80,
-      paddingHorizontal: 30,
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxxl,
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 14,
-      fontSize: 19,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     emptyText: {
-      marginTop: 7,
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#64748B",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
   });

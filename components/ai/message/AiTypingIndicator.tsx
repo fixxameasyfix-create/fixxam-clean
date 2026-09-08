@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+} from "react";
 
 import {
   StyleSheet,
@@ -10,6 +13,7 @@ import {
 } from "@expo/vector-icons";
 
 import Animated, {
+  cancelAnimation,
   FadeIn,
   FadeOut,
   useAnimatedStyle,
@@ -25,28 +29,34 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   ANIMATED DOT
+============================================================== */
 
 function AnimatedDot({
   delay,
 }: {
   delay: number;
 }) {
-  const scale =
-    useSharedValue(0.8);
+  const progress =
+    useSharedValue(0);
 
-  React.useEffect(() => {
-    scale.value =
+  useEffect(() => {
+    progress.value =
       withDelay(
         delay,
         withRepeat(
           withSequence(
-            withTiming(1.3, {
+            withTiming(1, {
               duration: 300,
             }),
-            withTiming(0.8, {
+
+            withTiming(0, {
               duration: 300,
             }),
           ),
@@ -54,19 +64,35 @@ function AnimatedDot({
           false,
         ),
       );
-  }, [delay, scale]);
+
+    return () => {
+      cancelAnimation(
+        progress,
+      );
+    };
+  }, [
+    delay,
+    progress,
+  ]);
 
   const animatedStyle =
-    useAnimatedStyle(() => ({
-      transform: [
-        {
-          scale:
-            scale.value,
-        },
-      ],
-      opacity:
-        scale.value,
-    }));
+    useAnimatedStyle(
+      () => ({
+        opacity:
+          0.45 +
+          progress.value *
+            0.55,
+
+        transform: [
+          {
+            scale:
+              0.8 +
+              progress.value *
+                0.35,
+          },
+        ],
+      }),
+    );
 
   return (
     <Animated.View
@@ -78,36 +104,77 @@ function AnimatedDot({
   );
 }
 
-export default function AiTypingIndicator() {
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function AiTypingIndicator() {
   return (
     <Animated.View
+      accessibilityRole="text"
+      accessibilityLabel="Fixxam Smarter is typing"
       entering={FadeIn.duration(
-        250,
+        FixxamTokens.motion
+          .normal,
       )}
       exiting={FadeOut.duration(
-        200,
+        FixxamTokens.motion
+          .fast,
       )}
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
-      <View style={styles.avatar}>
+      {/* ======================================================
+          ASSISTANT AVATAR
+      ====================================================== */}
+
+      <View
+        style={
+          styles.avatar
+        }
+      >
         <MaterialCommunityIcons
           name="headset"
-          size={22}
-          color="#EA580C"
+          size={
+            FixxamTokens.size
+              .iconSm
+          }
+          color={
+            CustomerColors.primary
+          }
         />
       </View>
 
-      <View style={styles.content}>
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
         <AppText
-          weight="bold"
-          style={styles.name}
+          variant="caption"
+          weight="semibold"
+          tone="secondary"
+          style={
+            styles.name
+          }
         >
           Fixxam Smarter
         </AppText>
 
-        <View style={styles.bubble}>
+        <View
+          style={
+            styles.bubble
+          }
+        >
           <View
-            style={styles.dots}
+            style={
+              styles.dots
+            }
           >
             <AnimatedDot
               delay={0}
@@ -127,6 +194,10 @@ export default function AiTypingIndicator() {
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     container: {
@@ -136,82 +207,102 @@ const styles =
         "flex-start",
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.lg,
 
-      marginTop: 14,
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     avatar: {
-      width: 52,
+      width:
+        FixxamTokens.size
+          .avatarMd,
 
-      height: 52,
+      height:
+        FixxamTokens.size
+          .avatarMd,
 
-      borderRadius: 18,
+      flexShrink: 0,
+
+      alignItems: "center",
 
       justifyContent:
         "center",
 
-      alignItems:
-        "center",
-
-      marginRight: 12,
-
-      backgroundColor:
-        "#FFF7ED",
+      marginRight:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        "#FED7AA",
+        CustomerColors.primaryLight,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     content: {
       flex: 1,
+
+      minWidth: 0,
     },
 
     name: {
-      marginBottom: 6,
-
-      fontSize: 13,
-
-      color:
-        CustomerColors.textSecondary,
+      marginBottom:
+        FixxamTokens.spacing.xs,
     },
 
     bubble: {
-      backgroundColor:
-        "#F8FAFC",
+      alignSelf:
+        "flex-start",
 
-      borderRadius: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      borderTopLeftRadius: 8,
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
 
-      paddingHorizontal: 18,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      paddingVertical: 16,
+      backgroundColor:
+        Colors.surface,
     },
 
     dots: {
+      minHeight:
+        FixxamTokens.size
+          .iconSm,
+
       flexDirection: "row",
 
       alignItems: "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     dot: {
-      width: 8,
+      width: 7,
 
-      height: 8,
+      height: 7,
 
-      borderRadius: 4,
-
-      marginHorizontal: 4,
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
         CustomerColors.primary,
     },
   });
+
+export default memo(
+  AiTypingIndicator,
+);

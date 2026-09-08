@@ -1,15 +1,16 @@
 import React, {
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -20,130 +21,237 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import Toast from "react-native-toast-message";
 
 import {
   doc,
+  runTransaction,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
 
 import {
   auth,
   db,
 } from "@/firebase/config";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
 type CounterOfferParams = {
-  bookingId?: string;
-  amount?: string;
-  workerName?: string;
+  bookingId?:
+    | string
+    | string[];
+
+  amount?:
+    | string
+    | string[];
+
+  workerName?:
+    | string
+    | string[];
 };
 
-/* ==============================================================
+/* ============================================================
    CONSTANTS
-============================================================== */
+============================================================ */
 
-const MIN_COUNTER_OFFER = 100;
-const MAX_COUNTER_OFFER = 10_000_000;
-const MAX_MESSAGE_LENGTH = 300;
+const MIN_COUNTER_OFFER =
+  100;
 
-/* ==============================================================
+const MAX_COUNTER_OFFER =
+  10_000_000;
+
+const MAX_MESSAGE_LENGTH =
+  300;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+function formatAmount(
+  value: number,
+): string {
+  const safeValue =
+    Number.isFinite(value)
+      ? Math.max(
+          0,
+          value,
+        )
+      : 0;
+
+  return safeValue.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits:
+        0,
+    },
+  );
+}
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function CounterOfferScreen() {
-  const {
-    bookingId,
-    amount,
-    workerName,
-  } =
+  const params =
     useLocalSearchParams<CounterOfferParams>();
 
-  /* ============================================================
-     RESOLVED DATA
-  ============================================================ */
+  /* ==========================================================
+     RESOLVED PARAMS
+  ========================================================== */
 
   const resolvedBookingId =
     useMemo(
       () =>
-        bookingId?.trim() || "",
-      [bookingId],
+        getParamString(
+          params.bookingId,
+        ),
+      [
+        params.bookingId,
+      ],
     );
 
   const currentOffer =
     useMemo(() => {
+      const rawAmount =
+        getParamString(
+          params.amount,
+        );
+
       const value =
-        Number(amount);
+        Number(
+          rawAmount,
+        );
 
       if (
-        !Number.isFinite(value) ||
+        !Number.isFinite(
+          value,
+        ) ||
         value < 0
       ) {
         return 0;
       }
 
       return value;
-    }, [amount]);
+    }, [
+      params.amount,
+    ]);
 
   const resolvedWorkerName =
     useMemo(
       () =>
-        workerName?.trim() ||
+        getParamString(
+          params.workerName,
+        ) ||
         "Selected worker",
-      [workerName],
+      [
+        params.workerName,
+      ],
     );
 
-  /* ============================================================
+  /* ==========================================================
      STATE
-  ============================================================ */
+  ========================================================== */
 
   const [
     counterAmount,
     setCounterAmount,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     counterMessage,
     setCounterMessage,
-  ] = useState("");
+  ] =
+    useState("");
+
+  const [
+    amountFocused,
+    setAmountFocused,
+  ] =
+    useState(false);
+
+  const [
+    messageFocused,
+    setMessageFocused,
+  ] =
+    useState(false);
 
   const [
     submitting,
     setSubmitting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  /* ============================================================
-     FORMAT MONEY
-  ============================================================ */
+  const submitInFlight =
+    useRef(false);
 
-  const formatAmount =
-    useCallback(
-      (value: number) =>
-        value.toLocaleString(
-          "en-NG",
-          {
-            maximumFractionDigits: 0,
-          },
-        ),
-      [],
-    );
-
-  /* ============================================================
+  /* ==========================================================
      AMOUNT INPUT
-  ============================================================ */
+  ========================================================== */
 
   const handleAmountChange =
     useCallback(
-      (text: string) => {
+      (
+        text: string,
+      ) => {
         const cleaned =
           text.replace(
             /[^\d]/g,
@@ -157,13 +265,15 @@ export default function CounterOfferScreen() {
       [],
     );
 
-  /* ============================================================
-     MESSAGE INPUT
-  ============================================================ */
+  /* ==========================================================
+     MESSAGE
+  ========================================================== */
 
   const handleMessageChange =
     useCallback(
-      (text: string) => {
+      (
+        text: string,
+      ) => {
         setCounterMessage(
           text.slice(
             0,
@@ -174,9 +284,9 @@ export default function CounterOfferScreen() {
       [],
     );
 
-  /* ============================================================
-     DERIVED VALUES
-  ============================================================ */
+  /* ==========================================================
+     DERIVED
+  ========================================================== */
 
   const numericCounterAmount =
     useMemo(() => {
@@ -190,13 +300,17 @@ export default function CounterOfferScreen() {
       )
         ? value
         : 0;
-    }, [counterAmount]);
+    }, [
+      counterAmount,
+    ]);
 
   const trimmedCounterMessage =
     useMemo(
       () =>
         counterMessage.trim(),
-      [counterMessage],
+      [
+        counterMessage,
+      ],
     );
 
   const isValidAmount =
@@ -206,9 +320,9 @@ export default function CounterOfferScreen() {
       MAX_COUNTER_OFFER;
 
   const isDifferent =
+    numericCounterAmount > 0 &&
     numericCounterAmount !==
-      currentOffer &&
-    numericCounterAmount > 0;
+      currentOffer;
 
   const hasMessage =
     trimmedCounterMessage.length >
@@ -217,20 +331,132 @@ export default function CounterOfferScreen() {
   const canSubmit =
     Boolean(
       resolvedBookingId &&
-        auth.currentUser &&
-        isValidAmount &&
-        isDifferent &&
-        hasMessage &&
-        !submitting,
+      auth.currentUser &&
+      counterAmount &&
+      isValidAmount &&
+      isDifferent &&
+      hasMessage &&
+      !submitting,
     );
 
-  /* ============================================================
+  const amountHasError =
+    counterAmount.length > 0 &&
+    !isValidAmount;
+
+  /* ==========================================================
+     VALIDATE
+  ========================================================== */
+
+  const validate =
+    useCallback((): boolean => {
+      if (
+        !auth.currentUser
+      ) {
+        showErrorToast(
+          "Sign in required",
+          "Please sign in before sending a counter offer.",
+        );
+
+        return false;
+      }
+
+      if (
+        !resolvedBookingId
+      ) {
+        showErrorToast(
+          "Order unavailable",
+          "We could not identify this order.",
+        );
+
+        return false;
+      }
+
+      if (
+        !counterAmount
+      ) {
+        showErrorToast(
+          "Enter an amount",
+          "Please enter your counter offer amount.",
+        );
+
+        return false;
+      }
+
+      if (
+        numericCounterAmount <
+        MIN_COUNTER_OFFER
+      ) {
+        showErrorToast(
+          "Amount too low",
+          `Your counter offer must be at least ₦${formatAmount(
+            MIN_COUNTER_OFFER,
+          )}.`,
+        );
+
+        return false;
+      }
+
+      if (
+        numericCounterAmount >
+        MAX_COUNTER_OFFER
+      ) {
+        showErrorToast(
+          "Amount too high",
+          `Your counter offer cannot exceed ₦${formatAmount(
+            MAX_COUNTER_OFFER,
+          )}.`,
+        );
+
+        return false;
+      }
+
+      if (
+        !isDifferent
+      ) {
+        showErrorToast(
+          "Same amount",
+          "Please enter an amount different from the worker's offer.",
+        );
+
+        return false;
+      }
+
+      if (
+        !hasMessage
+      ) {
+        showErrorToast(
+          "Add a message",
+          "Please add a short message for the worker.",
+        );
+
+        return false;
+      }
+
+      return true;
+    }, [
+      counterAmount,
+      hasMessage,
+      isDifferent,
+      numericCounterAmount,
+      resolvedBookingId,
+    ]);
+
+  /* ==========================================================
      SEND COUNTER OFFER
-  ============================================================ */
+  ========================================================== */
 
   const handleSendCounterOffer =
     useCallback(async () => {
-      if (submitting) {
+      if (
+        submitInFlight.current ||
+        submitting
+      ) {
+        return;
+      }
+
+      if (
+        !validate()
+      ) {
         return;
       }
 
@@ -238,74 +464,15 @@ export default function CounterOfferScreen() {
         auth.currentUser?.uid;
 
       if (!customerId) {
-        Alert.alert(
-          "Sign in required",
-          "Please sign in before sending a counter offer.",
-        );
-
         return;
       }
 
-      if (!resolvedBookingId) {
-        Alert.alert(
-          "Order unavailable",
-          "We could not identify this order.",
-        );
+      submitInFlight.current =
+        true;
 
-        return;
-      }
-
-      if (!counterAmount) {
-        Alert.alert(
-          "Enter an amount",
-          "Please enter your counter offer amount.",
-        );
-
-        return;
-      }
-
-      if (!isValidAmount) {
-        if (
-          numericCounterAmount <
-          MIN_COUNTER_OFFER
-        ) {
-          Alert.alert(
-            "Amount too low",
-            `Your counter offer must be at least ₦${formatAmount(
-              MIN_COUNTER_OFFER,
-            )}.`,
-          );
-        } else {
-          Alert.alert(
-            "Amount too high",
-            `Your counter offer cannot exceed ₦${formatAmount(
-              MAX_COUNTER_OFFER,
-            )}.`,
-          );
-        }
-
-        return;
-      }
-
-      if (!isDifferent) {
-        Alert.alert(
-          "Same amount",
-          "Please enter an amount different from the worker's offer.",
-        );
-
-        return;
-      }
-
-      if (!hasMessage) {
-        Alert.alert(
-          "Add a message",
-          "Please add a short message for the worker.",
-        );
-
-        return;
-      }
-
-      setSubmitting(true);
+      setSubmitting(
+        true,
+      );
 
       try {
         const bookingRef =
@@ -316,108 +483,147 @@ export default function CounterOfferScreen() {
           );
 
         /*
-         * The customer is sending a new
-         * counter-offer to the worker.
+         * Transaction prevents writing to a booking
+         * that disappeared between screen load
+         * and submission.
          *
-         * We intentionally keep the
-         * worker's original offer fields
-         * untouched.
+         * Firestore Security Rules remain responsible
+         * for customer ownership and allowed fields.
          */
+        await runTransaction(
+          db,
+          async transaction => {
+            const snapshot =
+              await transaction.get(
+                bookingRef,
+              );
 
-        await updateDoc(
-          bookingRef,
-          {
-            counterOfferAmount:
-              numericCounterAmount,
+            if (
+              !snapshot.exists()
+            ) {
+              throw new Error(
+                "BOOKING_NOT_FOUND",
+              );
+            }
 
-            counterOfferMessage:
-              trimmedCounterMessage,
+            transaction.update(
+              bookingRef,
+              {
+                counterOfferAmount:
+                  numericCounterAmount,
 
-            counterOfferStatus:
-              "sent",
+                counterOfferMessage:
+                  trimmedCounterMessage,
 
-            counterOfferSentAt:
-              serverTimestamp(),
+                counterOfferStatus:
+                  "sent",
 
-            counterOfferCustomerId:
-              customerId,
+                counterOfferSentAt:
+                  serverTimestamp(),
+
+                counterOfferCustomerId:
+                  customerId,
+              },
+            );
           },
         );
 
-        Alert.alert(
+        showSuccessToast(
           "Counter Offer Sent",
           `Your counter offer of ₦${formatAmount(
             numericCounterAmount,
           )} has been sent to ${resolvedWorkerName}.`,
-          [
-            {
-              text: "VIEW ORDER",
-              onPress: () => {
-                router.replace({
-                  pathname:
-                    "/(customer)/orders/[orderId]",
-                  params: {
-                    orderId:
-                      resolvedBookingId,
-                  },
-                });
-              },
-            },
-          ],
         );
-      } catch (error) {
+
+        router.replace({
+          pathname:
+            "/(customer)/orders/[orderId]",
+
+          params: {
+            orderId:
+              resolvedBookingId,
+          },
+        });
+      } catch (
+        error
+      ) {
         console.error(
-          "SEND_COUNTER_OFFER_ERROR",
+          "SEND_COUNTER_OFFER_ERROR:",
           error,
         );
 
-        Alert.alert(
+        if (
+          error instanceof Error &&
+          error.message ===
+            "BOOKING_NOT_FOUND"
+        ) {
+          showErrorToast(
+            "Order unavailable",
+            "This order could not be found.",
+          );
+
+          return;
+        }
+
+        showErrorToast(
           "Unable to send",
           "We could not send your counter offer. Please try again.",
         );
       } finally {
-        setSubmitting(false);
+        submitInFlight.current =
+          false;
+
+        setSubmitting(
+          false,
+        );
       }
     }, [
-      submitting,
-      resolvedBookingId,
-      counterAmount,
       numericCounterAmount,
-      trimmedCounterMessage,
-      isValidAmount,
-      isDifferent,
-      hasMessage,
-      formatAmount,
+      resolvedBookingId,
       resolvedWorkerName,
+      submitting,
+      trimmedCounterMessage,
+      validate,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
      CANCEL
-  ============================================================ */
+  ========================================================== */
 
   const handleCancel =
     useCallback(() => {
-      if (submitting) {
+      if (
+        submitInFlight.current ||
+        submitting
+      ) {
         return;
       }
 
       router.back();
-    }, [submitting]);
+    }, [
+      submitting,
+    ]);
 
-  /* ============================================================
+  /* ==========================================================
      UI
-  ============================================================ */
+  ========================================================== */
 
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <KeyboardAvoidingView
         style={
           styles.keyboard
         }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
-            : "height"
+            : undefined
         }
       >
         <View
@@ -441,21 +647,34 @@ export default function CounterOfferScreen() {
               disabled={
                 submitting
               }
+              hitSlop={10}
               accessibilityRole="button"
               accessibilityLabel="Go back"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
               style={({
                 pressed,
               }) => [
                 styles.backButton,
 
+                submitting
+                  ? styles.disabled
+                  : null,
+
                 pressed &&
-                  styles.pressed,
+                !submitting
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={22}
-                color="#0F172A"
+              <AppIcon
+                name="back"
+                size="md"
+                color={
+                  Colors.textPrimary
+                }
               />
             </Pressable>
 
@@ -465,6 +684,7 @@ export default function CounterOfferScreen() {
               }
             >
               <AppText
+                variant="heading2"
                 weight="bold"
                 style={
                   styles.headerTitle
@@ -474,28 +694,37 @@ export default function CounterOfferScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.headerSubtitle
                 }
               >
-                Make a new offer to the
-                worker
+                Make a new offer to the worker
               </AppText>
             </View>
           </View>
 
           {/* ==================================================
-              CONTENT
+              SCROLL CONTENT
           ================================================== */}
 
-          <View
+          <ScrollView
             style={
-              styles.content
+              styles.scroll
+            }
+            showsVerticalScrollIndicator={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={
+              styles.scrollContent
             }
           >
-            {/* ==================================================
+            {/* ================================================
                 INTRO
-            ================================================== */}
+            ================================================ */}
 
             <View
               style={
@@ -507,15 +736,20 @@ export default function CounterOfferScreen() {
                   styles.introIcon
                 }
               >
-                <Ionicons
-                  name="swap-horizontal-outline"
-                  size={27}
-                  color="#2563EB"
+                <AppIcon
+                  name="refresh"
+                  role="customer"
+                  size="md"
+                  color={
+                    CustomerColors.primary
+                  }
                 />
               </View>
 
               <AppText
+                variant="heading3"
                 weight="bold"
+                center
                 style={
                   styles.introTitle
                 }
@@ -524,20 +758,20 @@ export default function CounterOfferScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                tone="secondary"
                 center
                 style={
                   styles.introText
                 }
               >
-                Enter the amount you are
-                willing to pay for this
-                service.
+                Enter the amount you are willing to pay for this service.
               </AppText>
             </View>
 
-            {/* ==================================================
+            {/* ================================================
                 WORKER OFFER
-            ================================================== */}
+            ================================================ */}
 
             <View
               style={
@@ -554,10 +788,13 @@ export default function CounterOfferScreen() {
                     styles.currentOfferIcon
                   }
                 >
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color="#2563EB"
+                  <AppIcon
+                    name="profile"
+                    role="customer"
+                    size="sm"
+                    color={
+                      CustomerColors.primary
+                    }
                   />
                 </View>
 
@@ -567,6 +804,7 @@ export default function CounterOfferScreen() {
                   }
                 >
                   <AppText
+                    variant="caption"
                     style={
                       styles.currentOfferLabel
                     }
@@ -575,6 +813,7 @@ export default function CounterOfferScreen() {
                   </AppText>
 
                   <AppText
+                    variant="body"
                     weight="bold"
                     numberOfLines={1}
                     style={
@@ -592,6 +831,8 @@ export default function CounterOfferScreen() {
                 }
               >
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.currentAmountLabel
                   }
@@ -600,7 +841,9 @@ export default function CounterOfferScreen() {
                 </AppText>
 
                 <AppText
+                  variant="heading3"
                   weight="bold"
+                  numberOfLines={1}
                   style={
                     styles.currentAmount
                   }
@@ -613,9 +856,9 @@ export default function CounterOfferScreen() {
               </View>
             </View>
 
-            {/* ==================================================
-                COUNTER AMOUNT
-            ================================================== */}
+            {/* ================================================
+                AMOUNT HEADER
+            ================================================ */}
 
             <View
               style={
@@ -628,6 +871,7 @@ export default function CounterOfferScreen() {
                 }
               >
                 <AppText
+                  variant="caption"
                   weight="bold"
                   style={
                     styles.sectionNumberText
@@ -638,6 +882,7 @@ export default function CounterOfferScreen() {
               </View>
 
               <AppText
+                variant="body"
                 weight="bold"
                 style={
                   styles.sectionTitle
@@ -647,18 +892,21 @@ export default function CounterOfferScreen() {
               </AppText>
             </View>
 
+            {/* ================================================
+                AMOUNT INPUT
+            ================================================ */}
+
             <View
               style={[
                 styles.inputCard,
 
-                counterAmount.length >
-                  0 &&
-                  styles.inputCardActive,
+                amountFocused
+                  ? styles.inputCardActive
+                  : null,
 
-                counterAmount.length >
-                  0 &&
-                  !isValidAmount &&
-                  styles.inputCardError,
+                amountHasError
+                  ? styles.inputCardError
+                  : null,
               ]}
             >
               <View
@@ -667,6 +915,7 @@ export default function CounterOfferScreen() {
                 }
               >
                 <AppText
+                  variant="heading3"
                   weight="bold"
                   style={
                     styles.currencyText
@@ -683,8 +932,23 @@ export default function CounterOfferScreen() {
                 onChangeText={
                   handleAmountChange
                 }
+                onFocus={() => {
+                  setAmountFocused(
+                    true,
+                  );
+                }}
+                onBlur={() => {
+                  setAmountFocused(
+                    false,
+                  );
+                }}
                 placeholder="Enter amount"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
+                selectionColor={
+                  CustomerColors.primary
+                }
                 keyboardType="number-pad"
                 editable={
                   !submitting
@@ -697,43 +961,62 @@ export default function CounterOfferScreen() {
               />
             </View>
 
+            {/* ================================================
+                AMOUNT PREVIEW
+            ================================================ */}
+
             {numericCounterAmount >
-              0 && (
+            0 ? (
               <View
                 style={
                   styles.previewCard
                 }
               >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={18}
-                  color="#2563EB"
+                <AppIcon
+                  name="info"
+                  size="sm"
+                  color={
+                    amountHasError
+                      ? Colors.error
+                      : Colors.info
+                  }
                 />
 
-                <AppText
+                <View
                   style={
-                    styles.previewText
+                    styles.previewContent
                   }
                 >
-                  Your counter offer:{" "}
                   <AppText
+                    variant="caption"
+                    tone="secondary"
+                  >
+                    Your counter offer
+                  </AppText>
+
+                  <AppText
+                    variant="body"
                     weight="bold"
-                    style={
-                      styles.previewAmount
-                    }
+                    style={[
+                      styles.previewAmount,
+
+                      amountHasError
+                        ? styles.previewAmountError
+                        : null,
+                    ]}
                   >
                     ₦
                     {formatAmount(
                       numericCounterAmount,
                     )}
                   </AppText>
-                </AppText>
+                </View>
               </View>
-            )}
+            ) : null}
 
-            {/* ==================================================
-                MESSAGE
-            ================================================== */}
+            {/* ================================================
+                MESSAGE HEADER
+            ================================================ */}
 
             <View
               style={
@@ -747,13 +1030,14 @@ export default function CounterOfferScreen() {
               >
                 <View
                   style={
-                    styles.messageNumber
+                    styles.sectionNumber
                   }
                 >
                   <AppText
+                    variant="caption"
                     weight="bold"
                     style={
-                      styles.messageNumberText
+                      styles.sectionNumberText
                     }
                   >
                     2
@@ -761,30 +1045,37 @@ export default function CounterOfferScreen() {
                 </View>
 
                 <AppText
+                  variant="body"
                   weight="bold"
                   style={
-                    styles.messageTitle
+                    styles.sectionTitle
                   }
                 >
                   Message to Worker
                 </AppText>
               </View>
 
+              {/* ==============================================
+                  MESSAGE INPUT
+              ============================================== */}
+
               <View
                 style={[
                   styles.messageInputCard,
 
-                  counterMessage.length >
-                    0 &&
-                    styles.messageInputCardActive,
+                  messageFocused
+                    ? styles.inputCardActive
+                    : null,
                 ]}
               >
-                <Ionicons
-                  name="chatbubble-ellipses-outline"
-                  size={20}
-                  color="#2563EB"
-                  style={
-                    styles.messageIcon
+                <AppIcon
+                  name="messages"
+                  role="customer"
+                  size="sm"
+                  color={
+                    messageFocused
+                      ? CustomerColors.primary
+                      : Colors.textSecondary
                   }
                 />
 
@@ -795,8 +1086,23 @@ export default function CounterOfferScreen() {
                   onChangeText={
                     handleMessageChange
                   }
+                  onFocus={() => {
+                    setMessageFocused(
+                      true,
+                    );
+                  }}
+                  onBlur={() => {
+                    setMessageFocused(
+                      false,
+                    );
+                  }}
                   placeholder="Write a message to the worker..."
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={
+                    Colors.textMuted
+                  }
+                  selectionColor={
+                    CustomerColors.primary
+                  }
                   multiline
                   maxLength={
                     MAX_MESSAGE_LENGTH
@@ -818,15 +1124,16 @@ export default function CounterOfferScreen() {
                 }
               >
                 <AppText
+                  variant="caption"
                   style={
                     styles.messageHint
                   }
                 >
-                  Explain your counter
-                  offer briefly.
+                  Explain your counter offer briefly.
                 </AppText>
 
                 <AppText
+                  variant="caption"
                   style={
                     styles.messageCount
                   }
@@ -837,22 +1144,34 @@ export default function CounterOfferScreen() {
               </View>
             </View>
 
-            {/* ==================================================
+            {/* ================================================
                 HELP
-            ================================================== */}
+            ================================================ */}
 
-            <AppText
-              center
+            <View
               style={
-                styles.helpText
+                styles.helpBox
               }
             >
-              The worker will receive your
-              counter offer and can accept,
-              decline, or respond with
-              another offer.
-            </AppText>
-          </View>
+              <AppIcon
+                name="info"
+                size="sm"
+                color={
+                  Colors.info
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.helpText
+                }
+              >
+                The worker will receive your counter offer and can accept, decline, or respond with another offer.
+              </AppText>
+            </View>
+          </ScrollView>
 
           {/* ==================================================
               ACTIONS
@@ -864,65 +1183,64 @@ export default function CounterOfferScreen() {
             }
           >
             <Pressable
-              onPress={
-                handleSendCounterOffer
-              }
+              onPress={() => {
+                void handleSendCounterOffer();
+              }}
               disabled={
                 !canSubmit
               }
               accessibilityRole="button"
               accessibilityLabel="Send counter offer"
+              accessibilityState={{
+                disabled:
+                  !canSubmit,
+
+                busy:
+                  submitting,
+              }}
               style={({
                 pressed,
               }) => [
                 styles.sendButton,
 
-                !canSubmit &&
-                  styles.sendButtonDisabled,
+                !canSubmit
+                  ? styles.sendButtonDisabled
+                  : null,
 
                 pressed &&
-                  canSubmit &&
-                  styles.pressed,
+                canSubmit
+                  ? styles.pressed
+                  : null,
               ]}
             >
               {submitting ? (
-                <View
-                  style={
-                    styles.sendingContent
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    Colors.textInverse
                   }
-                >
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
-
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.sendButtonText
-                    }
-                  >
-                    SENDING...
-                  </AppText>
-                </View>
+                />
               ) : (
-                <>
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.sendButtonText
-                    }
-                  >
-                    SEND COUNTER OFFER
-                  </AppText>
-
-                  <Ionicons
-                    name="arrow-forward"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </>
+                <AppIcon
+                  name="next"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
               )}
+
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.sendButtonText
+                }
+              >
+                {submitting
+                  ? "SENDING..."
+                  : "SEND COUNTER OFFER"}
+              </AppText>
             </Pressable>
 
             <Pressable
@@ -934,16 +1252,27 @@ export default function CounterOfferScreen() {
               }
               accessibilityRole="button"
               accessibilityLabel="Cancel counter offer"
+              accessibilityState={{
+                disabled:
+                  submitting,
+              }}
               style={({
                 pressed,
               }) => [
                 styles.cancelButton,
 
+                submitting
+                  ? styles.disabled
+                  : null,
+
                 pressed &&
-                  styles.pressed,
+                !submitting
+                  ? styles.pressed
+                  : null,
               ]}
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.cancelButtonText
@@ -959,383 +1288,698 @@ export default function CounterOfferScreen() {
   );
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
+      flex: 1,
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
+      backgroundColor:
+        Colors.background,
+    },
+
     keyboard: {
       flex: 1,
     },
 
     container: {
       flex: 1,
-      paddingHorizontal: 20,
-      paddingBottom: 20,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.sm,
     },
 
+    scroll: {
+      flex: 1,
+    },
+
+    scrollContent: {
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingTop: 6,
-      paddingBottom: 20,
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
-      alignItems: "center",
-      justifyContent: "center",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerContent: {
       flex: 1,
-      marginLeft: 12,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     headerTitle: {
-      fontSize: 22,
-      lineHeight: 27,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     headerSubtitle: {
-      marginTop: 2,
-      fontSize: 12,
-      lineHeight: 18,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
-    content: {
-      flex: 1,
-    },
+    /* ========================================================
+       INTRO
+    ======================================================== */
 
     intro: {
-      alignItems: "center",
-      paddingTop: 8,
-      paddingBottom: 22,
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
     },
 
     introIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 18,
-      backgroundColor: "#EFF6FF",
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 1,
-      borderColor: "#DBEAFE",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 12,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     introTitle: {
-      fontSize: 20,
-      lineHeight: 25,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     introText: {
       maxWidth: 310,
-      marginTop: 6,
-      fontSize: 12,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       lineHeight: 19,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
+
+    /* ========================================================
+       CURRENT OFFER
+    ======================================================== */
 
     currentOfferCard: {
       width: "100%",
-      padding: 16,
-      borderRadius: 20,
-      backgroundColor: "#EFF6FF",
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
-      borderColor: "#BFDBFE",
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     currentOfferHeader: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     currentOfferIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     currentOfferInfo: {
       flex: 1,
-      marginLeft: 11,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     currentOfferLabel: {
-      fontSize: 9,
-      lineHeight: 13,
-      letterSpacing: 0.8,
-      color: "#64748B",
+      letterSpacing:
+        0.8,
+
+      color:
+        Colors.textSecondary,
     },
 
     workerName: {
-      marginTop: 2,
-      fontSize: 15,
-      lineHeight: 20,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
     },
 
     currentAmountRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 15,
-      paddingTop: 13,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+
       borderTopWidth: 1,
-      borderTopColor: "#DBEAFE",
+
+      borderTopColor:
+        Colors.border,
     },
 
     currentAmountLabel: {
-      fontSize: 12,
-      color: "#64748B",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
     currentAmount: {
-      fontSize: 21,
-      lineHeight: 27,
-      color: "#2563EB",
+      flexShrink: 0,
+
+      color:
+        CustomerColors.primary,
     },
 
+    /* ========================================================
+       SECTION HEADER
+    ======================================================== */
+
     sectionHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 25,
-      marginBottom: 10,
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     sectionNumber: {
-      width: 27,
-      height: 27,
-      borderRadius: 9,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
+      width: 28,
+
+      height: 28,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     sectionNumberText: {
-      fontSize: 13,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     sectionTitle: {
-      fontSize: 16,
-      lineHeight: 21,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       AMOUNT INPUT
+    ======================================================== */
+
     inputCard: {
-      height: 68,
+      minHeight: 68,
+
       width: "100%",
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1.5,
-      borderColor: "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 10,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     inputCardActive: {
-      borderColor: "#2563EB",
+      borderColor:
+        CustomerColors.primary,
     },
 
     inputCardError: {
-      borderColor: "#FCA5A5",
+      borderColor:
+        Colors.error,
     },
 
     currencyBox: {
-      width: 47,
-      height: 47,
-      borderRadius: 14,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     currencyText: {
-      fontSize: 21,
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     amountInput: {
       flex: 1,
-      height: 64,
-      paddingHorizontal: 12,
-      fontSize: 20,
-      fontWeight: "700",
-      color: "#0F172A",
+
+      minHeight: 64,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.xl,
+
+      fontWeight:
+        "700",
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       AMOUNT PREVIEW
+    ======================================================== */
 
     previewCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 13,
-      backgroundColor: "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.infoSoft,
     },
 
-    previewText: {
+    previewContent: {
       flex: 1,
-      marginLeft: 7,
-      fontSize: 11,
-      lineHeight: 17,
-      color: "#64748B",
+
+      minWidth: 0,
     },
 
     previewAmount: {
-      color: "#2563EB",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        CustomerColors.primary,
     },
 
+    previewAmountError: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       MESSAGE
+    ======================================================== */
+
     messageSection: {
-      marginTop: 22,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
     messageHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 10,
-    },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-    messageNumber: {
-      width: 27,
-      height: 27,
-      borderRadius: 9,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
+      flexDirection:
+        "row",
 
-    messageNumberText: {
-      fontSize: 13,
-      color: "#2563EB",
-    },
-
-    messageTitle: {
-      fontSize: 16,
-      lineHeight: 21,
-      color: "#0F172A",
+      alignItems:
+        "center",
     },
 
     messageInputCard: {
-      minHeight: 110,
-      borderRadius: 17,
-      backgroundColor: "#FFFFFF",
-      borderWidth: 1.5,
-      borderColor: "#E2E8F0",
-      flexDirection: "row",
-      alignItems: "flex-start",
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-    },
+      minHeight: 120,
 
-    messageInputCardActive: {
-      borderColor: "#2563EB",
-    },
+      padding:
+        FixxamTokens.spacing.md,
 
-    messageIcon: {
-      marginTop: 2,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     messageInput: {
       flex: 1,
-      minHeight: 82,
-      marginLeft: 9,
+
+      minHeight: 92,
+
       padding: 0,
-      fontSize: 13,
+
+      fontSize:
+        Typography.fontSize.md,
+
       lineHeight: 20,
-      color: "#0F172A",
+
+      color:
+        Colors.textPrimary,
     },
 
     messageFooter: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginTop: 6,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     messageHint: {
-      fontSize: 9.5,
-      color: "#94A3B8",
+      flex: 1,
+
+      color:
+        Colors.textMuted,
     },
 
     messageCount: {
-      fontSize: 9,
-      color: "#94A3B8",
+      flexShrink: 0,
+
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       HELP
+    ======================================================== */
+
+    helpBox: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.infoSoft,
     },
 
     helpText: {
-      marginTop: 18,
-      paddingHorizontal: 15,
-      fontSize: 10.5,
-      lineHeight: 16,
-      color: "#94A3B8",
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
+
     actions: {
-      paddingTop: 15,
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     sendButton: {
-      minHeight: 55,
-      borderRadius: 17,
-      backgroundColor: "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 9,
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     sendButtonDisabled: {
-      opacity: 0.45,
-    },
-
-    sendingContent: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 9,
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     sendButtonText: {
-      fontSize: 12.5,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     cancelButton: {
-      minHeight: 43,
-      marginTop: 7,
-      alignItems: "center",
-      justifyContent: "center",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     cancelButtonText: {
-      fontSize: 11,
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
+    /* ========================================================
+       STATES
+    ======================================================== */
+
     pressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

@@ -1,139 +1,293 @@
 import type { ReactNode } from "react";
-import React from "react";
+import React, { memo } from "react";
 
 import {
   ActivityIndicator,
+  Pressable,
   StyleProp,
   StyleSheet,
   TextStyle,
-  TouchableOpacity,
   View,
   ViewStyle,
 } from "react-native";
 
+import AppIcon from "./AppIcon";
+import type { AppIconName } from "./AppIcon";
 import AppText from "./AppText";
 
 import {
   CustomerColors,
-  FIXXAM,
   FixxamTokens,
+  Typography,
   WorkerColors,
+  type FixxamRole,
 } from "@/theme";
 
-interface AppButtonProps {
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "ghost"
+  | "danger"
+  // Legacy support
+  | "customer"
+  | "worker";
+
+type ButtonSize = "sm" | "md";
+
+export interface AppButtonProps {
   title: string;
 
   onPress: () => void;
+
+  role?: FixxamRole;
+
+  variant?: ButtonVariant;
+
+  size?: ButtonSize;
 
   loading?: boolean;
 
   disabled?: boolean;
 
-  variant?:
-    | "customer"
-    | "worker"
-    | "outline";
+  /*
+   * Preferred icon API
+   */
+  leftIconName?: AppIconName;
+  rightIconName?: AppIconName;
 
+  /*
+   * Legacy/custom icon support
+   */
   leftIcon?: ReactNode;
-
   rightIcon?: ReactNode;
+
+  accessibilityLabel?: string;
 
   style?: StyleProp<ViewStyle>;
 
   textStyle?: StyleProp<TextStyle>;
 }
 
-export default function AppButton({
+function AppButton({
   title,
   onPress,
+  role = "customer",
+  variant = "primary",
+  size = "md",
   loading = false,
   disabled = false,
-  variant = "customer",
+  leftIconName,
+  rightIconName,
   leftIcon,
   rightIcon,
+  accessibilityLabel,
   style,
   textStyle,
 }: AppButtonProps) {
-  const isDisabled =
-    disabled || loading;
+  /*
+   * Keep old usage working:
+   *
+   * variant="customer"
+   * variant="worker"
+   */
+  const resolvedRole: FixxamRole =
+    variant === "worker"
+      ? "worker"
+      : variant === "customer"
+        ? "customer"
+        : role;
 
-  const isOutline =
-    variant === "outline";
+  const resolvedVariant =
+    variant === "customer" || variant === "worker"
+      ? "primary"
+      : variant;
 
-  const backgroundColor =
-    isOutline
-      ? CustomerColors.white
-      : variant === "worker"
-        ? WorkerColors.primary
-        : CustomerColors.primary;
+  const colors =
+    resolvedRole === "worker"
+      ? WorkerColors
+      : CustomerColors;
 
-  const borderColor =
-    isOutline
-      ? CustomerColors.primary
-      : "transparent";
+  const isDisabled = disabled || loading;
 
-  const textColor =
-    isOutline
-      ? CustomerColors.primary
-      : CustomerColors.white;
+  const palette = {
+    primary: {
+      background: colors.primary,
+      pressed: colors.primaryPressed,
+      text: colors.white,
+      border: "transparent",
+    },
 
-  const disabledBackground =
-    isOutline
-      ? CustomerColors.card
-      : variant === "worker"
-        ? "#FDBA74"
-        : "#93C5FD";
+    secondary: {
+      background: colors.primarySoft,
+      pressed: colors.primarySoft,
+      text: colors.primary,
+      border: "transparent",
+    },
+
+    outline: {
+      background: colors.surface,
+      pressed: colors.primarySoft,
+      text: colors.primary,
+      border: colors.primary,
+    },
+
+    ghost: {
+      background: "transparent",
+      pressed: colors.primarySoft,
+      text: colors.primary,
+      border: "transparent",
+    },
+
+    danger: {
+      background: colors.error,
+      pressed: colors.error,
+      text: colors.white,
+      border: "transparent",
+    },
+  } as const;
+
+  const current = palette[resolvedVariant];
+
+  const height =
+    size === "sm"
+      ? FixxamTokens.size.buttonSmallHeight
+      : FixxamTokens.size.buttonHeight;
+
+  const iconSize =
+    size === "sm"
+      ? "sm"
+      : "md";
+
+  const showShadow =
+    resolvedVariant === "primary" &&
+    !isDisabled;
+
+  const renderLeftIcon = () => {
+    if (leftIcon) {
+      return leftIcon;
+    }
+
+    if (!leftIconName) {
+      return null;
+    }
+
+    return (
+      <AppIcon
+        name={leftIconName}
+        role={resolvedRole}
+        size={iconSize}
+        color={current.text}
+      />
+    );
+  };
+
+  const renderRightIcon = () => {
+    if (rightIcon) {
+      return rightIcon;
+    }
+
+    if (!rightIconName) {
+      return null;
+    }
+
+    return (
+      <AppIcon
+        name={rightIconName}
+        role={resolvedRole}
+        size={iconSize}
+        color={current.text}
+      />
+    );
+  };
 
   return (
-    <TouchableOpacity
-      activeOpacity={
-        FIXXAM.PRESSED_OPACITY
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        accessibilityLabel ?? title
       }
+      accessibilityState={{
+        disabled: isDisabled,
+        busy: loading,
+      }}
       disabled={isDisabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
+
         {
-          backgroundColor:
-            isDisabled
-              ? disabledBackground
-              : backgroundColor,
+          minHeight: height,
+
+          backgroundColor: isDisabled
+            ? resolvedVariant === "outline" ||
+              resolvedVariant === "ghost"
+              ? colors.disabledBackground
+              : colors.primaryDisabled
+            : pressed
+              ? current.pressed
+              : current.background,
+
+          borderColor: isDisabled
+            ? colors.disabled
+            : current.border,
 
           borderWidth:
-            isOutline ? 1.5 : 0,
+            resolvedVariant === "outline"
+              ? StyleSheet.hairlineWidth * 2
+              : 0,
 
-          borderColor,
-
-          opacity:
-            isDisabled
-              ? FIXXAM.DISABLED_OPACITY
+          opacity: isDisabled
+            ? FixxamTokens.motion.disabledOpacity
+            : pressed
+              ? FixxamTokens.motion.pressedOpacity
               : 1,
+
+          transform: [
+            {
+              scale:
+                pressed && !isDisabled
+                  ? FixxamTokens.motion.scalePressed
+                  : 1,
+            },
+          ],
         },
+
+        showShadow
+          ? FixxamTokens.shadow.button
+          : null,
+
         style,
       ]}
     >
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={textColor}
+          color={
+            resolvedVariant === "secondary" ||
+            resolvedVariant === "outline" ||
+            resolvedVariant === "ghost"
+              ? colors.primary
+              : colors.white
+          }
         />
       ) : (
         <View style={styles.content}>
-          {leftIcon ? (
-            <View
-              style={
-                styles.iconLeft
-              }
-            >
-              {leftIcon}
+          {renderLeftIcon() ? (
+            <View style={styles.iconLeft}>
+              {renderLeftIcon()}
             </View>
           ) : null}
 
           <AppText
-            weight="bold"
-            color={textColor}
+            color={
+              isDisabled
+                ? colors.textMuted
+                : current.text
+            }
             style={[
               styles.text,
+              Typography.styles.button,
               textStyle,
             ]}
             numberOfLines={1}
@@ -141,73 +295,56 @@ export default function AppButton({
             {title}
           </AppText>
 
-          {rightIcon ? (
-            <View
-              style={
-                styles.iconRight
-              }
-            >
-              {rightIcon}
+          {renderRightIcon() ? (
+            <View style={styles.iconRight}>
+              {renderRightIcon()}
             </View>
           ) : null}
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
-const styles =
-  StyleSheet.create({
-    button: {
-      minHeight: 54,
+const styles = StyleSheet.create({
+  button: {
+    borderRadius: FixxamTokens.radius.button,
 
-      borderRadius: 16,
+    paddingHorizontal:
+      FixxamTokens.spacing.lg,
 
-      paddingHorizontal: 18,
+    alignItems: "center",
 
-      alignItems: "center",
+    justifyContent: "center",
+  },
 
-      justifyContent:
-        "center",
+  content: {
+    flexDirection: "row",
 
-      overflow: "hidden",
+    alignItems: "center",
 
-      ...FixxamTokens.shadow
-        .button,
-    },
+    justifyContent: "center",
+  },
 
-    content: {
-      flexDirection: "row",
+  iconLeft: {
+    marginRight: FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+    alignItems: "center",
 
-      justifyContent:
-        "center",
-    },
+    justifyContent: "center",
+  },
 
-    iconLeft: {
-      marginRight: 10,
+  iconRight: {
+    marginLeft: FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+    alignItems: "center",
 
-      justifyContent:
-        "center",
-    },
+    justifyContent: "center",
+  },
 
-    iconRight: {
-      marginLeft: 10,
+  text: {
+    textAlign: "center",
+  },
+});
 
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-    },
-
-    text: {
-      fontSize: 15,
-
-      letterSpacing: 0.2,
-
-      textAlign: "center",
-    },
-  });
+export default memo(AppButton);

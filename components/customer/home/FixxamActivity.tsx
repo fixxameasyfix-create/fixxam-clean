@@ -7,29 +7,52 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import {
-  calculateFixxamActivityBasic,
-  type FixxamActivityBooking,
-} from "@/utils/fixxam/calculateFixxamActivity";
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
+type FixxamActivityBooking = {
+  id?: string;
+
+  status?: string;
+
+  agreedPrice?: number | null;
+
+  amount?: number | null;
+
+  offerAmount?: number | null;
+
+  offerAcceptedAt?: unknown;
+
+  createdAt?: unknown;
+};
+
 type FixxamActivityProps = {
-  bookings: FixxamActivityBooking[];
+  bookings?:
+    FixxamActivityBooking[];
 };
 
 type DailyActivity = {
   date: Date;
+
   volume: number;
+};
+
+type ActivitySummary = {
+  volume: number;
+
+  transactions: number;
 };
 
 type TrendType =
@@ -43,9 +66,43 @@ type TrendType =
 
 const ACTIVITY_DAYS = 30;
 
-const GREEN = "#22C55E";
-const RED = "#EF4444";
-const BLUE = "#2563EB";
+/*
+ * Intentional dark analytics palette.
+ *
+ * Kept local because this component
+ * has a dedicated financial/chart
+ * presentation rather than normal
+ * application surfaces.
+ */
+const ACTIVITY_COLORS = {
+  card: "#050505",
+
+  chart: "#070B11",
+
+  surface: "#0B1018",
+
+  surfaceStrong: "#0F172A",
+
+  border: "#1E293B",
+
+  grid: "#172033",
+
+  blueSoft: "#172554",
+
+  blueBorder: "#1E3A8A",
+
+  blueText: "#60A5FA",
+
+  textPrimary: "#F8FAFC",
+
+  textSecondary: "#64748B",
+
+  textMuted: "#475569",
+
+  upBackground: "#052E16",
+
+  downBackground: "#450A0A",
+} as const;
 
 /* ============================================================
    DATE
@@ -73,7 +130,9 @@ function getDateValue(
     const data =
       value as {
         toDate?: unknown;
+
         seconds?: unknown;
+
         nanoseconds?: unknown;
       };
 
@@ -85,10 +144,12 @@ function getDateValue(
         const date =
           data.toDate();
 
-        return date instanceof Date &&
+        return (
+          date instanceof Date &&
           !Number.isNaN(
             date.getTime(),
           )
+        )
           ? date
           : null;
       } catch {
@@ -103,16 +164,19 @@ function getDateValue(
         data.seconds,
       )
     ) {
-      const milliseconds =
-        data.seconds * 1000 +
-        (typeof data.nanoseconds ===
-        "number" &&
+      const nanoseconds =
+        typeof data.nanoseconds ===
+          "number" &&
         Number.isFinite(
           data.nanoseconds,
         )
-          ? data.nanoseconds /
-            1_000_000
-          : 0);
+          ? data.nanoseconds
+          : 0;
+
+      const milliseconds =
+        data.seconds * 1000 +
+        nanoseconds /
+          1_000_000;
 
       const date =
         new Date(
@@ -145,67 +209,6 @@ function getDateValue(
 }
 
 /* ============================================================
-   FINAL PRICE
-============================================================ */
-
-function getFinalAmount(
-  booking: FixxamActivityBooking,
-): number {
-  if (
-    typeof booking.agreedPrice ===
-      "number" &&
-    Number.isFinite(
-      booking.agreedPrice,
-    ) &&
-    booking.agreedPrice > 0
-  ) {
-    return booking.agreedPrice;
-  }
-
-  if (
-    typeof booking.amount ===
-      "number" &&
-    Number.isFinite(
-      booking.amount,
-    ) &&
-    booking.amount > 0
-  ) {
-    return booking.amount;
-  }
-
-  if (
-    typeof booking.offerAmount ===
-      "number" &&
-    Number.isFinite(
-      booking.offerAmount,
-    ) &&
-    booking.offerAmount > 0
-  ) {
-    return booking.offerAmount;
-  }
-
-  return 0;
-}
-
-/* ============================================================
-   DAY KEY
-============================================================ */
-
-function getDayKey(
-  date: Date,
-): string {
-  return [
-    date.getFullYear(),
-    String(
-      date.getMonth() + 1,
-    ).padStart(2, "0"),
-    String(
-      date.getDate(),
-    ).padStart(2, "0"),
-  ].join("-");
-}
-
-/* ============================================================
    START OF DAY
 ============================================================ */
 
@@ -226,17 +229,170 @@ function startOfDay(
 }
 
 /* ============================================================
-   BUILD DAILY ACTIVITY
+   DAY KEY
+============================================================ */
+
+function getDayKey(
+  date: Date,
+): string {
+  return [
+    date.getFullYear(),
+
+    String(
+      date.getMonth() + 1,
+    ).padStart(
+      2,
+      "0",
+    ),
+
+    String(
+      date.getDate(),
+    ).padStart(
+      2,
+      "0",
+    ),
+  ].join("-");
+}
+
+/* ============================================================
+   FINAL PRICE
+============================================================ */
+
+function getFinalAmount(
+  booking:
+    FixxamActivityBooking,
+): number {
+  const values = [
+    booking.agreedPrice,
+    booking.amount,
+    booking.offerAmount,
+  ];
+
+  for (
+    const value of values
+  ) {
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      value > 0
+    ) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+/* ============================================================
+   ACCEPTED DATE
+============================================================ */
+
+function getAcceptedDate(
+  booking:
+    FixxamActivityBooking,
+): Date | null {
+  return (
+    getDateValue(
+      booking.offerAcceptedAt,
+    ) ??
+    getDateValue(
+      booking.createdAt,
+    )
+  );
+}
+
+/* ============================================================
+   SUMMARY
+============================================================ */
+
+function calculateActivitySummary(
+  bookings:
+    FixxamActivityBooking[],
+): ActivitySummary {
+  const today =
+    startOfDay(
+      new Date(),
+    );
+
+  const startDate =
+    new Date(today);
+
+  startDate.setDate(
+    startDate.getDate() -
+      (ACTIVITY_DAYS - 1),
+  );
+
+  let volume = 0;
+
+  let transactions = 0;
+
+  for (
+    const booking of bookings
+  ) {
+    if (
+      booking.status
+        ?.trim()
+        .toLowerCase() !==
+      "accepted"
+    ) {
+      continue;
+    }
+
+    const acceptedDate =
+      getAcceptedDate(
+        booking,
+      );
+
+    if (!acceptedDate) {
+      continue;
+    }
+
+    const normalizedDate =
+      startOfDay(
+        acceptedDate,
+      );
+
+    if (
+      normalizedDate <
+        startDate ||
+      normalizedDate >
+        today
+    ) {
+      continue;
+    }
+
+    const amount =
+      getFinalAmount(
+        booking,
+      );
+
+    if (amount <= 0) {
+      continue;
+    }
+
+    transactions += 1;
+
+    volume += amount;
+  }
+
+  return {
+    volume,
+    transactions,
+  };
+}
+
+/* ============================================================
+   DAILY ACTIVITY
 ============================================================ */
 
 function buildDailyActivity(
-  bookings: FixxamActivityBooking[],
+  bookings:
+    FixxamActivityBooking[],
 ): DailyActivity[] {
-  const now =
-    new Date();
-
   const today =
-    startOfDay(now);
+    startOfDay(
+      new Date(),
+    );
 
   const dailyMap =
     new Map<
@@ -265,7 +421,9 @@ function buildDailyActivity(
     );
   }
 
-  for (const booking of bookings) {
+  for (
+    const booking of bookings
+  ) {
     if (
       booking.status
         ?.trim()
@@ -275,33 +433,25 @@ function buildDailyActivity(
       continue;
     }
 
-    const acceptedAt =
-      getDateValue(
-        booking.offerAcceptedAt,
-      );
-
-    const createdAt =
-      getDateValue(
-        booking.createdAt,
-      );
-
     const date =
-      acceptedAt ??
-      createdAt;
+      getAcceptedDate(
+        booking,
+      );
 
     if (!date) {
       continue;
     }
 
-    const normalizedDate =
-      startOfDay(date);
-
     const key =
       getDayKey(
-        normalizedDate,
+        startOfDay(
+          date,
+        ),
       );
 
-    if (!dailyMap.has(key)) {
+    if (
+      !dailyMap.has(key)
+    ) {
       continue;
     }
 
@@ -310,9 +460,7 @@ function buildDailyActivity(
         booking,
       );
 
-    if (
-      amount <= 0
-    ) {
+    if (amount <= 0) {
       continue;
     }
 
@@ -330,6 +478,7 @@ function buildDailyActivity(
       date: new Date(
         `${key}T00:00:00`,
       ),
+
       volume,
     }),
   );
@@ -340,9 +489,11 @@ function buildDailyActivity(
 ============================================================ */
 
 function calculateTrend(
-  activity: DailyActivity[],
+  activity:
+    DailyActivity[],
 ): {
   type: TrendType;
+
   percentage: number;
 } {
   const activeDays =
@@ -370,14 +521,13 @@ function calculateTrend(
       activeDays.length - 1
     ].volume;
 
-  if (
-    previous <= 0
-  ) {
+  if (previous <= 0) {
     return {
       type:
         current > 0
           ? "up"
           : "flat",
+
       percentage:
         current > 0
           ? 100
@@ -393,20 +543,17 @@ function calculateTrend(
         100,
     );
 
-  if (
-    percentage > 0
-  ) {
+  if (percentage > 0) {
     return {
       type: "up",
       percentage,
     };
   }
 
-  if (
-    percentage < 0
-  ) {
+  if (percentage < 0) {
     return {
       type: "down",
+
       percentage:
         Math.abs(
           percentage,
@@ -441,7 +588,8 @@ function formatMoney(
     1_000_000
   ) {
     return `₦${(
-      amount / 1_000_000
+      amount /
+      1_000_000
     ).toFixed(
       amount >=
         10_000_000
@@ -451,8 +599,7 @@ function formatMoney(
   }
 
   if (
-    amount >=
-    1_000
+    amount >= 1_000
   ) {
     return `₦${(
       amount / 1_000
@@ -472,7 +619,7 @@ function formatMoney(
 }
 
 /* ============================================================
-   TREND COLORS
+   TREND HELPERS
 ============================================================ */
 
 function getTrendColor(
@@ -480,19 +627,15 @@ function getTrendColor(
 ): string {
   switch (trend) {
     case "up":
-      return GREEN;
+      return Colors.success;
 
     case "down":
-      return RED;
+      return Colors.error;
 
     default:
-      return "#94A3B8";
+      return Colors.textMuted;
   }
 }
-
-/* ============================================================
-   TREND LABEL
-============================================================ */
 
 function getTrendLabel(
   trend: TrendType,
@@ -509,6 +652,24 @@ function getTrendLabel(
   }
 }
 
+function getTrendBackground(
+  trend: TrendType,
+): string {
+  switch (trend) {
+    case "up":
+      return ACTIVITY_COLORS
+        .upBackground;
+
+    case "down":
+      return ACTIVITY_COLORS
+        .downBackground;
+
+    default:
+      return ACTIVITY_COLORS
+        .surfaceStrong;
+  }
+}
+
 /* ============================================================
    CHART
 ============================================================ */
@@ -516,7 +677,8 @@ function getTrendLabel(
 function ActivityChart({
   activity,
 }: {
-  activity: DailyActivity[];
+  activity:
+    DailyActivity[];
 }) {
   const maxVolume =
     Math.max(
@@ -530,55 +692,66 @@ function ActivityChart({
   const hasActivity =
     maxVolume > 0;
 
-  if (!hasActivity) {
-    return (
+  return (
+    <View
+      accessible
+      accessibilityLabel={
+        hasActivity
+          ? "30 day transaction activity chart"
+          : "No transaction activity in the last 30 days"
+      }
+      style={
+        styles.chartContainer
+      }
+    >
+      {/* GRID */}
+
       <View
-        style={
-          styles.chartContainer
-        }
+        pointerEvents="none"
+        style={styles.grid}
       >
         <View
           style={
-            styles.grid
+            styles.gridLine
           }
-        >
-          <View
-            style={
-              styles.gridLine
-            }
-          />
+        />
 
-          <View
-            style={
-              styles.gridLine
-            }
-          />
+        <View
+          style={
+            styles.gridLine
+          }
+        />
 
-          <View
-            style={
-              styles.gridLine
-            }
-          />
+        <View
+          style={
+            styles.gridLine
+          }
+        />
 
-          <View
-            style={
-              styles.gridLine
-            }
-          />
-        </View>
+        <View
+          style={
+            styles.gridLine
+          }
+        />
+      </View>
 
+      {!hasActivity ? (
         <View
           style={
             styles.emptyChart
           }
         >
-          <Ionicons
-            name="pulse-outline"
-            size={17}
-            color="#334155"
+          <AppIcon
+            name="info"
+            size="xs"
+            color={
+              ACTIVITY_COLORS
+                .textMuted
+            }
           />
 
           <AppText
+            variant="caption"
             style={
               styles.emptyChartText
             }
@@ -586,114 +759,78 @@ function ActivityChart({
             No transaction activity
           </AppText>
         </View>
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={
-        styles.chartContainer
-      }
-    >
-      <View
-        pointerEvents="none"
-        style={
-          styles.grid
-        }
-      >
+      ) : (
         <View
           style={
-            styles.gridLine
+            styles.barsContainer
           }
-        />
+        >
+          {activity.map(
+            (
+              item,
+              index,
+            ) => {
+              const previous =
+                index > 0
+                  ? activity[
+                      index - 1
+                    ].volume
+                  : item.volume;
 
-        <View
-          style={
-            styles.gridLine
-          }
-        />
+              const isUp =
+                item.volume >
+                previous;
 
-        <View
-          style={
-            styles.gridLine
-          }
-        />
+              const isDown =
+                item.volume <
+                previous;
 
-        <View
-          style={
-            styles.gridLine
-          }
-        />
-      </View>
+              const barColor =
+                isUp
+                  ? Colors.success
+                  : isDown
+                    ? Colors.error
+                    : ACTIVITY_COLORS
+                        .textSecondary;
 
-      <View
-        style={
-          styles.barsContainer
-        }
-      >
-        {activity.map(
-          (
-            item,
-            index,
-          ) => {
-            const previous =
-              index > 0
-                ? activity[
-                    index - 1
-                  ].volume
-                : item.volume;
+              const height =
+                item.volume > 0
+                  ? Math.max(
+                      8,
 
-            const isUp =
-              item.volume >
-              previous;
+                      (item.volume /
+                        maxVolume) *
+                        72,
+                    )
+                  : 2;
 
-            const isDown =
-              item.volume <
-              previous;
-
-            const barColor =
-              isUp
-                ? GREEN
-                : isDown
-                  ? RED
-                  : "#64748B";
-
-            const height =
-              item.volume >
-              0
-                ? Math.max(
-                    8,
-                    (item.volume /
-                      maxVolume) *
-                      72,
-                  )
-                : 2;
-
-            return (
-              <View
-                key={getDayKey(
-                  item.date,
-                )}
-                style={
-                  styles.barColumn
-                }
-              >
+              return (
                 <View
-                  style={[
-                    styles.bar,
-                    {
-                      height,
-                      backgroundColor:
-                        barColor,
-                    },
-                  ]}
-                />
-              </View>
-            );
-          },
-        )}
-      </View>
+                  key={getDayKey(
+                    item.date,
+                  )}
+                  style={
+                    styles.barColumn
+                  }
+                >
+                  <View
+                    style={[
+                      styles.bar,
+
+                      {
+                        height,
+
+                        backgroundColor:
+                          barColor,
+                      },
+                    ]}
+                  />
+                </View>
+              );
+            },
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -703,24 +840,31 @@ function ActivityChart({
 ============================================================ */
 
 export default function FixxamActivity({
-  bookings,
+  bookings = [],
 }: FixxamActivityProps) {
+  const safeBookings =
+    Array.isArray(
+      bookings,
+    )
+      ? bookings
+      : [];
+
   const activity =
     useMemo(
       () =>
-        calculateFixxamActivityBasic(
-          bookings,
+        calculateActivitySummary(
+          safeBookings,
         ),
-      [bookings],
+      [safeBookings],
     );
 
   const dailyActivity =
     useMemo(
       () =>
         buildDailyActivity(
-          bookings,
+          safeBookings,
         ),
-      [bookings],
+      [safeBookings],
     );
 
   const trend =
@@ -742,21 +886,26 @@ export default function FixxamActivity({
       trend.type,
     );
 
-  const trendIcon =
-    trend.type === "up"
-      ? "trending-up-outline"
-      : trend.type === "down"
-        ? "trending-down-outline"
-        : "remove-outline";
-
-  const formattedVolume =
-    formatMoney(
-      activity.volume,
+  const trendBackground =
+    getTrendBackground(
+      trend.type,
     );
+
+  /* ==========================================================
+     CHART LABELS
+  ========================================================== */
 
   const firstDate =
     dailyActivity[0]
       ?.date;
+
+  const middleDate =
+    dailyActivity[
+      Math.floor(
+        dailyActivity.length /
+          2,
+      )
+    ]?.date;
 
   const lastDate =
     dailyActivity[
@@ -774,14 +923,6 @@ export default function FixxamActivity({
           },
         )
       : "";
-
-  const middleDate =
-    dailyActivity[
-      Math.floor(
-        dailyActivity.length /
-          2,
-      )
-    ]?.date;
 
   const middleLabel =
     middleDate
@@ -805,6 +946,10 @@ export default function FixxamActivity({
         )
       : "";
 
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <AppCard
       style={styles.card}
@@ -814,9 +959,7 @@ export default function FixxamActivity({
       ====================================================== */}
 
       <View
-        style={
-          styles.header
-        }
+        style={styles.header}
       >
         <View
           style={
@@ -828,10 +971,13 @@ export default function FixxamActivity({
               styles.iconBox
             }
           >
-            <Ionicons
-              name="pulse-outline"
-              size={19}
-              color="#60A5FA"
+            <AppIcon
+              name="jobs"
+              size="sm"
+              color={
+                ACTIVITY_COLORS
+                  .blueText
+              }
             />
           </View>
 
@@ -841,15 +987,15 @@ export default function FixxamActivity({
             }
           >
             <AppText
+              variant="bodyMedium"
               weight="bold"
-              style={
-                styles.title
-              }
+              style={styles.title}
             >
               Fixxam Activity
             </AppText>
 
             <AppText
+              variant="caption"
               style={
                 styles.subtitle
               }
@@ -860,11 +1006,10 @@ export default function FixxamActivity({
         </View>
 
         <View
-          style={
-            styles.period
-          }
+          style={styles.period}
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.periodText
@@ -884,8 +1029,13 @@ export default function FixxamActivity({
           styles.valueRow
         }
       >
-        <View>
+        <View
+          style={
+            styles.valueContent
+          }
+        >
           <AppText
+            variant="caption"
             style={
               styles.valueLabel
             }
@@ -894,46 +1044,57 @@ export default function FixxamActivity({
           </AppText>
 
           <AppText
+            variant="heading2"
             weight="bold"
-            style={
-              styles.value
-            }
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={styles.value}
           >
-            {formattedVolume}
+            {formatMoney(
+              activity.volume,
+            )}
           </AppText>
         </View>
 
         <View
           style={[
             styles.trendBadge,
+
             {
               borderColor:
                 trendColor,
+
               backgroundColor:
-                trend.type ===
-                "up"
-                  ? "#052E16"
-                  : trend.type ===
-                      "down"
-                    ? "#450A0A"
-                    : "#111827",
+                trendBackground,
             },
           ]}
         >
-          <Ionicons
-            name={
-              trendIcon as keyof typeof Ionicons.glyphMap
-            }
-            size={11}
-            color={
-              trendColor
-            }
-          />
+          {trend.type ===
+          "up" ? (
+            <AppIcon
+              name="arrow-up"
+              size="xs"
+              color={
+                trendColor
+              }
+            />
+          ) : trend.type ===
+            "down" ? (
+            <AppIcon
+              name="down"
+              size="xs"
+              color={
+                trendColor
+              }
+            />
+          ) : null}
 
           <AppText
+            variant="caption"
             weight="bold"
             style={[
               styles.trendText,
+
               {
                 color:
                   trendColor,
@@ -941,7 +1102,7 @@ export default function FixxamActivity({
             ]}
           >
             {trend.type ===
-              "flat"
+            "flat"
               ? trendLabel
               : `${trendLabel} ${trend.percentage}%`}
           </AppText>
@@ -964,6 +1125,7 @@ export default function FixxamActivity({
         }
       >
         <AppText
+          variant="caption"
           style={
             styles.chartLabel
           }
@@ -972,6 +1134,7 @@ export default function FixxamActivity({
         </AppText>
 
         <AppText
+          variant="caption"
           style={
             styles.chartLabel
           }
@@ -980,6 +1143,7 @@ export default function FixxamActivity({
         </AppText>
 
         <AppText
+          variant="caption"
           style={
             styles.chartLabel
           }
@@ -997,20 +1161,23 @@ export default function FixxamActivity({
           styles.statsRow
         }
       >
+        {/* TRANSACTIONS */}
+
         <View
-          style={
-            styles.stat
-          }
+          style={styles.stat}
         >
           <View
             style={
               styles.statIcon
             }
           >
-            <Ionicons
-              name="swap-horizontal-outline"
-              size={14}
-              color="#60A5FA"
+            <AppIcon
+              name="payment"
+              size="xs"
+              color={
+                ACTIVITY_COLORS
+                  .blueText
+              }
             />
           </View>
 
@@ -1020,6 +1187,7 @@ export default function FixxamActivity({
             }
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.statValue
@@ -1031,6 +1199,7 @@ export default function FixxamActivity({
             </AppText>
 
             <AppText
+              variant="caption"
               style={
                 styles.statLabel
               }
@@ -1040,34 +1209,49 @@ export default function FixxamActivity({
           </View>
         </View>
 
+        {/* ACTIVITY */}
+
         <View
-          style={
-            styles.stat
-          }
+          style={styles.stat}
         >
           <View
             style={[
               styles.statIcon,
+
               {
                 backgroundColor:
-                  trend.type ===
-                  "up"
-                    ? "#052E16"
+                  activity.transactions ===
+                  0
+                    ? ACTIVITY_COLORS
+                        .surfaceStrong
                     : trend.type ===
                         "down"
-                      ? "#450A0A"
-                      : "#052E16",
+                      ? ACTIVITY_COLORS
+                          .downBackground
+                      : ACTIVITY_COLORS
+                          .upBackground,
               },
             ]}
           >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={14}
+            <AppIcon
+              name={
+                activity.transactions ===
+                0
+                  ? "info"
+                  : trend.type ===
+                      "down"
+                    ? "error"
+                    : "success"
+              }
+              size="xs"
               color={
-                trend.type ===
-                "down"
-                  ? RED
-                  : GREEN
+                activity.transactions ===
+                0
+                  ? Colors.textMuted
+                  : trend.type ===
+                      "down"
+                    ? Colors.error
+                    : Colors.success
               }
             />
           </View>
@@ -1078,6 +1262,7 @@ export default function FixxamActivity({
             }
           >
             <AppText
+              variant="body"
               weight="bold"
               style={
                 styles.statValue
@@ -1090,6 +1275,7 @@ export default function FixxamActivity({
             </AppText>
 
             <AppText
+              variant="caption"
               style={
                 styles.statLabel
               }
@@ -1105,24 +1291,24 @@ export default function FixxamActivity({
       ====================================================== */}
 
       <View
-        style={
-          styles.footer
-        }
+        style={styles.footer}
       >
         <View
           style={[
             styles.footerDot,
+
             {
               backgroundColor:
                 activity.transactions >
                 0
-                  ? GREEN
-                  : "#94A3B8",
+                  ? Colors.success
+                  : Colors.textMuted,
             },
           ]}
         />
 
         <AppText
+          variant="caption"
           style={
             styles.footerText
           }
@@ -1140,273 +1326,466 @@ export default function FixxamActivity({
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 14,
-      padding: 11,
-      borderRadius: 17,
-      backgroundColor:
-        "#050505",
-      borderWidth: 1,
-      borderColor:
-        "#1E293B",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
       overflow: "hidden",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        ACTIVITY_COLORS.card,
     },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
     header: {
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "space-between",
     },
 
     headerLeft: {
       flex: 1,
+
       minWidth: 0,
+
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     iconBox: {
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      backgroundColor:
-        "#172554",
+      width: 36,
+
+      height: 36,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSoft,
     },
 
     headerText: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 8,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 13,
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS
+          .textPrimary,
     },
 
     subtitle: {
-      marginTop: 1,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        ACTIVITY_COLORS
+          .textSecondary,
     },
 
     period: {
-      marginLeft: 8,
       minWidth: 42,
-      height: 25,
-      paddingHorizontal: 7,
-      borderRadius: 8,
-      backgroundColor:
-        "#0F172A",
-      borderWidth: 1,
-      borderColor:
-        "#1E3A8A",
+
+      minHeight: 28,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS
+          .blueBorder,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        ACTIVITY_COLORS
+          .surfaceStrong,
     },
 
     periodText: {
-      fontSize: 8,
-      color: "#60A5FA",
+      color:
+        ACTIVITY_COLORS
+          .blueText,
     },
 
+    /* ========================================================
+       VALUE
+    ======================================================== */
+
     valueRow: {
-      marginTop: 13,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
-      alignItems: "flex-end",
+
+      alignItems:
+        "flex-end",
+
       justifyContent:
         "space-between",
     },
 
+    valueContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
     valueLabel: {
-      fontSize: 8.5,
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS
+          .textSecondary,
     },
 
     value: {
-      marginTop: 1,
-      fontSize: 23,
-      lineHeight: 27,
-      color: "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        ACTIVITY_COLORS
+          .textPrimary,
     },
 
+    /* ========================================================
+       TREND
+    ======================================================== */
+
     trendBadge: {
-      minHeight: 26,
-      marginLeft: 8,
-      paddingHorizontal: 7,
-      borderRadius: 8,
-      borderWidth: 1,
+      minHeight: 28,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexShrink: 0,
+
       flexDirection: "row",
+
       alignItems: "center",
+
       justifyContent:
         "center",
-      gap: 3,
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     trendText: {
-      fontSize: 7,
       letterSpacing: 0.3,
     },
 
+    /* ========================================================
+       CHART
+    ======================================================== */
+
     chartContainer: {
       height: 105,
-      marginTop: 11,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       position: "relative",
+
       overflow: "hidden",
-      borderRadius: 11,
-      backgroundColor:
-        "#070B11",
+
       borderWidth: 1,
+
       borderColor:
-        "#111827",
+        ACTIVITY_COLORS
+          .surfaceStrong,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.chart,
     },
 
     grid: {
       ...StyleSheet.absoluteFillObject,
-      paddingVertical: 9,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       justifyContent:
         "space-between",
     },
 
     gridLine: {
       width: "100%",
+
       borderTopWidth: 1,
+
       borderTopColor:
-        "#172033",
+        ACTIVITY_COLORS.grid,
+
       opacity: 0.8,
     },
 
     barsContainer: {
       position: "absolute",
-      left: 5,
-      right: 5,
-      bottom: 7,
+
+      left:
+        FixxamTokens.spacing.xs,
+
+      right:
+        FixxamTokens.spacing.xs,
+
+      bottom:
+        FixxamTokens.spacing.xs,
+
       height: 82,
+
       flexDirection: "row",
-      alignItems: "flex-end",
+
+      alignItems:
+        "flex-end",
+
       justifyContent:
         "space-between",
     },
 
     barColumn: {
       flex: 1,
+
       height: 82,
+
       marginHorizontal: 1,
+
       alignItems: "center",
+
       justifyContent:
         "flex-end",
     },
 
     bar: {
       width: "75%",
+
       minWidth: 2,
-      borderRadius: 2,
+
+      borderRadius:
+        FixxamTokens.radius.xs,
     },
 
     emptyChart: {
       flex: 1,
+
       alignItems: "center",
+
       justifyContent:
         "center",
     },
 
     emptyChartText: {
-      marginTop: 4,
-      fontSize: 8,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        ACTIVITY_COLORS
+          .textMuted,
     },
 
     chartLabels: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       flexDirection: "row",
+
       justifyContent:
         "space-between",
     },
 
     chartLabel: {
-      fontSize: 7,
-      color: "#475569",
+      color:
+        ACTIVITY_COLORS
+          .textMuted,
     },
 
+    /* ========================================================
+       STATS
+    ======================================================== */
+
     statsRow: {
-      marginTop: 9,
-      paddingTop: 9,
-      borderTopWidth: 1,
-      borderTopColor:
-        "#172033",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
-      gap: 7,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        ACTIVITY_COLORS.grid,
     },
 
     stat: {
       flex: 1,
-      minHeight: 43,
-      paddingHorizontal: 7,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor:
-        "#0B1018",
-      borderWidth: 1,
-      borderColor:
-        "#172033",
+
+      minHeight: 46,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        ACTIVITY_COLORS.grid,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        ACTIVITY_COLORS.surface,
     },
 
     statIcon: {
-      width: 27,
-      height: 27,
-      borderRadius: 8,
-      backgroundColor:
-        "#172554",
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
       alignItems: "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        ACTIVITY_COLORS.blueSoft,
     },
 
     statContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 6,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
     },
 
     statValue: {
-      fontSize: 11.5,
-      color: "#F8FAFC",
+      color:
+        ACTIVITY_COLORS
+          .textPrimary,
     },
 
     statLabel: {
-      marginTop: 0,
-      fontSize: 7.5,
-      color: "#64748B",
+      color:
+        ACTIVITY_COLORS
+          .textSecondary,
     },
 
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
     footer: {
-      marginTop: 8,
-      paddingTop: 7,
-      borderTopWidth: 1,
-      borderTopColor:
-        "#172033",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        ACTIVITY_COLORS.grid,
     },
 
     footerDot: {
       width: 6,
+
       height: 6,
-      borderRadius: 3,
-      marginRight: 5,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     footerText: {
       flex: 1,
-      fontSize: 7.5,
-      lineHeight: 11,
-      color: "#475569",
+
+      minWidth: 0,
+
+      lineHeight: 12,
+
+      color:
+        ACTIVITY_COLORS
+          .textMuted,
     },
   });

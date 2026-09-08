@@ -12,7 +12,13 @@ import {
 } from "expo-router";
 
 import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
+
+import {
   auth,
+  db,
 } from "@/firebase/config";
 
 import createProduct from "@/services/products/createProduct";
@@ -22,6 +28,29 @@ import uploadProductImages from "@/services/storage/uploadProductImages";
 import createProductDeal from "@/services/deals/createProductDeal";
 
 import useProductImages from "./useProductImages";
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const WORKER_PUBLIC_PROFILES_COLLECTION =
+  "workerPublicProfiles";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
+   HOOK
+============================================================ */
 
 export default function useAddProduct() {
   /* ==========================================================
@@ -152,6 +181,78 @@ export default function useAddProduct() {
           return;
         }
 
+        const workerId =
+          normalizeString(
+            worker.uid,
+          );
+
+        if (!workerId) {
+          Alert.alert(
+            "Error",
+            "Invalid worker account. Please sign in again.",
+          );
+
+          return;
+        }
+
+        /* ====================================================
+           VERIFY WORKER PROFILE
+           
+           Product publishing must come from an
+           authenticated Worker account.
+        ==================================================== */
+
+        try {
+          const workerProfileRef =
+            doc(
+              db,
+              WORKER_PUBLIC_PROFILES_COLLECTION,
+              workerId,
+            );
+
+          const workerProfileSnap =
+            await getDoc(
+              workerProfileRef,
+            );
+
+          if (
+            !workerProfileSnap.exists()
+          ) {
+            console.error(
+              "FIXXAM_WORKER_PROFILE_NOT_FOUND",
+              {
+                workerId,
+              },
+            );
+
+            Alert.alert(
+              "Worker Verification Required",
+              "Your worker profile could not be verified. Please complete your worker profile and try again.",
+            );
+
+            return;
+          }
+
+          console.log(
+            "FIXXAM_WORKER_PUBLISHER_VERIFIED",
+            {
+              workerId,
+            },
+          );
+        } catch (error) {
+          console.error(
+            "FIXXAM_WORKER_PROFILE_VERIFY_ERROR:",
+            error,
+          );
+
+          Alert.alert(
+            "Verification Error",
+            "We could not verify your worker account. Please try again.",
+          );
+
+          return;
+        }
+
         /* ====================================================
            PRODUCT NAME
         ==================================================== */
@@ -269,7 +370,9 @@ export default function useAddProduct() {
                     "string",
                 )
                 .map(
-                  serviceId =>
+                  (
+                    serviceId,
+                  ) =>
                     serviceId.trim(),
                 )
                 .filter(Boolean),
@@ -290,11 +393,6 @@ export default function useAddProduct() {
 
         /* ====================================================
            DISCOUNT
-           
-           Discount is optional.
-           
-           If discount percentage is supplied,
-           duration must also be supplied.
         ==================================================== */
 
         const normalizedDiscount =
@@ -326,7 +424,7 @@ export default function useAddProduct() {
 
         if (hasDiscount) {
           /* ------------------------------------------------
-             BOTH DISCOUNT FIELDS ARE REQUIRED
+             BOTH FIELDS REQUIRED
           ------------------------------------------------ */
 
           if (
@@ -342,7 +440,7 @@ export default function useAddProduct() {
           }
 
           /* ------------------------------------------------
-             PARSE DISCOUNT
+             PARSE
           ------------------------------------------------ */
 
           discountPercentage =
@@ -398,7 +496,7 @@ export default function useAddProduct() {
           }
 
           /* ------------------------------------------------
-             CALCULATE DISCOUNTED PRICE
+             CALCULATE DISCOUNT
           ------------------------------------------------ */
 
           discountedPrice =
@@ -428,14 +526,14 @@ export default function useAddProduct() {
           }
 
           /* ------------------------------------------------
-             DISCOUNT START
+             START
           ------------------------------------------------ */
 
           discountStartsAt =
             new Date();
 
           /* ------------------------------------------------
-             DISCOUNT EXPIRATION
+             EXPIRATION
           ------------------------------------------------ */
 
           discountExpiresAt =
@@ -474,8 +572,27 @@ export default function useAddProduct() {
             uploadedImages =
               await uploadProductImages(
                 images,
-                worker.uid,
+                workerId,
               );
+          }
+
+          /* ==================================================
+             FINAL WORKER OWNERSHIP CHECK
+          ================================================== */
+
+          const authenticatedWorkerId =
+            normalizeString(
+              auth.currentUser?.uid,
+            );
+
+          if (
+            !authenticatedWorkerId ||
+            authenticatedWorkerId !==
+              workerId
+          ) {
+            throw new Error(
+              "Worker authentication changed. Please try again.",
+            );
           }
 
           /* ==================================================
@@ -484,8 +601,14 @@ export default function useAddProduct() {
 
           const productId =
             await createProduct({
+              /*
+               * CRITICAL:
+               *
+               * workerId ALWAYS comes from
+               * Firebase Auth.
+               */
               workerId:
-                worker.uid,
+                authenticatedWorkerId,
 
               storeId:
                 "",
@@ -522,13 +645,13 @@ export default function useAddProduct() {
             });
 
           /* ==================================================
-             SAFETY CHECK
+             PRODUCT ID VALIDATION
           ================================================== */
 
           const normalizedProductId =
-            String(
-              productId ?? "",
-            ).trim();
+            normalizeString(
+              productId,
+            );
 
           if (
             !normalizedProductId
@@ -539,15 +662,21 @@ export default function useAddProduct() {
           }
 
           console.log(
-            "PRODUCT_CREATED:",
-            normalizedProductId,
+            "FIXXAM_PRODUCT_CREATED",
+            {
+              productId:
+                normalizedProductId,
+
+              workerId:
+                authenticatedWorkerId,
+
+              productName:
+                normalizedProductName,
+            },
           );
 
           /* ==================================================
              CREATE ACTIVE PRODUCT DEAL
-             
-             IMPORTANT:
-             Product must exist before the deal is created.
           ================================================== */
 
           if (
@@ -566,7 +695,7 @@ export default function useAddProduct() {
                     normalizedProductId,
 
                   workerId:
-                    worker.uid,
+                    authenticatedWorkerId,
 
                   originalPrice:
                     parsedPrice,
@@ -586,13 +715,13 @@ export default function useAddProduct() {
               );
 
               console.log(
-                "PRODUCT_DEAL_CREATED:",
+                "FIXXAM_PRODUCT_DEAL_CREATED",
                 {
                   productId:
                     normalizedProductId,
 
                   workerId:
-                    worker.uid,
+                    authenticatedWorkerId,
 
                   originalPrice:
                     parsedPrice,
@@ -645,13 +774,12 @@ export default function useAddProduct() {
           error: unknown
         ) {
           console.error(
-            "ADD PRODUCT ERROR:",
+            "FIXXAM_ADD_PRODUCT_ERROR:",
             error,
           );
 
           const message =
-            error instanceof
-            Error
+            error instanceof Error
               ? error.message
               : "Unable to add product. Please try again.";
 

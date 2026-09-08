@@ -1,16 +1,17 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Linking,
   Modal,
-  Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
@@ -20,11 +21,22 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
-import { auth } from "@/firebase/config";
+import {
+  auth,
+} from "@/firebase/config";
 
 import WorkerGallery from "@/components/customer/worker/WorkerGallery";
 import WorkerHero from "@/components/customer/worker/WorkerHero";
@@ -48,6 +60,12 @@ import type {
   ServiceCardData,
 } from "@/firebase/mappers/serviceMapper";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 /* ==============================================================
    TYPES
 ============================================================== */
@@ -62,67 +80,61 @@ type GalleryItem =
 
 type WorkerService = {
   id: string;
+
   name: string;
+
   price: number;
+
   icon?: string;
+
   color?: string;
+
   backgroundColor?: string;
 };
 
 type WorkerReview = {
   id: string;
+
   customerName: string;
+
   rating: number;
+
   comment: string;
+
   date: string;
 };
 
 type WorkerServiceDetails = {
   state?: string;
+
   subcategory?: string;
 };
 
 type WorkerProfile = {
   photoUrl?: string;
 
-  /*
-   * PHONE NUMBER
-   *
-   * Supports the number saved by
-   * Build Your Profile.
-   */
   phoneNumber?: string;
 
   category?: string;
+
   subcategory?: string;
 
-  /*
-   * NEW EDITABLE LOCATION
-   */
   location?: string;
 
-  /*
-   * LEGACY LOCATION
-   */
   lga?: string;
+
   state?: string;
 
-  /*
-   * EDITABLE
-   */
-  experience?: string | number;
+  experience?:
+    | string
+    | number;
 
-  /*
-   * EDITABLE
-   */
   hourlyRate?: number;
 
-  /*
-   * EDITABLE
-   */
   aboutMe?: string;
 
   latitude?: number | null;
+
   longitude?: number | null;
 
   selectedServices?: string[];
@@ -135,21 +147,14 @@ type WorkerData = {
 
   uid?: string;
 
-  /*
-   * READ-ONLY / DISPLAY
-   */
   firstName?: string;
+
   otherName?: string;
+
   surname?: string;
 
-  /*
-   * Legacy name
-   */
   name?: string;
 
-  /*
-   * NEW EDITABLE NAME
-   */
   fullName?: string;
 
   rating?: number;
@@ -159,23 +164,21 @@ type WorkerData = {
   completedJobs?: number;
 
   verified?: boolean;
+
   online?: boolean;
+
   available?: boolean;
 
   phoneNumber?: string;
+
   phone?: string;
+
   mobileNumber?: string;
 
   reviews?: unknown[];
 
-  /*
-   * NEW EDITABLE GALLERY
-   */
   workGallery?: unknown[];
 
-  /*
-   * OLD / NESTED PROFILE
-   */
   workerProfile?: WorkerProfile;
 };
 
@@ -186,7 +189,10 @@ type WorkerData = {
 function cleanString(
   value: unknown,
 ): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !==
+    "string"
+  ) {
     return "";
   }
 
@@ -196,7 +202,11 @@ function cleanString(
 function cleanStringArray(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return [];
   }
 
@@ -207,10 +217,17 @@ function cleanStringArray(
           (
             item,
           ): item is string =>
-            typeof item === "string" &&
-            item.trim().length > 0,
+            typeof item ===
+              "string" &&
+            item.trim().length >
+              0,
         )
-        .map((item) => item.trim()),
+        .map(
+          (
+            item,
+          ) =>
+            item.trim(),
+        ),
     ),
   );
 }
@@ -220,16 +237,29 @@ function toNumber(
   fallback = 0,
 ): number {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
 
-  if (typeof value === "string") {
-    const parsed = Number(value);
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const parsed =
+      Number(
+        value,
+      );
 
-    if (Number.isFinite(parsed)) {
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
       return parsed;
     }
   }
@@ -237,19 +267,75 @@ function toNumber(
   return fallback;
 }
 
+function normalizePhoneNumber(
+  value: string,
+): string {
+  let phone =
+    value.trim();
+
+  if (
+    !phone
+  ) {
+    return "";
+  }
+
+  phone =
+    phone.replace(
+      /[^\d+]/g,
+      "",
+    );
+
+  /*
+   * Nigerian local:
+   * 08012345678
+   */
+  if (
+    phone.startsWith(
+      "0",
+    ) &&
+    phone.length === 11
+  ) {
+    return `+234${phone.slice(
+      1,
+    )}`;
+  }
+
+  /*
+   * Nigerian international:
+   * 2348012345678
+   */
+  if (
+    phone.startsWith(
+      "234",
+    ) &&
+    !phone.startsWith(
+      "+234",
+    )
+  ) {
+    return `+${phone}`;
+  }
+
+  return phone;
+}
+
 /* ==============================================================
    NORMALIZE PROFILE
 ============================================================== */
 
 function normalizeWorkerProfile(
-  data: Record<string, unknown>,
+  data:
+    Record<
+      string,
+      unknown
+    >,
 ): WorkerProfile {
   const rawNested =
     data.workerProfile;
 
   const nested =
     rawNested &&
-    typeof rawNested === "object"
+    typeof rawNested ===
+      "object"
       ? (rawNested as Record<
           string,
           unknown
@@ -261,73 +347,81 @@ function normalizeWorkerProfile(
 
   const serviceDetails =
     rawServiceDetails &&
-    typeof rawServiceDetails === "object"
+    typeof rawServiceDetails ===
+      "object"
       ? (rawServiceDetails as Record<
           string,
           unknown
         >)
       : undefined;
 
-  /*
-   * ============================================================
-   * IMPORTANT
-   *
-   * Build Your Profile saves:
-   *
-   * location
-   * experience
-   * rate
-   * aboutMe
-   * photoURL
-   * phoneNumber
-   *
-   * directly on the public document.
-   *
-   * Therefore top-level fields are preferred.
-   * ============================================================
-   */
-
   const photoUrl =
-    cleanString(data.photoURL) ||
-    cleanString(data.photoUrl) ||
-    cleanString(nested.photoURL) ||
-    cleanString(nested.photoUrl);
+    cleanString(
+      data.photoURL,
+    ) ||
+    cleanString(
+      data.photoUrl,
+    ) ||
+    cleanString(
+      nested.photoURL,
+    ) ||
+    cleanString(
+      nested.photoUrl,
+    );
 
-  /*
-   * PHONE NUMBER
-   *
-   * Top-level phoneNumber has priority.
-   * Older structures remain supported.
-   */
   const phoneNumber =
-    cleanString(data.phoneNumber) ||
-    cleanString(nested.phoneNumber) ||
-    cleanString(data.phone) ||
-    cleanString(nested.phone);
+    cleanString(
+      data.phoneNumber,
+    ) ||
+    cleanString(
+      nested.phoneNumber,
+    ) ||
+    cleanString(
+      data.phone,
+    ) ||
+    cleanString(
+      nested.phone,
+    );
 
   const location =
-    cleanString(data.location) ||
-    cleanString(nested.location);
+    cleanString(
+      data.location,
+    ) ||
+    cleanString(
+      nested.location,
+    );
 
   const experience =
-    data.experience !== undefined
+    data.experience !==
+    undefined
       ? data.experience
       : nested.experience;
 
   const rate =
-    data.rate !== undefined
+    data.rate !==
+    undefined
       ? data.rate
-      : data.hourlyRate !== undefined
+      : data.hourlyRate !==
+          undefined
         ? data.hourlyRate
-        : nested.rate !== undefined
+        : nested.rate !==
+            undefined
           ? nested.rate
           : nested.hourlyRate;
 
   const aboutMe =
-    cleanString(data.aboutMe) ||
-    cleanString(data.about) ||
-    cleanString(nested.aboutMe) ||
-    cleanString(nested.about);
+    cleanString(
+      data.aboutMe,
+    ) ||
+    cleanString(
+      data.about,
+    ) ||
+    cleanString(
+      nested.aboutMe,
+    ) ||
+    cleanString(
+      nested.about,
+    );
 
   const rootSelectedServices =
     cleanStringArray(
@@ -340,49 +434,69 @@ function normalizeWorkerProfile(
     );
 
   const selectedServices =
-    rootSelectedServices.length > 0
+    rootSelectedServices.length >
+    0
       ? rootSelectedServices
       : nestedSelectedServices;
 
   return {
     photoUrl,
 
-    /*
-     * PHONE NUMBER
-     */
     phoneNumber,
 
     category:
-      cleanString(data.category) ||
-      cleanString(nested.category),
+      cleanString(
+        data.category,
+      ) ||
+      cleanString(
+        nested.category,
+      ),
 
     subcategory:
-      cleanString(data.subcategory) ||
-      cleanString(nested.subcategory),
+      cleanString(
+        data.subcategory,
+      ) ||
+      cleanString(
+        nested.subcategory,
+      ),
 
     location,
 
     lga:
-      cleanString(data.lga) ||
-      cleanString(nested.lga),
+      cleanString(
+        data.lga,
+      ) ||
+      cleanString(
+        nested.lga,
+      ),
 
     state:
-      cleanString(data.state) ||
-      cleanString(nested.state),
+      cleanString(
+        data.state,
+      ) ||
+      cleanString(
+        nested.state,
+      ),
 
     experience:
-      typeof experience === "string" ||
-      typeof experience === "number"
+      typeof experience ===
+        "string" ||
+      typeof experience ===
+        "number"
         ? experience
         : "",
 
     hourlyRate:
-      toNumber(rate, 0),
+      toNumber(
+        rate,
+        0,
+      ),
 
     aboutMe,
 
     latitude:
-      typeof data.latitude === "number"
+      typeof data.latitude ===
+      "number"
         ? data.latitude
         : typeof nested.latitude ===
             "number"
@@ -390,7 +504,8 @@ function normalizeWorkerProfile(
           : null,
 
     longitude:
-      typeof data.longitude === "number"
+      typeof data.longitude ===
+      "number"
         ? data.longitude
         : typeof nested.longitude ===
             "number"
@@ -421,107 +536,229 @@ function normalizeWorkerProfile(
 ============================================================== */
 
 export default function WorkerProfileScreen() {
-  const {
-    id,
-    serviceId,
-    service,
-    serviceIcon,
-    categoryId,
-    reward,
-    action,
-  } =
+  const params =
     useLocalSearchParams<{
       id?: string;
+
       serviceId?: string;
+
       service?: string;
+
       serviceIcon?: string;
+
       categoryId?: string;
+
       reward?: string;
+
       action?: string;
     }>();
+
+  const workerId =
+    cleanString(
+      params.id,
+    );
+
+  const service =
+    cleanString(
+      params.service,
+    );
+
+  const serviceIcon =
+    cleanString(
+      params.serviceIcon,
+    );
+
+  const categoryId =
+    cleanString(
+      params.categoryId,
+    );
+
+  const reward =
+    cleanString(
+      params.reward,
+    );
+
+  const action =
+    cleanString(
+      params.action,
+    );
+
+  /* ============================================================
+     REQUEST CONTROL
+  ============================================================ */
+
+  const workerRequestIdRef =
+    useRef(0);
+
+  /* ============================================================
+     AUTH
+  ============================================================ */
+
+  const [
+    currentUser,
+    setCurrentUser,
+  ] =
+    useState<
+      User | null
+    >(
+      auth.currentUser,
+    );
+
+  useEffect(() => {
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        (
+          user,
+        ) => {
+          setCurrentUser(
+            user,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, []);
 
   /* ============================================================
      WORKER
   ============================================================ */
 
-  const [worker, setWorker] =
-    useState<WorkerData | null>(null);
+  const [
+    worker,
+    setWorker,
+  ] =
+    useState<
+      WorkerData | null
+    >(null);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     useState(true);
+
+  const [
+    workerLoadError,
+    setWorkerLoadError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   /* ============================================================
      SERVICES
   ============================================================ */
 
-  const [services, setServices] =
-    useState<WorkerService[]>([]);
+  const [
+    services,
+    setServices,
+  ] =
+    useState<
+      WorkerService[]
+    >([]);
 
-  const [servicesLoading, setServicesLoading] =
+  const [
+    servicesLoading,
+    setServicesLoading,
+  ] =
     useState(false);
 
-  const [selectedServices, setSelectedServices] =
-    useState<string[]>([]);
+  const [
+    servicesLoadError,
+    setServicesLoadError,
+  ] =
+    useState(false);
 
-  const [showServiceModal, setShowServiceModal] =
+  const [
+    selectedServices,
+    setSelectedServices,
+  ] =
+    useState<
+      string[]
+    >([]);
+
+  const [
+    showServiceModal,
+    setShowServiceModal,
+  ] =
     useState(false);
 
   /* ============================================================
      CALL
   ============================================================ */
 
-  const [workerPhone, setWorkerPhone] =
-    useState("");
-
-  const [showCallModal, setShowCallModal] =
+  const [
+    showCallModal,
+    setShowCallModal,
+  ] =
     useState(false);
 
   const [
     showLoginRequiredModal,
     setShowLoginRequiredModal,
-  ] = useState(false);
-
-  /* ============================================================
-     WORKER ID
-  ============================================================ */
-
-  const workerId =
-    Array.isArray(id)
-      ? id[0]
-      : id;
+  ] =
+    useState(false);
 
   /* ============================================================
      LOAD WORKER
   ============================================================ */
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadWorker() {
+  const loadWorker =
+    useCallback(async () => {
       const cleanWorkerId =
-        cleanString(workerId);
+        cleanString(
+          workerId,
+        );
 
-      if (!cleanWorkerId) {
-        if (mounted) {
-          setWorker(null);
-          setLoading(false);
-        }
+      const requestId =
+        ++workerRequestIdRef.current;
+
+      if (
+        !cleanWorkerId
+      ) {
+        setWorker(
+          null,
+        );
+
+        setWorkerLoadError(
+          null,
+        );
+
+        setLoading(
+          false,
+        );
 
         return;
       }
 
       try {
-        setLoading(true);
+        setLoading(
+          true,
+        );
+
+        setWorkerLoadError(
+          null,
+        );
 
         const snapshot =
           await getPublicWorker(
             cleanWorkerId,
           );
 
-        if (!snapshot.exists()) {
-          if (mounted) {
-            setWorker(null);
-          }
+        if (
+          requestId !==
+          workerRequestIdRef.current
+        ) {
+          return;
+        }
+
+        if (
+          !snapshot.exists()
+        ) {
+          setWorker(
+            null,
+          );
 
           return;
         }
@@ -533,14 +770,9 @@ export default function WorkerProfileScreen() {
           >;
 
         const normalizedProfile =
-          normalizeWorkerProfile(data);
-
-        /* ======================================================
-           NAME
-        ====================================================== */
-
-        const fullName =
-          cleanString(data.fullName);
+          normalizeWorkerProfile(
+            data,
+          );
 
         /* ======================================================
            GALLERY
@@ -571,20 +803,22 @@ export default function WorkerProfileScreen() {
             : [];
 
         const workGallery =
-          topLevelGallery.length > 0
+          topLevelGallery.length >
+          0
             ? topLevelGallery
             : nestedGallery;
 
-        if (!mounted) {
-          return;
-        }
-
         setWorker({
-          id: snapshot.id,
+          id:
+            snapshot.id,
 
           uid:
-            cleanString(data.uid) ||
-            cleanString(data.userId) ||
+            cleanString(
+              data.uid,
+            ) ||
+            cleanString(
+              data.userId,
+            ) ||
             snapshot.id,
 
           firstName:
@@ -602,55 +836,80 @@ export default function WorkerProfileScreen() {
               data.surname,
             ),
 
-          fullName,
+          fullName:
+            cleanString(
+              data.fullName,
+            ),
 
           name:
-            cleanString(data.name),
+            cleanString(
+              data.name,
+            ),
 
           rating:
-            toNumber(data.rating, 0),
+            Math.min(
+              5,
+              Math.max(
+                0,
+                toNumber(
+                  data.rating,
+                  0,
+                ),
+              ),
+            ),
 
           totalReviews:
-            toNumber(
-              data.totalReviews,
+            Math.max(
               0,
+              toNumber(
+                data.totalReviews,
+                0,
+              ),
             ),
 
           completedJobs:
-            toNumber(
-              data.completedJobs,
+            Math.max(
               0,
+              toNumber(
+                data.completedJobs,
+                0,
+              ),
             ),
 
           verified:
-            data.verified === true,
+            data.verified ===
+            true,
 
           online:
-            data.online === true,
+            data.online ===
+            true,
 
           available:
-            data.available !== false,
+            data.available !==
+            false,
 
-          /*
-           * Keep root phone fields for compatibility.
-           */
           phoneNumber:
             cleanString(
               data.phoneNumber,
-            ) || undefined,
+            ) ||
+            undefined,
 
           phone:
             cleanString(
               data.phone,
-            ) || undefined,
+            ) ||
+            undefined,
 
           mobileNumber:
             cleanString(
               data.mobileNumber,
-            ) || undefined,
+            ) ||
+            undefined,
 
           reviews:
-            Array.isArray(data.reviews)
+            Array.isArray(
+              data.reviews,
+            )
               ? data.reviews
               : [],
 
@@ -659,28 +918,56 @@ export default function WorkerProfileScreen() {
           workerProfile:
             normalizedProfile,
         });
-      } catch (error) {
+      } catch (
+        error
+      ) {
+        if (
+          requestId !==
+          workerRequestIdRef.current
+        ) {
+          return;
+        }
+
         console.error(
           "LOAD_PUBLIC_WORKER_PROFILE_ERROR:",
           error,
         );
 
-        if (mounted) {
-          setWorker(null);
-        }
+        setWorker(
+          null,
+        );
+
+        setWorkerLoadError(
+          "We couldn't load this worker profile. Please try again.",
+        );
       } finally {
-        if (mounted) {
-          setLoading(false);
+        if (
+          requestId ===
+          workerRequestIdRef.current
+        ) {
+          setLoading(
+            false,
+          );
         }
       }
-    }
+    }, [
+      workerId,
+    ]);
 
+  /* ============================================================
+     INITIAL WORKER LOAD
+  ============================================================ */
+
+  useEffect(() => {
     void loadWorker();
 
     return () => {
-      mounted = false;
+      workerRequestIdRef.current +=
+        1;
     };
-  }, [workerId]);
+  }, [
+    loadWorker,
+  ]);
 
   /* ============================================================
      PROFILE
@@ -690,50 +977,58 @@ export default function WorkerProfileScreen() {
     worker?.workerProfile;
 
   /* ============================================================
-     WORKER NAME
+     NAME
   ============================================================ */
 
-  const workerName = useMemo(() => {
-    if (
-      cleanString(
-        worker?.fullName,
-      )
-    ) {
-      return cleanString(
-        worker?.fullName,
-      );
-    }
+  const workerName =
+    useMemo(() => {
+      const fullName =
+        cleanString(
+          worker?.fullName,
+        );
 
-    const individualName = [
+      if (
+        fullName
+      ) {
+        return fullName;
+      }
+
+      const individualName =
+        [
+          worker?.firstName,
+          worker?.otherName,
+          worker?.surname,
+        ]
+          .map(
+            cleanString,
+          )
+          .filter(
+            Boolean,
+          )
+          .join(
+            " ",
+          )
+          .trim();
+
+      if (
+        individualName
+      ) {
+        return individualName;
+      }
+
+      return (
+        cleanString(
+          worker?.name,
+        ) ||
+        "Worker"
+      );
+    }, [
       worker?.firstName,
+      worker?.fullName,
+      worker?.name,
       worker?.otherName,
       worker?.surname,
-    ]
-      .map(cleanString)
-      .filter(Boolean)
-      .join(" ")
-      .trim();
-
-    if (individualName) {
-      return individualName;
-    }
-
-    if (
-      cleanString(worker?.name)
-    ) {
-      return cleanString(
-        worker?.name,
-      );
-    }
-
-    return "Worker";
-  }, [
-    worker?.fullName,
-    worker?.firstName,
-    worker?.otherName,
-    worker?.surname,
-    worker?.name,
-  ]);
+    ]);
 
   /* ============================================================
      PHOTO
@@ -748,129 +1043,252 @@ export default function WorkerProfileScreen() {
      LOCATION
   ============================================================ */
 
-  const workerLocation = useMemo(() => {
-    const directLocation =
-      cleanString(
-        workerProfile?.location,
+  const workerLocation =
+    useMemo(() => {
+      const directLocation =
+        cleanString(
+          workerProfile
+            ?.location,
+        );
+
+      if (
+        directLocation
+      ) {
+        return directLocation;
+      }
+
+      return [
+        cleanString(
+          workerProfile?.lga,
+        ),
+        cleanString(
+          workerProfile?.state,
+        ),
+      ]
+        .filter(
+          Boolean,
+        )
+        .join(
+          ", ",
+        );
+    }, [
+      workerProfile?.lga,
+      workerProfile?.location,
+      workerProfile?.state,
+    ]);
+
+  /* ============================================================
+     PHONE
+  ============================================================ */
+
+  const workerPhone =
+    useMemo(() => {
+      if (
+        !worker
+      ) {
+        return "";
+      }
+
+      return (
+        cleanString(
+          workerProfile
+            ?.phoneNumber,
+        ) ||
+        cleanString(
+          worker.phoneNumber,
+        ) ||
+        cleanString(
+          worker.phone,
+        ) ||
+        cleanString(
+          worker.mobileNumber,
+        )
       );
-
-    if (directLocation) {
-      return directLocation;
-    }
-
-    return [
-      cleanString(
-        workerProfile?.lga,
-      ),
-      cleanString(
-        workerProfile?.state,
-      ),
-    ]
-      .filter(Boolean)
-      .join(", ");
-  }, [
-    workerProfile?.location,
-    workerProfile?.lga,
-    workerProfile?.state,
-  ]);
+    }, [
+      worker,
+      workerProfile
+        ?.phoneNumber,
+    ]);
 
   /* ============================================================
      LOAD SERVICES
   ============================================================ */
 
   useEffect(() => {
-    let mounted = true;
+    let active =
+      true;
 
     async function loadServices() {
-      const serviceIds =
-        workerProfile?.selectedServices ??
-        [];
-
       const cleanIds =
-        Array.from(
-          new Set(
-            serviceIds
-              .filter(
-                (
-                  value,
-                ): value is string =>
-                  typeof value === "string" &&
-                  value.trim().length > 0,
-              )
-              .map(
-                (value) =>
-                  value.trim(),
-              ),
-          ),
+        cleanStringArray(
+          workerProfile
+            ?.selectedServices,
         );
 
       if (
-        cleanIds.length === 0
+        cleanIds.length ===
+        0
       ) {
-        if (mounted) {
-          setServices([]);
-          setServicesLoading(false);
+        if (
+          active
+        ) {
+          setServices(
+            [],
+          );
+
+          setSelectedServices(
+            [],
+          );
+
+          setServicesLoadError(
+            false,
+          );
+
+          setServicesLoading(
+            false,
+          );
         }
 
         return;
       }
 
       try {
-        setServicesLoading(true);
+        setServicesLoading(
+          true,
+        );
+
+        setServicesLoadError(
+          false,
+        );
 
         const result =
           await getServicesByIds(
             cleanIds,
           );
 
-        if (!mounted) {
+        if (
+          !active
+        ) {
           return;
         }
 
         const mapped =
-          result.map(
-            (
-              serviceItem: ServiceCardData,
-            ): WorkerService => ({
-              id: serviceItem.id,
+          result
+            .map(
+              (
+                serviceItem:
+                  ServiceCardData,
+              ): WorkerService => ({
+                id:
+                  cleanString(
+                    serviceItem.id,
+                  ),
 
-              name:
-                serviceItem.name ||
-                "Unnamed Service",
+                name:
+                  cleanString(
+                    serviceItem.name,
+                  ) ||
+                  "Unnamed Service",
 
-              price:
-                typeof serviceItem.price ===
-                "number"
-                  ? serviceItem.price
-                  : 0,
+                price:
+                  typeof serviceItem.price ===
+                    "number" &&
+                  Number.isFinite(
+                    serviceItem.price,
+                  )
+                    ? Math.max(
+                        0,
+                        serviceItem.price,
+                      )
+                    : 0,
 
-              icon:
-                serviceItem.icon ||
-                "construct-outline",
+                /*
+                 * Keep the exact
+                 * service icon.
+                 */
+                icon:
+                  cleanString(
+                    serviceItem.icon,
+                  ) ||
+                  "construct-outline",
 
-              color:
-                serviceItem.color ||
-                "#2563EB",
+                color:
+                  cleanString(
+                    serviceItem.color,
+                  ) ||
+                  CustomerColors.primary,
 
-              backgroundColor:
-                serviceItem.backgroundColor ||
-                "#EFF6FF",
-            }),
-          );
+                backgroundColor:
+                  cleanString(
+                    serviceItem.backgroundColor,
+                  ) ||
+                  CustomerColors.primarySoft,
+              }),
+            )
+            .filter(
+              (
+                item,
+              ) =>
+                Boolean(
+                  item.id,
+                ),
+            );
 
-        setServices(mapped);
-      } catch (error) {
+        setServices(
+          mapped,
+        );
+
+        /*
+         * Remove selections that no
+         * longer exist.
+         */
+        setSelectedServices(
+          (
+            previous,
+          ) =>
+            previous.filter(
+              (
+                selectedId,
+              ) =>
+                mapped.some(
+                  (
+                    item,
+                  ) =>
+                    item.id ===
+                    selectedId,
+                ),
+            ),
+        );
+      } catch (
+        error
+      ) {
         console.error(
           "LOAD_WORKER_SERVICES_ERROR:",
           error,
         );
 
-        if (mounted) {
-          setServices([]);
+        if (
+          active
+        ) {
+          setServices(
+            [],
+          );
+
+          setSelectedServices(
+            [],
+          );
+
+          setServicesLoadError(
+            true,
+          );
         }
       } finally {
-        if (mounted) {
-          setServicesLoading(false);
+        if (
+          active
+        ) {
+          setServicesLoading(
+            false,
+          );
         }
       }
     }
@@ -878,111 +1296,64 @@ export default function WorkerProfileScreen() {
     void loadServices();
 
     return () => {
-      mounted = false;
+      active =
+        false;
     };
   }, [
-    workerProfile?.selectedServices,
+    workerProfile
+      ?.selectedServices,
   ]);
 
   /* ============================================================
-     NORMALIZE GALLERY
+     GALLERY
   ============================================================ */
 
   const workGallery =
-    useMemo<GalleryItem[]>(() => {
+    useMemo<
+      GalleryItem[]
+    >(() => {
       const source =
-        worker?.workGallery ?? [];
+        worker?.workGallery ??
+        [];
 
-      if (!Array.isArray(source)) {
+      if (
+        !Array.isArray(
+          source,
+        )
+      ) {
         return [];
       }
 
-      const result: GalleryItem[] = [];
-
-      source.forEach((item) => {
-        if (
-          typeof item === "string"
-        ) {
-          const value =
-            item.trim();
-
-          if (value) {
-            result.push(value);
-          }
-
-          return;
-        }
-
-        if (
-          !item ||
-          typeof item !== "object"
-        ) {
-          return;
-        }
-
-        const value =
-          item as Record<
-            string,
-            unknown
-          >;
-
-        const url =
-          typeof value.url === "string"
-            ? value.url.trim()
-            : undefined;
-
-        const imageUrl =
-          typeof value.imageUrl ===
-          "string"
-            ? value.imageUrl.trim()
-            : undefined;
-
-        const uri =
-          typeof value.uri === "string"
-            ? value.uri.trim()
-            : undefined;
-
-        if (
-          url ||
-          imageUrl ||
-          uri
-        ) {
-          result.push({
-            url,
-            imageUrl,
-            uri,
-          });
-        }
-      });
-
-      return result;
-    }, [
-      worker?.workGallery,
-    ]);
-
-  /* ============================================================
-     NORMALIZE REVIEWS
-  ============================================================ */
-
-  const reviews =
-    useMemo<WorkerReview[]>(() => {
-      const source =
-        worker?.reviews;
-
-      if (!Array.isArray(source)) {
-        return [];
-      }
-
-      const result: WorkerReview[] = [];
+      const result:
+        GalleryItem[] =
+        [];
 
       source.forEach(
         (
           item,
-          index,
         ) => {
           if (
+            typeof item ===
+            "string"
+          ) {
+            const value =
+              item.trim();
+
+            if (
+              value
+            ) {
+              result.push(
+                value,
+              );
+            }
+
+            return;
+          }
+
+          if (
             !item ||
-            typeof item !== "object"
+            typeof item !==
+              "object"
           ) {
             return;
           }
@@ -993,43 +1364,126 @@ export default function WorkerProfileScreen() {
               unknown
             >;
 
-          const reviewId =
-            cleanString(value.id) ||
-            `review-${index}`;
-
-          const customerName =
+          const url =
             cleanString(
-              value.customerName,
-            ) ||
-            "Customer";
-
-          const comment =
-            cleanString(
-              value.comment,
+              value.url,
             );
 
-          const date =
+          const imageUrl =
             cleanString(
-              value.date,
+              value.imageUrl,
             );
 
-          const rating = Math.min(
-            5,
-            Math.max(
-              0,
-              toNumber(
-                value.rating,
-                0,
-              ),
-            ),
-          );
+          const uri =
+            cleanString(
+              value.uri,
+            );
+
+          if (
+            url ||
+            imageUrl ||
+            uri
+          ) {
+            result.push({
+              ...(url
+                ? { url }
+                : {}),
+
+              ...(imageUrl
+                ? {
+                    imageUrl,
+                  }
+                : {}),
+
+              ...(uri
+                ? { uri }
+                : {}),
+            });
+          }
+        },
+      );
+
+      return result;
+    }, [
+      worker?.workGallery,
+    ]);
+
+  /* ============================================================
+     REVIEWS
+  ============================================================ */
+
+  const reviews =
+    useMemo<
+      WorkerReview[]
+    >(() => {
+      const source =
+        worker?.reviews;
+
+      if (
+        !Array.isArray(
+          source,
+        )
+      ) {
+        return [];
+      }
+
+      const result:
+        WorkerReview[] =
+        [];
+
+      source.forEach(
+        (
+          item,
+          index,
+        ) => {
+          if (
+            !item ||
+            typeof item !==
+              "object"
+          ) {
+            return;
+          }
+
+          const value =
+            item as Record<
+              string,
+              unknown
+            >;
 
           result.push({
-            id: reviewId,
-            customerName,
-            rating,
-            comment,
-            date,
+            id:
+              cleanString(
+                value.id,
+              ) ||
+              `review-${index}`,
+
+            customerName:
+              cleanString(
+                value.customerName,
+              ) ||
+              "Customer",
+
+            rating:
+              Math.min(
+                5,
+                Math.max(
+                  0,
+                  toNumber(
+                    value.rating,
+                    0,
+                  ),
+                ),
+              ),
+
+            comment:
+              cleanString(
+                value.comment,
+              ),
+
+            date:
+              cleanString(
+                value.date,
+              ),
           });
         },
       );
@@ -1040,59 +1494,33 @@ export default function WorkerProfileScreen() {
     ]);
 
   /* ============================================================
-     PHONE
-  ============================================================ */
-
-  useEffect(() => {
-    if (!worker) {
-      setWorkerPhone("");
-      return;
-    }
-
-    /*
-     * IMPORTANT:
-     *
-     * workerProfile.phoneNumber is now
-     * checked first because Build Your
-     * Profile data is normalized there.
-     *
-     * Root fields remain as fallbacks.
-     */
-    const phone =
-      workerProfile?.phoneNumber ??
-      worker.phoneNumber ??
-      worker.phone ??
-      worker.mobileNumber ??
-      "";
-
-    setWorkerPhone(
-      String(phone).trim(),
-    );
-  }, [
-    worker,
-    workerProfile?.phoneNumber,
-  ]);
-
-  /* ============================================================
      CONTINUE CALL AFTER LOGIN
   ============================================================ */
 
   useEffect(() => {
     if (
-      action !== "call" ||
+      action !==
+        "call" ||
       !worker ||
-      !auth.currentUser
+      !currentUser
     ) {
       return;
     }
 
-    setShowCallModal(true);
+    setShowCallModal(
+      true,
+    );
 
+    /*
+     * Route behavior preserved.
+     */
     router.setParams({
-      action: undefined,
+      action:
+        undefined,
     });
   }, [
     action,
+    currentUser,
     worker,
   ]);
 
@@ -1100,333 +1528,515 @@ export default function WorkerProfileScreen() {
      BOOK
   ============================================================ */
 
-  function handleBook() {
-    if (servicesLoading) {
-      return;
-    }
+  const handleBook =
+    useCallback(() => {
+      if (
+        servicesLoading
+      ) {
+        return;
+      }
 
-    if (services.length === 0) {
-      return;
-    }
+      if (
+        services.length ===
+        0
+      ) {
+        Alert.alert(
+          "Services unavailable",
+          servicesLoadError
+            ? "We couldn't load this worker's services. Please try again later."
+            : "This worker has not added any bookable services yet.",
+        );
 
-    setShowServiceModal(true);
-  }
+        return;
+      }
+
+      setShowServiceModal(
+        true,
+      );
+    }, [
+      services.length,
+      servicesLoadError,
+      servicesLoading,
+    ]);
 
   /* ============================================================
      CLOSE SERVICE MODAL
   ============================================================ */
 
-  function handleCloseServiceModal() {
-    setShowServiceModal(false);
-  }
+  const handleCloseServiceModal =
+    useCallback(() => {
+      setShowServiceModal(
+        false,
+      );
+    }, []);
 
   /* ============================================================
      TOGGLE SERVICE
   ============================================================ */
 
-  function handleToggleService(
-    selectedServiceId: string,
-  ) {
-    const cleanId =
-      selectedServiceId.trim();
-
-    if (!cleanId) {
-      return;
-    }
-
-    setSelectedServices(
-      (previous) => {
-        if (
-          previous.includes(
-            cleanId,
-          )
-        ) {
-          return previous.filter(
-            (item) =>
-              item !== cleanId,
+  const handleToggleService =
+    useCallback(
+      (
+        selectedServiceId:
+          string,
+      ) => {
+        const cleanId =
+          cleanString(
+            selectedServiceId,
           );
-        }
 
         if (
-          previous.length >= 4
+          !cleanId
         ) {
-          return previous;
+          return;
         }
 
-        return [
-          ...previous,
-          cleanId,
-        ];
+        setSelectedServices(
+          (
+            previous,
+          ) => {
+            if (
+              previous.includes(
+                cleanId,
+              )
+            ) {
+              return previous.filter(
+                (
+                  item,
+                ) =>
+                  item !==
+                  cleanId,
+              );
+            }
+
+            if (
+              previous.length >=
+              4
+            ) {
+              return previous;
+            }
+
+            return [
+              ...previous,
+              cleanId,
+            ];
+          },
+        );
       },
+      [],
     );
-  }
 
   /* ============================================================
      CONTINUE BOOKING
   ============================================================ */
 
-  function handleContinueToBooking() {
-    if (!worker) {
-      return;
-    }
+  const handleContinueToBooking =
+    useCallback(() => {
+      if (
+        !worker ||
+        selectedServices.length ===
+          0
+      ) {
+        return;
+      }
 
-    if (
-      selectedServices.length === 0
-    ) {
-      return;
-    }
+      /*
+       * Existing booking behavior
+       * is preserved:
+       *
+       * first selected service is
+       * forwarded to BookingScreen.
+       */
+      const selectedServiceId =
+        selectedServices[0];
 
-    const selectedServiceId =
-      selectedServices[0];
+      const selectedService =
+        services.find(
+          (
+            item,
+          ) =>
+            item.id ===
+            selectedServiceId,
+        );
 
-    const selectedService =
-      services.find(
-        (item) =>
-          item.id ===
-          selectedServiceId,
+      if (
+        !selectedService
+      ) {
+        return;
+      }
+
+      const resolvedServiceName =
+        cleanString(
+          selectedService.name,
+        ) ||
+        service;
+
+      const resolvedServiceIcon =
+        cleanString(
+          selectedService.icon,
+        ) ||
+        serviceIcon ||
+        "construct-outline";
+
+      if (
+        !selectedServiceId ||
+        !resolvedServiceName
+      ) {
+        return;
+      }
+
+      setShowServiceModal(
+        false,
       );
 
-    if (!selectedService) {
-      return;
-    }
+      /*
+       * ROUTE PRESERVED.
+       */
+      router.push({
+        pathname:
+          "/(customer)/booking",
 
-    const resolvedServiceName =
-      cleanString(
-        selectedService.name,
-      ) ||
-      cleanString(service);
+        params: {
+          workerId:
+            worker.id,
 
-    const resolvedServiceIcon =
-      cleanString(
-        selectedService.icon,
-      ) ||
-      cleanString(serviceIcon) ||
-      "construct-outline";
+          workerName,
 
-    if (
-      !selectedServiceId ||
-      !resolvedServiceName
-    ) {
-      return;
-    }
+          workerPhoto,
 
-    setShowServiceModal(false);
+          workerCategory:
+            cleanString(
+              workerProfile
+                ?.category,
+            ) ||
+            "Service Provider",
 
-    router.push({
-      pathname:
-        "/(customer)/booking",
+          workerRating:
+            String(
+              worker.rating ??
+                0,
+            ),
 
-      params: {
-        workerId:
-          worker.id,
+          workerReviews:
+            String(
+              worker.totalReviews ??
+                0,
+            ),
 
-        workerName,
+          workerOnline:
+            String(
+              worker.online ??
+                false,
+            ),
 
-        workerPhoto,
+          workerLocation,
 
-        workerCategory:
-          cleanString(
-            workerProfile?.category,
-          ) ||
-          "Service Provider",
+          workerHourlyRate:
+            String(
+              workerProfile
+                ?.hourlyRate ??
+                0,
+            ),
 
-        workerRating:
-          String(
-            worker.rating ?? 0,
-          ),
+          workerVerified:
+            String(
+              worker.verified ??
+                false,
+            ),
 
-        workerReviews:
-          String(
-            worker.totalReviews ?? 0,
-          ),
+          serviceId:
+            selectedServiceId,
 
-        workerOnline:
-          String(
-            worker.online ?? false,
-          ),
+          serviceName:
+            resolvedServiceName,
 
-        workerLocation,
+          serviceIcon:
+            resolvedServiceIcon,
 
-        workerHourlyRate:
-          String(
-            workerProfile
-              ?.hourlyRate ?? 0,
-          ),
+          ...(categoryId
+            ? {
+                categoryId,
+              }
+            : {}),
 
-        workerVerified:
-          String(
-            worker.verified ?? false,
-          ),
-
-        serviceId:
-          selectedServiceId,
-
-        serviceName:
-          resolvedServiceName,
-
-        serviceIcon:
-          resolvedServiceIcon,
-
-        ...(categoryId
-          ? { categoryId }
-          : {}),
-
-        ...(reward
-          ? { reward }
-          : {}),
-      },
-    });
-  }
-
-  /* ============================================================
-     NORMALIZE PHONE
-  ============================================================ */
-
-  function normalizePhoneNumber(
-    value: string,
-  ): string {
-    let phone =
-      value.trim();
-
-    if (!phone) {
-      return "";
-    }
-
-    phone =
-      phone.replace(
-        /[^\d+]/g,
-        "",
-      );
-
-    /*
-     * Nigerian local format:
-     * 08012345678
-     */
-    if (
-      phone.startsWith("0") &&
-      phone.length === 11
-    ) {
-      phone =
-        `+234${phone.slice(1)}`;
-    }
-
-    /*
-     * 2348012345678
-     */
-    if (
-      phone.startsWith("234") &&
-      !phone.startsWith("+234")
-    ) {
-      phone =
-        `+${phone}`;
-    }
-
-    return phone;
-  }
+          ...(reward
+            ? {
+                reward,
+              }
+            : {}),
+        },
+      });
+    }, [
+      categoryId,
+      reward,
+      selectedServices,
+      service,
+      serviceIcon,
+      services,
+      worker,
+      workerLocation,
+      workerName,
+      workerPhoto,
+      workerProfile
+        ?.category,
+      workerProfile
+        ?.hourlyRate,
+    ]);
 
   /* ============================================================
      CALL WORKER
   ============================================================ */
 
-  function handleCallWorker() {
-    /*
-     * Customer must login first.
-     */
-    if (!auth.currentUser) {
-      setShowLoginRequiredModal(
+  const handleCallWorker =
+    useCallback(() => {
+      if (
+        !currentUser
+      ) {
+        setShowLoginRequiredModal(
+          true,
+        );
+
+        return;
+      }
+
+      setShowCallModal(
         true,
       );
-
-      return;
-    }
-
-    setShowCallModal(true);
-  }
+    }, [
+      currentUser,
+    ]);
 
   /* ============================================================
      LOGIN
   ============================================================ */
 
-  function handleLoginFromModal() {
-    setShowLoginRequiredModal(
-      false,
-    );
+  const handleLoginFromModal =
+    useCallback(() => {
+      setShowLoginRequiredModal(
+        false,
+      );
 
-    if (!workerId) {
-      return;
-    }
+      if (
+        !workerId
+      ) {
+        return;
+      }
 
-    const returnTo =
-      `/(customer)/details/worker-profile/${workerId}?action=call`;
+      /*
+       * EXACT returnTo preserved.
+       */
+      const returnTo =
+        `/(customer)/details/worker-profile/${workerId}?action=call`;
 
-    router.push({
-      pathname: "/(auth)/login",
+      /*
+       * ROUTE PRESERVED.
+       */
+      router.push({
+        pathname:
+          "/(auth)/login",
 
-      params: {
-        returnTo,
-      },
-    } as any);
-  }
+        params: {
+          returnTo,
+        },
+      } as any);
+    }, [
+      workerId,
+    ]);
 
   /* ============================================================
      CONFIRM CALL
   ============================================================ */
 
-  async function handleConfirmCallWorker() {
-    const phoneNumber =
-      normalizePhoneNumber(
-        workerPhone,
-      );
-
-    if (!phoneNumber) {
-      setShowCallModal(false);
-      return;
-    }
-
-    try {
-      const url =
-        `tel:${phoneNumber}`;
-
-      const supported =
-        await Linking.canOpenURL(
-          url,
+  const handleConfirmCallWorker =
+    useCallback(async () => {
+      const phoneNumber =
+        normalizePhoneNumber(
+          workerPhone,
         );
 
-      if (!supported) {
-        setShowCallModal(false);
+      if (
+        !phoneNumber
+      ) {
+        setShowCallModal(
+          false,
+        );
+
+        Alert.alert(
+          "Phone unavailable",
+          "This worker has not added a public phone number yet.",
+        );
 
         return;
       }
 
-      setShowCallModal(false);
+      try {
+        const url =
+          `tel:${phoneNumber}`;
 
-      await Linking.openURL(
-        url,
-      );
-    } catch (error) {
-      console.error(
-        "CALL_WORKER_ERROR:",
-        error,
-      );
-    }
-  }
+        const supported =
+          await Linking.canOpenURL(
+            url,
+          );
+
+        if (
+          !supported
+        ) {
+          setShowCallModal(
+            false,
+          );
+
+          Alert.alert(
+            "Unable to call",
+            "Your device cannot make phone calls.",
+          );
+
+          return;
+        }
+
+        setShowCallModal(
+          false,
+        );
+
+        await Linking.openURL(
+          url,
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          "CALL_WORKER_ERROR:",
+          error,
+        );
+
+        setShowCallModal(
+          false,
+        );
+
+        Alert.alert(
+          "Unable to call",
+          "We couldn't start the call. Please try again.",
+        );
+      }
+    }, [
+      workerPhone,
+    ]);
 
   /* ============================================================
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
-      <SafeAreaView
-        style={
-          styles.centerScreen
-        }
+      <AppScreen
+        role="customer"
+        padded={false}
       >
-        <ActivityIndicator
-          size="large"
-          color="#2563EB"
-        />
-      </SafeAreaView>
+        <View
+          style={
+            styles.centerScreen
+          }
+        >
+          <ActivityIndicator
+            size="large"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.loadingText
+            }
+          >
+            Loading worker profile...
+          </AppText>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  /* ============================================================
+     LOAD ERROR
+  ============================================================ */
+
+  if (
+    workerLoadError
+  ) {
+    return (
+      <AppScreen
+        role="customer"
+        padded={false}
+      >
+        <View
+          style={
+            styles.centerScreen
+          }
+        >
+          <View
+            style={[
+              styles.stateIcon,
+              styles.errorStateIcon,
+            ]}
+          >
+            <AppIcon
+              name="error"
+              role="customer"
+              size="lg"
+              state="error"
+            />
+          </View>
+
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
+            style={
+              styles.stateTitle
+            }
+          >
+            Unable to load worker
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.stateText
+            }
+          >
+            {workerLoadError}
+          </AppText>
+
+          <AppButton
+            title="Try Again"
+            role="customer"
+            leftIconName="refresh"
+            onPress={
+              loadWorker
+            }
+            style={
+              styles.stateAction
+            }
+          />
+
+          <AppButton
+            title="Go Back"
+            role="customer"
+            variant="ghost"
+            onPress={() =>
+              router.back()
+            }
+            style={
+              styles.secondaryStateAction
+            }
+          />
+        </View>
+      </AppScreen>
     );
   }
 
@@ -1434,72 +2044,68 @@ export default function WorkerProfileScreen() {
      NOT FOUND
   ============================================================ */
 
-  if (!worker) {
+  if (
+    !worker
+  ) {
     return (
-      <SafeAreaView
-        style={
-          styles.centerScreen
-        }
+      <AppScreen
+        role="customer"
+        padded={false}
       >
         <View
           style={
-            styles.notFoundIcon
+            styles.centerScreen
           }
         >
-          <Ionicons
-            name="person-outline"
-            size={34}
-            color="#94A3B8"
-          />
-        </View>
-
-        <AppText
-          weight="bold"
-          style={
-            styles.notFoundTitle
-          }
-        >
-          Worker not found.
-        </AppText>
-
-        <AppText
-          style={
-            styles.notFoundText
-          }
-        >
-          This worker profile is
-          no longer available.
-        </AppText>
-
-        <Pressable
-          onPress={() =>
-            router.back()
-          }
-          style={({ pressed }) => [
-            styles.backButton,
-
-            pressed &&
-              styles.pressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Ionicons
-            name="arrow-back"
-            size={18}
-            color="#FFFFFF"
-          />
-
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.backButtonText
+              styles.stateIcon
             }
           >
-            Go Back
+            <AppIcon
+              name="profile"
+              role="customer"
+              size="lg"
+              state="muted"
+            />
+          </View>
+
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
+            style={
+              styles.stateTitle
+            }
+          >
+            Worker not found
           </AppText>
-        </Pressable>
-      </SafeAreaView>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.stateText
+            }
+          >
+            This worker profile is no
+            longer available.
+          </AppText>
+
+          <AppButton
+            title="Go Back"
+            role="customer"
+            leftIconName="back"
+            onPress={() =>
+              router.back()
+            }
+            style={
+              styles.stateAction
+            }
+          />
+        </View>
+      </AppScreen>
     );
   }
 
@@ -1509,12 +2115,17 @@ export default function WorkerProfileScreen() {
 
   return (
     <>
-      <SafeAreaView
-        style={styles.screen}
+      <AppScreen
+        role="customer"
+        padded={false}
       >
         <FlatList
-          data={[worker]}
-          keyExtractor={(item) =>
+          data={[
+            worker,
+          ]}
+          keyExtractor={(
+            item,
+          ) =>
             item.id
           }
           showsVerticalScrollIndicator={
@@ -1526,7 +2137,7 @@ export default function WorkerProfileScreen() {
           renderItem={() => (
             <>
               {/* ==================================================
-                  1. HERO
+                  HERO
               ================================================== */}
 
               <WorkerHero
@@ -1546,7 +2157,8 @@ export default function WorkerProfileScreen() {
                   workerLocation
                 }
                 rating={
-                  worker.rating ?? 0
+                  worker.rating ??
+                  0
                 }
                 reviews={
                   worker.totalReviews ??
@@ -1563,7 +2175,7 @@ export default function WorkerProfileScreen() {
               />
 
               {/* ==================================================
-                  2. STATS
+                  STATS
               ================================================== */}
 
               <WorkerStats
@@ -1599,7 +2211,7 @@ export default function WorkerProfileScreen() {
               />
 
               {/* ==================================================
-                  3. WORK GALLERY
+                  GALLERY
               ================================================== */}
 
               <WorkerGallery
@@ -1609,7 +2221,7 @@ export default function WorkerProfileScreen() {
               />
 
               {/* ==================================================
-                  4. WORKER STORE
+                  STORE
               ================================================== */}
 
               <WorkerStore
@@ -1619,7 +2231,7 @@ export default function WorkerProfileScreen() {
               />
 
               {/* ==================================================
-                  5. ABOUT ME
+                  ABOUT
               ================================================== */}
 
               <WorkerAbout
@@ -1646,7 +2258,7 @@ export default function WorkerProfileScreen() {
               />
 
               {/* ==================================================
-                  6. REVIEWS
+                  REVIEWS
               ================================================== */}
 
               <WorkerReviews
@@ -1677,7 +2289,7 @@ export default function WorkerProfileScreen() {
             </>
           )}
         />
-      </SafeAreaView>
+      </AppScreen>
 
       {/* ========================================================
           BOOKING BAR
@@ -1723,7 +2335,7 @@ export default function WorkerProfileScreen() {
       />
 
       {/* ========================================================
-          LOGIN REQUIRED MODAL
+          LOGIN REQUIRED
       ======================================================== */}
 
       <Modal
@@ -1732,6 +2344,7 @@ export default function WorkerProfileScreen() {
         }
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() =>
           setShowLoginRequiredModal(
             false,
@@ -1740,38 +2353,43 @@ export default function WorkerProfileScreen() {
       >
         <View
           style={
-            styles.loginModalOverlay
+            styles.modalOverlay
           }
         >
-          <View
+          <AppCard
+            role="customer"
+            variant="elevated"
             style={
-              styles.loginModal
+              styles.modalCard
             }
           >
             <View
               style={
-                styles.loginModalIcon
+                styles.modalIcon
               }
             >
-              <Ionicons
-                name="lock-closed-outline"
-                size={42}
-                color="#2563EB"
+              <AppIcon
+                name="lock"
+                role="customer"
+                size="xl"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="heading2"
               weight="bold"
-              style={
-                styles.loginModalTitle
-              }
+              center
             >
               Login Required
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
-                styles.loginModalText
+                styles.modalDescription
               }
             >
               Please login to your
@@ -1781,64 +2399,36 @@ export default function WorkerProfileScreen() {
 
             <View
               style={
-                styles.loginModalActions
+                styles.modalActions
               }
             >
-              <Pressable
+              <AppButton
+                title="Cancel"
+                role="customer"
+                variant="outline"
                 onPress={() =>
                   setShowLoginRequiredModal(
                     false,
                   )
                 }
-                style={({ pressed }) => [
-                  styles.loginCancelButton,
+                style={
+                  styles.modalAction
+                }
+              />
 
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel login"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.loginCancelText
-                  }
-                >
-                  Cancel
-                </AppText>
-              </Pressable>
-
-              <Pressable
+              <AppButton
+                title="Login"
+                role="customer"
+                leftIconName="lock"
                 onPress={
                   handleLoginFromModal
                 }
-                style={({ pressed }) => [
-                  styles.loginButton,
-
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Login to continue"
-              >
-                <Ionicons
-                  name="log-in-outline"
-                  size={21}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.loginButtonText
-                  }
-                >
-                  Login
-                </AppText>
-              </Pressable>
+                style={
+                  styles.modalAction
+                }
+              />
             </View>
-          </View>
+          </AppCard>
         </View>
       </Modal>
 
@@ -1852,6 +2442,7 @@ export default function WorkerProfileScreen() {
         }
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() =>
           setShowCallModal(
             false,
@@ -1860,38 +2451,43 @@ export default function WorkerProfileScreen() {
       >
         <View
           style={
-            styles.callModalOverlay
+            styles.modalOverlay
           }
         >
-          <View
+          <AppCard
+            role="customer"
+            variant="elevated"
             style={
-              styles.callModal
+              styles.modalCard
             }
           >
             <View
               style={
-                styles.callModalIcon
+                styles.modalIcon
               }
             >
-              <Ionicons
-                name="call-outline"
-                size={42}
-                color="#2563EB"
+              <AppIcon
+                name="phone"
+                role="customer"
+                size="xl"
+                state="active"
               />
             </View>
 
             <AppText
+              variant="heading2"
               weight="bold"
-              style={
-                styles.callModalTitle
-              }
+              center
             >
               Call {workerName}?
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
-                styles.callModalDistance
+                styles.modalDescription
               }
             >
               {workerPhone
@@ -1900,8 +2496,11 @@ export default function WorkerProfileScreen() {
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
-                styles.callModalQuestion
+                styles.callQuestion
               }
             >
               {workerPhone
@@ -1911,71 +2510,39 @@ export default function WorkerProfileScreen() {
 
             <View
               style={
-                styles.callModalActions
+                styles.modalActions
               }
             >
-              <Pressable
+              <AppButton
+                title="Cancel"
+                role="customer"
+                variant="outline"
                 onPress={() =>
                   setShowCallModal(
                     false,
                   )
                 }
-                style={({ pressed }) => [
-                  styles.callCancelButton,
-
-                  pressed &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel call"
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.callCancelText
-                  }
-                >
-                  Cancel
-                </AppText>
-              </Pressable>
-
-              <Pressable
-                onPress={
-                  handleConfirmCallWorker
+                style={
+                  styles.modalAction
                 }
+              />
+
+              <AppButton
+                title="Call Worker"
+                role="customer"
+                leftIconName="phone"
                 disabled={
                   !workerPhone
                 }
-                style={({ pressed }) => [
-                  styles.callConfirmButton,
-
-                  !workerPhone &&
-                    styles.callDisabled,
-
-                  pressed &&
-                    workerPhone &&
-                    styles.modalPressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Call ${workerName}`}
-              >
-                <Ionicons
-                  name="call-outline"
-                  size={21}
-                  color="#FFFFFF"
-                />
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.callConfirmText
-                  }
-                >
-                  Call Worker
-                </AppText>
-              </Pressable>
+                onPress={
+                  handleConfirmCallWorker
+                }
+                style={
+                  styles.modalAction
+                }
+              />
             </View>
-          </View>
+          </AppCard>
         </View>
       </Modal>
     </>
@@ -1988,291 +2555,179 @@ export default function WorkerProfileScreen() {
 
 const styles =
   StyleSheet.create({
-    screen: {
-      flex: 1,
+    listContent: {
+      paddingBottom:
+        FixxamTokens.size
+          .tabBarHeight +
+        FixxamTokens.spacing.xxl,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    listContent: {
-      paddingBottom: 24,
-    },
+    /* ========================================================
+       LOADING / STATE
+    ======================================================== */
 
     centerScreen: {
       flex: 1,
-      alignItems: "center",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 24,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    notFoundIcon: {
-      width: 76,
-      height: 76,
-      borderRadius: 24,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems: "center",
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    stateIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-    },
 
-    notFoundTitle: {
-      marginTop: 18,
-      fontSize: 18,
-      color: "#0F172A",
-    },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    notFoundText: {
-      marginTop: 8,
-      textAlign: "center",
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#64748B",
-    },
-
-    backButton: {
-      marginTop: 20,
-      minWidth: 120,
-      height: 44,
-      paddingHorizontal: 18,
-      borderRadius: 13,
       backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 7,
+        Colors.disabledBackground,
     },
 
-    backButtonText: {
-      fontSize: 14,
-      color: "#FFFFFF",
+    errorStateIcon: {
+      backgroundColor:
+        Colors.errorSoft,
     },
 
-    /* ==========================================================
-       LOGIN MODAL
-    ========================================================== */
+    stateTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
 
-    loginModalOverlay: {
+    stateText: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
+    stateAction: {
+      minWidth: 180,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    secondaryStateAction: {
+      minWidth: 180,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       MODAL
+    ======================================================== */
+
+    modalOverlay: {
       flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      alignItems: "center",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 28,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      backgroundColor:
+        Colors.overlayMedium,
     },
 
-    loginModal: {
+    modalCard: {
       width: "100%",
-      maxWidth: 360,
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 24,
-      paddingHorizontal: 20,
-      paddingTop: 22,
-      paddingBottom: 18,
+
+      maxWidth: 380,
+
+      alignItems:
+        "center",
+
+      padding:
+        FixxamTokens.spacing.xl,
     },
 
-    loginModalIcon: {
-      width: 80,
-      height: 80,
-      borderRadius: 24,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+    modalIcon: {
+      width:
+        FixxamTokens.size
+          .avatarXl,
+
+      height:
+        FixxamTokens.size
+          .avatarXl,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      alignSelf: "center",
-      marginBottom: 18,
-    },
 
-    loginModalTitle: {
-      fontSize: 24,
-      lineHeight: 30,
-      color: "#0F172A",
-      textAlign: "center",
-    },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    loginModalText: {
-      marginTop: 10,
-      fontSize: 15,
-      lineHeight: 23,
-      color: "#64748B",
-      textAlign: "center",
-      paddingHorizontal: 10,
-    },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    loginModalActions: {
-      flexDirection: "row",
-      gap: 12,
-      marginTop: 24,
-    },
-
-    loginCancelButton: {
-      flex: 1,
-      height: 54,
-      borderRadius: 16,
       backgroundColor:
-        "#F1F5F9",
-      alignItems: "center",
-      justifyContent:
-        "center",
+        CustomerColors.primarySoft,
     },
 
-    loginCancelText: {
-      fontSize: 15,
-      color: "#475569",
+    modalDescription: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
-    loginButton: {
-      flex: 1,
-      height: 54,
-      borderRadius: 16,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 7,
+    callQuestion: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    loginButtonText: {
-      fontSize: 15,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       CALL MODAL
-    ========================================================== */
-
-    callModalOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15, 23, 42, 0.48)",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 28,
-    },
-
-    callModal: {
+    modalActions: {
       width: "100%",
-      maxWidth: 360,
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 22,
-      paddingHorizontal: 18,
-      paddingTop: 22,
-      paddingBottom: 16,
+
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    callModalIcon: {
-      width: 68,
-      height: 68,
-      borderRadius: 20,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      alignSelf: "center",
-      marginBottom: 16,
-    },
-
-    callModalTitle: {
-      fontSize: 20,
-      lineHeight: 25,
-      color: "#0F172A",
-      textAlign: "center",
-    },
-
-    callModalDistance: {
-      marginTop: 8,
-      fontSize: 13,
-      lineHeight: 19,
-      color: "#64748B",
-      textAlign: "center",
-    },
-
-    callModalQuestion: {
-      marginTop: 10,
-      fontSize: 13,
-      lineHeight: 19,
-      color: "#334155",
-      textAlign: "center",
-    },
-
-    callModalActions: {
-      flexDirection: "row",
-      gap: 10,
-      marginTop: 18,
-    },
-
-    callCancelButton: {
+    modalAction: {
       flex: 1,
-      height: 46,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    callCancelText: {
-      fontSize: 14,
-      color: "#475569",
-    },
-
-    callConfirmButton: {
-      flex: 1,
-      height: 46,
-      borderRadius: 13,
-      backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 6,
-      paddingHorizontal: 8,
-    },
-
-    callDisabled: {
-      backgroundColor:
-        "#CBD5E1",
-    },
-
-    callConfirmText: {
-      fontSize: 14,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       PRESSED
-    ========================================================== */
-
-    modalPressed: {
-      opacity: 0.78,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
-    },
-
-    pressed: {
-      opacity: 0.78,
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
     },
   });

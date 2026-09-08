@@ -11,11 +11,44 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   subtotal: number;
+
   deliveryFee: number;
+
   total: number;
 };
+
+/* ============================================================
+   MONEY FORMATTER
+============================================================ */
+
+function formatMoney(
+  value: number,
+): string {
+  const safeValue =
+    Number.isFinite(value)
+      ? Math.max(0, value)
+      : 0;
+
+  return `₦${safeValue.toLocaleString(
+    "en-NG",
+  )}`;
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function MarketOrderPrice({
   subtotal,
@@ -27,8 +60,20 @@ function MarketOrderPrice({
       style={
         styles.card
       }
+      accessibilityLabel={`Price breakdown. Subtotal ${formatMoney(
+        subtotal,
+      )}. Delivery fee ${formatMoney(
+        deliveryFee,
+      )}. Total amount ${formatMoney(
+        total,
+      )}.`}
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="body"
         weight="bold"
         style={
           styles.title
@@ -37,15 +82,31 @@ function MarketOrderPrice({
         Price Breakdown
       </AppText>
 
+      {/* ======================================================
+          SUBTOTAL
+      ====================================================== */}
+
       <PriceRow
         label="Subtotal"
-        value={subtotal}
+        value={
+          subtotal
+        }
       />
+
+      {/* ======================================================
+          DELIVERY
+      ====================================================== */}
 
       <PriceRow
         label="Delivery Fee"
-        value={deliveryFee}
+        value={
+          deliveryFee
+        }
       />
+
+      {/* ======================================================
+          DIVIDER
+      ====================================================== */}
 
       <View
         style={
@@ -53,12 +114,17 @@ function MarketOrderPrice({
         }
       />
 
+      {/* ======================================================
+          TOTAL
+      ====================================================== */}
+
       <View
         style={
           styles.totalRow
         }
       >
         <AppText
+          variant="body"
           weight="bold"
           style={
             styles.totalLabel
@@ -68,14 +134,15 @@ function MarketOrderPrice({
         </AppText>
 
         <AppText
+          variant="heading3"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.totalAmount
           }
         >
-          ₦
-          {total.toLocaleString(
-            "en-NG",
+          {formatMoney(
+            total,
           )}
         </AppText>
       </View>
@@ -83,117 +150,191 @@ function MarketOrderPrice({
   );
 }
 
-export default memo(
-  MarketOrderPrice,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
+const MemoizedMarketOrderPrice =
+  memo(
+    MarketOrderPrice,
+  );
+
+MemoizedMarketOrderPrice.displayName =
+  "MarketOrderPrice";
+
+export default MemoizedMarketOrderPrice;
+
+/* ============================================================
    PRICE ROW
-============================================================== */
+============================================================ */
 
-const PriceRow = memo(
-  ({
-    label,
-    value,
-  }: {
-    label: string;
-    value: number;
-  }) => {
-    return (
-      <View
-        style={
-          styles.priceRow
-        }
-      >
-        <AppText
+const PriceRow =
+  memo(
+    function PriceRow({
+      label,
+      value,
+    }: {
+      label: string;
+
+      value: number;
+    }) {
+      return (
+        <View
           style={
-            styles.priceLabel
+            styles.priceRow
           }
         >
-          {label}
-        </AppText>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.priceLabel
+            }
+          >
+            {label}
+          </AppText>
 
-        <AppText
-          weight="bold"
-          style={
-            styles.priceValue
-          }
-        >
-          ₦
-          {value.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
-    );
-  },
-);
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.priceValue
+            }
+          >
+            {formatMoney(
+              value,
+            )}
+          </AppText>
+        </View>
+      );
+    },
+  );
 
 PriceRow.displayName =
   "PriceRow";
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       PRICE ROW
+    ======================================================== */
+
     priceRow: {
-      marginTop: 11,
-      flexDirection: "row",
-      alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     priceLabel: {
-      fontSize: 9.5,
-      color: "#64748B",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
     priceValue: {
-      fontSize: 9.5,
-      color: "#334155",
+      flexShrink: 0,
+
+      color:
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
 
     divider: {
       height: 1,
-      marginTop: 12,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
+    /* ========================================================
+       TOTAL
+    ======================================================== */
+
     totalRow: {
-      marginTop: 12,
-      flexDirection: "row",
-      alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     totalLabel: {
-      fontSize: 11,
-      color: "#0F172A",
+      flex: 1,
+
+      color:
+        Colors.textPrimary,
     },
 
     totalAmount: {
-      fontSize: 18,
-      color: "#2563EB",
+      flexShrink: 0,
+
+      color:
+        CustomerColors.primary,
     },
   });

@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
 } from "react";
 
@@ -15,13 +16,15 @@ import {
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import type {
-  ComponentProps,
-} from "react";
-
 import {
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   PopularService,
@@ -32,13 +35,12 @@ import type {
 ============================================================== */
 
 type IconName =
-  ComponentProps<
-    typeof MaterialCommunityIcons
-  >["name"];
+  keyof typeof MaterialCommunityIcons.glyphMap;
 
-interface Props {
-  services: PopularService[];
-}
+type Props = {
+  services:
+    PopularService[];
+};
 
 /* ==============================================================
    CONSTANTS
@@ -47,17 +49,253 @@ interface Props {
 const DEFAULT_ICON: IconName =
   "tools";
 
-const DEFAULT_COLOR =
-  "#2563EB";
+const CARD_WIDTH =
+  205;
 
-const DEFAULT_BACKGROUND =
-  "#EFF6FF";
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function safeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function safeCount(
+  value: unknown,
+): number {
+  const parsed =
+    typeof value ===
+    "number"
+      ? value
+      : Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      parsed,
+    ),
+  );
+}
+
+function resolveServiceIcon(
+  value: unknown,
+): IconName {
+  const icon =
+    safeString(
+      value,
+    );
+
+  if (
+    icon &&
+    icon in
+      MaterialCommunityIcons.glyphMap
+  ) {
+    return icon as IconName;
+  }
+
+  return DEFAULT_ICON;
+}
+
+function getServiceColor(
+  value: unknown,
+): string {
+  return (
+    safeString(
+      value,
+    ) ||
+    CustomerColors.primary
+  );
+}
+
+function getServiceBackground(
+  value: unknown,
+): string {
+  return (
+    safeString(
+      value,
+    ) ||
+    CustomerColors.primarySoft
+  );
+}
+
+/* ==============================================================
+   SERVICE CARD
+============================================================== */
+
+const MostBookedServiceCard =
+  memo(
+    function MostBookedServiceCard({
+      service,
+      onPress,
+    }: {
+      service:
+        PopularService;
+
+      onPress:
+        (
+          service:
+            PopularService,
+        ) => void;
+    }) {
+      const serviceName =
+        safeString(
+          service.name,
+        ) ||
+        "Service";
+
+      const completedCount =
+        safeCount(
+          service.completedCount,
+        );
+
+      const iconName =
+        resolveServiceIcon(
+          service.icon,
+        );
+
+      const iconColor =
+        getServiceColor(
+          service.color,
+        );
+
+      const iconBackground =
+        getServiceBackground(
+          service.backgroundColor,
+        );
+
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${serviceName}`}
+          accessibilityHint="View workers who provide this service"
+          onPress={() =>
+            onPress(
+              service,
+            )
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.card,
+
+            pressed
+              ? styles.cardPressed
+              : null,
+          ]}
+        >
+          <View
+            style={
+              styles.cardTop
+            }
+          >
+            {/* ==================================================
+                SERVICE ICON
+            ================================================== */}
+
+            <View
+              style={[
+                styles.iconBox,
+
+                {
+                  backgroundColor:
+                    iconBackground,
+                },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={
+                  iconName
+                }
+                size={
+                  FixxamTokens.size.iconMd
+                }
+                color={
+                  iconColor
+                }
+              />
+            </View>
+
+            {/* ==================================================
+                OPEN
+            ================================================== */}
+
+            <View
+              style={
+                styles.arrowBox
+              }
+            >
+              <MaterialCommunityIcons
+                name="arrow-top-right"
+                size={
+                  FixxamTokens.size.iconSm
+                }
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+          </View>
+
+          {/* ====================================================
+              NAME
+          ==================================================== */}
+
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            style={
+              styles.name
+            }
+          >
+            {serviceName}
+          </AppText>
+
+          {/* ====================================================
+              BOOKINGS
+          ==================================================== */}
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.bookings
+            }
+          >
+            {completedCount}{" "}
+            {completedCount ===
+            1
+              ? "booking"
+              : "bookings"}
+          </AppText>
+        </Pressable>
+      );
+    },
+  );
+
+MostBookedServiceCard.displayName =
+  "MostBookedServiceCard";
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
-export default function MostBookedServices({
+function MostBookedServices({
   services,
 }: Props) {
   /* ============================================================
@@ -67,155 +305,85 @@ export default function MostBookedServices({
   const handleServicePress =
     useCallback(
       (
-        service: PopularService,
+        service:
+          PopularService,
       ) => {
-        /* ======================================================
-           SERVICE ID
-        ====================================================== */
-
         const serviceId =
-          typeof service.id ===
-            "string"
-            ? service.id.trim()
-            : "";
+          safeString(
+            service.id,
+          );
 
         if (!serviceId) {
           console.error(
-            "MOST_BOOKED_MISSING_SERVICE_ID",
-            service,
+            "FIXXAM_MOST_BOOKED_MISSING_SERVICE_ID",
           );
 
           return;
         }
 
-        /* ======================================================
-           SERVICE NAME
-        ====================================================== */
-
         const serviceName =
-          typeof service.name ===
-            "string"
-            ? service.name.trim()
-            : "";
+          safeString(
+            service.name,
+          );
 
         if (!serviceName) {
           console.error(
-            "MOST_BOOKED_MISSING_SERVICE_NAME",
-            service,
+            "FIXXAM_MOST_BOOKED_MISSING_SERVICE_NAME",
           );
 
           return;
         }
 
-        /* ======================================================
-           SERVICE ICON
-        ====================================================== */
-
         const serviceIcon =
-          typeof service.icon ===
-            "string" &&
-          service.icon.trim()
-            ? service.icon.trim()
-            : DEFAULT_ICON;
-
-        /* ======================================================
-           SERVICE COLOR
-        ====================================================== */
+          resolveServiceIcon(
+            service.icon,
+          );
 
         const serviceColor =
-          typeof service.color ===
-            "string" &&
-          service.color.trim()
-            ? service.color.trim()
-            : DEFAULT_COLOR;
-
-        /* ======================================================
-           SERVICE BACKGROUND
-        ====================================================== */
+          getServiceColor(
+            service.color,
+          );
 
         const serviceBackgroundColor =
-          typeof service.backgroundColor ===
-            "string" &&
-          service.backgroundColor.trim()
-            ? service.backgroundColor.trim()
-            : DEFAULT_BACKGROUND;
-
-        /* ======================================================
-           CATEGORY
-        ====================================================== */
+          getServiceBackground(
+            service.backgroundColor,
+          );
 
         const categoryId =
-          typeof service.categoryId ===
-            "string"
-            ? service.categoryId.trim()
-            : "";
+          safeString(
+            service.categoryId,
+          );
 
-        /* ======================================================
-           DEBUG
-        ====================================================== */
-
-        console.log(
-          "OPEN_MOST_BOOKED_SERVICE",
-          {
-            serviceId,
-            serviceName,
-            serviceIcon,
-            serviceColor,
-            serviceBackgroundColor,
-            categoryId,
-          },
-        );
-
-        /* ======================================================
-           NAVIGATE TO WORKERS
-        ====================================================== */
-
+        /*
+         * Existing customer route and params preserved.
+         */
         router.push({
           pathname:
             "/(customer)/details/workers/[id]",
 
           params: {
-            /*
-             * Dynamic route parameter.
-             *
-             * [id] = Firestore service document ID.
-             */
-            id: serviceId,
+            id:
+              serviceId,
 
-            /*
-             * Explicit service ID.
-             */
             serviceId,
 
-            /*
-             * Current service name.
-             */
             serviceName,
 
             /*
              * Backward compatibility.
              */
-            service: serviceName,
+            service:
+              serviceName,
 
             /*
-             * Exact MaterialCommunityIcons
-             * icon from the service document.
+             * Exact MaterialCommunityIcons service icon.
              */
             serviceIcon,
 
-            /*
-             * Exact icon color.
-             */
             serviceColor,
 
-            /*
-             * Exact icon background.
-             */
             serviceBackgroundColor,
 
-            /*
-             * Optional category.
-             */
             ...(categoryId
               ? {
                   categoryId,
@@ -228,10 +396,59 @@ export default function MostBookedServices({
     );
 
   /* ============================================================
+     RENDER ITEM
+  ============================================================ */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          PopularService;
+      }) => (
+        <MostBookedServiceCard
+          service={
+            item
+          }
+          onPress={
+            handleServicePress
+          }
+        />
+      ),
+      [
+        handleServicePress,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item:
+          PopularService,
+        index: number,
+      ) => {
+        const id =
+          safeString(
+            item.id,
+          );
+
+        return (
+          id ||
+          `popular-service-${index}`
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
      EMPTY
   ============================================================ */
 
-  if (services.length === 0) {
+  if (
+    services.length ===
+    0
+  ) {
     return null;
   }
 
@@ -245,9 +462,9 @@ export default function MostBookedServices({
         styles.container
       }
     >
-      {/* =====================================================
+      {/* ========================================================
           HEADER
-      ===================================================== */}
+      ======================================================== */}
 
       <View
         style={
@@ -260,6 +477,7 @@ export default function MostBookedServices({
           }
         >
           <AppText
+            variant="heading3"
             weight="bold"
             style={
               styles.title
@@ -269,6 +487,8 @@ export default function MostBookedServices({
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.subtitle
             }
@@ -279,190 +499,51 @@ export default function MostBookedServices({
 
         <View
           style={
-            styles.fire
+            styles.popularIcon
           }
         >
-          <AppText
-            style={
-              styles.fireText
+          <MaterialCommunityIcons
+            name="fire"
+            size={
+              FixxamTokens.size.iconMd
             }
-          >
-            🔥
-          </AppText>
+            color={
+              Colors.warning
+            }
+          />
         </View>
       </View>
 
-      {/* =====================================================
+      {/* ========================================================
           SERVICES
-      ===================================================== */}
+      ======================================================== */}
 
       <FlatList
         horizontal
-        data={services}
-        keyExtractor={(
-          item,
-        ) =>
-          item.id
+        data={
+          services
+        }
+        keyExtractor={
+          keyExtractor
+        }
+        renderItem={
+          renderItem
         }
         showsHorizontalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.list
         }
-        renderItem={({
-          item,
-        }) => {
-          /* ==================================================
-             COMPLETED BOOKINGS
-          ================================================== */
-
-          const completedCount =
-            Number(
-              item.completedCount ??
-                0,
-            );
-
-          /* ==================================================
-             ICON
-          ================================================== */
-
-          const iconName =
-            (
-              typeof item.icon ===
-                "string" &&
-              item.icon.trim()
-                ? item.icon.trim()
-                : DEFAULT_ICON
-            ) as IconName;
-
-          /* ==================================================
-             COLOR
-          ================================================== */
-
-          const iconColor =
-            typeof item.color ===
-              "string" &&
-            item.color.trim()
-              ? item.color.trim()
-              : DEFAULT_COLOR;
-
-          /* ==================================================
-             BACKGROUND
-          ================================================== */
-
-          const iconBackground =
-            typeof item.backgroundColor ===
-              "string" &&
-            item.backgroundColor.trim()
-              ? item.backgroundColor.trim()
-              : DEFAULT_BACKGROUND;
-
-          return (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.name}`}
-              onPress={() =>
-                handleServicePress(
-                  item,
-                )
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.card,
-
-                pressed &&
-                  styles.cardPressed,
-              ]}
-            >
-              {/* ============================================
-                  TOP
-              ============================================ */}
-
-              <View
-                style={
-                  styles.cardTop
-                }
-              >
-                {/* --------------------------------------------
-                    SERVICE ICON
-                -------------------------------------------- */}
-
-                <View
-                  style={[
-                    styles.icon,
-                    {
-                      backgroundColor:
-                        iconBackground,
-                    },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name={
-                      iconName
-                    }
-                    size={24}
-                    color={
-                      iconColor
-                    }
-                  />
-                </View>
-
-                {/* --------------------------------------------
-                    ARROW
-                -------------------------------------------- */}
-
-                <View
-                  style={
-                    styles.arrow
-                  }
-                >
-                  <MaterialCommunityIcons
-                    name="arrow-top-right"
-                    size={16}
-                    color="#2563EB"
-                  />
-                </View>
-              </View>
-
-              {/* ============================================
-                  SERVICE NAME
-              ============================================ */}
-
-              <AppText
-                weight="bold"
-                numberOfLines={2}
-                ellipsizeMode="tail"
-                style={
-                  styles.name
-                }
-              >
-                {item.name}
-              </AppText>
-
-              {/* ============================================
-                  COMPLETED BOOKINGS
-              ============================================ */}
-
-              <AppText
-                style={
-                  styles.bookings
-                }
-              >
-                {completedCount}{" "}
-                {completedCount ===
-                1
-                  ? "booking"
-                  : "bookings"}
-              </AppText>
-            </Pressable>
-          );
-        }}
       />
     </View>
   );
 }
+
+export default memo(
+  MostBookedServices,
+);
 
 /* ==============================================================
    STYLES
@@ -471,91 +552,121 @@ export default function MostBookedServices({
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 22,
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
     header: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 11,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     headerText: {
       flex: 1,
+
+      minWidth: 0,
     },
 
     title: {
-      fontSize: 18,
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 11,
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
       color:
-        "#94A3B8",
+        Colors.textMuted,
     },
 
-    fire: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor:
-        "#FFF7ED",
+    popularIcon: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
 
-    fireText: {
-      fontSize: 17,
-    },
+    /* ==========================================================
+       LIST
+    ========================================================== */
 
     list: {
-      paddingRight: 12,
+      paddingRight:
+        FixxamTokens.spacing.md,
     },
 
+    /* ==========================================================
+       CARD
+    ========================================================== */
+
     card: {
-      width: 205,
+      width:
+        CARD_WIDTH,
+
       minHeight: 145,
-      marginRight: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      shadowColor:
-        "#0F172A",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowOpacity:
-        0.06,
+      backgroundColor:
+        Colors.surface,
 
-      shadowRadius:
-        8,
-
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     cardPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
@@ -563,46 +674,72 @@ const styles =
     cardTop: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
     },
 
-    icon: {
-      width: 48,
-      height: 48,
-      borderRadius: 14,
+    /* ==========================================================
+       SERVICE ICON
+    ========================================================== */
+
+    iconBox: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
-    arrow: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
-      backgroundColor:
-        "#EFF6FF",
+    arrowBox: {
+      width: 32,
+
+      height: 32,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
+
+    /* ==========================================================
+       CONTENT
+    ========================================================== */
 
     name: {
-      marginTop: 14,
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       lineHeight: 20,
+
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     bookings: {
-      marginTop: 5,
-      fontSize: 11,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       color:
-        "#64748B",
+        Colors.textSecondary,
     },
   });

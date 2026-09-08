@@ -1,20 +1,20 @@
-import React, {
-  memo,
-} from "react";
+import React, { memo } from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import {
+  AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  AppBadge,
+  AppDivider,
+} from "@/components/common";
 
 import type {
   Order,
@@ -22,19 +22,68 @@ import type {
 
 import {
   formatOrderNumber,
-  resolveServiceIcon,
   STATUS_CONFIG,
 } from "./orders.utils";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
 /* ==============================================================
-   PROPS
+   TYPES
 ============================================================== */
 
 type Props = {
   order: Order;
-
   onPress: () => void;
 };
+
+type StatusBadgeVariant =
+  | "primary"
+  | "neutral"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getStatusVariant(
+  status: Order["status"],
+): StatusBadgeVariant {
+  switch (status) {
+    case "accepted":
+      return "info";
+
+    case "in-progress":
+      return "primary";
+
+    case "completed":
+      return "success";
+
+    case "cancelled":
+      return "error";
+
+    case "expired":
+      return "neutral";
+
+    case "pending":
+    default:
+      return "warning";
+  }
+}
+
+function formatCurrency(
+  amount: number,
+): string {
+  return `₦${amount.toLocaleString(
+    "en-NG",
+  )}`;
+}
 
 /* ==============================================================
    ORDER CARD
@@ -49,8 +98,8 @@ function OrderCard({
       order.status
     ];
 
-  const statusStyle =
-    getStatusStyle(
+  const statusVariant =
+    getStatusVariant(
       order.status,
     );
 
@@ -59,130 +108,81 @@ function OrderCard({
     order.status !==
       "pending";
 
-  const serviceIcon =
-    resolveServiceIcon(
-      order.serviceIcon,
-    );
+  const dateLabel =
+    showSchedule
+      ? order.date
+      : order.status ===
+          "pending"
+        ? "Waiting for response"
+        : order.date;
 
   return (
-    <Pressable
+    <AppCard
+      role="customer"
+      variant="outlined"
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={`Open ${order.serviceName} order`}
-      style={({ pressed }) => [
-        styles.orderCard,
-
-        pressed &&
-          styles.orderCardPressed,
-      ]}
+      style={styles.card}
     >
-      {/* ==================================================
+      {/* ======================================================
           HEADER
-      ================================================== */}
+      ====================================================== */}
 
-      <View
-        style={
-          styles.orderCardHeader
-        }
-      >
-        <View
-          style={[
-            styles.statusBadge,
-            statusStyle.background,
-          ]}
+      <View style={styles.header}>
+        <AppBadge
+          role="customer"
+          variant={statusVariant}
+          label={status.label}
+        />
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          numberOfLines={1}
         >
-          <View
-            style={[
-              styles.statusDot,
-              statusStyle.dot,
-            ]}
-          />
-
-          <AppText
-            weight="bold"
-            style={[
-              styles.statusText,
-              statusStyle.text,
-            ]}
-          >
-            {status.label}
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.orderNumberContainer
-          }
-        >
-          <AppText
-            style={
-              styles.orderNumber
-            }
-          >
-            {formatOrderNumber(
-              order.id,
-            )}
-          </AppText>
-
-          <Ionicons
-            name="ellipsis-vertical"
-            size={16}
-            color="#334155"
-          />
-        </View>
+          {formatOrderNumber(
+            order.id,
+          )}
+        </AppText>
       </View>
 
-      {/* ==================================================
-          SERVICE
-      ================================================== */}
+      {/* ======================================================
+          MAIN SERVICE
+      ====================================================== */}
 
-      <View
-        style={
-          styles.orderMainRow
-        }
-      >
-        {/* SERVICE ICON */}
-
+      <View style={styles.mainRow}>
         <View
-          style={[
-            styles.serviceIconLarge,
-            {
-              backgroundColor:
-                order.serviceBackgroundColor ??
-                "#EFF6FF",
-            },
-          ]}
+          style={
+            styles.serviceIcon
+          }
         >
-          <MaterialCommunityIcons
-            name={serviceIcon}
-            size={24}
-            color={
-              order.serviceColor ??
-              "#2563EB"
+          <AppIcon
+            name={
+              order.serviceIcon ??
+              "service"
             }
+            role="customer"
+            size="lg"
+            state="active"
           />
         </View>
 
-        {/* SERVICE INFO */}
-
         <View
           style={
-            styles.workerSection
+            styles.serviceContent
           }
         >
           <AppText
-            weight="bold"
+            variant="bodyLarge"
+            weight="semibold"
             numberOfLines={1}
-            style={
-              styles.serviceNameLarge
-            }
           >
             {order.serviceName}
           </AppText>
 
           <View
             style={
-              styles.workerInfo
+              styles.workerRow
             }
           >
             <View
@@ -190,202 +190,124 @@ function OrderCard({
                 styles.workerAvatar
               }
             >
-              <Ionicons
-                name="person"
-                size={13}
-                color="#94A3B8"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="xs"
+                state="muted"
               />
             </View>
 
             <View
               style={
-                styles.workerText
+                styles.workerContent
               }
             >
               <AppText
-                weight="bold"
+                variant="bodyMedium"
                 numberOfLines={1}
-                style={
-                  styles.workerNameLarge
-                }
               >
                 {order.workerName}
               </AppText>
 
-              <AppText
-                numberOfLines={1}
-                style={
-                  styles.workerCategory
-                }
-              >
-                {order.workerCategory}
-              </AppText>
+              {order.workerCategory ? (
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                  numberOfLines={1}
+                  style={
+                    styles.workerCategory
+                  }
+                >
+                  {order.workerCategory}
+                </AppText>
+              ) : null}
             </View>
           </View>
         </View>
 
-        {/* ARROW */}
-
         <View
           style={
-            styles.openOrderButton
+            styles.chevronContainer
           }
         >
-          <Ionicons
-            name="chevron-forward"
-            size={17}
-            color="#64748B"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="sm"
+            state="muted"
           />
         </View>
       </View>
 
-      {/* ==================================================
-          DIVIDER
-      ================================================== */}
-
-      <View
-        style={
-          styles.orderDivider
-        }
+      <AppDivider
+        style={styles.divider}
       />
 
-      {/* ==================================================
-          DETAILS
-      ================================================== */}
+      {/* ======================================================
+          ORDER DETAILS
+      ====================================================== */}
 
-      <View
-        style={
-          styles.orderInfoRow
-        }
-      >
-        {/* LOCATION */}
-
-        <View
-          style={
-            styles.infoItem
-          }
-        >
-          <Ionicons
-            name="location-outline"
-            size={15}
-            color="#64748B"
-          />
-
-          <AppText
-            numberOfLines={1}
-            style={
-              styles.infoText
-            }
-          >
-            {order.location}
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.infoSeparator
+      <View style={styles.details}>
+        <DetailItem
+          icon="location"
+          text={
+            order.location ||
+            "Location unavailable"
           }
         />
 
-        {/* DATE / STATUS */}
-
-        <View
-          style={
-            styles.infoItem
+        <DetailItem
+          icon={
+            showSchedule
+              ? "calendar"
+              : "clock"
           }
-        >
-          <Ionicons
-            name={
-              showSchedule
-                ? "calendar-outline"
-                : "time-outline"
-            }
-            size={15}
-            color="#64748B"
-          />
-
-          <AppText
-            numberOfLines={1}
-            style={
-              styles.infoText
-            }
-          >
-            {showSchedule
-              ? order.date
-              : order.status ===
-                "pending"
-              ? "Waiting for response"
-              : order.date}
-          </AppText>
-        </View>
-
-        {/* TIME */}
+          text={dateLabel}
+        />
 
         {showSchedule &&
         order.time ? (
-          <>
-            <View
-              style={
-                styles.infoSeparator
-              }
-            />
-
-            <View
-              style={
-                styles.infoItem
-              }
-            >
-              <Ionicons
-                name="time-outline"
-                size={15}
-                color="#64748B"
-              />
-
-              <AppText
-                numberOfLines={1}
-                style={
-                  styles.infoText
-                }
-              >
-                {order.time}
-              </AppText>
-            </View>
-          </>
+          <DetailItem
+            icon="clock"
+            text={order.time}
+          />
         ) : null}
       </View>
 
-      {/* ==================================================
+      {/* ======================================================
           OFFER
-      ================================================== */}
+      ====================================================== */}
 
       <LatestOfferRow
         order={order}
       />
 
-      {/* ==================================================
-          FOOTER
-      ================================================== */}
+      <AppDivider
+        style={styles.footerDivider}
+      />
 
-      <View
-        style={
-          styles.orderFooter
-        }
-      >
+      {/* ======================================================
+          FOOTER
+      ====================================================== */}
+
+      <View style={styles.footer}>
         <View
           style={
-            styles.requestedContainer
+            styles.requested
           }
         >
           <AppText
-            style={
-              styles.requestedLabel
-            }
+            variant="caption"
+            tone="muted"
           >
             Requested on
           </AppText>
 
           <AppText
-            weight="bold"
+            variant="caption"
+            weight="semibold"
+            tone="secondary"
             style={
               styles.requestedDate
             }
@@ -396,26 +318,62 @@ function OrderCard({
 
         <View
           style={
-            styles.viewOrderButton
+            styles.viewDetails
           }
         >
           <AppText
-            weight="bold"
-            style={
-              styles.viewOrderText
-            }
+            variant="bodyMedium"
+            role="customer"
+            tone="primary"
           >
-            VIEW ORDER
+            View details
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={15}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            state="active"
           />
         </View>
       </View>
-    </Pressable>
+    </AppCard>
+  );
+}
+
+/* ==============================================================
+   DETAIL ITEM
+============================================================== */
+
+function DetailItem({
+  icon,
+  text,
+}: {
+  icon:
+    | "location"
+    | "calendar"
+    | "clock";
+
+  text: string;
+}) {
+  return (
+    <View style={styles.detailItem}>
+      <AppIcon
+        name={icon}
+        role="customer"
+        size="xs"
+        state="muted"
+      />
+
+      <AppText
+        variant="caption"
+        tone="secondary"
+        numberOfLines={1}
+        style={styles.detailText}
+      >
+        {text}
+      </AppText>
+    </View>
   );
 }
 
@@ -428,10 +386,6 @@ function LatestOfferRow({
 }: {
   order: Order;
 }) {
-  /* ----------------------------------------------------------
-     COUNTER OFFER
-  ---------------------------------------------------------- */
-
   if (
     order.counterOfferStatus ===
       "sent" &&
@@ -443,55 +397,19 @@ function LatestOfferRow({
   ) {
     const label =
       order.counterOfferBy ===
-        "customer"
+      "customer"
         ? "Your counter offer"
         : "Worker counter offer";
 
     return (
-      <View
-        style={
-          styles.offerRow
+      <OfferRow
+        label={label}
+        amount={
+          order.counterOfferAmount
         }
-      >
-        <View
-          style={
-            styles.offerLeft
-          }
-        >
-          <Ionicons
-            name="pricetag-outline"
-            size={14}
-            color="#2563EB"
-          />
-
-          <AppText
-            weight="bold"
-            style={
-              styles.offerLabel
-            }
-          >
-            {label}
-          </AppText>
-        </View>
-
-        <AppText
-          weight="bold"
-          style={
-            styles.offerAmount
-          }
-        >
-          ₦
-          {order.counterOfferAmount.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
+      />
     );
   }
-
-  /* ----------------------------------------------------------
-     WORKER OFFER
-  ---------------------------------------------------------- */
 
   if (
     order.offerStatus ===
@@ -503,50 +421,14 @@ function LatestOfferRow({
     )
   ) {
     return (
-      <View
-        style={
-          styles.offerRow
+      <OfferRow
+        label="Worker offer"
+        amount={
+          order.offerAmount
         }
-      >
-        <View
-          style={
-            styles.offerLeft
-          }
-        >
-          <Ionicons
-            name="pricetag-outline"
-            size={14}
-            color="#2563EB"
-          />
-
-          <AppText
-            weight="bold"
-            style={
-              styles.offerLabel
-            }
-          >
-            Worker offer
-          </AppText>
-        </View>
-
-        <AppText
-          weight="bold"
-          style={
-            styles.offerAmount
-          }
-        >
-          ₦
-          {order.offerAmount.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
+      />
     );
   }
-
-  /* ----------------------------------------------------------
-     AGREED PRICE
-  ---------------------------------------------------------- */
 
   if (
     order.status ===
@@ -558,47 +440,13 @@ function LatestOfferRow({
     )
   ) {
     return (
-      <View
-        style={[
-          styles.offerRow,
-          styles.agreedOfferRow,
-        ]}
-      >
-        <View
-          style={
-            styles.offerLeft
-          }
-        >
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={14}
-            color="#16A34A"
-          />
-
-          <AppText
-            weight="bold"
-            style={[
-              styles.offerLabel,
-              styles.agreedOfferLabel,
-            ]}
-          >
-            Agreed price
-          </AppText>
-        </View>
-
-        <AppText
-          weight="bold"
-          style={[
-            styles.offerAmount,
-            styles.agreedOfferAmount,
-          ]}
-        >
-          ₦
-          {order.agreedPrice.toLocaleString(
-            "en-NG",
-          )}
-        </AppText>
-      </View>
+      <OfferRow
+        label="Agreed price"
+        amount={
+          order.agreedPrice
+        }
+        success
+      />
     );
   }
 
@@ -606,582 +454,292 @@ function LatestOfferRow({
 }
 
 /* ==============================================================
-   STATUS STYLE
+   OFFER ROW
 ============================================================== */
 
-function getStatusStyle(
-  status: Order["status"],
-) {
-  switch (status) {
-    case "accepted":
-      return {
-        background:
-          styles.statusAccepted,
-        dot:
-          styles.dotAccepted,
-        text:
-          styles.textAccepted,
-      };
+function OfferRow({
+  label,
+  amount,
+  success = false,
+}: {
+  label: string;
+  amount: number;
+  success?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.offerRow,
 
-    case "in-progress":
-      return {
-        background:
-          styles.statusProgress,
-        dot:
-          styles.dotProgress,
-        text:
-          styles.textProgress,
-      };
+        {
+          backgroundColor:
+            success
+              ? Colors.successSoft
+              : CustomerColors
+                  .primarySoft,
+        },
+      ]}
+    >
+      <View style={styles.offerLeft}>
+        <AppIcon
+          name={
+            success
+              ? "success"
+              : "wallet"
+          }
+          role="customer"
+          size="xs"
+          state={
+            success
+              ? "success"
+              : "active"
+          }
+        />
 
-    case "completed":
-      return {
-        background:
-          styles.statusCompleted,
-        dot:
-          styles.dotCompleted,
-        text:
-          styles.textCompleted,
-      };
+        <AppText
+          variant="caption"
+          weight="semibold"
+          tone={
+            success
+              ? "success"
+              : "primary"
+          }
+          numberOfLines={1}
+        >
+          {label}
+        </AppText>
+      </View>
 
-    case "cancelled":
-      return {
-        background:
-          styles.statusCancelled,
-        dot:
-          styles.dotCancelled,
-        text:
-          styles.textCancelled,
-      };
-
-    case "expired":
-      return {
-        background:
-          styles.statusExpired,
-        dot:
-          styles.dotExpired,
-        text:
-          styles.textExpired,
-      };
-
-    case "pending":
-    default:
-      return {
-        background:
-          styles.statusPending,
-        dot:
-          styles.dotPending,
-        text:
-          styles.textPending,
-      };
-  }
+      <AppText
+        variant="bodyMedium"
+        weight="semibold"
+        tone={
+          success
+            ? "success"
+            : "primary"
+        }
+      >
+        {formatCurrency(amount)}
+      </AppText>
+    </View>
+  );
 }
 
 /* ==============================================================
    STYLES
 ============================================================== */
 
-const styles =
-  StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
+const styles = StyleSheet.create({
+  card: {
+    width: "100%",
 
-    orderCard: {
-      paddingHorizontal: 10,
-      paddingTop: 9,
-      paddingBottom: 9,
-      borderRadius: 16,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+    padding:
+      FixxamTokens.spacing.lg,
+  },
 
-      shadowColor:
-        "#0F172A",
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "space-between",
 
-      shadowOpacity: 0.045,
+    gap:
+      FixxamTokens.spacing.sm,
+  },
 
-      shadowRadius: 5,
+  mainRow: {
+    flexDirection: "row",
+    alignItems: "center",
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+    marginTop:
+      FixxamTokens.spacing.md,
+  },
 
-      elevation: 2,
-    },
+  serviceIcon: {
+    width:
+      FixxamTokens.size.iconBox,
 
-    orderCardPressed: {
-      opacity: 0.96,
+    height:
+      FixxamTokens.size.iconBox,
 
-      transform: [
-        {
-          scale: 0.995,
-        },
-      ],
-    },
+    flexShrink: 0,
 
-    /* ========================================================
-       HEADER
-    ======================================================== */
+    alignItems: "center",
+    justifyContent: "center",
 
-    orderCardHeader: {
-      minHeight: 22,
+    borderRadius:
+      FixxamTokens.radius.iconButton,
 
-      flexDirection: "row",
+    backgroundColor:
+      CustomerColors.primarySoft,
+  },
 
-      alignItems: "center",
+  serviceContent: {
+    flex: 1,
+    minWidth: 0,
 
-      justifyContent:
-        "space-between",
-    },
+    marginLeft:
+      FixxamTokens.spacing.md,
+  },
 
-    statusBadge: {
-      flexDirection: "row",
+  workerRow: {
+    flexDirection: "row",
+    alignItems: "center",
 
-      alignItems: "center",
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
 
-      paddingHorizontal: 7,
+  workerAvatar: {
+    width:
+      FixxamTokens.size.avatarXs,
 
-      paddingVertical: 4,
+    height:
+      FixxamTokens.size.avatarXs,
 
-      borderRadius: 999,
-    },
+    flexShrink: 0,
 
-    statusDot: {
-      width: 5,
+    alignItems: "center",
+    justifyContent: "center",
 
-      height: 5,
+    borderRadius:
+      FixxamTokens.radius.avatar,
 
-      borderRadius: 3,
+    backgroundColor:
+      Colors.iconBackground,
+  },
 
-      marginRight: 4,
-    },
+  workerContent: {
+    flex: 1,
+    minWidth: 0,
 
-    statusText: {
-      fontSize: 6.8,
+    marginLeft:
+      FixxamTokens.spacing.sm,
+  },
 
-      letterSpacing: 0.15,
-    },
+  workerCategory: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
 
-    orderNumberContainer: {
-      flexDirection: "row",
+  chevronContainer: {
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
 
-      alignItems: "center",
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
 
-      gap: 4,
-    },
+    flexShrink: 0,
 
-    orderNumber: {
-      fontSize: 8,
+    alignItems: "center",
+    justifyContent: "center",
 
-      color: "#64748B",
-    },
+    marginLeft:
+      FixxamTokens.spacing.xs,
 
-    /* ========================================================
-       SERVICE
-    ======================================================== */
+    borderRadius:
+      FixxamTokens.radius
+        .iconButton,
 
-    orderMainRow: {
-      marginTop: 8,
+    backgroundColor:
+      Colors.iconBackground,
+  },
 
-      flexDirection: "row",
+  divider: {
+    marginVertical:
+      FixxamTokens.spacing.md,
+  },
 
-      alignItems: "center",
-    },
+  details: {
+    gap:
+      FixxamTokens.spacing.sm,
+  },
 
-    serviceIconLarge: {
-      width: 50,
+  detailItem: {
+    minWidth: 0,
 
-      height: 50,
+    flexDirection: "row",
+    alignItems: "center",
+  },
 
-      borderRadius: 14,
+  detailText: {
+    flex: 1,
+    minWidth: 0,
 
-      alignItems: "center",
+    marginLeft:
+      FixxamTokens.spacing.sm,
+  },
 
-      justifyContent: "center",
-    },
+  offerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "space-between",
 
-    workerSection: {
-      flex: 1,
+    gap:
+      FixxamTokens.spacing.md,
 
-      minWidth: 0,
+    marginTop:
+      FixxamTokens.spacing.md,
 
-      marginLeft: 8,
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
 
-      marginRight: 5,
-    },
+    paddingVertical:
+      FixxamTokens.spacing.sm,
 
-    serviceNameLarge: {
-      fontSize: 13,
+    borderRadius:
+      FixxamTokens.radius.md,
+  },
 
-      lineHeight: 16,
+  offerLeft: {
+    flex: 1,
+    minWidth: 0,
 
-      color: "#0F172A",
-    },
+    flexDirection: "row",
+    alignItems: "center",
 
-    workerInfo: {
-      marginTop: 4,
+    gap:
+      FixxamTokens.spacing.sm,
+  },
 
-      flexDirection: "row",
+  footerDivider: {
+    marginTop:
+      FixxamTokens.spacing.md,
 
-      alignItems: "center",
-    },
+    marginBottom:
+      FixxamTokens.spacing.sm,
+  },
 
-    workerAvatar: {
-      width: 25,
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent:
+      "space-between",
 
-      height: 25,
+    gap:
+      FixxamTokens.spacing.md,
+  },
 
-      borderRadius: 13,
+  requested: {
+    flex: 1,
+    minWidth: 0,
+  },
 
-      backgroundColor:
-        "#E2E8F0",
+  requestedDate: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
+  },
 
-      alignItems: "center",
+  viewDetails: {
+    flexDirection: "row",
+    alignItems: "center",
 
-      justifyContent: "center",
-    },
+    gap:
+      FixxamTokens.spacing.xs,
+  },
+});
 
-    workerText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft: 5,
-    },
-
-    workerNameLarge: {
-      fontSize: 9.5,
-
-      color: "#334155",
-    },
-
-    workerCategory: {
-      marginTop: 1,
-
-      fontSize: 7.8,
-
-      color: "#94A3B8",
-    },
-
-    openOrderButton: {
-      width: 30,
-
-      height: 30,
-
-      borderRadius: 15,
-
-      backgroundColor:
-        "#F8FAFC",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-    },
-
-    /* ========================================================
-       DIVIDER
-    ======================================================== */
-
-    orderDivider: {
-      height: 1,
-
-      marginTop: 8,
-
-      marginBottom: 7,
-
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    /* ========================================================
-       DETAILS
-    ======================================================== */
-
-    orderInfoRow: {
-      minHeight: 25,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-    },
-
-    infoItem: {
-      flex: 1,
-
-      minWidth: 0,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-    },
-
-    infoText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft: 4,
-
-      fontSize: 7.8,
-
-      color: "#64748B",
-    },
-
-    infoSeparator: {
-      width: 1,
-
-      height: 18,
-
-      marginHorizontal: 5,
-
-      backgroundColor:
-        "#E2E8F0",
-    },
-
-    /* ========================================================
-       OFFER
-    ======================================================== */
-
-    offerRow: {
-      marginTop: 6,
-
-      paddingHorizontal: 7,
-
-      paddingVertical: 5.5,
-
-      borderRadius: 8,
-
-      backgroundColor:
-        "#EFF6FF",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "space-between",
-    },
-
-    agreedOfferRow: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    offerLeft: {
-      flex: 1,
-
-      minWidth: 0,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap: 4,
-    },
-
-    offerLabel: {
-      fontSize: 8,
-
-      color: "#1D4ED8",
-    },
-
-    agreedOfferLabel: {
-      color: "#15803D",
-    },
-
-    offerAmount: {
-      fontSize: 10,
-
-      color: "#2563EB",
-    },
-
-    agreedOfferAmount: {
-      color: "#15803D",
-    },
-
-    /* ========================================================
-       FOOTER
-    ======================================================== */
-
-    orderFooter: {
-      marginTop: 7,
-
-      paddingTop: 7,
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        "#F1F5F9",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "space-between",
-    },
-
-    requestedContainer: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    requestedLabel: {
-      fontSize: 7.2,
-
-      color: "#94A3B8",
-    },
-
-    requestedDate: {
-      marginTop: 1,
-
-      fontSize: 8.5,
-
-      color: "#64748B",
-    },
-
-    viewOrderButton: {
-      minHeight: 31,
-
-      paddingHorizontal: 10,
-
-      borderRadius: 9,
-
-      backgroundColor:
-        "#2563EB",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      gap: 4,
-    },
-
-    viewOrderText: {
-      fontSize: 7.8,
-
-      color: "#FFFFFF",
-    },
-
-    /* ========================================================
-       PENDING
-    ======================================================== */
-
-    statusPending: {
-      backgroundColor:
-        "#FFF7E8",
-    },
-
-    dotPending: {
-      backgroundColor:
-        "#F59E0B",
-    },
-
-    textPending: {
-      color: "#D97706",
-    },
-
-    /* ========================================================
-       ACCEPTED
-    ======================================================== */
-
-    statusAccepted: {
-      backgroundColor:
-        "#EFF6FF",
-    },
-
-    dotAccepted: {
-      backgroundColor:
-        "#2563EB",
-    },
-
-    textAccepted: {
-      color: "#1D4ED8",
-    },
-
-    /* ========================================================
-       IN PROGRESS
-    ======================================================== */
-
-    statusProgress: {
-      backgroundColor:
-        "#F3E8FF",
-    },
-
-    dotProgress: {
-      backgroundColor:
-        "#7C3AED",
-    },
-
-    textProgress: {
-      color: "#6D28D9",
-    },
-
-    /* ========================================================
-       COMPLETED
-    ======================================================== */
-
-    statusCompleted: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textCompleted: {
-      color: "#15803D",
-    },
-
-    /* ========================================================
-       CANCELLED
-    ======================================================== */
-
-    statusCancelled: {
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor:
-        "#DC2626",
-    },
-
-    textCancelled: {
-      color: "#B91C1C",
-    },
-
-    /* ========================================================
-       EXPIRED
-    ======================================================== */
-
-    statusExpired: {
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor:
-        "#64748B",
-    },
-
-    textExpired: {
-      color: "#475569",
-    },
-  });
-
-/* ==============================================================
-   EXPORT
-============================================================== */
-
-export default memo(
-  OrderCard,
-);
+export default memo(OrderCard);

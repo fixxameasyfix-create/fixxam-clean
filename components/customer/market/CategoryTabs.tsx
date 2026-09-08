@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   Pressable,
@@ -7,221 +10,280 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Category = {
-
   id: string;
 
   title: string;
 
-  icon: keyof typeof Ionicons.glyphMap;
-
+  icon: AppIconName;
 };
 
-
 type Props = {
-
   selected: string;
 
   onSelect: (
     id: string,
   ) => void;
-
 };
 
-
+/* ==============================================================
+   CATEGORIES
+============================================================== */
 
 const categories: Category[] = [
-
   {
     id: "all",
     title: "All",
-    icon: "grid-outline",
+    icon: "service",
   },
-
   {
     id: "building",
     title: "Building",
-    icon: "business-outline",
+    icon: "professional",
   },
-
   {
     id: "electrical",
     title: "Electrical",
-    icon: "flash-outline",
+    icon: "electrician",
   },
-
   {
     id: "plumbing",
     title: "Plumbing",
-    icon: "water-outline",
+    icon: "plumbing",
   },
-
   {
     id: "paint",
     title: "Paint",
-    icon: "color-palette-outline",
+    icon: "painting",
   },
-
   {
     id: "more",
     title: "More",
-    icon: "ellipsis-horizontal",
+    icon: "more",
   },
-
 ];
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
-
-export default function CategoryTabs({
-
+function CategoryTabs({
   selected,
-
   onSelect,
-
 }: Props) {
-
+  const handleSelect =
+    useCallback(
+      (
+        id: string,
+      ) => {
+        onSelect(id);
+      },
+      [onSelect],
+    );
 
   return (
-
     <ScrollView
-
       horizontal
-
-      showsHorizontalScrollIndicator={false}
-
+      showsHorizontalScrollIndicator={
+        false
+      }
       contentContainerStyle={
         styles.container
       }
-
     >
+      {categories.map(
+        (item) => {
+          const active =
+            selected ===
+            item.id;
 
-      {categories.map((item) => {
+          return (
+            <Pressable
+              key={item.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${item.title} products`}
+              accessibilityState={{
+                selected: active,
+              }}
+              onPress={() =>
+                handleSelect(
+                  item.id,
+                )
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.item,
 
-
-        const active =
-          selected === item.id;
-
-
-        return (
-
-          <Pressable
-
-            key={item.id}
-
-            onPress={() =>
-              onSelect(item.id)
-            }
-
-            style={
-              styles.item}
-
-          >
-
-            <View
-
-              style={[
-                styles.iconBox,
-                active &&
-                styles.activeIconBox,
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
-
             >
+              <View
+                style={[
+                  styles.iconBox,
 
-              <Ionicons
-
-                name={item.icon}
-
-                size={20}
-
-                color={
                   active
-                    ? "#FFFFFF"
-                    : "#2563EB"
+                    ? styles.activeIconBox
+                    : null,
+                ]}
+              >
+                <AppIcon
+                  name={item.icon}
+                  role="customer"
+                  size="sm"
+                  color={
+                    active
+                      ? Colors.textInverse
+                      : CustomerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="caption"
+                weight={
+                  active
+                    ? "bold"
+                    : undefined
                 }
+                numberOfLines={1}
+                style={[
+                  styles.title,
 
-              />
-
-            </View>
-
-
-            <AppText
-
-              style={[
-                styles.title,
-                active &&
-                styles.activeTitle,
-              ]}
-
-            >
-
-              {item.title}
-
-            </AppText>
-
-
-          </Pressable>
-
-        );
-
-      })}
-
+                  active
+                    ? styles.activeTitle
+                    : null,
+                ]}
+              >
+                {item.title}
+              </AppText>
+            </Pressable>
+          );
+        },
+      )}
     </ScrollView>
-
   );
-
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
 
+const styles =
+  StyleSheet.create({
+    container: {
+      gap:
+        FixxamTokens.spacing.sm,
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 16,
-    gap: 10,
-    marginBottom: 14,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  item: {
-    alignItems: "center",
-    width: 58,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.md,
+    },
 
-  iconBox: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
+    item: {
+      width: 64,
 
-    backgroundColor: "#FFFFFF",
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    justifyContent: "center",
-    alignItems: "center",
+      alignItems:
+        "center",
+    },
 
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-    elevation: 2,
-  },
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-  activeIconBox: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
+      alignItems:
+        "center",
 
-  title: {
-    marginTop: 6,
-    fontSize: 11,
-    color: "#374151",
-    textAlign: "center",
-  },
+      justifyContent:
+        "center",
 
-  activeTitle: {
-    color: "#2563EB",
-    fontWeight: "700",
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    activeIconBox: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    title: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      textAlign:
+        "center",
+
+      color:
+        Colors.textSecondary,
+    },
+
+    activeTitle: {
+      color:
+        CustomerColors.primary,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  CategoryTabs,
+);

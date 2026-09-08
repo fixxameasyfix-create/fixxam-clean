@@ -1,54 +1,103 @@
-import { StyleSheet } from "react-native";
+import {
+  StyleSheet,
+} from "react-native";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 export default StyleSheet.create({
+  /* ==========================================================
+     OVERLAY
+  ========================================================== */
+
   overlay: {
     flex: 1,
-    backgroundColor: "transparent",
+
+    backgroundColor:
+      "transparent",
   },
 
+  /* ==========================================================
+     MENU
+  ========================================================== */
+
   menu: {
-    position: "absolute",
+    position:
+      "absolute",
 
     width: 210,
 
-    backgroundColor: "#FFFFFF",
+    paddingVertical:
+      FixxamTokens.spacing.xs,
 
-    borderRadius: 16,
+    borderWidth: 1,
 
-    paddingVertical: 6,
+    borderColor:
+      Colors.border,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    borderRadius:
+      FixxamTokens.radius.lg,
 
-    elevation: 12,
+    backgroundColor:
+      Colors.surface,
+
+    ...FixxamTokens.shadow.card,
   },
 
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
+  /* ==========================================================
+     ITEM
+  ========================================================== */
 
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  item: {
+    minHeight:
+      FixxamTokens.size.minimumTouchTarget,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
+
+    paddingVertical:
+      FixxamTokens.spacing.sm,
+
+    flexDirection:
+      "row",
+
+    alignItems:
+      "center",
   },
 
   itemText: {
-    marginLeft: 14,
-    fontSize: 15,
-    color: "#111827",
+    flex: 1,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
+
+    color:
+      Colors.textPrimary,
   },
+
+  /* ==========================================================
+     DIVIDER
+  ========================================================== */
 
   divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 4,
+    height:
+      StyleSheet.hairlineWidth,
+
+    marginVertical:
+      FixxamTokens.spacing.xxs,
+
+    backgroundColor:
+      Colors.divider,
   },
 
+  /* ==========================================================
+     DELETE
+  ========================================================== */
+
   deleteText: {
-    color: "#DC2626",
+    color:
+      Colors.error,
   },
 });

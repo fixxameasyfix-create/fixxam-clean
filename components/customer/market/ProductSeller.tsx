@@ -1,28 +1,94 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   workerId: string;
+
   name: string;
+
   photoUrl?: string;
+
   location?: string;
+
   rating?: number;
+
   phoneNumber?: string;
+
   onViewProfile: () => void;
+
   onCall: () => void;
 };
 
-export default function ProductSeller({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function getRemoteImageUrl(
+  value: unknown,
+): string {
+  const url =
+    cleanString(value);
+
+  if (
+    url.startsWith(
+      "https://",
+    ) ||
+    url.startsWith(
+      "http://",
+    )
+  ) {
+    return url;
+  }
+
+  return "";
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ProductSeller({
   name,
   photoUrl,
   location,
@@ -30,23 +96,97 @@ export default function ProductSeller({
   onViewProfile,
   onCall,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     SELLER DATA
+  ============================================================ */
+
+  const sellerName =
+    cleanString(name) ||
+    "Worker";
+
+  const sellerLocation =
+    cleanString(location);
+
+  const imageUrl =
+    getRemoteImageUrl(
+      photoUrl,
+    );
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [
+    imageUrl,
+  ]);
+
+  const showPhoto =
+    Boolean(imageUrl) &&
+    !imageFailed;
+
+  /* ============================================================
+     RATING
+  ============================================================ */
+
+  const safeRating =
+    useMemo(() => {
+      const parsed =
+        Number(rating);
+
+      if (
+        !Number.isFinite(parsed) ||
+        parsed <= 0
+      ) {
+        return null;
+      }
+
+      return Math.min(
+        5,
+        Math.max(
+          0,
+          parsed,
+        ),
+      );
+    }, [
+      rating,
+    ]);
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
     <View style={styles.container}>
+      {/* ======================================================
+          SELLER
+      ====================================================== */}
+
       <View style={styles.sellerHeader}>
         <View style={styles.avatarWrapper}>
-          {photoUrl ? (
+          {showPhoto ? (
             <Image
-              source={{ uri: photoUrl }}
+              source={{
+                uri: imageUrl,
+              }}
               style={styles.avatar}
-              resizeMode="cover"
-              accessibilityLabel={`${name} profile photo`}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              accessibilityLabel={`${sellerName} profile photo`}
+              onError={() =>
+                setImageFailed(true)
+              }
             />
           ) : (
             <View style={styles.avatarPlaceholder}>
-              <Ionicons
-                name="person-outline"
-                size={18}
-                color="#64748B"
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="sm"
+                state="muted"
               />
             </View>
           )}
@@ -54,92 +194,129 @@ export default function ProductSeller({
 
         <View style={styles.sellerInfo}>
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
-            style={styles.name}
           >
-            {name || "Worker"}
+            {sellerName}
           </AppText>
 
-          {!!location && (
+          {sellerLocation ? (
             <View style={styles.locationRow}>
-              <Ionicons
-                name="location-outline"
-                size={11}
-                color="#64748B"
+              <AppIcon
+                name="location"
+                role="customer"
+                size="xs"
+                state="muted"
               />
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
                 style={styles.location}
               >
-                {location}
+                {sellerLocation}
               </AppText>
             </View>
-          )}
+          ) : null}
         </View>
       </View>
 
+      {/* ======================================================
+          RATING
+      ====================================================== */}
+
       <View style={styles.ratingRow}>
-        <Ionicons
+        <AppIcon
           name="star"
-          size={12}
-          color="#F59E0B"
+          role="customer"
+          size="xs"
+          color={Colors.warning}
         />
 
         <AppText
+          variant="caption"
           weight="bold"
           style={styles.rating}
         >
-          {Number(rating || 0).toFixed(1)}
+          {safeRating !== null
+            ? safeRating.toFixed(1)
+            : "New"}
         </AppText>
 
-        <AppText style={styles.ratingLabel}>
-          Worker
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={styles.ratingLabel}
+        >
+          Seller
         </AppText>
       </View>
 
+      {/* ======================================================
+          ACTIONS
+      ====================================================== */}
+
       <View style={styles.actions}>
+        {/* VIEW PROFILE */}
+
         <Pressable
-          style={({ pressed }) => [
-            styles.profileButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={onViewProfile}
           accessibilityRole="button"
-          accessibilityLabel={`View ${name || "worker"}'s profile`}
+          accessibilityLabel={`View ${sellerName}'s profile`}
+          onPress={onViewProfile}
+          style={({ pressed }) => [
+            styles.actionButton,
+            styles.profileButton,
+
+            pressed
+              ? styles.buttonPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="person-outline"
-            size={14}
-            color="#2563EB"
+          <AppIcon
+            name="profile"
+            role="customer"
+            size="sm"
+            state="active"
           />
 
           <AppText
+            variant="caption"
             weight="bold"
+            numberOfLines={1}
             style={styles.profileButtonText}
           >
             View Profile
           </AppText>
         </Pressable>
 
+        {/* CALL */}
+
         <Pressable
-          style={({ pressed }) => [
-            styles.callButton,
-            pressed && styles.buttonPressed,
-          ]}
-          onPress={onCall}
           accessibilityRole="button"
-          accessibilityLabel={`Call ${name || "worker"}`}
+          accessibilityLabel={`Call ${sellerName}`}
+          onPress={onCall}
+          style={({ pressed }) => [
+            styles.actionButton,
+            styles.callButton,
+
+            pressed
+              ? styles.buttonPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="call-outline"
-            size={14}
-            color="#FFFFFF"
+          <AppIcon
+            name="phone"
+            role="customer"
+            size="sm"
+            color={Colors.textInverse}
           />
 
           <AppText
+            variant="caption"
             weight="bold"
+            numberOfLines={1}
             style={styles.callButtonText}
           >
             Call
@@ -150,144 +327,241 @@ export default function ProductSeller({
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 12,
-    marginTop: 10,
-    marginBottom: 12,
-    padding: 10,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    marginHorizontal:
+      FixxamTokens.spacing.lg,
+
+    marginTop:
+      FixxamTokens.spacing.md,
+
+    marginBottom:
+      FixxamTokens.spacing.md,
+
+    padding:
+      FixxamTokens.spacing.md,
+
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.035,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    elevation: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+
+    backgroundColor:
+      Colors.surface,
+
+    ...FixxamTokens.shadow.card,
   },
+
+  /* ==========================================================
+     SELLER
+  ========================================================== */
 
   sellerHeader: {
     flexDirection: "row",
+
     alignItems: "center",
   },
 
   avatarWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width:
+      FixxamTokens.size.avatarSm,
+
+    height:
+      FixxamTokens.size.avatarSm,
+
+    flexShrink: 0,
+
     overflow: "hidden",
-    backgroundColor: "#F1F5F9",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      Colors.disabledBackground,
   },
 
   avatar: {
     width: "100%",
+
     height: "100%",
+
+    backgroundColor:
+      Colors.disabledBackground,
   },
 
   avatarPlaceholder: {
     flex: 1,
+
     alignItems: "center",
+
     justifyContent: "center",
-    backgroundColor: "#EFF6FF",
+
+    backgroundColor:
+      CustomerColors.primarySoft,
   },
 
   sellerInfo: {
     flex: 1,
-    marginLeft: 8,
-  },
 
-  name: {
-    fontSize: 13,
-    lineHeight: 17,
-    color: "#0F172A",
+    minWidth: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.sm,
   },
 
   locationRow: {
     flexDirection: "row",
+
     alignItems: "center",
-    marginTop: 2,
+
+    marginTop:
+      FixxamTokens.spacing.xxs,
   },
 
   location: {
     flex: 1,
-    marginLeft: 3,
-    fontSize: 9.5,
-    lineHeight: 13,
-    color: "#64748B",
+
+    minWidth: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.xs,
   },
 
+  /* ==========================================================
+     RATING
+  ========================================================== */
+
   ratingRow: {
+    alignSelf: "flex-start",
+
     flexDirection: "row",
+
     alignItems: "center",
-    marginTop: 7,
-    paddingVertical: 5,
-    paddingHorizontal: 7,
-    borderRadius: 8,
-    backgroundColor: "#FFFBEB",
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
+
+    paddingVertical:
+      FixxamTokens.spacing.xs,
+
+    borderRadius:
+      FixxamTokens.radius.sm,
+
+    backgroundColor:
+      Colors.warningSoft,
   },
 
   rating: {
-    marginLeft: 3,
-    fontSize: 10,
-    lineHeight: 13,
-    color: "#0F172A",
+    marginLeft:
+      FixxamTokens.spacing.xs,
+
+    color:
+      Colors.textPrimary,
   },
 
   ratingLabel: {
-    marginLeft: 4,
-    fontSize: 9,
-    lineHeight: 12,
-    color: "#64748B",
+    marginLeft:
+      FixxamTokens.spacing.xs,
   },
+
+  /* ==========================================================
+     ACTIONS
+  ========================================================== */
 
   actions: {
     flexDirection: "row",
-    marginTop: 8,
-    gap: 6,
+
+    gap:
+      FixxamTokens.spacing.sm,
+
+    marginTop:
+      FixxamTokens.spacing.md,
+  },
+
+  actionButton: {
+    flex: 1,
+
+    minWidth: 0,
+
+    minHeight:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    gap:
+      FixxamTokens.spacing.xs,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
+
+    borderRadius:
+      FixxamTokens.radius.button,
   },
 
   profileButton: {
-    flex: 1,
-    height: 34,
-    borderRadius: 9,
     borderWidth: 1,
-    borderColor: "#2563EB",
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+
+    borderColor:
+      CustomerColors.primary,
+
+    backgroundColor:
+      Colors.surface,
   },
 
   profileButtonText: {
-    marginLeft: 4,
-    fontSize: 10,
-    lineHeight: 13,
-    color: "#2563EB",
+    color:
+      CustomerColors.primary,
   },
 
   callButton: {
-    flex: 1,
-    height: 34,
-    borderRadius: 9,
-    backgroundColor: "#F97316",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    borderWidth: 1,
+
+    borderColor:
+      CustomerColors.primary,
+
+    backgroundColor:
+      CustomerColors.primary,
   },
 
   callButtonText: {
-    marginLeft: 4,
-    fontSize: 10,
-    lineHeight: 13,
-    color: "#FFFFFF",
+    color:
+      Colors.textInverse,
   },
 
+  /* ==========================================================
+     PRESSED
+  ========================================================== */
+
   buttonPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.98 }],
+    opacity:
+      FixxamTokens.motion
+        .pressedOpacity,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion
+            .scalePressed,
+      },
+    ],
   },
 });
+
+export default memo(
+  ProductSeller,
+);

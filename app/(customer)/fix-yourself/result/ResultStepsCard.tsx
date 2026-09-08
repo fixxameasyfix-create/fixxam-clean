@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -15,30 +18,108 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   steps: string[];
 }
 
-export default function ResultStepsCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultStepsCard({
   steps,
 }: Props) {
+  const cleanSteps =
+    useMemo(() => {
+      if (
+        !Array.isArray(
+          steps,
+        )
+      ) {
+        return [];
+      }
+
+      const seen =
+        new Set<string>();
+
+      return steps.reduce<
+        string[]
+      >(
+        (
+          items,
+          step,
+        ) => {
+          if (
+            typeof step !==
+            "string"
+          ) {
+            return items;
+          }
+
+          const value =
+            step.trim();
+
+          if (!value) {
+            return items;
+          }
+
+          const key =
+            value.toLocaleLowerCase();
+
+          if (
+            seen.has(key)
+          ) {
+            return items;
+          }
+
+          seen.add(key);
+
+          items.push(value);
+
+          return items;
+        },
+        [],
+      );
+    }, [
+      steps,
+    ]);
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
           <MaterialCommunityIcons
             name="hammer-wrench"
             size={18}
-            color={CustomerColors.primary}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
           style={styles.title}
         >
@@ -46,37 +127,58 @@ export default function ResultStepsCard({
         </AppText>
       </View>
 
-      {steps.length === 0 ? (
-        <View style={styles.emptyState}>
+      {/* ========================================================
+          EMPTY
+      ======================================================== */}
+
+      {cleanSteps.length ===
+      0 ? (
+        <View
+          style={
+            styles.emptyState
+          }
+        >
           <MaterialCommunityIcons
             name="information-outline"
             size={18}
             color={
-              CustomerColors.textSecondary
+              Colors.textMuted
             }
           />
 
           <AppText
-            style={styles.emptyText}
-            color={
-              CustomerColors.textSecondary
+            variant="body"
+            tone="secondary"
+            style={
+              styles.emptyText
             }
           >
-            No troubleshooting steps
-            are available.
+            No troubleshooting steps are available.
           </AppText>
         </View>
       ) : (
-        <View style={styles.list}>
-          {steps.map(
-            (step, index) => (
+        /* ======================================================
+           STEPS
+        ====================================================== */
+
+        <View
+          style={styles.list}
+        >
+          {cleanSteps.map(
+            (
+              step,
+              index,
+            ) => (
               <View
                 key={`${index}-${step}`}
                 style={[
                   styles.item,
+
                   index <
-                    steps.length - 1 &&
-                    styles.itemBorder,
+                  cleanSteps.length -
+                    1
+                    ? styles.itemBorder
+                    : null,
                 ]}
               >
                 <View
@@ -85,8 +187,8 @@ export default function ResultStepsCard({
                   }
                 >
                   <AppText
+                    variant="caption"
                     weight="bold"
-                    color="#FFFFFF"
                     style={
                       styles.numberText
                     }
@@ -96,7 +198,10 @@ export default function ResultStepsCard({
                 </View>
 
                 <AppText
-                  style={styles.text}
+                  variant="body"
+                  style={
+                    styles.text
+                  }
                 >
                   {step}
                 </AppText>
@@ -109,6 +214,10 @@ export default function ResultStepsCard({
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     card: {
@@ -119,12 +228,14 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
       flexDirection: "row",
 
       alignItems: "center",
-
-      marginBottom: 2,
     },
 
     iconContainer: {
@@ -132,100 +243,139 @@ const styles =
 
       height: 34,
 
-      borderRadius: 17,
-
       alignItems: "center",
 
       justifyContent: "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        CustomerColors.diagnosisBackground,
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginLeft: 10,
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       LIST
+    ======================================================== */
+
     list: {
-      borderRadius: 12,
-
       overflow: "hidden",
-
-      backgroundColor:
-        CustomerColors.card,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     item: {
       flexDirection: "row",
 
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
 
-      paddingHorizontal: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      paddingVertical: 10,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     itemBorder: {
       borderBottomWidth: 1,
 
       borderBottomColor:
-        CustomerColors.border,
+        Colors.divider,
     },
 
     numberBadge: {
-      width: 24,
+      width: 26,
 
-      height: 24,
+      height: 26,
 
-      borderRadius: 12,
+      flexShrink: 0,
 
       alignItems: "center",
 
       justifyContent: "center",
 
+      marginTop: 1,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
         CustomerColors.primary,
-
-      marginTop: 1,
     },
 
     numberText: {
-      fontSize: 12,
+      color:
+        Colors.textInverse,
     },
 
     text: {
       flex: 1,
 
-      marginLeft: 10,
-
-      fontSize: 14,
-
-      lineHeight: 21,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
       color:
-        CustomerColors.primaryText,
+        Colors.textPrimary,
+
+      lineHeight: 21,
     },
 
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
     emptyState: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       flexDirection: "row",
 
       alignItems: "center",
 
-      paddingVertical: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyText: {
       flex: 1,
 
-      marginLeft: 8,
-
-      fontSize: 14,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
     },
   });
+
+export default memo(
+  ResultStepsCard,
+);

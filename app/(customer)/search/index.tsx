@@ -1,8 +1,10 @@
-import React from "react";
+import React, {
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   ActivityIndicator,
-  SafeAreaView,
   SectionList,
   StyleSheet,
   View,
@@ -12,6 +14,8 @@ import {
   router,
   useLocalSearchParams,
 } from "expo-router";
+
+import Toast from "react-native-toast-message";
 
 import SearchFilter from "@/components/search/SearchFilter";
 import SearchInput from "@/components/search/SearchInput";
@@ -27,8 +31,16 @@ import type {
 import CategoryCard from "@/components/categories/CategoryCard";
 
 import {
+  AppIcon,
+  AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import useSearch from "@/hooks/search/useSearch";
 
@@ -36,41 +48,96 @@ import type {
   ServiceCardData,
 } from "@/firebase/mappers/serviceMapper";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
+
+type SearchItem =
+  | WorkerCardData
+  | ServiceCardData;
 
 type SearchSection =
   | {
       title: string;
+
       type: "workers";
+
       data: WorkerCardData[];
     }
   | {
       title: string;
+
       type: "services";
+
       data: ServiceCardData[];
     };
 
-/* ==============================================================
+type SearchParams = {
+  serviceName?:
+    | string
+    | string[];
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+function getString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function SearchScreen() {
-  /* ============================================================
+  /* ==========================================================
      ROUTE PARAMS
-  ============================================================ */
+  ========================================================== */
 
-  const {
-    serviceName: routeServiceName,
-  } =
-    useLocalSearchParams<{
-      serviceName?: string;
-    }>();
+  const params =
+    useLocalSearchParams<SearchParams>();
 
-  /* ============================================================
+  const routeServiceName =
+    useMemo(
+      () =>
+        getParamString(
+          params.serviceName,
+        ),
+      [
+        params.serviceName,
+      ],
+    );
+
+  /* ==========================================================
      SEARCH
-  ============================================================ */
+  ========================================================== */
 
   const {
     loading,
@@ -79,166 +146,430 @@ export default function SearchScreen() {
     filter,
     setFilter,
     sections,
-  } = useSearch();
+  } =
+    useSearch();
 
-  /* ============================================================
+  /* ==========================================================
      OPEN SERVICE
-  ============================================================ */
+  ========================================================== */
 
-  const handleServicePress = (
-    service: ServiceCardData,
-  ) => {
-    /* ----------------------------------------------------------
-       SERVICE ID
-    ---------------------------------------------------------- */
+  const handleServicePress =
+    useCallback(
+      (
+        service:
+          ServiceCardData,
+      ) => {
+        const serviceId =
+          getString(
+            service.id,
+          );
 
-    const serviceId =
-      String(
-        service.id ?? "",
-      ).trim();
+        const serviceName =
+          getString(
+            service.name,
+          ) ||
+          routeServiceName;
 
-    /* ----------------------------------------------------------
-       SERVICE NAME
-    ---------------------------------------------------------- */
+        if (!serviceId) {
+          Toast.show({
+            type: "error",
 
-    const serviceName =
-      String(
-        service.name ??
-          routeServiceName ??
-          "",
-      ).trim();
+            text1:
+              "Service unavailable",
 
-    /* ----------------------------------------------------------
-       VALIDATION
-    ---------------------------------------------------------- */
+            text2:
+              "This service could not be opened.",
+          });
 
-    if (!serviceId) {
-      return;
-    }
+          return;
+        }
 
-    if (!serviceName) {
-      return;
-    }
+        if (!serviceName) {
+          Toast.show({
+            type: "error",
 
-    /* ----------------------------------------------------------
-       SERVICE ICON
-       
-       Keep the EXACT icon from Firestore.
-    ---------------------------------------------------------- */
+            text1:
+              "Service unavailable",
 
-    const serviceIcon =
-      typeof service.icon ===
-        "string"
-        ? service.icon.trim()
-        : "";
+            text2:
+              "This service has no valid name.",
+          });
 
-    /* ----------------------------------------------------------
-       ICON COLOR
-       
-       Keep the same color used by CategoryCard.
-    ---------------------------------------------------------- */
+          return;
+        }
 
-    const serviceIconColor =
-      typeof service.color ===
-        "string"
-        ? service.color.trim()
-        : "";
+        /*
+         * Preserve the exact Firebase
+         * presentation used by CategoryCard.
+         */
+        const serviceIcon =
+          getString(
+            service.icon,
+          );
 
-    /* ----------------------------------------------------------
-       ICON BACKGROUND
-       
-       Keep the same background used by CategoryCard.
-    ---------------------------------------------------------- */
+        const serviceIconColor =
+          getString(
+            service.color,
+          );
 
-    const serviceIconBackground =
-      typeof service.backgroundColor ===
-        "string"
-        ? service.backgroundColor.trim()
-        : "";
+        const serviceIconBackground =
+          getString(
+            service.backgroundColor,
+          );
 
-    /* ==========================================================
-       OPEN WORKERS
-    ========================================================== */
+        router.push({
+          pathname:
+            "/(customer)/details/workers/[id]",
 
-    router.push({
-      pathname:
-        "/(customer)/details/workers/[id]",
+          params: {
+            id:
+              serviceId,
 
-      params: {
-        /* ------------------------------------------------------
-           ROUTE ID
-        ------------------------------------------------------ */
+            serviceId,
 
-        id: serviceId,
+            /*
+             * WorkersScreen expects
+             * the service name as `service`.
+             */
+            service:
+              serviceName,
 
-        /* ------------------------------------------------------
-           SERVICE ID
-        ------------------------------------------------------ */
+            ...(serviceIcon
+              ? {
+                  serviceIcon,
+                }
+              : {}),
 
-        serviceId,
+            ...(serviceIconColor
+              ? {
+                  serviceIconColor,
+                }
+              : {}),
 
-        /* ------------------------------------------------------
-           SERVICE NAME
-           
-           WorkersScreen expects this
-           as `service`.
-        ------------------------------------------------------ */
-
-        service: serviceName,
-
-        /* ------------------------------------------------------
-           SERVICE ICON
-        ------------------------------------------------------ */
-
-        ...(serviceIcon
-          ? {
-              serviceIcon,
-            }
-          : {}),
-
-        /* ------------------------------------------------------
-           SERVICE ICON COLOR
-        ------------------------------------------------------ */
-
-        ...(serviceIconColor
-          ? {
-              serviceIconColor,
-            }
-          : {}),
-
-        /* ------------------------------------------------------
-           SERVICE ICON BACKGROUND
-        ------------------------------------------------------ */
-
-        ...(serviceIconBackground
-          ? {
-              serviceIconBackground,
-            }
-          : {}),
+            ...(serviceIconBackground
+              ? {
+                  serviceIconBackground,
+                }
+              : {}),
+          },
+        });
       },
-    });
-  };
+      [
+        routeServiceName,
+      ],
+    );
 
-  /* ============================================================
-     RENDER
-  ============================================================ */
+  /* ==========================================================
+     WORKER PROFILE
+  ========================================================== */
+
+  const handleWorkerProfile =
+    useCallback(
+      (
+        worker:
+          WorkerCardData,
+      ) => {
+        const workerId =
+          getString(
+            worker.id,
+          );
+
+        if (!workerId) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Worker unavailable",
+
+            text2:
+              "This worker profile could not be opened.",
+          });
+
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/details/worker-profile/[id]",
+
+          params: {
+            id:
+              workerId,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ==========================================================
+     BOOK WORKER
+  ========================================================== */
+
+  const handleBookWorker =
+    useCallback(
+      (
+        worker:
+          WorkerCardData,
+      ) => {
+        const workerId =
+          getString(
+            worker.id,
+          );
+
+        if (!workerId) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Worker unavailable",
+
+            text2:
+              "This worker cannot be booked right now.",
+          });
+
+          return;
+        }
+
+        const firstName =
+          getString(
+            worker.firstName,
+          );
+
+        const surname =
+          getString(
+            worker.surname,
+          );
+
+        const workerName =
+          [
+            firstName,
+            surname,
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+        const workerPhoto =
+          getString(
+            worker
+              .workerProfile
+              ?.photoUrl,
+          );
+
+        const serviceName =
+          getString(
+            worker
+              .services?.[0]
+              ?.name,
+          );
+
+        const hourlyRate =
+          Number(
+            worker
+              .workerProfile
+              ?.hourlyRate,
+          );
+
+        const basePrice =
+          Number.isFinite(
+            hourlyRate,
+          ) &&
+          hourlyRate >= 0
+            ? hourlyRate
+            : 0;
+
+        /*
+         * Preserve existing booking route
+         * and parameter names.
+         */
+        router.push({
+          pathname:
+            "/(customer)/booking",
+
+          params: {
+            workerId,
+
+            workerName,
+
+            workerPhoto,
+
+            serviceName,
+
+            basePrice:
+              String(
+                basePrice,
+              ),
+          },
+        });
+      },
+      [],
+    );
+
+  /* ==========================================================
+     SECTION HEADER
+  ========================================================== */
+
+  const renderSectionHeader =
+    useCallback(
+      ({
+        section,
+      }: {
+        section:
+          SearchSection;
+      }) => (
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+          style={
+            styles.sectionTitle
+          }
+        >
+          {section.title}
+        </AppText>
+      ),
+      [],
+    );
+
+  /* ==========================================================
+     ITEM
+  ========================================================== */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+        section,
+      }: {
+        item:
+          SearchItem;
+
+        section:
+          SearchSection;
+      }) => {
+        /* ====================================================
+           WORKER
+        ==================================================== */
+
+        if (
+          section.type ===
+          "workers"
+        ) {
+          const worker =
+            item as WorkerCardData;
+
+          return (
+            <WorkerCard
+              worker={
+                worker
+              }
+              onProfilePress={() => {
+                handleWorkerProfile(
+                  worker,
+                );
+              }}
+              onBookPress={() => {
+                handleBookWorker(
+                  worker,
+                );
+              }}
+            />
+          );
+        }
+
+        /* ====================================================
+           SERVICE
+        ==================================================== */
+
+        const service =
+          item as ServiceCardData;
+
+        return (
+          <CategoryCard
+            /*
+             * Keep exact Firebase icon.
+             */
+            icon={
+              service.icon
+            }
+            /*
+             * Keep exact Firebase icon color.
+             */
+            iconColor={
+              service.color
+            }
+            /*
+             * Keep exact Firebase background.
+             */
+            backgroundColor={
+              service.backgroundColor
+            }
+            title={
+              service.name
+            }
+            onPress={() => {
+              handleServicePress(
+                service,
+              );
+            }}
+          />
+        );
+      },
+      [
+        handleBookWorker,
+        handleServicePress,
+        handleWorkerProfile,
+      ],
+    );
+
+  /* ==========================================================
+     KEY
+  ========================================================== */
+
+  const keyExtractor =
+    useCallback(
+      (
+        item:
+          SearchItem,
+        index:
+          number,
+      ) => {
+        const id =
+          getString(
+            item.id,
+          );
+
+        return (
+          id ||
+          `search-item-${index}`
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     UI
+  ========================================================== */
 
   return (
-    <SafeAreaView
-      style={styles.container}
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
+      }
     >
       {/* ======================================================
-          SEARCH INPUT
+          SEARCH
       ====================================================== */}
 
       <SearchInput
-        value={query}
+        value={
+          query
+        }
         onChangeText={
           setQuery
         }
-        onBack={() =>
-          router.back()
-        }
+        onBack={() => {
+          router.back();
+        }}
       />
 
       {/* ======================================================
@@ -246,24 +577,34 @@ export default function SearchScreen() {
       ====================================================== */}
 
       <SearchFilter
-        value={filter}
-        onChange={setFilter}
+        value={
+          filter
+        }
+        onChange={
+          setFilter
+        }
       />
 
       {/* ======================================================
-          LOADING
+          RESULTS
       ====================================================== */}
 
       {loading ? (
         <View
-          style={styles.center}
+          style={
+            styles.center
+          }
         >
           <ActivityIndicator
             size="large"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.loadingText
             }
@@ -273,308 +614,235 @@ export default function SearchScreen() {
         </View>
       ) : (
         <SectionList<
-          WorkerCardData |
-            ServiceCardData,
+          SearchItem,
           SearchSection
         >
           sections={
             sections
           }
-
-          keyExtractor={(item) =>
-            item.id
+          keyExtractor={
+            keyExtractor
           }
-
+          renderItem={
+            renderItem
+          }
+          renderSectionHeader={
+            renderSectionHeader
+          }
           stickySectionHeadersEnabled={
             false
           }
-
           showsVerticalScrollIndicator={
             false
           }
-
           keyboardShouldPersistTaps="handled"
-
+          keyboardDismissMode="on-drag"
           contentContainerStyle={
             styles.content
           }
-
-          /* ==================================================
-             SECTION HEADER
-          ================================================== */
-
-          renderSectionHeader={({
-            section,
-          }) => (
-            <AppText
-              weight="bold"
-              style={
-                styles.sectionTitle
-              }
-            >
-              {section.title}
-            </AppText>
-          )}
-
-          /* ==================================================
-             ITEMS
-          ================================================== */
-
-          renderItem={({
-            item,
-            section,
-          }) => {
-            /* ==================================================
-               WORKER
-            ================================================== */
-
-            if (
-              section.type ===
-              "workers"
-            ) {
-              const worker =
-                item as WorkerCardData;
-
-              return (
-                <WorkerCard
-                  worker={
-                    worker
-                  }
-
-                  onProfilePress={() =>
-                    router.push({
-                      pathname:
-                        "/(customer)/details/worker-profile/[id]",
-
-                      params: {
-                        id:
-                          worker.id,
-                      },
-                    })
-                  }
-
-                  onBookPress={() =>
-                    router.push({
-                      pathname:
-                        "/(customer)/booking",
-
-                      params: {
-                        workerId:
-                          worker.id,
-
-                        workerName:
-                          `${worker.firstName} ${worker.surname}`,
-
-                        workerPhoto:
-                          worker
-                            .workerProfile
-                            .photoUrl,
-
-                        serviceName:
-                          worker
-                            .services?.[0]
-                            ?.name ??
-                          "",
-
-                        basePrice:
-                          String(
-                            worker
-                              .workerProfile
-                              .hourlyRate ??
-                              0,
-                          ),
-                      },
-                    })
-                  }
-                />
-              );
-            }
-
-            /* ==================================================
-               SERVICE
-            ================================================== */
-
-            const service =
-              item as ServiceCardData;
-
-            return (
-              <CategoryCard
-                /* ------------------------------------------------
-                   EXACT SERVICE ICON
-                ------------------------------------------------ */
-
-                icon={
-                  service.icon
-                }
-
-                /* ------------------------------------------------
-                   EXACT ICON COLOR
-                ------------------------------------------------ */
-
-                iconColor={
-                  service.color
-                }
-
-                /* ------------------------------------------------
-                   EXACT ICON BACKGROUND
-                ------------------------------------------------ */
-
-                backgroundColor={
-                  service.backgroundColor
-                }
-
-                title={
-                  service.name
-                }
-
-                onPress={() =>
-                  handleServicePress(
-                    service,
-                  )
-                }
-              />
-            );
-          }}
-
-          /* ==================================================
-             EMPTY
-          ================================================== */
-
+          initialNumToRender={
+            10
+          }
+          maxToRenderPerBatch={
+            10
+          }
+          windowSize={
+            9
+          }
+          removeClippedSubviews
           ListEmptyComponent={
-            <View
-              style={
-                styles.empty
-              }
-            >
-              <AppText
-                weight="bold"
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No results found
-              </AppText>
-
-              <AppText
-                style={
-                  styles.emptyText
-                }
-              >
-                Try another word or
-                describe the service
-                differently.
-              </AppText>
-            </View>
+            <SearchEmptyState />
           }
         />
       )}
-    </SafeAreaView>
+    </AppScreen>
   );
 }
 
-/* ==============================================================
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+function SearchEmptyState() {
+  return (
+    <View
+      style={
+        styles.empty
+      }
+    >
+      <View
+        style={
+          styles.emptyIcon
+        }
+      >
+        <AppIcon
+          name="search"
+          role="customer"
+          size="lg"
+          color={
+            CustomerColors.primary
+          }
+        />
+      </View>
+
+      <AppText
+        variant="heading3"
+        weight="bold"
+        center
+        style={
+          styles.emptyTitle
+        }
+      >
+        No results found
+      </AppText>
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.emptyText
+        }
+      >
+        Try another word or describe the service differently.
+      </AppText>
+    </View>
+  );
+}
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       CONTAINER
-    ========================================================== */
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
-    container: {
+    screen: {
       flex: 1,
 
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    /* ==========================================================
+    /* ========================================================
        CONTENT
-    ========================================================== */
+    ======================================================== */
 
     content: {
-      paddingHorizontal: 16,
-
-      paddingBottom: 32,
-
       flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        LOADING
-    ========================================================== */
+    ======================================================== */
 
     center: {
       flex: 1,
 
-      justifyContent:
-        "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
       alignItems:
+        "center",
+
+      justifyContent:
         "center",
     },
 
     loadingText: {
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#64748B",
-
-      fontSize: 13,
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SECTION
-    ========================================================== */
+    ======================================================== */
 
     sectionTitle: {
-      fontSize: 18,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
       color:
-        "#0F172A",
-
-      marginTop: 8,
-
-      marginBottom: 10,
+        Colors.textPrimary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        EMPTY
-    ========================================================== */
+    ======================================================== */
 
     empty: {
       flex: 1,
 
-      justifyContent:
-        "center",
+      minHeight: 360,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
       alignItems:
         "center",
 
-      paddingHorizontal: 30,
+      justifyContent:
+        "center",
+    },
 
-      paddingTop: 100,
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     emptyTitle: {
-      fontSize: 17,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 6,
+      maxWidth: 310,
 
-      textAlign:
-        "center",
-
-      color:
-        "#64748B",
-
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
   });

@@ -1,147 +1,263 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppButton,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
 import type {
   FilterType,
 } from "./orders.types";
 
-type Props = {
-  filter: FilterType;
-  error?: string | null;
-  onLogin?: () => void;
-};
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
-export default function OrderEmptyState({
+export interface OrderEmptyStateProps {
+  filter: FilterType;
+
+  error?: string | null;
+
+  onLogin?: () => void;
+}
+
+function OrderEmptyState({
   filter,
   error,
   onLogin,
-}: Props) {
-  const icon =
-    filter === "completed"
-      ? "checkmark-done-outline"
-      : filter === "cancelled"
-      ? "close-circle-outline"
-      : filter === "active"
-      ? "construct-outline"
-      : "receipt-outline";
+}: OrderEmptyStateProps) {
+  const isGuest =
+    Boolean(onLogin);
+
+  const content = useMemo(() => {
+    if (error) {
+      return {
+        icon: "error" as AppIconName,
+        title:
+          "Unable to load orders",
+        message: error,
+        error: true,
+      };
+    }
+
+    if (isGuest) {
+      return {
+        icon: "lock" as AppIconName,
+        title:
+          "Sign in to view your orders",
+        message:
+          "Login to track service and market orders from one place.",
+        error: false,
+      };
+    }
+
+    switch (filter) {
+      case "completed":
+        return {
+          icon:
+            "success" as AppIconName,
+
+          title:
+            "No completed orders",
+
+          message:
+            "Completed orders will appear here.",
+
+          error: false,
+        };
+
+      case "cancelled":
+        return {
+          icon:
+            "error" as AppIconName,
+
+          title:
+            "No cancelled orders",
+
+          message:
+            "You don't have any cancelled or expired orders.",
+
+          error: false,
+        };
+
+      case "active":
+        return {
+          icon:
+            "professional" as AppIconName,
+
+          title:
+            "No active orders",
+
+          message:
+            "Accepted and in-progress orders will appear here.",
+
+          error: false,
+        };
+
+      case "pending":
+        return {
+          icon:
+            "clock" as AppIconName,
+
+          title:
+            "No pending orders",
+
+          message:
+            "Orders waiting for a response will appear here.",
+
+          error: false,
+        };
+
+      case "all":
+      default:
+        return {
+          icon:
+            "package" as AppIconName,
+
+          title:
+            "No orders yet",
+
+          message:
+            "Your service and market orders will appear here once you place one.",
+
+          error: false,
+        };
+    }
+  }, [
+    error,
+    filter,
+    isGuest,
+  ]);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.icon}>
-        <Ionicons
-          name={
-            error
-              ? "alert-circle-outline"
-              : icon
-          }
-          size={27}
-          color={
-            error
-              ? "#DC2626"
-              : "#2563EB"
+    <View
+      accessibilityRole={
+        error
+          ? "alert"
+          : undefined
+      }
+      style={styles.container}
+    >
+      <View
+        style={[
+          styles.iconContainer,
+
+          {
+            backgroundColor:
+              content.error
+                ? Colors.errorSoft
+                : CustomerColors
+                    .primarySoft,
+          },
+        ]}
+      >
+        <AppIcon
+          name={content.icon}
+          role="customer"
+          size="lg"
+          state={
+            content.error
+              ? "error"
+              : "active"
           }
         />
       </View>
 
       <AppText
-        weight="bold"
+        variant="heading3"
+        center
         style={styles.title}
       >
-        {error
-          ? "Unable to load orders"
-          : "No orders found"}
+        {content.title}
       </AppText>
 
       <AppText
+        variant="body"
+        tone="secondary"
         center
-        style={styles.text}
+        style={styles.message}
       >
-        {error ??
-          (filter === "all"
-            ? "You haven't placed any service orders yet."
-            : `You don't have any ${filter} orders.`)}
+        {content.message}
       </AppText>
 
       {onLogin ? (
-        <Pressable
+        <AppButton
+          title="Login"
+          role="customer"
+          leftIconName="profile"
           onPress={onLogin}
-          style={styles.login}
-        >
-          <Ionicons
-            name="log-in-outline"
-            size={17}
-            color="#FFFFFF"
-          />
-
-          <AppText
-            weight="bold"
-            style={styles.loginText}
-          >
-            Login
-          </AppText>
-        </Pressable>
+          style={styles.loginButton}
+        />
       ) : null}
     </View>
   );
 }
 
-const styles =
-  StyleSheet.create({
-    container: {
-      minHeight: 250,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 25,
-    },
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
 
-    icon: {
-      width: 58,
-      height: 58,
-      borderRadius: 19,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    minHeight: 250,
 
-    title: {
-      marginTop: 12,
-      fontSize: 15,
-      color: "#0F172A",
-    },
+    alignItems: "center",
+    justifyContent: "center",
 
-    text: {
-      marginTop: 5,
-      fontSize: 10.5,
-      lineHeight: 17,
-      color: "#64748B",
-    },
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
 
-    login: {
-      marginTop: 14,
-      height: 40,
-      minWidth: 110,
-      paddingHorizontal: 18,
-      borderRadius: 11,
-      backgroundColor: "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-    },
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
+  },
 
-    loginText: {
-      fontSize: 11.5,
-      color: "#FFFFFF",
-    },
-  });
+  iconContainer: {
+    width:
+      FixxamTokens.size.fabLarge,
+
+    height:
+      FixxamTokens.size.fabLarge,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+  },
+
+  title: {
+    marginTop:
+      FixxamTokens.spacing.lg,
+  },
+
+  message: {
+    maxWidth: 320,
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
+
+  loginButton: {
+    minWidth: 140,
+
+    marginTop:
+      FixxamTokens.spacing.xl,
+  },
+});
+
+export default memo(
+  OrderEmptyState,
+);

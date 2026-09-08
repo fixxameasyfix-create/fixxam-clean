@@ -1,43 +1,125 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import type { AppIconName } from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+type BadgeVariant =
+  | "primary"
+  | "neutral"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
+
+export interface AppBadgeProps {
   label: string;
 
+  role?: FixxamRole;
+
+  variant?: BadgeVariant;
+
+  icon?: AppIconName;
+
+  /*
+   * Legacy/custom overrides.
+   */
   color?: string;
 
   backgroundColor?: string;
-};
+}
 
-export default function AppBadge({
+function AppBadge({
   label,
+  role = "customer",
+  variant = "primary",
+  icon,
+  color,
+  backgroundColor,
+}: AppBadgeProps) {
+  const roleColors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
 
-  color = "#2563EB",
+  const palette = {
+    primary: {
+      text: roleColors.primary,
+      background: roleColors.primarySoft,
+    },
 
-  backgroundColor = "#EFF6FF",
-}: Props) {
+    neutral: {
+      text: Colors.textSecondary,
+      background: Colors.iconBackground,
+    },
+
+    success: {
+      text: Colors.success,
+      background: Colors.successSoft,
+    },
+
+    warning: {
+      text: Colors.warning,
+      background: Colors.warningSoft,
+    },
+
+    error: {
+      text: Colors.error,
+      background: Colors.errorSoft,
+    },
+
+    info: {
+      text: Colors.info,
+      background: Colors.infoSoft,
+    },
+  } as const;
+
+  const current = palette[variant];
+
+  const resolvedTextColor =
+    color ?? current.text;
+
+  const resolvedBackground =
+    backgroundColor ??
+    current.background;
+
   return (
     <View
       style={[
         styles.badge,
         {
-          backgroundColor,
+          backgroundColor:
+            resolvedBackground,
         },
       ]}
     >
+      {icon ? (
+        <AppIcon
+          name={icon}
+          role={role}
+          size="xs"
+          color={resolvedTextColor}
+          strokeWidth="medium"
+        />
+      ) : null}
+
       <AppText
-        weight="bold"
-        style={[
-          styles.text,
-          {
-            color,
-          },
-        ]}
+        variant="caption"
+        color={resolvedTextColor}
+        style={styles.text}
+        numberOfLines={1}
       >
         {label}
       </AppText>
@@ -49,16 +131,26 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: "flex-start",
 
-    paddingHorizontal: 12,
+    minHeight: 28,
 
-    paddingVertical: 6,
+    flexDirection: "row",
+    alignItems: "center",
 
-    borderRadius: 999,
+    gap: FixxamTokens.spacing.xs,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
+
+    paddingVertical:
+      FixxamTokens.spacing.xs,
+
+    borderRadius:
+      FixxamTokens.radius.badge,
   },
 
   text: {
-    fontSize: 12,
-
-    letterSpacing: 0.3,
+    fontWeight: "600",
   },
 });
+
+export default memo(AppBadge);

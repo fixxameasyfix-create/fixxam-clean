@@ -1,11 +1,28 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
   FlatList,
   Pressable,
   StyleSheet,
+  type ListRenderItem,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
 
 const CATEGORIES = [
   "all",
@@ -16,81 +33,225 @@ const CATEGORIES = [
   "roofing",
   "tools",
   "cement",
-];
+] as const;
+
+type Category =
+  (typeof CATEGORIES)[number];
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   selected: string;
-  onSelect: (category: string) => void;
+
+  onSelect: (
+    category: string,
+  ) => void;
 };
 
-export default function PopularMaterialsCategories({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function formatCategory(
+  category: string,
+): string {
+  if (!category) {
+    return "";
+  }
+
+  return (
+    category
+      .charAt(0)
+      .toUpperCase() +
+    category.slice(1)
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function PopularMaterialsCategories({
   selected,
   onSelect,
 }: Props) {
+  const handleSelect =
+    useCallback(
+      (
+        category: Category,
+      ) => {
+        onSelect(category);
+      },
+      [onSelect],
+    );
+
+  const renderItem =
+    useCallback<
+      ListRenderItem<Category>
+    >(
+      ({ item }) => {
+        const active =
+          selected === item;
+
+        const label =
+          formatCategory(item);
+
+        return (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Show ${label} materials`}
+            accessibilityState={{
+              selected: active,
+            }}
+            onPress={() =>
+              handleSelect(item)
+            }
+            style={({ pressed }) => [
+              styles.chip,
+
+              active
+                ? styles.activeChip
+                : null,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppText
+              variant="bodyMedium"
+              weight={
+                active
+                  ? "bold"
+                  : "medium"
+              }
+              numberOfLines={1}
+              style={[
+                styles.label,
+
+                active
+                  ? styles.activeLabel
+                  : null,
+              ]}
+            >
+              {label}
+            </AppText>
+          </Pressable>
+        );
+      },
+      [
+        handleSelect,
+        selected,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: Category,
+      ) => item,
+      [],
+    );
+
   return (
     <FlatList
       horizontal
       data={CATEGORIES}
-      keyExtractor={(item) => item}
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.content}
-      renderItem={({ item }) => {
-        const active = selected === item;
-
-        return (
-          <Pressable
-            onPress={() => onSelect(item)}
-            style={[
-              styles.chip,
-              active && styles.activeChip,
-            ]}
-          >
-            <AppText
-              weight={active ? "bold" : "medium"}
-              style={[
-                styles.label,
-                active && styles.activeLabel,
-              ]}
-            >
-              {item.charAt(0).toUpperCase() +
-                item.slice(1)}
-            </AppText>
-          </Pressable>
-        );
-      }}
+      keyExtractor={
+        keyExtractor
+      }
+      renderItem={
+        renderItem
+      }
+      showsHorizontalScrollIndicator={
+        false
+      }
+      contentContainerStyle={
+        styles.content
+      }
+      keyboardShouldPersistTaps="handled"
     />
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    gap: 10,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  chip: {
-    height: 40,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#93C5FD",
-  },
+const styles =
+  StyleSheet.create({
+    content: {
+      gap:
+        FixxamTokens.spacing.sm,
 
-  activeChip: {
-    backgroundColor: "#2563EB",
-    borderColor: "#2563EB",
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  label: {
-    fontSize: 14,
-    color: "#2563EB",
-  },
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-  activeLabel: {
-    color: "#FFFFFF",
-  },
-});
+    chip: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    activeChip: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    label: {
+      color:
+        CustomerColors.primary,
+    },
+
+    activeLabel: {
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  PopularMaterialsCategories,
+);

@@ -1,5 +1,4 @@
 import React, {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -8,20 +7,14 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
   Linking,
-  Modal,
   Platform,
-  Pressable,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 import {
   Stack,
@@ -29,11 +22,17 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
+import Toast from "react-native-toast-message";
+
 import {
-  addDoc,
+  onAuthStateChanged,
+} from "firebase/auth";
+
+import {
   collection,
   doc,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
@@ -43,29 +42,55 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import {
   auth,
   db,
 } from "@/firebase/config";
 
-/* ============================================================
-   TYPES
-============================================================ */
+import WorkerMarketChatHeader from "@/components/orders/market-chat/WorkerMarketChatHeader";
 
-type ChatMessage = {
-  id: string;
-  senderId: string;
-  senderRole: "customer" | "worker";
-  text: string;
-  createdAt: number;
-};
+import WorkerMarketCustomerBar from "@/components/orders/market-chat/WorkerMarketCustomerBar";
+
+import WorkerMarketMessageList, {
+  type WorkerMarketChatMessage,
+} from "@/components/orders/market-chat/WorkerMarketMessageList";
+
+import WorkerMarketChatInput from "@/components/orders/market-chat/WorkerMarketChatInput";
+
+import WorkerMarketChatMenu from "@/components/orders/market-chat/WorkerMarketChatMenu";
+
+import WorkerMarketOrderItemsModal, {
+  type WorkerMarketOrderItem,
+} from "@/components/orders/market-chat/WorkerMarketOrderItemsModal";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type MessageDocument = {
   senderId?: unknown;
+
   senderRole?: unknown;
+
   text?: unknown;
+
   createdAt?: unknown;
 };
 
@@ -73,77 +98,106 @@ type OrderData = {
   id: string;
 
   customerId?: string;
+
   customerName?: string;
+
   customerPhone?: string;
 
   receiverName?: string;
+
   receiverPhone?: string;
 
   workerId?: string;
 
   storeId?: string;
+
   storeName?: string;
 
   address?: string;
+
   deliveryAddress?: string;
+
   location?: string;
 
   total?: number;
+
+  totalAmount?: number;
+
   subtotal?: number;
+
   deliveryFee?: number;
 
   status?: string;
 
   items?: unknown[];
-  products?: unknown[];
 
-  [key: string]: unknown;
+  products?: unknown[];
 };
 
 type ChatParams = {
-  orderId?: string | string[];
+  orderId?:
+    | string
+    | string[];
 };
 
-type OrderItem = {
-  id: string;
-  name: string;
-  quantity: number;
-  price: number;
-  image?: string;
-};
+/* ==============================================================
+   CONSTANTS
+============================================================== */
 
-const DELETE_BATCH_SIZE = 450;
+const DELETE_BATCH_SIZE =
+  450;
 
-/* ============================================================
+/* ==============================================================
    HELPERS
-============================================================ */
+============================================================== */
 
 function getParam(
-  value: string | string[] | undefined,
+  value:
+    | string
+    | string[]
+    | undefined,
 ): string {
-  if (Array.isArray(value)) {
-    return (value[0] ?? "").trim();
+  if (
+    Array.isArray(
+      value,
+    )
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
   }
 
-  return (value ?? "").trim();
+  return (
+    value ??
+    ""
+  ).trim();
 }
 
 function getString(
   ...values: unknown[]
 ): string {
-  for (const value of values) {
+  for (
+    const value of values
+  ) {
     if (
-      typeof value === "string" &&
+      typeof value ===
+        "string" &&
       value.trim()
     ) {
       return value.trim();
     }
 
     if (
-      typeof value === "number" &&
-      Number.isFinite(value)
+      typeof value ===
+        "number" &&
+      Number.isFinite(
+        value,
+      )
     ) {
-      return String(value);
+      return String(
+        value,
+      );
     }
   }
 
@@ -153,21 +207,34 @@ function getString(
 function getNumber(
   ...values: unknown[]
 ): number {
-  for (const value of values) {
+  for (
+    const value of values
+  ) {
     if (
-      typeof value === "number" &&
-      Number.isFinite(value)
+      typeof value ===
+        "number" &&
+      Number.isFinite(
+        value,
+      )
     ) {
       return value;
     }
 
     if (
-      typeof value === "string" &&
+      typeof value ===
+        "string" &&
       value.trim()
     ) {
-      const parsed = Number(value);
+      const parsed =
+        Number(
+          value,
+        );
 
-      if (Number.isFinite(parsed)) {
+      if (
+        Number.isFinite(
+          parsed,
+        )
+      ) {
         return parsed;
       }
     }
@@ -176,20 +243,17 @@ function getNumber(
   return 0;
 }
 
-function formatMoney(
-  value: number,
-): string {
-  return `₦${value.toLocaleString(
-    "en-NG",
-  )}`;
-}
-
 function normalizeRole(
   value: unknown,
-): "customer" | "worker" {
+):
+  | "customer"
+  | "worker" {
   if (
-    typeof value === "string" &&
-    value.trim().toLowerCase() ===
+    typeof value ===
+      "string" &&
+    value
+      .trim()
+      .toLowerCase() ===
       "worker"
   ) {
     return "worker";
@@ -203,7 +267,8 @@ function getTimestampMillis(
 ): number {
   if (
     value &&
-    typeof value === "object"
+    typeof value ===
+      "object"
   ) {
     const timestamp =
       value as {
@@ -214,12 +279,27 @@ function getTimestampMillis(
       typeof timestamp.toMillis ===
       "function"
     ) {
-      return timestamp.toMillis();
+      try {
+        const millis =
+          timestamp.toMillis();
+
+        return Number.isFinite(
+          millis,
+        )
+          ? millis
+          : 0;
+      } catch {
+        return 0;
+      }
     }
   }
 
   if (
-    typeof value === "number"
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
@@ -227,125 +307,131 @@ function getTimestampMillis(
   return 0;
 }
 
-function formatTime(
-  timestamp: number,
+function sanitizePhone(
+  value: string,
 ): string {
-  if (!timestamp) {
-    return "";
-  }
-
-  return new Date(
-    timestamp,
-  ).toLocaleTimeString(
-    "en-NG",
-    {
-      hour: "numeric",
-      minute: "2-digit",
-    },
+  return value.replace(
+    /[^0-9+*#,;]/g,
+    "",
   );
 }
 
-function shortOrderId(
-  value: string,
-): string {
-  if (value.length <= 10) {
-    return value;
-  }
-
-  return `${value.slice(
-    0,
-    5,
-  )}...${value.slice(-4)}`;
-}
-
-/* ============================================================
+/* ==============================================================
    NORMALIZE ITEMS
-============================================================ */
+============================================================== */
 
 function normalizeItems(
   value: unknown,
-): OrderItem[] {
-  if (!Array.isArray(value)) {
+): WorkerMarketOrderItem[] {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return [];
   }
 
   return value
-    .map((item, index) => {
-      if (
-        !item ||
-        typeof item !== "object"
-      ) {
-        return null;
-      }
+    .map(
+      (
+        item,
+        index,
+      ):
+        | WorkerMarketOrderItem
+        | null => {
+        if (
+          !item ||
+          typeof item !==
+            "object"
+        ) {
+          return null;
+        }
 
-      const data =
-        item as Record<
-          string,
-          unknown
-        >;
+        const data =
+          item as Record<
+            string,
+            unknown
+          >;
 
-      const name =
-        getString(
-          data.name,
-          data.productName,
-          data.title,
-          "Product",
-        );
-
-      const quantity =
-        Math.max(
-          1,
-          Math.floor(
-            getNumber(
-              data.quantity,
-              data.qty,
-              1,
-            ),
-          ),
-        );
-
-      const price =
-        getNumber(
-          data.price,
-          data.unitPrice,
-          data.amount,
-        );
-
-      return {
-        id:
+        const name =
           getString(
-            data.id,
-            data.productId,
+            data.name,
+            data.productName,
+            data.title,
           ) ||
-          `item-${index}`,
+          "Product";
 
-        name,
-        quantity,
-        price,
+        const quantity =
+          Math.max(
+            1,
 
-        image:
+            Math.floor(
+              getNumber(
+                data.quantity,
+                data.qty,
+                1,
+              ),
+            ),
+          );
+
+        const price =
+          Math.max(
+            0,
+
+            getNumber(
+              data.price,
+              data.unitPrice,
+              data.amount,
+            ),
+          );
+
+        const image =
           getString(
             data.image,
+            data.imageURL,
             data.imageUrl,
+            data.productImage,
             data.photo,
-          ) || undefined,
-      };
-    })
+            data.photoUrl,
+          );
+
+        return {
+          id:
+            getString(
+              data.id,
+              data.productId,
+            ) ||
+            `item-${index}`,
+
+          name,
+
+          quantity,
+
+          price,
+
+          image,
+        };
+      },
+    )
     .filter(
       (
         item,
-      ): item is OrderItem =>
+      ): item is WorkerMarketOrderItem =>
         item !== null,
     );
 }
 
-/* ============================================================
+/* ==============================================================
    SCREEN
-============================================================ */
+============================================================== */
 
 export default function WorkerMarketOrderChatRoom() {
   const params =
     useLocalSearchParams<ChatParams>();
+
+  /* ============================================================
+     ORDER ID
+  ============================================================ */
 
   const orderId =
     useMemo(
@@ -353,11 +439,37 @@ export default function WorkerMarketOrderChatRoom() {
         getParam(
           params.orderId,
         ),
-      [params.orderId],
+      [
+        params.orderId,
+      ],
     );
 
-  const currentUserId =
-    auth.currentUser?.uid ?? "";
+  const chatRoomId =
+    orderId;
+
+  /* ============================================================
+     AUTH
+  ============================================================ */
+
+  const [
+    authReady,
+    setAuthReady,
+  ] =
+    useState(false);
+
+  const [
+    workerId,
+    setWorkerId,
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
+
+  /* ============================================================
+     ORDER
+  ============================================================ */
 
   const [
     order,
@@ -368,70 +480,167 @@ export default function WorkerMarketOrderChatRoom() {
     );
 
   const [
+    loadingOrder,
+    setLoadingOrder,
+  ] =
+    useState(true);
+
+  const [
+    orderError,
+    setOrderError,
+  ] =
+    useState("");
+
+  /* ============================================================
+     CHAT
+  ============================================================ */
+
+  const [
     messages,
     setMessages,
   ] =
-    useState<ChatMessage[]>([]);
+    useState<
+      WorkerMarketChatMessage[]
+    >([]);
 
   const [
     text,
     setText,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
-    loadingOrder,
-    setLoadingOrder,
-  ] = useState(true);
+    chatError,
+    setChatError,
+  ] =
+    useState("");
 
   const [
     sending,
     setSending,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     deleting,
     setDeleting,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const sendingRef =
+    useRef(false);
+
+  const deletingRef =
+    useRef(false);
+
+  /* ============================================================
+     MODALS
+  ============================================================ */
 
   const [
     menuVisible,
     setMenuVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     itemsVisible,
     setItemsVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
+
+  /* ============================================================
+     LIST
+  ============================================================ */
 
   const listRef =
     useRef<
-      FlatList<ChatMessage>
-    >(null);
+      FlatList<WorkerMarketChatMessage>
+    >(
+      null,
+    );
 
-  const chatRoomId = orderId;
-
-  /* ==========================================================
-     LOAD ORDER
-  ========================================================== */
+  /* ============================================================
+     AUTH LISTENER
+  ============================================================ */
 
   useEffect(() => {
-    if (
-      !orderId ||
-      !currentUserId
-    ) {
-      setLoadingOrder(false);
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        user => {
+          const uid =
+            getString(
+              user?.uid,
+            );
+
+          setWorkerId(
+            uid || null,
+          );
+
+          setAuthReady(
+            true,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, []);
+
+  /* ============================================================
+     LOAD ORDER
+  ============================================================ */
+
+  useEffect(() => {
+    if (!authReady) {
       return;
     }
+
+    if (!workerId) {
+      setOrder(
+        null,
+      );
+
+      setLoadingOrder(
+        false,
+      );
+
+      setOrderError(
+        "Please sign in to access this chat.",
+      );
+
+      return;
+    }
+
+    if (!orderId) {
+      setOrder(
+        null,
+      );
+
+      setLoadingOrder(
+        false,
+      );
+
+      setOrderError(
+        "This chat is missing the order information.",
+      );
+
+      return;
+    }
+
+    setLoadingOrder(
+      true,
+    );
+
+    setOrderError(
+      "",
+    );
 
     const orderRef =
       doc(
@@ -443,99 +652,184 @@ export default function WorkerMarketOrderChatRoom() {
     const unsubscribe =
       onSnapshot(
         orderRef,
-        (snapshot) => {
+
+        snapshot => {
           if (
             !snapshot.exists()
           ) {
-            setOrder(null);
-            setLoadingOrder(false);
-            setError(
-              "Order not found.",
+            setOrder(
+              null,
             );
+
+            setLoadingOrder(
+              false,
+            );
+
+            setOrderError(
+              "This order no longer exists.",
+            );
+
             return;
           }
 
           const data =
             snapshot.data();
 
-          const workerId =
+          const assignedWorkerId =
             getString(
               data.workerId,
             );
 
+          /*
+           * Client-side UX protection.
+           *
+           * Firestore Rules must independently
+           * enforce this ownership.
+           */
           if (
-            workerId &&
-            workerId !==
-              currentUserId
+            assignedWorkerId !==
+            workerId
           ) {
-            setOrder(null);
-            setLoadingOrder(false);
-            setError(
+            setOrder(
+              null,
+            );
+
+            setLoadingOrder(
+              false,
+            );
+
+            setOrderError(
               "You are not assigned to this order.",
             );
+
             return;
           }
 
           setOrder({
-            id: snapshot.id,
+            id:
+              snapshot.id,
+
             ...data,
           });
 
-          setLoadingOrder(false);
-          setError("");
+          setLoadingOrder(
+            false,
+          );
+
+          setOrderError(
+            "",
+          );
         },
-        (snapshotError) => {
+
+        snapshotError => {
           console.error(
             "FIXXAM_WORKER_CHAT_ORDER_ERROR:",
             snapshotError,
           );
 
-          setOrder(null);
-          setLoadingOrder(false);
-          setError(
-            "Unable to load order information.",
+          setOrder(
+            null,
+          );
+
+          setLoadingOrder(
+            false,
+          );
+
+          setOrderError(
+            "Unable to load this order. Please try again.",
           );
         },
       );
 
     return unsubscribe;
   }, [
-    currentUserId,
+    authReady,
     orderId,
+    workerId,
   ]);
 
-  /* ==========================================================
+  /* ============================================================
+     VERIFIED ACCESS
+  ============================================================ */
+
+  const assignedWorkerId =
+    getString(
+      order?.workerId,
+    );
+
+  const orderAvailable =
+    Boolean(
+      order &&
+      workerId &&
+      assignedWorkerId ===
+        workerId,
+    );
+
+  /* ============================================================
      SCROLL
-  ========================================================== */
+  ============================================================ */
 
   const scrollToBottom =
     useCallback(
       (
         animated = true,
       ) => {
-        requestAnimationFrame(() => {
-          listRef.current?.scrollToEnd({
-            animated,
-          });
-        });
+        requestAnimationFrame(
+          () => {
+            listRef.current?.scrollToEnd(
+              {
+                animated,
+              },
+            );
+          },
+        );
       },
       [],
     );
 
-  /* ==========================================================
-     LISTEN TO CHAT
-  ========================================================== */
+  /* ============================================================
+     CHAT LISTENER
+  ============================================================ */
 
   useEffect(() => {
     if (
-      !chatRoomId ||
-      !currentUserId
+      !authReady ||
+      loadingOrder
     ) {
-      setLoading(false);
+      setLoading(
+        true,
+      );
+
       return;
     }
 
-    setLoading(true);
+    if (
+      !chatRoomId ||
+      !workerId ||
+      !orderAvailable
+    ) {
+      setMessages(
+        [],
+      );
+
+      setLoading(
+        false,
+      );
+
+      setChatError(
+        "",
+      );
+
+      return;
+    }
+
+    setLoading(
+      true,
+    );
+
+    setChatError(
+      "",
+    );
 
     const messagesRef =
       collection(
@@ -548,6 +842,7 @@ export default function WorkerMarketOrderChatRoom() {
     const messagesQuery =
       query(
         messagesRef,
+
         orderBy(
           "createdAt",
           "asc",
@@ -557,13 +852,14 @@ export default function WorkerMarketOrderChatRoom() {
     const unsubscribe =
       onSnapshot(
         messagesQuery,
-        (snapshot) => {
+
+        snapshot => {
           const nextMessages =
             snapshot.docs
               .map(
                 (
                   messageDoc,
-                ) => {
+                ): WorkerMarketChatMessage => {
                   const data =
                     messageDoc.data() as MessageDocument;
 
@@ -594,38 +890,48 @@ export default function WorkerMarketOrderChatRoom() {
                 },
               )
               .filter(
-                (
-                  message,
-                ) =>
-                  message.text
-                    .trim()
-                    .length > 0,
+                message =>
+                  message.text.length >
+                  0,
               );
 
           setMessages(
             nextMessages,
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
-          requestAnimationFrame(() => {
-            if (
-              nextMessages.length
-            ) {
-              scrollToBottom(
-                false,
-              );
-            }
-          });
+          setChatError(
+            "",
+          );
+
+          requestAnimationFrame(
+            () => {
+              if (
+                nextMessages.length >
+                0
+              ) {
+                scrollToBottom(
+                  false,
+                );
+              }
+            },
+          );
         },
-        (listenerError) => {
+
+        listenerError => {
           console.error(
             "FIXXAM_WORKER_CHAT_LISTEN_ERROR:",
             listenerError,
           );
 
-          setLoading(false);
-          setError(
+          setLoading(
+            false,
+          );
+
+          setChatError(
             "Unable to load chat messages.",
           );
         },
@@ -633,429 +939,728 @@ export default function WorkerMarketOrderChatRoom() {
 
     return unsubscribe;
   }, [
+    authReady,
     chatRoomId,
-    currentUserId,
+    loadingOrder,
+    orderAvailable,
     scrollToBottom,
+    workerId,
   ]);
 
-  /* ==========================================================
+  /* ============================================================
      SEND MESSAGE
-  ========================================================== */
+  ============================================================ */
 
   const handleSend =
-    useCallback(async () => {
-      const cleanText =
-        text.trim();
+    useCallback(
+      async () => {
+        const cleanText =
+          text.trim();
 
-      if (
-        !cleanText ||
-        sending ||
-        deleting
-      ) {
-        return;
-      }
-
-      if (!currentUserId) {
-        setError(
-          "Please sign in again.",
-        );
-        return;
-      }
-
-      if (!orderId) {
-        setError(
-          "Order information is missing.",
-        );
-        return;
-      }
-
-      if (!order) {
-        setError(
-          "Order information is unavailable.",
-        );
-        return;
-      }
-
-      const assignedWorkerId =
-        getString(
-          order.workerId,
-        );
-
-      if (
-        assignedWorkerId &&
-        assignedWorkerId !==
-          currentUserId
-      ) {
-        setError(
-          "You are not assigned to this order.",
-        );
-        return;
-      }
-
-      setSending(true);
-      setError("");
-
-      try {
-        const chatRef =
-          doc(
-            db,
-            "marketChats",
-            chatRoomId,
-          );
-
-        await setDoc(
-          chatRef,
-          {
-            orderId,
-
-            customerId:
-              getString(
-                order.customerId,
-                "",
-              ) || null,
-
-            workerId:
-              currentUserId,
-
-            storeId:
-              getString(
-                order.storeId,
-                "",
-              ) || null,
-
-            updatedAt:
-              serverTimestamp(),
-
-            lastMessage:
-              cleanText,
-
-            lastMessageSenderId:
-              currentUserId,
-
-            lastMessageSenderRole:
-              "worker",
-          },
-          {
-            merge: true,
-          },
-        );
-
-        await addDoc(
-          collection(
-            db,
-            "marketChats",
-            chatRoomId,
-            "messages",
-          ),
-          {
-            senderId:
-              currentUserId,
-
-            senderRole:
-              "worker",
-
-            text:
-              cleanText,
-
-            createdAt:
-              serverTimestamp(),
-          },
-        );
-
-        setText("");
-
-        requestAnimationFrame(() => {
-          scrollToBottom(true);
-        });
-      } catch (sendError) {
-        console.error(
-          "FIXXAM_WORKER_CHAT_SEND_ERROR:",
-          sendError,
-        );
-
-        setError(
-          "Message could not be sent. Please try again.",
-        );
-      } finally {
-        setSending(false);
-      }
-    }, [
-      chatRoomId,
-      currentUserId,
-      deleting,
-      order,
-      orderId,
-      scrollToBottom,
-      sending,
-      text,
-    ]);
-
-  /* ==========================================================
-     CALL CUSTOMER
-  ========================================================== */
-
-  const handleCallCustomer =
-    useCallback(async () => {
-      setMenuVisible(false);
-
-      const phone =
-        getString(
-          order?.customerPhone,
-          order?.receiverPhone,
-        );
-
-      if (!phone) {
-        Alert.alert(
-          "Phone unavailable",
-          "The customer's phone number is not available.",
-        );
-        return;
-      }
-
-      const phoneUrl =
-        `tel:${phone}`;
-
-      try {
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
-
-        if (!supported) {
-          Alert.alert(
-            "Unable to call",
-            "Your device cannot make phone calls.",
-          );
-          return;
-        }
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (callError) {
-        console.error(
-          "FIXXAM_WORKER_CALL_CUSTOMER_ERROR:",
-          callError,
-        );
-
-        Alert.alert(
-          "Unable to call",
-          "Something went wrong while trying to call the customer.",
-        );
-      }
-    }, [
-      order,
-    ]);
-
-  /* ==========================================================
-     DELETE OWN MESSAGES
-  ========================================================== */
-
-  const confirmDeleteChat =
-    useCallback(async () => {
-      if (
-        deleting ||
-        !chatRoomId
-      ) {
-        return;
-      }
-
-      if (!currentUserId) {
-        Alert.alert(
-          "Sign in required",
-          "Please sign in again.",
-        );
-        return;
-      }
-
-      setDeleting(true);
-      setMenuVisible(false);
-      setError("");
-
-      try {
-        const messagesRef =
-          collection(
-            db,
-            "marketChats",
-            chatRoomId,
-            "messages",
-          );
-
-        /*
-         * IMPORTANT:
-         * Only query messages belonging
-         * to the current Worker.
-         */
-        const ownMessagesQuery =
-          query(
-            messagesRef,
-            where(
-              "senderId",
-              "==",
-              currentUserId,
-            ),
-          );
-
-        const snapshot =
-          await getDocs(
-            ownMessagesQuery,
-          );
-
-        if (snapshot.empty) {
-          Alert.alert(
-            "Nothing to delete",
-            "You don't have any messages in this chat.",
-          );
-
-          return;
-        }
-
-        /*
-         * Delete only Worker messages.
-         */
-        for (
-          let index = 0;
-          index <
-          snapshot.docs.length;
-          index +=
-            DELETE_BATCH_SIZE
+        if (
+          !cleanText ||
+          sendingRef.current ||
+          deletingRef.current
         ) {
-          const batch =
-            writeBatch(db);
+          return;
+        }
 
-          const chunk =
-            snapshot.docs.slice(
-              index,
-              index +
-                DELETE_BATCH_SIZE,
+        if (!workerId) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Sign in required",
+
+            text2:
+              "Please sign in again before sending a message.",
+          });
+
+          return;
+        }
+
+        if (
+          !orderId ||
+          !chatRoomId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Chat unavailable",
+
+            text2:
+              "Order information is missing.",
+          });
+
+          return;
+        }
+
+        if (
+          !order ||
+          !orderAvailable
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Order unavailable",
+
+            text2:
+              "You cannot send a message in this chat.",
+          });
+
+          return;
+        }
+
+        sendingRef.current =
+          true;
+
+        setSending(
+          true,
+        );
+
+        try {
+          const chatRef =
+            doc(
+              db,
+              "marketChats",
+              chatRoomId,
             );
 
-          chunk.forEach(
-            (
-              messageDoc,
-            ) => {
-              batch.delete(
-                messageDoc.ref,
-              );
+          const messagesRef =
+            collection(
+              db,
+              "marketChats",
+              chatRoomId,
+              "messages",
+            );
+
+          const messageRef =
+            doc(
+              messagesRef,
+            );
+
+          /*
+           * Atomic write:
+           *
+           * Chat summary and actual message
+           * either succeed together or fail together.
+           */
+          const batch =
+            writeBatch(
+              db,
+            );
+
+          batch.set(
+            chatRef,
+
+            {
+              orderId,
+
+              customerId:
+                getString(
+                  order.customerId,
+                ) ||
+                null,
+
+              workerId,
+
+              storeId:
+                getString(
+                  order.storeId,
+                ) ||
+                null,
+
+              updatedAt:
+                serverTimestamp(),
+
+              lastMessage:
+                cleanText,
+
+              lastMessageSenderId:
+                workerId,
+
+              lastMessageSenderRole:
+                "worker",
+            },
+
+            {
+              merge:
+                true,
+            },
+          );
+
+          batch.set(
+            messageRef,
+
+            {
+              senderId:
+                workerId,
+
+              senderRole:
+                "worker",
+
+              text:
+                cleanText,
+
+              createdAt:
+                serverTimestamp(),
             },
           );
 
           await batch.commit();
+
+          setText(
+            "",
+          );
+
+          requestAnimationFrame(
+            () => {
+              scrollToBottom(
+                true,
+              );
+            },
+          );
+        } catch (sendError) {
+          console.error(
+            "FIXXAM_WORKER_CHAT_SEND_ERROR:",
+            sendError,
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Message not sent",
+
+            text2:
+              "Please check your connection and try again.",
+          });
+        } finally {
+          sendingRef.current =
+            false;
+
+          setSending(
+            false,
+          );
+        }
+      },
+      [
+        chatRoomId,
+        order,
+        orderAvailable,
+        orderId,
+        scrollToBottom,
+        text,
+        workerId,
+      ],
+    );
+
+  /* ============================================================
+     CALL CUSTOMER
+  ============================================================ */
+
+  const handleCallCustomer =
+    useCallback(
+      async () => {
+        setMenuVisible(
+          false,
+        );
+
+        const rawPhone =
+          getString(
+            order?.customerPhone,
+            order?.receiverPhone,
+          );
+
+        const phone =
+          sanitizePhone(
+            rawPhone,
+          );
+
+        if (!phone) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Phone unavailable",
+
+            text2:
+              "The customer's phone number is not available.",
+          });
+
+          return;
         }
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT delete:
-         *
-         * marketChats/{orderId}
-         *
-         * because Customer and Worker
-         * share the same chat room.
-         */
+        const phoneUrl =
+          `tel:${phone}`;
 
-        setMessages(
-          (currentMessages) =>
-            currentMessages.filter(
-              (message) =>
-                message.senderId !==
-                currentUserId,
-            ),
+        try {
+          const supported =
+            await Linking.canOpenURL(
+              phoneUrl,
+            );
+
+          if (!supported) {
+            Toast.show({
+              type: "error",
+
+              text1:
+                "Unable to call",
+
+              text2:
+                "Your device cannot open the phone dialer.",
+            });
+
+            return;
+          }
+
+          await Linking.openURL(
+            phoneUrl,
+          );
+        } catch (callError) {
+          console.error(
+            "FIXXAM_WORKER_CALL_CUSTOMER_ERROR:",
+            callError,
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to call",
+
+            text2:
+              "We could not open the phone app.",
+          });
+        }
+      },
+      [
+        order,
+      ],
+    );
+
+  /* ============================================================
+     DELETE OWN MESSAGES
+  ============================================================ */
+
+  const confirmDeleteChat =
+    useCallback(
+      async () => {
+        if (
+          deletingRef.current ||
+          !chatRoomId
+        ) {
+          return;
+        }
+
+        if (
+          !workerId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Sign in required",
+
+            text2:
+              "Please sign in again.",
+          });
+
+          return;
+        }
+
+        if (
+          !orderAvailable
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Chat unavailable",
+
+            text2:
+              "You no longer have access to this chat.",
+          });
+
+          return;
+        }
+
+        deletingRef.current =
+          true;
+
+        setDeleting(
+          true,
         );
 
-        setText("");
-
-        Alert.alert(
-          "Messages Deleted",
-          "Your messages have been deleted. The customer's messages are still available.",
-        );
-      } catch (deleteError) {
-        console.error(
-          "FIXXAM_WORKER_DELETE_OWN_MESSAGES_ERROR:",
-          deleteError,
+        setMenuVisible(
+          false,
         );
 
-        setError(
-          "Unable to delete your messages.",
-        );
+        try {
+          const messagesRef =
+            collection(
+              db,
+              "marketChats",
+              chatRoomId,
+              "messages",
+            );
 
-        Alert.alert(
-          "Unable to delete",
-          "Something went wrong while deleting your messages.",
-        );
-      } finally {
-        setDeleting(false);
-      }
-    }, [
-      chatRoomId,
-      currentUserId,
-      deleting,
-    ]);
+          const ownMessagesQuery =
+            query(
+              messagesRef,
 
-  /* ==========================================================
+              where(
+                "senderId",
+                "==",
+                workerId,
+              ),
+            );
+
+          const snapshot =
+            await getDocs(
+              ownMessagesQuery,
+            );
+
+          if (
+            snapshot.empty
+          ) {
+            Toast.show({
+              type: "info",
+
+              text1:
+                "Nothing to delete",
+
+              text2:
+                "You don't have any messages in this chat.",
+            });
+
+            return;
+          }
+
+          /* ==================================================
+             DELETE IN SAFE BATCHES
+          ================================================== */
+
+          for (
+            let index = 0;
+            index <
+            snapshot.docs.length;
+            index +=
+              DELETE_BATCH_SIZE
+          ) {
+            const batch =
+              writeBatch(
+                db,
+              );
+
+            const chunk =
+              snapshot.docs.slice(
+                index,
+                index +
+                  DELETE_BATCH_SIZE,
+              );
+
+            chunk.forEach(
+              messageDoc => {
+                batch.delete(
+                  messageDoc.ref,
+                );
+              },
+            );
+
+            await batch.commit();
+          }
+
+          /* ==================================================
+             REBUILD CHAT SUMMARY
+          ================================================== */
+
+          const remainingQuery =
+            query(
+              messagesRef,
+
+              orderBy(
+                "createdAt",
+                "desc",
+              ),
+
+              limit(
+                1,
+              ),
+            );
+
+          const remainingSnapshot =
+            await getDocs(
+              remainingQuery,
+            );
+
+          const chatRef =
+            doc(
+              db,
+              "marketChats",
+              chatRoomId,
+            );
+
+          if (
+            remainingSnapshot.empty
+          ) {
+            await setDoc(
+              chatRef,
+
+              {
+                lastMessage:
+                  "",
+
+                lastMessageSenderId:
+                  null,
+
+                lastMessageSenderRole:
+                  null,
+              },
+
+              {
+                merge:
+                  true,
+              },
+            );
+          } else {
+            const latestDoc =
+              remainingSnapshot.docs[0];
+
+            const latestData =
+              latestDoc.data() as MessageDocument;
+
+            const latestRole =
+              normalizeRole(
+                latestData.senderRole,
+              );
+
+            await setDoc(
+              chatRef,
+
+              {
+                lastMessage:
+                  getString(
+                    latestData.text,
+                  ),
+
+                lastMessageSenderId:
+                  getString(
+                    latestData.senderId,
+                  ) ||
+                  null,
+
+                lastMessageSenderRole:
+                  latestRole,
+
+                updatedAt:
+                  latestData.createdAt ||
+                  serverTimestamp(),
+              },
+
+              {
+                merge:
+                  true,
+              },
+            );
+          }
+
+          setText(
+            "",
+          );
+
+          Toast.show({
+            type: "success",
+
+            text1:
+              "Messages deleted",
+
+            text2:
+              "Only the messages you sent were removed.",
+          });
+        } catch (deleteError) {
+          console.error(
+            "FIXXAM_WORKER_DELETE_OWN_MESSAGES_ERROR:",
+            deleteError,
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to delete",
+
+            text2:
+              "We could not delete your messages. Please try again.",
+          });
+        } finally {
+          deletingRef.current =
+            false;
+
+          setDeleting(
+            false,
+          );
+        }
+      },
+      [
+        chatRoomId,
+        orderAvailable,
+        workerId,
+      ],
+    );
+
+  /* ============================================================
      DELETE CONFIRMATION
-  ========================================================== */
+  ============================================================ */
 
   const handleDeleteChat =
     useCallback(() => {
-      if (deleting) {
+      if (
+        deletingRef.current
+      ) {
         return;
       }
 
-      setMenuVisible(false);
+      setMenuVisible(
+        false,
+      );
 
       Alert.alert(
         "Delete My Messages?",
         "Only the messages you sent will be permanently deleted. The customer's messages will remain.",
         [
           {
-            text: "Cancel",
-            style: "cancel",
+            text:
+              "Cancel",
+
+            style:
+              "cancel",
           },
+
           {
-            text: "Delete",
-            style: "destructive",
-            onPress:
-              confirmDeleteChat,
+            text:
+              "Delete",
+
+            style:
+              "destructive",
+
+            onPress: () => {
+              void confirmDeleteChat();
+            },
           },
         ],
       );
     }, [
       confirmDeleteChat,
-      deleting,
     ]);
 
-  /* ==========================================================
+  /* ============================================================
      BACK
-  ========================================================== */
+  ============================================================ */
 
   const handleBack =
     useCallback(() => {
-      if (deleting) {
+      if (
+        deletingRef.current
+      ) {
         return;
       }
 
       router.back();
-    }, [
-      deleting,
-    ]);
+    }, []);
 
-  /* ==========================================================
+  /* ============================================================
      INPUT FOCUS
-  ========================================================== */
+  ============================================================ */
 
   const handleInputFocus =
     useCallback(() => {
-      requestAnimationFrame(() => {
-        scrollToBottom(true);
-      });
+      requestAnimationFrame(
+        () => {
+          scrollToBottom(
+            true,
+          );
+        },
+      );
     }, [
       scrollToBottom,
     ]);
 
-  /* ==========================================================
-     ITEMS
-  ========================================================== */
+  /* ============================================================
+     MODALS
+  ============================================================ */
+
+  const handleOpenMenu =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      if (
+        !orderAvailable
+      ) {
+        Toast.show({
+          type: "info",
+
+          text1:
+            "Chat unavailable",
+
+          text2:
+            "Order information is not available.",
+        });
+
+        return;
+      }
+
+      setMenuVisible(
+        true,
+      );
+    }, [
+      orderAvailable,
+    ]);
+
+  const handleCloseMenu =
+    useCallback(() => {
+      if (
+        deletingRef.current
+      ) {
+        return;
+      }
+
+      setMenuVisible(
+        false,
+      );
+    }, []);
+
+  const handleOpenItems =
+    useCallback(() => {
+      if (
+        !orderAvailable
+      ) {
+        return;
+      }
+
+      setItemsVisible(
+        true,
+      );
+    }, [
+      orderAvailable,
+    ]);
+
+  const handleCloseItems =
+    useCallback(() => {
+      setItemsVisible(
+        false,
+      );
+    }, []);
+
+  /* ============================================================
+     DERIVED DATA
+  ============================================================ */
 
   const items =
     useMemo(
@@ -1064,15 +1669,18 @@ export default function WorkerMarketOrderChatRoom() {
           order?.items ??
             order?.products,
         ),
-      [order],
+      [
+        order?.items,
+        order?.products,
+      ],
     );
 
   const customerName =
     getString(
       order?.customerName,
       order?.receiverName,
-      "Customer",
-    );
+    ) ||
+    "Customer";
 
   const customerPhone =
     getString(
@@ -1083,470 +1691,252 @@ export default function WorkerMarketOrderChatRoom() {
   const total =
     getNumber(
       order?.total,
+      order?.totalAmount,
     );
 
-  /* ==========================================================
-     INVALID ORDER
-  ========================================================== */
+  /* ============================================================
+     INVALID ORDER ID
+  ============================================================ */
 
-  if (!orderId) {
+  if (
+    !orderId
+  ) {
     return (
-      <>
-        <Stack.Screen
-          options={{
-            headerShown: false,
-          }}
-        />
-
-        <View
-          style={
-            styles.center
-          }
-        >
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={42}
-            color="#94A3B8"
-          />
-
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Chat unavailable
-          </AppText>
-
-          <AppText
-            style={
-              styles.errorText
-            }
-          >
-            This chat is missing the
-            order information.
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleBack
-            }
-            style={
-              styles.backButton
-            }
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.backButtonText
-              }
-            >
-              GO BACK
-            </AppText>
-          </Pressable>
-        </View>
-      </>
+      <ChatUnavailableState
+        icon="messages"
+        title="Chat unavailable"
+        description="This chat is missing the order information."
+        onBack={
+          handleBack
+        }
+      />
     );
   }
 
-  /* ==========================================================
+  /* ============================================================
+     AUTH LOADING
+  ============================================================ */
+
+  if (
+    !authReady
+  ) {
+    return (
+      <ChatLoadingState />
+    );
+  }
+
+  /* ============================================================
+     SIGNED OUT
+  ============================================================ */
+
+  if (
+    !workerId
+  ) {
+    return (
+      <ChatUnavailableState
+        icon="lock"
+        title="Sign in required"
+        description="Please sign in to access this chat."
+        onBack={
+          handleBack
+        }
+      />
+    );
+  }
+
+  /* ============================================================
+     ORDER LOADING
+  ============================================================ */
+
+  if (
+    loadingOrder
+  ) {
+    return (
+      <ChatLoadingState />
+    );
+  }
+
+  /* ============================================================
+     ORDER UNAVAILABLE
+  ============================================================ */
+
+  if (
+    orderError ||
+    !orderAvailable ||
+    !order
+  ) {
+    return (
+      <ChatUnavailableState
+        icon="warning"
+        title="Chat unavailable"
+        description={
+          orderError ||
+          "This order is unavailable."
+        }
+        onBack={
+          handleBack
+        }
+      />
+    );
+  }
+
+  /* ============================================================
      SCREEN
-  ========================================================== */
+  ============================================================ */
 
   return (
     <>
       <Stack.Screen
         options={{
-          headerShown: false,
+          headerShown:
+            false,
         }}
       />
 
-      <KeyboardAvoidingView
-        style={
+      <AppScreen
+        role="worker"
+        contentContainerStyle={
           styles.screen
         }
-        behavior={
-          Platform.OS ===
-          "ios"
-            ? "padding"
-            : "height"
-        }
-        keyboardVerticalOffset={
-          0
-        }
       >
-        {/* HEADER */}
-
-        <View
+        <KeyboardAvoidingView
           style={
-            styles.header
+            styles.keyboard
+          }
+          behavior={
+            Platform.OS ===
+            "ios"
+              ? "padding"
+              : "height"
+          }
+          keyboardVerticalOffset={
+            0
           }
         >
-          <Pressable
-            onPress={
+          {/* ==================================================
+              HEADER
+          ================================================== */}
+
+          <WorkerMarketChatHeader
+            orderId={
+              orderId
+            }
+            deleting={
+              deleting
+            }
+            onBack={
               handleBack
             }
-            disabled={
+            onOpenMenu={
+              handleOpenMenu
+            }
+          />
+
+          {/* ==================================================
+              CUSTOMER
+          ================================================== */}
+
+          <WorkerMarketCustomerBar
+            customerName={
+              customerName
+            }
+            customerPhone={
+              customerPhone
+            }
+            onOpenItems={
+              handleOpenItems
+            }
+          />
+
+          {/* ==================================================
+              CHAT
+          ================================================== */}
+
+          <WorkerMarketMessageList
+            loading={
+              loading
+            }
+            messages={
+              messages
+            }
+            currentUserId={
+              workerId
+            }
+            listRef={
+              listRef
+            }
+            onScrollToBottom={
+              scrollToBottom
+            }
+          />
+
+          {/* ==================================================
+              CHAT ERROR
+          ================================================== */}
+
+          {chatError ? (
+            <View
+              style={
+                styles.errorBar
+              }
+            >
+              <AppIcon
+                name="warning"
+                size="xs"
+                color={
+                  Colors.error
+                }
+              />
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.errorBarText
+                }
+              >
+                {chatError}
+              </AppText>
+            </View>
+          ) : null}
+
+          {/* ==================================================
+              INPUT
+          ================================================== */}
+
+          <WorkerMarketChatInput
+            text={
+              text
+            }
+            sending={
+              sending
+            }
+            deleting={
               deleting
             }
-            style={({ pressed }) => [
-              styles.headerButton,
-              pressed &&
-                styles.headerPressed,
-              deleting &&
-                styles.disabled,
-            ]}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={22}
-              color="#0F172A"
-            />
-          </Pressable>
-
-          <View
-            style={
-              styles.headerInfo
+            loadingOrder={
+              loadingOrder
             }
-          >
-            <AppText
-              weight="bold"
-              style={
-                styles.headerTitle
-              }
-            >
-              Customer Chat
-            </AppText>
-
-            <View
-              style={
-                styles.onlineRow
-              }
-            >
-              <View
-                style={
-                  styles.onlineDot
-                }
-              />
-
-              <AppText
-                style={
-                  styles.onlineText
-                }
-              >
-                Order #
-                {shortOrderId(
-                  orderId,
-                )}
-              </AppText>
-            </View>
-          </View>
-
-          <View
-            style={
-              styles.headerIcon
+            orderAvailable={
+              orderAvailable
             }
-          >
-            <Ionicons
-              name="person-outline"
-              size={20}
-              color="#2563EB"
-            />
-          </View>
-
-          <Pressable
-            onPress={() =>
-              setMenuVisible(
-                true,
-              )
+            onChangeText={
+              setText
             }
-            disabled={
-              deleting
+            onFocus={
+              handleInputFocus
             }
-            style={({ pressed }) => [
-              styles.menuButton,
-              pressed &&
-                styles.headerPressed,
-              deleting &&
-                styles.disabled,
-            ]}
-          >
-            <Ionicons
-              name="ellipsis-vertical"
-              size={21}
-              color="#0F172A"
-            />
-          </Pressable>
-        </View>
-
-        {/* CUSTOMER */}
-
-        {!loadingOrder &&
-        order ? (
-          <View
-            style={
-              styles.customerBar
+            onSend={
+              handleSend
             }
-          >
-            <View
-              style={
-                styles.customerAvatar
-              }
-            >
-              <Ionicons
-                name="person"
-                size={20}
-                color="#2563EB"
-              />
-            </View>
+          />
+        </KeyboardAvoidingView>
+      </AppScreen>
 
-            <View
-              style={
-                styles.customerInfo
-              }
-            >
-              <AppText
-                weight="bold"
-                numberOfLines={1}
-                style={
-                  styles.customerName
-                }
-              >
-                {customerName}
-              </AppText>
+      {/* ======================================================
+          CHAT MENU
+      ====================================================== */}
 
-              <AppText
-                style={
-                  styles.customerPhone
-                }
-              >
-                {customerPhone ||
-                  "Phone unavailable"}
-              </AppText>
-            </View>
-
-            <Pressable
-              onPress={() =>
-                setItemsVisible(
-                  true,
-                )
-              }
-              style={
-                styles.itemsButton
-              }
-            >
-              <Ionicons
-                name="bag-handle-outline"
-                size={17}
-                color="#2563EB"
-              />
-
-              <AppText
-                weight="bold"
-                style={
-                  styles.itemsButtonText
-                }
-              >
-                ITEMS
-              </AppText>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* CHAT */}
-
-        <View
-          style={
-            styles.chatContainer
-          }
-        >
-          {loading ? (
-            <View
-              style={
-                styles.center
-              }
-            >
-              <ActivityIndicator
-                size="small"
-                color="#2563EB"
-              />
-
-              <AppText
-                style={
-                  styles.loadingText
-                }
-              >
-                Loading chat...
-              </AppText>
-            </View>
-          ) : (
-            <FlatList
-              ref={
-                listRef
-              }
-              data={
-                messages
-              }
-              keyExtractor={(
-                item,
-              ) =>
-                item.id
-              }
-              renderItem={({
-                item,
-              }) => (
-                <MessageBubble
-                  message={
-                    item
-                  }
-                  isMine={
-                    item.senderId ===
-                    currentUserId
-                  }
-                />
-              )}
-              contentContainerStyle={[
-                styles.messagesContent,
-                messages.length ===
-                  0 &&
-                  styles.emptyMessages,
-              ]}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={
-                Platform.OS ===
-                "ios"
-                  ? "interactive"
-                  : "on-drag"
-              }
-              showsVerticalScrollIndicator={
-                false
-              }
-              onContentSizeChange={() =>
-                messages.length > 0 &&
-                scrollToBottom(
-                  false,
-                )
-              }
-              ListEmptyComponent={
-                <EmptyChat />
-              }
-            />
-          )}
-        </View>
-
-        {/* ERROR */}
-
-        {error ? (
-          <View
-            style={
-              styles.errorBar
-            }
-          >
-            <Ionicons
-              name="warning-outline"
-              size={15}
-              color="#DC2626"
-            />
-
-            <AppText
-              style={
-                styles.errorBarText
-              }
-            >
-              {error}
-            </AppText>
-          </View>
-        ) : null}
-
-        {/* INPUT */}
-
-        <View
-          style={
-            styles.inputArea
-          }
-        >
-          <View
-            style={
-              styles.inputContainer
-            }
-          >
-            <TextInput
-              value={
-                text
-              }
-              onChangeText={
-                setText
-              }
-              onFocus={
-                handleInputFocus
-              }
-              placeholder="Reply to customer..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              maxLength={1000}
-              editable={
-                !sending &&
-                !deleting &&
-                !loadingOrder
-              }
-              blurOnSubmit={
-                false
-              }
-              returnKeyType="default"
-              textAlignVertical="center"
-              autoCorrect
-              autoCapitalize="sentences"
-              style={
-                styles.input
-              }
-            />
-
-            <Pressable
-              onPress={
-                handleSend
-              }
-              disabled={
-                sending ||
-                deleting ||
-                !text.trim() ||
-                loadingOrder
-              }
-              style={({ pressed }) => [
-                styles.sendButton,
-
-                (!text.trim() ||
-                  sending ||
-                  deleting ||
-                  loadingOrder) &&
-                  styles.sendDisabled,
-
-                pressed &&
-                  text.trim() &&
-                  !sending &&
-                  !deleting &&
-                  styles.sendPressed,
-              ]}
-            >
-              {sending ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
-              ) : (
-                <Ionicons
-                  name="send"
-                  size={18}
-                  color="#FFFFFF"
-                />
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-
-      {/* MENU */}
-
-      <ChatMenu
+      <WorkerMarketChatMenu
         visible={
           menuVisible
         }
@@ -1558,10 +1948,8 @@ export default function WorkerMarketOrderChatRoom() {
             customerPhone,
           )
         }
-        onClose={() =>
-          setMenuVisible(
-            false,
-          )
+        onClose={
+          handleCloseMenu
         }
         onCall={
           handleCallCustomer
@@ -1571,9 +1959,11 @@ export default function WorkerMarketOrderChatRoom() {
         }
       />
 
-      {/* ITEMS */}
+      {/* ======================================================
+          ITEMS
+      ====================================================== */}
 
-      <OrderItemsModal
+      <WorkerMarketOrderItemsModal
         visible={
           itemsVisible
         }
@@ -1586,1314 +1976,323 @@ export default function WorkerMarketOrderChatRoom() {
         customerName={
           customerName
         }
-        onClose={() =>
-          setItemsVisible(
-            false,
-          )
+        onClose={
+          handleCloseItems
         }
       />
     </>
   );
 }
 
-/* ============================================================
-   MESSAGE BUBBLE
-============================================================ */
+/* ==============================================================
+   LOADING STATE
+============================================================== */
 
-const MessageBubble =
-  memo(
-    ({
-      message,
-      isMine,
-    }: {
-      message: ChatMessage;
-      isMine: boolean;
-    }) => {
-      return (
-        <View
-          style={[
-            styles.messageRow,
-            isMine &&
-              styles.messageRowMine,
-          ]}
-        >
-          <View
-            style={[
-              styles.messageBubble,
-              isMine
-                ? styles.myBubble
-                : styles.customerBubble,
-            ]}
-          >
-            <AppText
-              style={[
-                styles.messageText,
-                isMine
-                  ? styles.myMessageText
-                  : styles.customerMessageText,
-              ]}
-            >
-              {message.text}
-            </AppText>
+function ChatLoadingState() {
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown:
+            false,
+        }}
+      />
 
-            {message.createdAt >
-            0 ? (
-              <AppText
-                style={[
-                  styles.messageTime,
-                  isMine
-                    ? styles.myMessageTime
-                    : styles.customerMessageTime,
-                ]}
-              >
-                {formatTime(
-                  message.createdAt,
-                )}
-              </AppText>
-            ) : null}
-          </View>
-        </View>
-      );
-    },
-  );
-
-MessageBubble.displayName =
-  "WorkerMessageBubble";
-
-/* ============================================================
-   EMPTY CHAT
-============================================================ */
-
-const EmptyChat =
-  memo(() => {
-    return (
-      <View
-        style={
-          styles.emptyContainer
+      <AppScreen
+        role="worker"
+        contentContainerStyle={
+          styles.screen
         }
       >
         <View
           style={
-            styles.emptyIcon
-          }
-        >
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={30}
-            color="#2563EB"
-          />
-        </View>
-
-        <AppText
-          weight="bold"
-          style={
-            styles.emptyTitle
-          }
-        >
-          Start a conversation
-        </AppText>
-
-        <AppText
-          style={
-            styles.emptyText
-          }
-        >
-          Send a message to the customer
-          about this order.
-        </AppText>
-      </View>
-    );
-  });
-
-EmptyChat.displayName =
-  "WorkerEmptyChat";
-
-/* ============================================================
-   CHAT MENU
-============================================================ */
-
-const ChatMenu =
-  memo(
-    ({
-      visible,
-      deleting,
-      hasPhone,
-      onClose,
-      onCall,
-      onDelete,
-    }: {
-      visible: boolean;
-      deleting: boolean;
-      hasPhone: boolean;
-      onClose: () => void;
-      onCall: () => void;
-      onDelete: () => void;
-    }) => {
-      return (
-        <Modal
-          visible={
-            visible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={
-            onClose
-          }
-        >
-          <Pressable
-            style={
-              styles.menuOverlay
-            }
-            onPress={
-              onClose
-            }
-          >
-            <Pressable
-              style={
-                styles.menuCard
-              }
-              onPress={(event) =>
-                event.stopPropagation()
-              }
-            >
-              <View
-                style={
-                  styles.menuHeader
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.menuTitle
-                  }
-                >
-                  Chat Options
-                </AppText>
-
-                <Pressable
-                  onPress={
-                    onClose
-                  }
-                  style={
-                    styles.menuClose
-                  }
-                >
-                  <Ionicons
-                    name="close"
-                    size={19}
-                    color="#0F172A"
-                  />
-                </Pressable>
-              </View>
-
-              {/* CALL */}
-
-              <Pressable
-                onPress={
-                  onCall
-                }
-                disabled={
-                  deleting ||
-                  !hasPhone
-                }
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  pressed &&
-                    styles.menuItemPressed,
-                  (!hasPhone ||
-                    deleting) &&
-                    styles.menuItemDisabled,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.menuIcon,
-                    styles.callIcon,
-                  ]}
-                >
-                  <Ionicons
-                    name="call-outline"
-                    size={19}
-                    color="#16A34A"
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.menuItemInfo
-                  }
-                >
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.menuItemTitle
-                    }
-                  >
-                    Call Customer
-                  </AppText>
-
-                  <AppText
-                    style={
-                      styles.menuItemSubtitle
-                    }
-                  >
-                    {hasPhone
-                      ? "Call the customer directly"
-                      : "Customer phone unavailable"}
-                  </AppText>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color="#94A3B8"
-                />
-              </Pressable>
-
-              {/* DELETE OWN */}
-
-              <Pressable
-                onPress={
-                  onDelete
-                }
-                disabled={
-                  deleting
-                }
-                style={({ pressed }) => [
-                  styles.menuItem,
-                  styles.deleteMenuItem,
-                  pressed &&
-                    styles.menuItemPressed,
-                  deleting &&
-                    styles.menuItemDisabled,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.menuIcon,
-                    styles.deleteIcon,
-                  ]}
-                >
-                  {deleting ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#DC2626"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="trash-outline"
-                      size={19}
-                      color="#DC2626"
-                    />
-                  )}
-                </View>
-
-                <View
-                  style={
-                    styles.menuItemInfo
-                  }
-                >
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.deleteTitle
-                    }
-                  >
-                    {deleting
-                      ? "Deleting Messages..."
-                      : "Delete My Messages"}
-                  </AppText>
-
-                  <AppText
-                    style={
-                      styles.menuItemSubtitle
-                    }
-                  >
-                    Delete only the messages
-                    you sent
-                  </AppText>
-                </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={17}
-                  color="#94A3B8"
-                />
-              </Pressable>
-            </Pressable>
-          </Pressable>
-        </Modal>
-      );
-    },
-  );
-
-ChatMenu.displayName =
-  "WorkerChatMenu";
-
-/* ============================================================
-   ORDER ITEMS MODAL
-============================================================ */
-
-const OrderItemsModal =
-  memo(
-    ({
-      visible,
-      items,
-      total,
-      customerName,
-      onClose,
-    }: {
-      visible: boolean;
-      items: OrderItem[];
-      total: number;
-      customerName: string;
-      onClose: () => void;
-    }) => {
-      return (
-        <Modal
-          visible={
-            visible
-          }
-          transparent
-          animationType="slide"
-          onRequestClose={
-            onClose
+            styles.center
           }
         >
           <View
             style={
-              styles.itemsOverlay
+              styles.loadingIcon
             }
           >
-            <View
-              style={
-                styles.itemsCard
+            <AppIcon
+              name="messages"
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
               }
-            >
-              <View
-                style={
-                  styles.itemsHeader
-                }
-              >
-                <View
-                  style={
-                    styles.itemsHeaderInfo
-                  }
-                >
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.itemsTitle
-                    }
-                  >
-                    Order Items
-                  </AppText>
-
-                  <AppText
-                    style={
-                      styles.itemsSubtitle
-                    }
-                  >
-                    {customerName}
-                  </AppText>
-                </View>
-
-                <Pressable
-                  onPress={
-                    onClose
-                  }
-                  style={
-                    styles.menuClose
-                  }
-                >
-                  <Ionicons
-                    name="close"
-                    size={19}
-                    color="#0F172A"
-                  />
-                </Pressable>
-              </View>
-
-              {items.length ===
-              0 ? (
-                <View
-                  style={
-                    styles.noItems
-                  }
-                >
-                  <Ionicons
-                    name="bag-outline"
-                    size={30}
-                    color="#94A3B8"
-                  />
-
-                  <AppText
-                    style={
-                      styles.noItemsText
-                    }
-                  >
-                    No order items
-                    available.
-                  </AppText>
-                </View>
-              ) : (
-                <FlatList
-                  data={
-                    items
-                  }
-                  keyExtractor={(
-                    item,
-                  ) =>
-                    item.id
-                  }
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                  contentContainerStyle={
-                    styles.itemsList
-                  }
-                  renderItem={({
-                    item,
-                  }) => (
-                    <View
-                      style={
-                        styles.itemRow
-                      }
-                    >
-                      <View
-                        style={
-                          styles.itemIcon
-                        }
-                      >
-                        <Ionicons
-                          name="cube-outline"
-                          size={20}
-                          color="#2563EB"
-                        />
-                      </View>
-
-                      <View
-                        style={
-                          styles.itemInfo
-                        }
-                      >
-                        <AppText
-                          weight="bold"
-                          numberOfLines={
-                            2
-                          }
-                          style={
-                            styles.itemName
-                          }
-                        >
-                          {
-                            item.name
-                          }
-                        </AppText>
-
-                        <AppText
-                          style={
-                            styles.itemQuantity
-                          }
-                        >
-                          Qty:{" "}
-                          {
-                            item.quantity
-                          }
-                        </AppText>
-                      </View>
-
-                      <AppText
-                        weight="bold"
-                        style={
-                          styles.itemPrice
-                        }
-                      >
-                        {formatMoney(
-                          item.price *
-                            item.quantity,
-                        )}
-                      </AppText>
-                    </View>
-                  )}
-                />
-              )}
-
-              <View
-                style={
-                  styles.itemsTotal
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.itemsTotalLabel
-                  }
-                >
-                  Order Total
-                </AppText>
-
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.itemsTotalValue
-                  }
-                >
-                  {formatMoney(
-                    total,
-                  )}
-                </AppText>
-              </View>
-
-              <Pressable
-                onPress={
-                  onClose
-                }
-                style={
-                  styles.closeItemsButton
-                }
-              >
-                <AppText
-                  weight="bold"
-                  style={
-                    styles.closeItemsText
-                  }
-                >
-                  CLOSE
-                </AppText>
-              </Pressable>
-            </View>
+            />
           </View>
-        </Modal>
-      );
-    },
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.loadingText
+            }
+          >
+            Loading chat...
+          </AppText>
+        </View>
+      </AppScreen>
+    </>
   );
+}
 
-OrderItemsModal.displayName =
-  "WorkerOrderItemsModal";
+/* ==============================================================
+   UNAVAILABLE STATE
+============================================================== */
 
-/* ============================================================
+function ChatUnavailableState({
+  icon,
+  title,
+  description,
+  onBack,
+}: {
+  icon: AppIconName;
+
+  title: string;
+
+  description: string;
+
+  onBack: () => void;
+}) {
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          headerShown:
+            false,
+        }}
+      />
+
+      <AppScreen
+        role="worker"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.center
+          }
+        >
+          <View
+            style={
+              styles.stateIcon
+            }
+          >
+            <AppIcon
+              name={
+                icon
+              }
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            center
+            style={
+              styles.errorTitle
+            }
+          >
+            {title}
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.errorText
+            }
+          >
+            {description}
+          </AppText>
+
+          <View
+            style={
+              styles.backAction
+            }
+          >
+            <AppButton
+              title="Go Back"
+              role="worker"
+              variant="primary"
+              leftIconName="back"
+              onPress={
+                onBack
+              }
+            />
+          </View>
+        </View>
+      </AppScreen>
+    </>
+  );
+}
+
+/* ==============================================================
    STYLES
-============================================================ */
+============================================================== */
 
 const styles =
   StyleSheet.create({
     screen: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    header: {
-      minHeight: 72,
-      paddingHorizontal: 12,
-      paddingTop:
-        Platform.OS ===
-        "android"
-          ? 8
-          : 12,
-      paddingBottom: 10,
-      backgroundColor:
-        "#FFFFFF",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#E2E8F0",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-    },
-
-    headerButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    headerInfo: {
+    keyboard: {
       flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
 
-    headerTitle: {
-      fontSize: 15,
-      color: "#0F172A",
-    },
-
-    onlineRow: {
-      marginTop: 3,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-    },
-
-    onlineDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      backgroundColor:
-        "#16A34A",
-    },
-
-    onlineText: {
-      fontSize: 8,
-      color: "#64748B",
-    },
-
-    headerIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginRight: 7,
-    },
-
-    menuButton: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor:
-        "#F8FAFC",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    headerPressed: {
-      opacity: 0.65,
-      transform: [
-        {
-          scale: 0.96,
-        },
-      ],
-    },
-
-    customerBar: {
-      minHeight: 66,
-      paddingHorizontal: 13,
-      paddingVertical: 9,
-      backgroundColor:
-        "#FFFFFF",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#E2E8F0",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-    },
-
-    customerAvatar: {
-      width: 43,
-      height: 43,
-      borderRadius: 13,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    customerInfo: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
-
-    customerName: {
-      fontSize: 11.5,
-      color: "#0F172A",
-    },
-
-    customerPhone: {
-      marginTop: 3,
-      fontSize: 8,
-      color: "#64748B",
-    },
-
-    itemsButton: {
-      minHeight: 38,
-      paddingHorizontal: 10,
-      borderRadius: 11,
-      backgroundColor:
-        "#EFF6FF",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-    },
-
-    itemsButtonText: {
-      fontSize: 8,
-      color: "#2563EB",
-    },
-
-    chatContainer: {
-      flex: 1,
       minHeight: 0,
     },
 
-    messagesContent: {
-      paddingHorizontal: 14,
-      paddingTop: 16,
-      paddingBottom: 20,
-    },
-
-    emptyMessages: {
-      flexGrow: 1,
-    },
-
-    messageRow: {
-      width: "100%",
-      marginBottom: 9,
-      alignItems:
-        "flex-start",
-    },
-
-    messageRowMine: {
-      alignItems:
-        "flex-end",
-    },
-
-    messageBubble: {
-      maxWidth: "78%",
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      borderRadius: 16,
-    },
-
-    customerBubble: {
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      borderBottomLeftRadius: 5,
-    },
-
-    myBubble: {
-      backgroundColor:
-        "#2563EB",
-      borderBottomRightRadius: 5,
-    },
-
-    messageText: {
-      fontSize: 10,
-      lineHeight: 15,
-    },
-
-    customerMessageText: {
-      color: "#334155",
-    },
-
-    myMessageText: {
-      color: "#FFFFFF",
-    },
-
-    messageTime: {
-      marginTop: 4,
-      fontSize: 6.8,
-    },
-
-    customerMessageTime: {
-      color: "#94A3B8",
-    },
-
-    myMessageTime: {
-      color: "#DBEAFE",
-    },
-
-    emptyContainer: {
-      flex: 1,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 40,
-    },
-
-    emptyIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    emptyTitle: {
-      marginTop: 12,
-      fontSize: 14,
-      color: "#0F172A",
-    },
-
-    emptyText: {
-      marginTop: 5,
-      fontSize: 9.5,
-      lineHeight: 15,
-      textAlign: "center",
-      color: "#64748B",
-    },
-
-    inputArea: {
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom:
-        Platform.OS ===
-        "ios"
-          ? 20
-          : 10,
-      backgroundColor:
-        "#FFFFFF",
-      borderTopWidth: 1,
-      borderTopColor:
-        "#E2E8F0",
-    },
-
-    inputContainer: {
-      minHeight: 48,
-      maxHeight: 120,
-      borderRadius: 15,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      paddingLeft: 12,
-      paddingRight: 5,
-      flexDirection:
-        "row",
-      alignItems:
-        "flex-end",
-    },
-
-    input: {
-      flex: 1,
-      minHeight: 42,
-      maxHeight: 105,
-      paddingTop: 11,
-      paddingBottom: 10,
-      paddingHorizontal: 0,
-      fontSize: 11,
-      lineHeight: 16,
-      color: "#0F172A",
-    },
-
-    sendButton: {
-      width: 38,
-      height: 38,
-      marginBottom: 4,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    sendDisabled: {
-      opacity: 0.45,
-    },
-
-    sendPressed: {
-      opacity: 0.8,
-      transform: [
-        {
-          scale: 0.96,
-        },
-      ],
-    },
+    /* ========================================================
+       ERROR
+    ======================================================== */
 
     errorBar: {
-      marginHorizontal: 12,
-      marginBottom: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 10,
-      backgroundColor:
-        "#FEF2F2",
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 6,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorBarText: {
       flex: 1,
-      fontSize: 8,
-      color: "#B91C1C",
+
+      lineHeight: 16,
+
+      color:
+        Colors.error,
     },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
 
     center: {
       flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      paddingHorizontal: 30,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     loadingText: {
-      marginTop: 8,
-      fontSize: 9,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    stateIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     errorTitle: {
-      marginTop: 12,
-      fontSize: 15,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     errorText: {
-      marginTop: 6,
-      fontSize: 9.5,
-      lineHeight: 15,
-      textAlign: "center",
-      color: "#64748B",
+      maxWidth: 300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
-    backButton: {
-      marginTop: 16,
-      minHeight: 44,
-      paddingHorizontal: 18,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
+    backAction: {
+      width: "100%",
 
-    backButtonText: {
-      fontSize: 9,
-      color: "#FFFFFF",
-    },
+      maxWidth: 220,
 
-    disabled: {
-      opacity: 0.45,
-    },
-
-    menuOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15,23,42,0.38)",
-      justifyContent:
-        "flex-start",
-      alignItems:
-        "flex-end",
-      paddingTop:
-        Platform.OS ===
-        "android"
-          ? 62
-          : 86,
-      paddingRight: 12,
-    },
-
-    menuCard: {
-      width: 285,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      overflow: "hidden",
-      shadowColor:
-        "#000000",
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-      shadowOpacity: 0.12,
-      shadowRadius: 18,
-      elevation: 8,
-    },
-
-    menuHeader: {
-      minHeight: 54,
-      paddingHorizontal: 14,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "space-between",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#F1F5F9",
-    },
-
-    menuTitle: {
-      fontSize: 13,
-      color: "#0F172A",
-    },
-
-    menuClose: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor:
-        "#F1F5F9",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    menuItem: {
-      minHeight: 70,
-      paddingHorizontal: 14,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#F1F5F9",
-    },
-
-    deleteMenuItem: {
-      borderBottomWidth: 0,
-    },
-
-    menuItemPressed: {
-      backgroundColor:
-        "#F8FAFC",
-    },
-
-    menuItemDisabled: {
-      opacity: 0.45,
-    },
-
-    menuIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    callIcon: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    deleteIcon: {
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    menuItemInfo: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-      marginRight: 8,
-    },
-
-    menuItemTitle: {
-      fontSize: 10.5,
-      color: "#0F172A",
-    },
-
-    deleteTitle: {
-      fontSize: 10.5,
-      color: "#DC2626",
-    },
-
-    menuItemSubtitle: {
-      marginTop: 3,
-      fontSize: 8,
-      lineHeight: 12,
-      color: "#64748B",
-    },
-
-    itemsOverlay: {
-      flex: 1,
-      backgroundColor:
-        "rgba(15,23,42,0.4)",
-      justifyContent:
-        "flex-end",
-    },
-
-    itemsCard: {
-      maxHeight: "78%",
-      minHeight: 320,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      backgroundColor:
-        "#FFFFFF",
-      paddingTop: 8,
-      paddingBottom:
-        Platform.OS ===
-        "ios"
-          ? 28
-          : 14,
-    },
-
-    itemsHeader: {
-      minHeight: 64,
-      paddingHorizontal: 16,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "space-between",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#F1F5F9",
-    },
-
-    itemsHeaderInfo: {
-      flex: 1,
-      minWidth: 0,
-    },
-
-    itemsTitle: {
-      fontSize: 16,
-      color: "#0F172A",
-    },
-
-    itemsSubtitle: {
-      marginTop: 3,
-      fontSize: 8.5,
-      color: "#64748B",
-    },
-
-    itemsList: {
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-
-    itemRow: {
-      minHeight: 62,
-      paddingVertical: 9,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#F1F5F9",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-    },
-
-    itemIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 12,
-      backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    itemInfo: {
-      flex: 1,
-      minWidth: 0,
-      marginLeft: 10,
-    },
-
-    itemName: {
-      fontSize: 10.5,
-      lineHeight: 15,
-      color: "#0F172A",
-    },
-
-    itemQuantity: {
-      marginTop: 3,
-      fontSize: 8,
-      color: "#64748B",
-    },
-
-    itemPrice: {
-      marginLeft: 8,
-      fontSize: 10,
-      color: "#2563EB",
-    },
-
-    noItems: {
-      flex: 1,
-      minHeight: 220,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    noItemsText: {
-      marginTop: 8,
-      fontSize: 9,
-      color: "#64748B",
-    },
-
-    itemsTotal: {
-      marginHorizontal: 14,
-      paddingTop: 13,
-      borderTopWidth: 1,
-      borderTopColor:
-        "#E2E8F0",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "space-between",
-    },
-
-    itemsTotalLabel: {
-      fontSize: 12,
-      color: "#0F172A",
-    },
-
-    itemsTotalValue: {
-      fontSize: 18,
-      color: "#2563EB",
-    },
-
-    closeItemsButton: {
-      minHeight: 46,
-      marginHorizontal: 14,
-      marginTop: 12,
-      borderRadius: 14,
-      backgroundColor:
-        "#2563EB",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    closeItemsText: {
-      fontSize: 9,
-      color: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
   });

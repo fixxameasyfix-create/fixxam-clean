@@ -1,30 +1,62 @@
 import React from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
+import ProfileAvatar from "@/components/profile/shared/ProfileAvatar";
+import ProfileBadge from "@/components/profile/shared/ProfileBadge";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   name: string;
+
   phone: string;
+
   email: string;
+
   photoUrl?: string;
+
   verified?: boolean;
 
   onEditPhoto?: () => void;
+
   onNotifications?: () => void;
+
   onSettings?: () => void;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function WorkerProfileHeader({
   name,
@@ -36,45 +68,110 @@ export default function WorkerProfileHeader({
   onNotifications,
   onSettings,
 }: Props) {
-  return (
-    <AppCard style={styles.card}>
+  const safeName =
+    cleanText(name) ||
+    "Worker";
 
+  const safePhone =
+    cleanText(phone);
+
+  const safeEmail =
+    cleanText(email);
+
+  return (
+    <AppCard
+      role="worker"
+      style={styles.card}
+    >
       {/* =====================================================
           HEADER
       ===================================================== */}
 
-      <View style={styles.headerRow}>
+      <View
+        style={styles.headerRow}
+      >
         <AppText
+          variant="heading3"
           weight="bold"
           style={styles.title}
         >
           Profile
         </AppText>
 
-        <View style={styles.headerActions}>
+        <View
+          style={styles.headerActions}
+        >
+          {/* NOTIFICATIONS */}
+
           <Pressable
-            onPress={onNotifications}
-            style={styles.headerButton}
+            onPress={
+              onNotifications
+            }
+            disabled={
+              !onNotifications
+            }
             accessibilityRole="button"
             accessibilityLabel="Notifications"
+            accessibilityState={{
+              disabled:
+                !onNotifications,
+            }}
+            hitSlop={4}
+            style={({
+              pressed,
+            }) => [
+              styles.headerButton,
+
+              pressed &&
+              onNotifications
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="notifications-outline"
-              size={20}
-              color="#0F172A"
+            <AppIcon
+              name="notifications"
+              role="worker"
+              size="sm"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
 
+          {/* SETTINGS */}
+
           <Pressable
-            onPress={onSettings}
-            style={styles.headerButton}
+            onPress={
+              onSettings
+            }
+            disabled={
+              !onSettings
+            }
             accessibilityRole="button"
             accessibilityLabel="Settings"
+            accessibilityState={{
+              disabled:
+                !onSettings,
+            }}
+            hitSlop={4}
+            style={({
+              pressed,
+            }) => [
+              styles.headerButton,
+
+              pressed &&
+              onSettings
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="settings-outline"
-              size={20}
-              color="#0F172A"
+            <AppIcon
+              name="settings"
+              role="worker"
+              size="sm"
+              color={
+                Colors.textPrimary
+              }
             />
           </Pressable>
         </View>
@@ -84,353 +181,318 @@ export default function WorkerProfileHeader({
           PROFILE
       ===================================================== */}
 
-      <View style={styles.profileRow}>
+      <View
+        style={styles.profileRow}
+      >
+        {/* ==================================================
+            PHOTO
+        ================================================== */}
 
-        {/* PHOTO */}
+        <ProfileAvatar
+          role="worker"
+          photoUrl={
+            photoUrl
+          }
+          size={
+            FixxamTokens.size
+              .avatarXl
+          }
+          editable={
+            Boolean(
+              onEditPhoto,
+            )
+          }
+          onPress={
+            onEditPhoto
+          }
+        />
 
-        <View style={styles.photoWrapper}>
-          {photoUrl ? (
-            <Image
-              source={{
-                uri: photoUrl,
-              }}
-              style={styles.photo}
-            />
-          ) : (
-            <View style={styles.placeholder}>
-              <Ionicons
-                name="person"
-                size={30}
-                color="#94A3B8"
-              />
-            </View>
-          )}
+        {/* ==================================================
+            INFO
+        ================================================== */}
 
-          <Pressable
-            onPress={onEditPhoto}
-            style={styles.cameraButton}
-            accessibilityRole="button"
-            accessibilityLabel="Change profile photo"
-          >
-            <Ionicons
-              name="camera"
-              size={13}
-              color="#2563EB"
-            />
-          </Pressable>
-        </View>
-
-        {/* INFO */}
-
-        <View style={styles.info}>
+        <View
+          style={styles.info}
+        >
+          {/* NAME */}
 
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.name}
             numberOfLines={1}
+            style={styles.name}
           >
-            {name || "Worker"}
+            {safeName}
           </AppText>
 
-          {/* VERIFICATION */}
+          {/* =================================================
+              VERIFICATION
+          ================================================= */}
 
           <View
-            style={[
-              styles.badge,
-              verified
-                ? styles.verifiedBadge
-                : styles.pendingBadge,
-            ]}
+            style={styles.badge}
           >
-            <Ionicons
-              name={
+            <ProfileBadge
+              role="worker"
+              verified={
                 verified
-                  ? "checkmark-circle"
-                  : "information-circle"
-              }
-              size={12}
-              color={
-                verified
-                  ? "#15803D"
-                  : "#2563EB"
               }
             />
-
-            <AppText
-              style={[
-                styles.badgeText,
-                verified
-                  ? styles.verifiedText
-                  : styles.pendingText,
-              ]}
-              numberOfLines={1}
-            >
-              {verified
-                ? "Verified"
-                : "Verification Pending"}
-            </AppText>
           </View>
 
-          {/* PHONE */}
+          {/* =================================================
+              PHONE
+          ================================================= */}
 
-          {!!phone && (
-            <View style={styles.contactRow}>
-              <Ionicons
-                name="call-outline"
-                size={14}
-                color="#64748B"
+          {safePhone ? (
+            <View
+              style={
+                styles.contactRow
+              }
+            >
+              <AppIcon
+                name="phone"
+                role="worker"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <AppText
-                style={styles.contactText}
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
+                style={
+                  styles.contactText
+                }
               >
-                {phone}
+                {safePhone}
               </AppText>
             </View>
-          )}
+          ) : null}
 
-          {/* EMAIL */}
+          {/* =================================================
+              EMAIL
+          ================================================= */}
 
-          {!!email && (
-            <View style={styles.contactRow}>
-              <Ionicons
-                name="mail-outline"
-                size={14}
-                color="#64748B"
+          {safeEmail ? (
+            <View
+              style={
+                styles.contactRow
+              }
+            >
+              <AppIcon
+                name="mail"
+                role="worker"
+                size="xs"
+                color={
+                  Colors.textSecondary
+                }
               />
 
               <AppText
-                style={styles.contactText}
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
+                style={
+                  styles.contactText
+                }
               >
-                {email}
+                {safeEmail}
               </AppText>
             </View>
-          )}
-
+          ) : null}
         </View>
       </View>
     </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     CARD
-  ========================================================== */
+/* ============================================================
+   STYLES
+============================================================ */
 
-  card: {
-    marginHorizontal: 12,
-    marginTop: 6,
-    marginBottom: 7,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-    paddingHorizontal: 12,
-    paddingTop: 9,
-    paddingBottom: 10,
+    card: {
+      marginHorizontal:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 17,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
-    backgroundColor: "#FFFFFF",
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  /* ==========================================================
-     HEADER
-  ========================================================== */
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-    marginBottom: 8,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
-  title: {
-    fontSize: 18,
-    lineHeight: 22,
-    color: "#0F172A",
-  },
+      borderWidth: 1,
 
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+      borderColor:
+        Colors.border,
 
-  headerButton: {
-    width: 32,
-    height: 32,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    borderRadius: 10,
+      backgroundColor:
+        Colors.surface,
 
-    backgroundColor: "#F8FAFC",
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  /* ==========================================================
-     PROFILE ROW
-  ========================================================== */
-
-  profileRow: {
-    flexDirection: "row",
-    alignItems: "center",
-
-    minHeight: 68,
-  },
-
-  /* ==========================================================
-     PHOTO
-  ========================================================== */
-
-  photoWrapper: {
-    width: 64,
-    height: 64,
-
-    position: "relative",
-  },
-
-  photo: {
-    width: 64,
-    height: 64,
-
-    borderRadius: 20,
-
-    backgroundColor: "#E2E8F0",
-  },
-
-  placeholder: {
-    width: 64,
-    height: 64,
-
-    borderRadius: 20,
-
-    backgroundColor: "#E2E8F0",
-
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  cameraButton: {
-    position: "absolute",
-
-    right: -3,
-    bottom: -3,
-
-    width: 24,
-    height: 24,
-
-    borderRadius: 9,
-
-    backgroundColor: "#FFFFFF",
-
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-
-    alignItems: "center",
-    justifyContent: "center",
-
-    elevation: 3,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      ...FixxamTokens.shadow.card,
     },
-  },
 
-  /* ==========================================================
-     INFO
-  ========================================================== */
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  info: {
-    flex: 1,
-    minWidth: 0,
+    headerRow: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    marginLeft: 10,
-  },
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-  name: {
-    fontSize: 19,
-    lineHeight: 22,
+      flexDirection: "row",
 
-    color: "#0F172A",
+      alignItems: "center",
 
-    maxWidth: "100%",
-  },
+      justifyContent:
+        "space-between",
+    },
 
-  /* ==========================================================
-     VERIFICATION
-  ========================================================== */
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-  badge: {
-    alignSelf: "flex-start",
+    headerActions: {
+      flexDirection: "row",
 
-    marginTop: 3,
+      alignItems: "center",
 
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+      gap:
+        FixxamTokens.spacing.xs,
+    },
 
-    borderRadius: 999,
+    headerButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    flexDirection: "row",
-    alignItems: "center",
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    gap: 3,
-  },
+      alignItems: "center",
 
-  verifiedBadge: {
-    backgroundColor: "#DCFCE7",
-  },
+      justifyContent:
+        "center",
 
-  pendingBadge: {
-    backgroundColor: "#DBEAFE",
-  },
+      borderWidth: 1,
 
-  badgeText: {
-    fontSize: 9.5,
-    lineHeight: 12,
+      borderColor:
+        Colors.border,
 
-    fontWeight: "700",
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  verifiedText: {
-    color: "#15803D",
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  pendingText: {
-    color: "#2563EB",
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  /* ==========================================================
-     CONTACT
-  ========================================================== */
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    /* ========================================================
+       PROFILE
+    ======================================================== */
 
-    minWidth: 0,
+    profileRow: {
+      flexDirection: "row",
 
-    marginTop: 2,
-  },
+      alignItems: "center",
+    },
 
-  contactText: {
-    flex: 1,
-    minWidth: 0,
+    /* ========================================================
+       INFO
+    ======================================================== */
 
-    marginLeft: 5,
+    info: {
+      flex: 1,
 
-    fontSize: 10.5,
-    lineHeight: 14,
+      minWidth: 0,
 
-    color: "#64748B",
-  },
-});
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    name: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       BADGE
+    ======================================================== */
+
+    badge: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       CONTACT
+    ======================================================== */
+
+    contactRow: {
+      minWidth: 0,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+    },
+
+    contactText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

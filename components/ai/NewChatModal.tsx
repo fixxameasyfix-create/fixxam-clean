@@ -1,8 +1,9 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Modal,
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -10,8 +11,20 @@ import {
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  AppButton,
+  AppCard,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   visible: boolean;
@@ -25,7 +38,11 @@ interface Props {
   onSave: () => void;
 }
 
-export default function NewChatModal({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function NewChatModal({
   visible,
   canSave,
   onCancel,
@@ -45,7 +62,9 @@ export default function NewChatModal({
           styles.overlay
         }
       >
-        <View
+        <AppCard
+          role="customer"
+          variant="elevated"
           style={
             styles.modal
           }
@@ -61,8 +80,13 @@ export default function NewChatModal({
           >
             <MaterialCommunityIcons
               name="chat-plus-outline"
-              size={34}
-              color="#2563EB"
+              size={
+                FixxamTokens.size
+                  .iconXl
+              }
+              color={
+                CustomerColors.primary
+              }
             />
           </View>
 
@@ -71,10 +95,8 @@ export default function NewChatModal({
           ================================================== */}
 
           <AppText
-            weight="bold"
-            style={
-              styles.title
-            }
+            variant="heading2"
+            weight="semibold"
           >
             Start a new chat?
           </AppText>
@@ -84,111 +106,131 @@ export default function NewChatModal({
           ================================================== */}
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.message
             }
           >
             Do you want to clear this
-            conversation or save it
-            to History before starting
-            a new chat?
+            conversation or save it to
+            History before starting a new
+            chat?
           </AppText>
 
           {/* ==================================================
-              CANCEL
+              ACTIONS
           ================================================== */}
 
-          <Pressable
-            onPress={onCancel}
-            style={({ pressed }) => [
-              styles.cancelButton,
-
-              pressed &&
-                styles.pressed,
-            ]}
+          <View
+            style={
+              styles.actions
+            }
           >
-            <AppText
-              weight="bold"
+            {/* CANCEL */}
+
+            <AppButton
+              title="Cancel"
+              role="customer"
+              variant="outline"
+              onPress={onCancel}
               style={
-                styles.cancelText
+                styles.button
               }
-            >
-              Cancel
-            </AppText>
-          </Pressable>
-
-          {/* ==================================================
-              CLEAR
-          ================================================== */}
-
-          <Pressable
-            onPress={onClear}
-            style={({ pressed }) => [
-              styles.clearButton,
-
-              pressed &&
-                styles.pressed,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="delete-outline"
-              size={20}
-              color="#DC2626"
             />
 
-            <AppText
-              weight="bold"
-              style={
-                styles.clearText
+            {/* CLEAR */}
+
+            <AppButton
+              title="Clear & New Chat"
+              role="customer"
+              variant="danger"
+              onPress={onClear}
+              leftIcon={
+                <MaterialCommunityIcons
+                  name="delete-outline"
+                  size={
+                    FixxamTokens.size
+                      .iconSm
+                  }
+                  color={
+                    Colors.textInverse
+                  }
+                />
               }
-            >
-              Clear & New Chat
-            </AppText>
-          </Pressable>
+              style={
+                styles.button
+              }
+            />
 
-          {/* ==================================================
-              SAVE
-          ================================================== */}
+            {/* SAVE */}
 
-          <Pressable
-            disabled={!canSave}
-            onPress={onSave}
-            style={({ pressed }) => [
-              styles.saveButton,
-
-              !canSave &&
-                styles.disabledButton,
-
-              pressed &&
-                canSave &&
-                styles.pressed,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name="content-save-outline"
-              size={20}
-              color={
+            <AppButton
+              title={
                 canSave
-                  ? "#FFFFFF"
-                  : "#94A3B8"
+                  ? "Save & New Chat"
+                  : "History Full (5/5)"
+              }
+              role="customer"
+              disabled={
+                !canSave
+              }
+              onPress={onSave}
+              leftIcon={
+                <MaterialCommunityIcons
+                  name="content-save-outline"
+                  size={
+                    FixxamTokens.size
+                      .iconSm
+                  }
+                  color={
+                    canSave
+                      ? Colors.textInverse
+                      : Colors.textMuted
+                  }
+                />
+              }
+              style={
+                styles.button
               }
             />
+          </View>
 
-            <AppText
-              weight="bold"
-              style={[
-                styles.saveText,
+          {/* ==================================================
+              HISTORY LIMIT
+          ================================================== */}
 
-                !canSave &&
-                  styles.disabledText,
-              ]}
+          {!canSave ? (
+            <View
+              style={
+                styles.historyNotice
+              }
             >
-              {canSave
-                ? "Save & New Chat"
-                : "History Full (5/5)"}
-            </AppText>
-          </Pressable>
-        </View>
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={
+                  FixxamTokens.size
+                    .iconXs
+                }
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.historyNoticeText
+                }
+              >
+                Delete an old chat from
+                History before saving a
+                new one.
+              </AppText>
+            </View>
+          ) : null}
+        </AppCard>
       </View>
     </Modal>
   );
@@ -205,12 +247,14 @@ const styles =
 
       alignItems: "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
 
       backgroundColor:
-        "rgba(15, 23, 42, 0.55)",
-
-      paddingHorizontal: 28,
+        Colors.overlayStrong,
     },
 
     modal: {
@@ -218,147 +262,80 @@ const styles =
 
       maxWidth: 390,
 
-      backgroundColor:
-        "#FFFFFF",
-
-      borderRadius: 26,
-
-      padding: 24,
-
-      shadowColor:
-        "#000000",
-
-      shadowOffset: {
-        width: 0,
-        height: 10,
-      },
-
-      shadowOpacity: 0.18,
-
-      shadowRadius: 20,
-
-      elevation: 12,
+      padding:
+        FixxamTokens.spacing.xxl,
     },
 
     iconContainer: {
-      width: 64,
+      width:
+        FixxamTokens.size.fabLarge,
 
-      height: 64,
-
-      borderRadius: 20,
-
-      backgroundColor:
-        "#EFF6FF",
+      height:
+        FixxamTokens.size.fabLarge,
 
       alignItems: "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
-      marginBottom: 18,
-    },
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-    title: {
-      fontSize: 22,
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      lineHeight: 28,
-
-      color: "#0F172A",
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     message: {
-      marginTop: 9,
-
-      fontSize: 15,
-
-      lineHeight: 22,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    cancelButton: {
-      minHeight: 46,
+    actions: {
+      width: "100%",
 
-      marginTop: 24,
+      gap:
+        FixxamTokens.spacing.sm,
 
-      borderRadius: 13,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      backgroundColor:
-        "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.xxl,
     },
 
-    cancelText: {
-      fontSize: 15,
-
-      color: "#475569",
+    button: {
+      width: "100%",
     },
 
-    clearButton: {
-      minHeight: 46,
-
-      marginTop: 9,
-
-      borderRadius: 13,
-
+    historyNotice: {
       flexDirection: "row",
 
-      alignItems: "center",
+      alignItems:
+        "flex-start",
 
-      justifyContent:
-        "center",
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      gap: 8,
+      padding:
+        FixxamTokens.spacing.md,
 
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    clearText: {
-      fontSize: 15,
-
-      color: "#DC2626",
-    },
-
-    saveButton: {
-      minHeight: 46,
-
-      marginTop: 9,
-
-      borderRadius: 13,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      gap: 8,
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        "#2563EB",
+        Colors.disabledBackground,
     },
 
-    saveText: {
-      fontSize: 15,
+    historyNoticeText: {
+      flex: 1,
 
-      color: "#FFFFFF",
-    },
+      minWidth: 0,
 
-    disabledButton: {
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    disabledText: {
-      color: "#94A3B8",
-    },
-
-    pressed: {
-      opacity: 0.82,
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
   });
+
+export default memo(
+  NewChatModal,
+);

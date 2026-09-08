@@ -1,8 +1,13 @@
-import React from "react";
+import React, {
+  useCallback,
+  useState,
+} from "react";
+
 import {
   StyleSheet,
   View,
 } from "react-native";
+
 import { router } from "expo-router";
 
 import {
@@ -13,81 +18,159 @@ import {
 
 import useSwitchRole from "@/hooks/auth/useSwitchRole";
 
+import {
+  FixxamTokens,
+  type FixxamRole,
+} from "@/theme";
+
 export default function SelectAccount() {
   const {
     loading,
     switchRole,
   } = useSwitchRole();
 
-  const continueAsCustomer = async () => {
-    const success = await switchRole("customer");
+  const [
+    pendingRole,
+    setPendingRole,
+  ] =
+    useState<FixxamRole | null>(
+      null,
+    );
 
-    if (success) {
-      router.replace("/(customer)/(tabs)/home");
-    }
-  };
+  const handleSwitchRole =
+    useCallback(
+      async (
+        role: FixxamRole,
+      ) => {
+        if (loading) {
+          return;
+        }
 
-  const continueAsWorker = async () => {
-    const success = await switchRole("worker");
+        try {
+          setPendingRole(role);
 
-    if (success) {
-      router.replace(
-  "/(worker)/(tabs)/home"
-);
-}
-  };
+          const success =
+            await switchRole(role);
+
+          if (!success) {
+            return;
+          }
+
+          if (role === "customer") {
+            router.replace(
+              "/(customer)/(tabs)/home",
+            );
+
+            return;
+          }
+
+          router.replace(
+            "/(worker)/(tabs)/home",
+          );
+        } finally {
+          setPendingRole(null);
+        }
+      },
+      [
+        loading,
+        switchRole,
+      ],
+    );
 
   return (
-    <AppScreen>
+    <AppScreen
+      padded
+      contentContainerStyle={
+        styles.screen
+      }
+    >
       <View style={styles.container}>
-        <AppText
-          size="xl"
-          weight="bold"
-          center
-        >
-          Select Account
-        </AppText>
+        <View style={styles.heading}>
+          <AppText
+            variant="heading1"
+            center
+          >
+            Select Account
+          </AppText>
 
-        <AppText
-          center
-          style={styles.subtitle}
-        >
-          Choose how you want to continue
-        </AppText>
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={styles.subtitle}
+          >
+            Choose how you want to use
+            Fixxam.
+          </AppText>
+        </View>
 
-        <AppButton
-          title="Continue as Customer"
-          variant="customer"
-          loading={loading}
-          onPress={continueAsCustomer}
-        />
+        <View style={styles.actions}>
+          <AppButton
+            title="Continue as Customer"
+            role="customer"
+            leftIconName="profile"
+            loading={
+              loading &&
+              pendingRole ===
+                "customer"
+            }
+            disabled={loading}
+            onPress={() =>
+              void handleSwitchRole(
+                "customer",
+              )
+            }
+          />
 
-        <View style={styles.space} />
-
-        <AppButton
-          title="Continue as Worker"
-          variant="worker"
-          loading={loading}
-          onPress={continueAsWorker}
-        />
+          <AppButton
+            title="Continue as Worker"
+            role="worker"
+            leftIconName="professional"
+            loading={
+              loading &&
+              pendingRole ===
+                "worker"
+            }
+            disabled={loading}
+            onPress={() =>
+              void handleSwitchRole(
+                "worker",
+              )
+            }
+          />
+        </View>
       </View>
     </AppScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flexGrow: 1,
+  },
+
   container: {
     flex: 1,
+
     justifyContent: "center",
   },
 
-  subtitle: {
-    marginTop: 8,
-    marginBottom: 30,
-    color: "#64748B",
+  heading: {
+    alignItems: "center",
+
+    marginBottom:
+      FixxamTokens.spacing.xxl,
   },
 
-  space: {
-    height: 16,
+  subtitle: {
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
+
+  actions: {
+    width: "100%",
+
+    gap:
+      FixxamTokens.spacing.lg,
   },
 });

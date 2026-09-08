@@ -1,222 +1,697 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  AppButton,
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-interface NearbyWorkerCardProps {
-  onPress: () => void;
-  onBookNow: () => void;
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+export type NearbyWorkerData = {
+  id: string;
+
+  name: string;
+
+  profession: string;
+
+  location: string;
+
+  distanceKm?: number | null;
+
+  completedJobs: number;
+
+  rating: number;
+
+  available: boolean;
+
+  pricePerHour: number;
+
+  avatarUrl?: string | null;
+};
+
+type NearbyWorkerCardProps = {
+  worker: NearbyWorkerData;
+
+  onPress: (
+    workerId: string,
+  ) => void;
+
+  onBookNow: (
+    workerId: string,
+  ) => void;
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function formatCount(
+  value: number,
+): string {
+  if (
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return "0";
+  }
+
+  return Math.floor(
+    value,
+  ).toLocaleString("en-NG");
 }
 
-export default function NearbyWorkerCard({
+function formatRating(
+  value: number,
+): string {
+  if (!Number.isFinite(value)) {
+    return "0.0";
+  }
+
+  const safeValue =
+    Math.min(
+      5,
+      Math.max(0, value),
+    );
+
+  return safeValue.toFixed(1);
+}
+
+function formatPrice(
+  value: number,
+): string {
+  if (
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return "₦0/hr";
+  }
+
+  return `₦${Math.round(
+    value,
+  ).toLocaleString("en-NG")}/hr`;
+}
+
+function formatDistance(
+  value?: number | null,
+): string | null {
+  if (
+    value == null ||
+    !Number.isFinite(value) ||
+    value < 0
+  ) {
+    return null;
+  }
+
+  return `${value.toFixed(1)} km`;
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function NearbyWorkerCard({
+  worker,
   onPress,
   onBookNow,
 }: NearbyWorkerCardProps) {
+  const distance =
+    formatDistance(
+      worker.distanceKm,
+    );
+
+  const hasAvatar =
+    typeof worker.avatarUrl ===
+      "string" &&
+    worker.avatarUrl.trim()
+      .length > 0;
+
+  const handlePress =
+    useCallback(() => {
+      onPress(worker.id);
+    }, [
+      onPress,
+      worker.id,
+    ]);
+
+  const handleBookNow =
+    useCallback(() => {
+      onBookNow(worker.id);
+    }, [
+      onBookNow,
+      worker.id,
+    ]);
+
   return (
-    <Pressable
-      style={styles.card}
-      onPress={onPress}
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
     >
-      <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <Image
-            source={{
-              uri: "https://i.pravatar.cc/150?img=12",
-            }}
-            style={styles.avatar}
-          />
+      {/* ======================================================
+          WORKER PROFILE
+      ====================================================== */}
 
-          <Pressable
-            style={styles.plusButton}
-            onPress={onPress}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`View ${worker.name}'s profile`}
+        onPress={
+          handlePress
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.profilePressable,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
+      >
+        <View
+          style={
+            styles.header
+          }
+        >
+          <View
+            style={
+              styles.avatarContainer
+            }
           >
-            <Ionicons
-              name="add"
-              size={14}
-              color="#fff"
-            />
-          </Pressable>
-        </View>
+            {hasAvatar ? (
+              <Image
+                source={{
+                  uri:
+                    worker.avatarUrl!,
+                }}
+                contentFit="cover"
+                transition={150}
+                accessibilityLabel={`${worker.name} profile photo`}
+                style={
+                  styles.avatar
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.avatarPlaceholder
+                }
+              >
+                <AppIcon
+                  name="profile"
+                  role="customer"
+                  size="lg"
+                  state="muted"
+                />
+              </View>
+            )}
 
-        <View style={styles.info}>
-          <AppText
-            weight="bold"
-            style={styles.name}
+            {worker.available ? (
+              <View
+                accessibilityLabel="Worker is available"
+                style={
+                  styles.availabilityBadge
+                }
+              />
+            ) : null}
+          </View>
+
+          <View
+            style={
+              styles.info
+            }
           >
-            Hassan Abdullahi
-          </AppText>
-
-          <AppText style={styles.profession}>
-            Electrician
-          </AppText>
-
-          <View style={styles.locationRow}>
-            <Ionicons
-              name="location-outline"
-              size={14}
-              color="#64748B"
-            />
-
-            <AppText style={styles.location}>
-              Kuje, Abuja • 1.4 km
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.name
+              }
+            >
+              {worker.name}
             </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.profession
+              }
+            >
+              {worker.profession}
+            </AppText>
+
+            <View
+              style={
+                styles.locationRow
+              }
+            >
+              <AppIcon
+                name="location"
+                role="customer"
+                size="xs"
+                state="muted"
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.location
+                }
+              >
+                {worker.location}
+                {distance
+                  ? ` • ${distance}`
+                  : ""}
+              </AppText>
+            </View>
           </View>
         </View>
-      </View>
+      </Pressable>
 
-      <View style={styles.stats}>
-        <View style={styles.stat}>
-          <Ionicons
-            name="briefcase-outline"
-            size={16}
-            color="#2563EB"
-          />
-          <AppText>25 Jobs</AppText>
-        </View>
+      {/* ======================================================
+          STATS
+      ====================================================== */}
 
-        <View style={styles.stat}>
-          <Ionicons
-            name="star"
-            size={16}
-            color="#F59E0B"
-          />
-          <AppText>4.9</AppText>
-        </View>
-
-        <View style={styles.stat}>
-          <View style={styles.onlineDot} />
-          <AppText>Available</AppText>
-        </View>
-      </View>
-
-      <View style={styles.footer}>
-        <AppText
-          weight="bold"
-          style={styles.price}
+      <View
+        style={
+          styles.stats
+        }
+      >
+        <View
+          style={
+            styles.stat
+          }
         >
-          ₦2,500/hr
-        </AppText>
+          <AppIcon
+            name="jobs"
+            role="customer"
+            size="sm"
+            state="active"
+          />
 
-        <Pressable
-          style={styles.button}
-          onPress={onBookNow}
-        >
-          <AppText style={styles.buttonText}>
-            Book Now
+          <AppText
+            variant="caption"
+            weight="medium"
+            style={
+              styles.statText
+            }
+          >
+            {formatCount(
+              worker.completedJobs,
+            )}{" "}
+            Jobs
           </AppText>
-        </Pressable>
+        </View>
+
+        <View
+          style={
+            styles.stat
+          }
+        >
+          <AppIcon
+            name="star"
+            role="customer"
+            size="sm"
+            state="warning"
+          />
+
+          <AppText
+            variant="caption"
+            weight="medium"
+            style={
+              styles.statText
+            }
+          >
+            {formatRating(
+              worker.rating,
+            )}
+          </AppText>
+        </View>
+
+        <View
+          style={
+            styles.stat
+          }
+        >
+          <View
+            style={[
+              styles.statusDot,
+
+              worker.available
+                ? styles.statusAvailable
+                : styles.statusUnavailable,
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="medium"
+            style={
+              styles.statText
+            }
+          >
+            {worker.available
+              ? "Available"
+              : "Unavailable"}
+          </AppText>
+        </View>
       </View>
-    </Pressable>
+
+      {/* ======================================================
+          FOOTER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.footer
+        }
+      >
+        <View
+          style={
+            styles.priceContainer
+          }
+        >
+          <AppText
+            variant="caption"
+            tone="secondary"
+          >
+            Starting from
+          </AppText>
+
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.price
+            }
+          >
+            {formatPrice(
+              worker.pricePerHour,
+            )}
+          </AppText>
+        </View>
+
+        <AppButton
+          title="Book Now"
+          role="customer"
+          variant="primary"
+          size="sm"
+          disabled={
+            !worker.available
+          }
+          onPress={
+            handleBookNow
+          }
+        />
+      </View>
+    </AppCard>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 16,
-  },
+export default memo(
+  NearbyWorkerCard,
+);
 
-  header: {
-    flexDirection: "row",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  avatarContainer: {
-    position: "relative",
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
+      padding:
+        FixxamTokens.spacing.md,
 
-  plusButton: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#2563EB",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      backgroundColor:
+        Colors.surface,
+    },
 
-  info: {
-    flex: 1,
-    marginLeft: 14,
-    justifyContent: "center",
-  },
+    profilePressable: {
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-  name: {
-    fontSize: 17,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+    },
 
-  profession: {
-    marginTop: 2,
-    color: "#64748B",
-  },
+    /* ========================================================
+       HEADER
+    ======================================================== */
 
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-  },
+    header: {
+      flexDirection:
+        "row",
 
-  location: {
-    marginLeft: 4,
-    color: "#64748B",
-  },
+      alignItems:
+        "center",
+    },
 
-  stats: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 18,
-  },
+    avatarContainer: {
+      position:
+        "relative",
 
-  stat: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
+      flexShrink: 0,
+    },
 
-  onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#22C55E",
-  },
+    avatar: {
+      width:
+        FixxamTokens.size.avatarLg,
 
-  footer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 20,
-  },
+      height:
+        FixxamTokens.size.avatarLg,
 
-  price: {
-    fontSize: 18,
-    color: "#2563EB",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  button: {
-    backgroundColor: "#2563EB",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-});
+    avatarPlaceholder: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    availabilityBadge: {
+      position:
+        "absolute",
+
+      right: 1,
+
+      bottom: 1,
+
+      width: 14,
+
+      height: 14,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    info: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      justifyContent:
+        "center",
+    },
+
+    name: {
+      color:
+        Colors.textPrimary,
+    },
+
+    profession: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    locationRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      gap:
+        FixxamTokens.spacing.xxs,
+    },
+
+    location: {
+      flex: 1,
+
+      minWidth: 0,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATS
+    ======================================================== */
+
+    stats: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    stat: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+    },
+
+    statText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    statusDot: {
+      width: 8,
+
+      height: 8,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    statusAvailable: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    statusUnavailable: {
+      backgroundColor:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
+    footer: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    priceContainer: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    price: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        CustomerColors.primary,
+    },
+  });

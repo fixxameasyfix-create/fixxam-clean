@@ -1,257 +1,301 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppCard,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   loading: boolean;
-  permissionGranted: boolean;
+
   address: string;
+
   onRefresh: () => void;
 };
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function BookingCurrentLocation({
   loading,
-  permissionGranted,
   address,
   onRefresh,
 }: Props) {
-  const cleanAddress = address.trim();
-  const unavailable = !permissionGranted;
-
-  const buttonDisabled = loading || unavailable;
+  const cleanAddress =
+    address.trim();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        {/* LOCATION ICON */}
-        <View style={styles.iconBox}>
-          <Ionicons
-            name="location"
-            size={19}
-            color="#2563EB"
-          />
-        </View>
+    <AppCard
+      role="customer"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
+      {/* ======================================================
+          LOCATION ICON
+      ====================================================== */}
 
-        {/* CONTENT */}
-        <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <AppText
-              weight="bold"
-              style={styles.title}
-            >
-              Current location
-            </AppText>
-
-            {loading && (
-              <ActivityIndicator
-                size="small"
-                color="#2563EB"
-                style={styles.loader}
-              />
-            )}
-          </View>
-
-          <AppText
-            numberOfLines={2}
-            ellipsizeMode="tail"
-            style={styles.address}
-          >
-            {cleanAddress ||
-              "Getting your current location..."}
-          </AppText>
-        </View>
-
-        {/* REFRESH BUTTON */}
-        <Pressable
-          onPress={onRefresh}
-          disabled={buttonDisabled}
-          accessibilityRole="button"
-          accessibilityLabel="Refresh current location"
-          accessibilityState={{
-            disabled: buttonDisabled,
-          }}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.refreshButton,
-            buttonDisabled && styles.refreshDisabled,
-            pressed &&
-              !buttonDisabled &&
-              styles.refreshPressed,
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator
-              size="small"
-              color="#2563EB"
-            />
-          ) : (
-            <Ionicons
-              name="refresh-outline"
-              size={18}
-              color="#2563EB"
-            />
-          )}
-        </Pressable>
+      <View
+        style={
+          styles.iconBox
+        }
+      >
+        <AppIcon
+          name="location"
+          role="customer"
+          size="sm"
+          state="active"
+        />
       </View>
 
-      {/* PERMISSION MESSAGE */}
-      {unavailable && (
-        <View style={styles.permissionRow}>
-          <Ionicons
-            name="information-circle-outline"
-            size={15}
-            color="#D97706"
-          />
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
-          <AppText style={styles.permissionText}>
-            Location permission is required to use your
-            current location.
-          </AppText>
-        </View>
-      )}
-    </View>
+      <View
+        style={
+          styles.content
+        }
+      >
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={1}
+        >
+          Current location
+        </AppText>
+
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
+          ellipsizeMode="tail"
+          style={
+            styles.address
+          }
+        >
+          {loading
+            ? "Updating your current location..."
+            : cleanAddress ||
+              "Current location selected"}
+        </AppText>
+      </View>
+
+      {/* ======================================================
+          REFRESH
+      ====================================================== */}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Refresh current location"
+        accessibilityHint="Gets your latest GPS location"
+        accessibilityState={{
+          disabled:
+            loading,
+          busy:
+            loading,
+        }}
+        disabled={
+          loading
+        }
+        hitSlop={6}
+        onPress={
+          onRefresh
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.refreshButton,
+
+          loading
+            ? styles.refreshDisabled
+            : null,
+
+          pressed &&
+          !loading
+            ? styles.refreshPressed
+            : null,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
+        ) : (
+          <AppIcon
+            name="refresh"
+            role="customer"
+            size="sm"
+            state="active"
+          />
+        )}
+      </Pressable>
+    </AppCard>
   );
 }
 
-export default memo(BookingCurrentLocation);
+/* ==============================================================
+   STYLES
+============================================================== */
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 10,
-  },
+const styles =
+  StyleSheet.create({
+    card: {
+      width: "100%",
 
-  card: {
-    minHeight: 74,
+      minHeight:
+        FixxamTokens.size
+          .cardMinHeight,
 
-    flexDirection: "row",
-    alignItems: "center",
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 11,
-    paddingVertical: 10,
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-
-    borderRadius: 16,
-
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      padding:
+        FixxamTokens.spacing.md,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-  iconBox: {
-    width: 42,
-    height: 42,
+    iconBox: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    borderRadius: 13,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    alignItems: "center",
-    justifyContent: "center",
+      flexShrink: 0,
 
-    backgroundColor: "#EFF6FF",
+      alignItems:
+        "center",
 
-    borderWidth: 1,
-    borderColor: "#DBEAFE",
+      justifyContent:
+        "center",
 
-    marginRight: 10,
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  content: {
-    flex: 1,
-    minWidth: 0,
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-    justifyContent: "center",
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    paddingRight: 8,
-  },
+    content: {
+      flex: 1,
 
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
+      minWidth: 0,
 
-    minHeight: 19,
-  },
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
 
-  title: {
-    fontSize: 13.5,
-    lineHeight: 19,
+    address: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-    color: "#0F172A",
-  },
+      color:
+        Colors.textSecondary,
+    },
 
-  loader: {
-    marginLeft: 7,
-  },
+    /* ========================================================
+       REFRESH
+    ======================================================== */
 
-  address: {
-    marginTop: 2,
+    refreshButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    fontSize: 11.5,
-    lineHeight: 16,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    color: "#64748B",
-  },
+      flexShrink: 0,
 
-  refreshButton: {
-    width: 36,
-    height: 36,
+      alignItems:
+        "center",
 
-    borderRadius: 11,
+      justifyContent:
+        "center",
 
-    alignItems: "center",
-    justifyContent: "center",
+      borderWidth: 1,
 
-    backgroundColor: "#F8FAFC",
+      borderColor:
+        Colors.border,
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
 
-  refreshDisabled: {
-    opacity: 0.4,
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  refreshPressed: {
-    opacity: 0.7,
+    refreshPressed: {
+      borderColor:
+        CustomerColors.primary,
 
-    transform: [
-      {
-        scale: 0.94,
-      },
-    ],
-  },
+      backgroundColor:
+        CustomerColors.primarySoft,
 
-  permissionRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    marginTop: 6,
-    paddingHorizontal: 3,
-  },
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  permissionText: {
-    flex: 1,
+    refreshDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+  });
 
-    marginLeft: 5,
-
-    fontSize: 10.5,
-    lineHeight: 15,
-
-    color: "#92400E",
-  },
-});
+export default memo(
+  BookingCurrentLocation,
+);

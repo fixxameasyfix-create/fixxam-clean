@@ -18,13 +18,15 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
-  Region,
+  type Region,
 } from "react-native-maps";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
   doc,
@@ -32,9 +34,16 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   auth,
@@ -45,60 +54,134 @@ import {
    TYPES
 ============================================================ */
 
-type LiveLocation = {
+type Coordinate = {
   latitude: number;
+
   longitude: number;
-  updatedAt?: unknown;
 };
+
+type LiveLocation =
+  Coordinate & {
+    updatedAt?: unknown;
+  };
 
 type BookingLocationData = {
   customerId?: string;
 
   latitude?: number | null;
+
   longitude?: number | null;
+
   address?: string | null;
 
   liveLocation?: {
     latitude?: number | null;
+
     longitude?: number | null;
+
     updatedAt?: unknown;
   } | null;
+};
+
+type LiveMapParams = {
+  orderId?:
+    | string
+    | string[];
+
+  latitude?:
+    | string
+    | string[];
+
+  longitude?:
+    | string
+    | string[];
+
+  address?:
+    | string
+    | string[];
 };
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+function normalizeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
 function parseCoordinate(
-  value: string | string[] | undefined,
+  value:
+    | string
+    | string[]
+    | undefined,
 ): number | null {
   const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value)
-        ? value[0]
-        : undefined;
+    getParamString(
+      value,
+    );
 
   if (!raw) {
     return null;
   }
 
-  const parsed = Number(raw);
+  const parsed =
+    Number(raw);
 
-  return Number.isFinite(parsed)
+  return Number.isFinite(
+    parsed,
+  )
     ? parsed
     : null;
 }
 
 function isValidCoordinate(
-  latitude: number | null,
-  longitude: number | null,
+  latitude:
+    | number
+    | null
+    | undefined,
+
+  longitude:
+    | number
+    | null
+    | undefined,
 ): boolean {
   return (
-    latitude !== null &&
-    longitude !== null &&
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
+    typeof latitude ===
+      "number" &&
+    typeof longitude ===
+      "number" &&
+    Number.isFinite(
+      latitude,
+    ) &&
+    Number.isFinite(
+      longitude,
+    ) &&
     latitude >= -90 &&
     latitude <= 90 &&
     longitude >= -180 &&
@@ -106,169 +189,223 @@ function isValidCoordinate(
   );
 }
 
+function createCoordinate(
+  latitude:
+    | number
+    | null
+    | undefined,
+
+  longitude:
+    | number
+    | null
+    | undefined,
+): Coordinate | null {
+  if (
+    !isValidCoordinate(
+      latitude,
+      longitude,
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    latitude:
+      latitude as number,
+
+    longitude:
+      longitude as number,
+  };
+}
+
+function createRegion(
+  coordinate: Coordinate,
+): Region {
+  return {
+    latitude:
+      coordinate.latitude,
+
+    longitude:
+      coordinate.longitude,
+
+    latitudeDelta:
+      0.01,
+
+    longitudeDelta:
+      0.01,
+  };
+}
+
 /* ============================================================
    SCREEN
 ============================================================ */
 
 export default function CustomerLiveMapScreen() {
+  const insets =
+    useSafeAreaInsets();
+
   const params =
-    useLocalSearchParams<{
-      orderId?: string | string[];
-      latitude?: string | string[];
-      longitude?: string | string[];
-      address?: string | string[];
-    }>();
+    useLocalSearchParams<LiveMapParams>();
+
+  const mapRef =
+    useRef<MapView | null>(
+      null,
+    );
+
+  /*
+   * Only auto-frame the worker once.
+   * Future live updates should not keep
+   * stealing map control from the user.
+   */
+  const hasAutoFramedRef =
+    useRef(false);
 
   /* ==========================================================
-     ORDER ID
+     ROUTE DATA
   ========================================================== */
 
   const orderId =
-    useMemo(() => {
-      if (
-        typeof params.orderId ===
-        "string"
-      ) {
-        return params.orderId.trim();
-      }
-
-      if (
-        Array.isArray(
+    useMemo(
+      () =>
+        getParamString(
           params.orderId,
-        )
-      ) {
-        return (
-          params.orderId[0]?.trim() ||
-          ""
-        );
-      }
+        ),
+      [
+        params.orderId,
+      ],
+    );
 
-      return "";
-    }, [params.orderId]);
-
-  /* ==========================================================
-     CUSTOMER LOCATION
-  ========================================================== */
-
-  const initialLatitude =
+  const routeLatitude =
     useMemo(
       () =>
         parseCoordinate(
           params.latitude,
         ),
-      [params.latitude],
+      [
+        params.latitude,
+      ],
     );
 
-  const initialLongitude =
+  const routeLongitude =
     useMemo(
       () =>
         parseCoordinate(
           params.longitude,
         ),
-      [params.longitude],
+      [
+        params.longitude,
+      ],
     );
 
-  /* ==========================================================
-     ADDRESS
-  ========================================================== */
+  const routeLocation =
+    useMemo(
+      () =>
+        createCoordinate(
+          routeLatitude,
+          routeLongitude,
+        ),
+      [
+        routeLatitude,
+        routeLongitude,
+      ],
+    );
 
-  const address =
-    useMemo(() => {
-      if (
-        typeof params.address ===
-        "string"
-      ) {
-        return params.address;
-      }
-
-      if (
-        Array.isArray(params.address)
-      ) {
-        return (
-          params.address[0] || ""
-        );
-      }
-
-      return "";
-    }, [params.address]);
-
-  /* ==========================================================
-     MAP REF
-  ========================================================== */
-
-  const mapRef =
-    useRef<MapView | null>(null);
+  const routeAddress =
+    useMemo(
+      () =>
+        getParamString(
+          params.address,
+        ),
+      [
+        params.address,
+      ],
+    );
 
   /* ==========================================================
      STATE
   ========================================================== */
 
   const [
+    serviceLocation,
+    setServiceLocation,
+  ] =
+    useState<Coordinate | null>(
+      null,
+    );
+
+  const [
+    serviceAddress,
+    setServiceAddress,
+  ] =
+    useState("");
+
+  const [
     liveLocation,
     setLiveLocation,
-  ] = useState<LiveLocation | null>(
-    null,
-  );
+  ] =
+    useState<LiveLocation | null>(
+      null,
+    );
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  );
+    fatalError,
+    setFatalError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [
     mapReady,
     setMapReady,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ==========================================================
-     INITIAL REGION
-  ========================================================== */
-
-  const initialRegion =
-    useMemo<Region | undefined>(() => {
-      if (
-        !isValidCoordinate(
-          initialLatitude,
-          initialLongitude,
-        )
-      ) {
-        return undefined;
-      }
-
-      return {
-        latitude:
-          initialLatitude as number,
-
-        longitude:
-          initialLongitude as number,
-
-        latitudeDelta:
-          0.01,
-
-        longitudeDelta:
-          0.01,
-      };
-    }, [
-      initialLatitude,
-      initialLongitude,
-    ]);
-
-  /* ==========================================================
-     AUTH + PARAM VALIDATION
+     BOOKING + SECURITY + LIVE LOCATION
   ========================================================== */
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      setLoading(false);
+    const customerId =
+      normalizeString(
+        auth.currentUser?.uid,
+      );
 
-      setError(
+    hasAutoFramedRef.current =
+      false;
+
+    setLiveLocation(
+      null,
+    );
+
+    setServiceLocation(
+      null,
+    );
+
+    setServiceAddress(
+      "",
+    );
+
+    setMapReady(
+      false,
+    );
+
+    setFatalError(
+      null,
+    );
+
+    if (!customerId) {
+      setLoading(
+        false,
+      );
+
+      setFatalError(
         "Please sign in to view this location.",
       );
 
@@ -276,188 +413,287 @@ export default function CustomerLiveMapScreen() {
     }
 
     if (!orderId) {
-      setLoading(false);
+      setLoading(
+        false,
+      );
 
-      setError(
+      setFatalError(
         "This order could not be found.",
       );
 
       return;
     }
 
-    if (
-      !isValidCoordinate(
-        initialLatitude,
-        initialLongitude,
-      )
-    ) {
-      setLoading(false);
-
-      setError(
-        "This order does not have a valid service location.",
-      );
-
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-  }, [
-    orderId,
-    initialLatitude,
-    initialLongitude,
-  ]);
-
-  /* ==========================================================
-     LIVE WORKER LOCATION
-  ========================================================== */
-
-  useEffect(() => {
-    const customerId =
-      auth.currentUser?.uid;
-
-    if (
-      !customerId ||
-      !orderId
-    ) {
-      return;
-    }
-
-    const bookingRef = doc(
-      db,
-      "bookings",
-      orderId,
+    setLoading(
+      true,
     );
+
+    const bookingRef =
+      doc(
+        db,
+        "bookings",
+        orderId,
+      );
 
     const unsubscribe =
       onSnapshot(
         bookingRef,
 
-        (snapshot) => {
-          if (!snapshot.exists()) {
-            setLiveLocation(null);
-            setLoading(false);
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
+            setLoading(
+              false,
+            );
 
-            setError(
+            setFatalError(
               "This order no longer exists.",
+            );
+
+            setServiceLocation(
+              null,
+            );
+
+            setLiveLocation(
+              null,
             );
 
             return;
           }
 
           const data =
-            snapshot.data() as BookingLocationData;
+            snapshot.data() as
+              BookingLocationData;
 
-          /* ==================================================
-             SECURITY CHECK
-          ================================================== */
+          /* ================================================
+             STRICT OWNERSHIP CHECK
+
+             Missing customerId is not treated as permission.
+             Firestore Security Rules must enforce this too.
+          ================================================ */
+
+          const bookingCustomerId =
+            normalizeString(
+              data.customerId,
+            );
 
           if (
-            data.customerId &&
-            data.customerId !==
+            !bookingCustomerId ||
+            bookingCustomerId !==
               customerId
           ) {
-            setLiveLocation(null);
-            setLoading(false);
+            setLoading(
+              false,
+            );
 
-            setError(
+            setFatalError(
               "You do not have access to this order.",
+            );
+
+            setServiceLocation(
+              null,
+            );
+
+            setLiveLocation(
+              null,
             );
 
             return;
           }
 
-          /* ==================================================
+          /* ================================================
+             SERVICE LOCATION
+
+             Firestore is preferred.
+             Route coordinates are only a fallback after
+             ownership has been verified.
+          ================================================ */
+
+          const bookingLocation =
+            createCoordinate(
+              data.latitude,
+              data.longitude,
+            );
+
+          const resolvedLocation =
+            bookingLocation ??
+            routeLocation;
+
+          if (
+            !resolvedLocation
+          ) {
+            setLoading(
+              false,
+            );
+
+            setFatalError(
+              "This order does not have a valid service location.",
+            );
+
+            setServiceLocation(
+              null,
+            );
+
+            setLiveLocation(
+              null,
+            );
+
+            return;
+          }
+
+          setServiceLocation(
+            resolvedLocation,
+          );
+
+          setServiceAddress(
+            normalizeString(
+              data.address,
+            ) ||
+              routeAddress ||
+              "Customer service location",
+          );
+
+          /* ================================================
              WORKER LIVE LOCATION
-          ================================================== */
+          ================================================ */
 
           const workerLocation =
             data.liveLocation;
 
-          const latitude =
-            typeof workerLocation?.latitude ===
-            "number"
-              ? workerLocation.latitude
-              : null;
+          const resolvedLiveLocation =
+            createCoordinate(
+              workerLocation
+                ?.latitude,
 
-          const longitude =
-            typeof workerLocation?.longitude ===
-            "number"
-              ? workerLocation.longitude
-              : null;
+              workerLocation
+                ?.longitude,
+            );
 
           if (
-            isValidCoordinate(
-              latitude,
-              longitude,
-            )
+            resolvedLiveLocation
           ) {
             setLiveLocation({
-              latitude:
-                latitude as number,
-
-              longitude:
-                longitude as number,
+              ...resolvedLiveLocation,
 
               updatedAt:
-                workerLocation?.updatedAt,
+                workerLocation
+                  ?.updatedAt,
             });
           } else {
-            setLiveLocation(null);
+            setLiveLocation(
+              null,
+            );
           }
 
-          setLoading(false);
-          setError(null);
+          setFatalError(
+            null,
+          );
+
+          setLoading(
+            false,
+          );
         },
 
-        (snapshotError) => {
+        snapshotError => {
           console.error(
-            "CUSTOMER_LIVE_MAP_LISTENER_ERROR",
+            "CUSTOMER_LIVE_MAP_LISTENER_ERROR:",
             snapshotError,
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
-          setError(
+          setFatalError(
             "Unable to load live location.",
+          );
+
+          setLiveLocation(
+            null,
+          );
+
+          setServiceLocation(
+            null,
           );
         },
       );
 
     return unsubscribe;
-  }, [orderId]);
+  }, [
+    orderId,
+    routeAddress,
+    routeLocation,
+  ]);
 
   /* ==========================================================
-     AUTO FOLLOW WORKER
+     INITIAL REGION
+  ========================================================== */
+
+  const initialRegion =
+    useMemo<
+      Region | undefined
+    >(
+      () =>
+        serviceLocation
+          ? createRegion(
+              serviceLocation,
+            )
+          : undefined,
+      [
+        serviceLocation,
+      ],
+    );
+
+  /* ==========================================================
+     AUTO FRAME FIRST LIVE LOCATION
   ========================================================== */
 
   useEffect(() => {
     if (
+      !mapReady ||
+      !serviceLocation ||
       !liveLocation ||
-      !mapReady
+      hasAutoFramedRef.current
     ) {
       return;
     }
 
-    mapRef.current?.animateToRegion(
-      {
-        latitude:
-          liveLocation.latitude,
+    hasAutoFramedRef.current =
+      true;
 
-        longitude:
-          liveLocation.longitude,
+    mapRef.current
+      ?.fitToCoordinates(
+        [
+          serviceLocation,
 
-        latitudeDelta:
-          0.01,
+          {
+            latitude:
+              liveLocation.latitude,
 
-        longitudeDelta:
-          0.01,
-      },
-      700,
-    );
+            longitude:
+              liveLocation.longitude,
+          },
+        ],
+        {
+          edgePadding: {
+            top: 190,
+
+            right: 70,
+
+            bottom: 180,
+
+            left: 70,
+          },
+
+          animated:
+            true,
+        },
+      );
   }, [
     liveLocation,
     mapReady,
+    serviceLocation,
   ]);
 
   /* ==========================================================
@@ -470,39 +706,26 @@ export default function CustomerLiveMapScreen() {
     }, []);
 
   /* ==========================================================
-     CENTER CUSTOMER
+     CENTER SERVICE LOCATION
   ========================================================== */
 
   const handleCustomerLocation =
     useCallback(() => {
       if (
-        !isValidCoordinate(
-          initialLatitude,
-          initialLongitude,
-        )
+        !serviceLocation
       ) {
         return;
       }
 
-      mapRef.current?.animateToRegion(
-        {
-          latitude:
-            initialLatitude as number,
-
-          longitude:
-            initialLongitude as number,
-
-          latitudeDelta:
-            0.01,
-
-          longitudeDelta:
-            0.01,
-        },
-        500,
-      );
+      mapRef.current
+        ?.animateToRegion(
+          createRegion(
+            serviceLocation,
+          ),
+          500,
+        );
     }, [
-      initialLatitude,
-      initialLongitude,
+      serviceLocation,
     ]);
 
   /* ==========================================================
@@ -511,156 +734,101 @@ export default function CustomerLiveMapScreen() {
 
   const handleWorkerLocation =
     useCallback(() => {
-      if (!liveLocation) {
-        return;
-      }
-
-      mapRef.current?.animateToRegion(
-        {
-          latitude:
-            liveLocation.latitude,
-
-          longitude:
-            liveLocation.longitude,
-
-          latitudeDelta:
-            0.01,
-
-          longitudeDelta:
-            0.01,
-        },
-        500,
-      );
-    }, [liveLocation]);
-
-  /* ==========================================================
-     SHOW BOTH LOCATIONS
-  ========================================================== */
-
-  const handleShowBoth =
-    useCallback(() => {
       if (
-        !isValidCoordinate(
-          initialLatitude,
-          initialLongitude,
-        ) ||
         !liveLocation
       ) {
         return;
       }
 
-      mapRef.current?.fitToCoordinates(
-        [
-          {
-            latitude:
-              initialLatitude as number,
-
-            longitude:
-              initialLongitude as number,
-          },
-
-          {
+      mapRef.current
+        ?.animateToRegion(
+          createRegion({
             latitude:
               liveLocation.latitude,
 
             longitude:
               liveLocation.longitude,
-          },
-        ],
-        {
-          edgePadding: {
-            top: 180,
-            right: 70,
-            bottom: 210,
-            left: 70,
-          },
-
-          animated: true,
-        },
-      );
+          }),
+          500,
+        );
     }, [
-      initialLatitude,
-      initialLongitude,
       liveLocation,
     ]);
 
   /* ==========================================================
-     AUTH ERROR
+     SHOW BOTH
   ========================================================== */
 
-  if (!auth.currentUser) {
-    return (
-      <AppScreen
-        contentContainerStyle={
-          styles.screen
-        }
-      >
-        <View
-          style={
-            styles.errorContainer
-          }
-        >
-          <Ionicons
-            name="lock-closed-outline"
-            size={34}
-            color="#2563EB"
-          />
+  const handleShowBoth =
+    useCallback(() => {
+      if (
+        !serviceLocation ||
+        !liveLocation
+      ) {
+        return;
+      }
 
-          <AppText
-            weight="bold"
-            style={
-              styles.errorTitle
-            }
-          >
-            Sign in required
-          </AppText>
+      mapRef.current
+        ?.fitToCoordinates(
+          [
+            serviceLocation,
 
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            Please sign in to view this
-            location.
-          </AppText>
-        </View>
-      </AppScreen>
-    );
-  }
+            {
+              latitude:
+                liveLocation.latitude,
+
+              longitude:
+                liveLocation.longitude,
+            },
+          ],
+          {
+            edgePadding: {
+              top: 190,
+
+              right: 70,
+
+              bottom: 180,
+
+              left: 70,
+            },
+
+            animated:
+              true,
+          },
+        );
+    }, [
+      liveLocation,
+      serviceLocation,
+    ]);
 
   /* ==========================================================
      LOADING
   ========================================================== */
 
-  if (
-    loading &&
-    !initialRegion
-  ) {
+  if (loading) {
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
-          styles.screen
+          styles.stateScreen
         }
       >
-        <View
+        <ActivityIndicator
+          size="large"
+          color={
+            CustomerColors.primary
+          }
+        />
+
+        <AppText
+          variant="body"
+          tone="secondary"
           style={
-            styles.center
+            styles.loadingText
           }
         >
-          <ActivityIndicator
-            size="small"
-            color="#2563EB"
-          />
-
-          <AppText
-            style={
-              styles.loadingText
-            }
-          >
-            Loading map...
-          </AppText>
-        </View>
+          Loading map...
+        </AppText>
       </AppScreen>
     );
   }
@@ -670,88 +838,106 @@ export default function CustomerLiveMapScreen() {
   ========================================================== */
 
   if (
-    error &&
+    fatalError ||
+    !serviceLocation ||
     !initialRegion
   ) {
+    const signedIn =
+      Boolean(
+        auth.currentUser,
+      );
+
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
-          styles.screen
+          styles.stateScreen
         }
       >
         <View
           style={
-            styles.errorContainer
+            styles.errorIcon
           }
         >
-          <View
-            style={
-              styles.errorIcon
+          <AppIcon
+            name={
+              signedIn
+                ? "location"
+                : "lock"
             }
-          >
-            <Ionicons
-              name="location-outline"
-              size={30}
-              color="#2563EB"
-            />
-          </View>
+            role="customer"
+            size="lg"
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        <AppText
+          variant="heading3"
+          weight="bold"
+          center
+          style={
+            styles.errorTitle
+          }
+        >
+          {signedIn
+            ? "Location unavailable"
+            : "Sign in required"}
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.errorText
+          }
+        >
+          {fatalError ??
+            "This service location is unavailable."}
+        </AppText>
+
+        <Pressable
+          onPress={
+            handleBack
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={({
+            pressed,
+          }) => [
+            styles.errorBackButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="back"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
+          />
 
           <AppText
+            variant="body"
             weight="bold"
             style={
-              styles.errorTitle
+              styles.errorBackText
             }
           >
-            Location unavailable
+            Go Back
           </AppText>
-
-          <AppText
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {error}
-          </AppText>
-
-          <Pressable
-            onPress={
-              handleBack
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={({ pressed }) => [
-              styles.backButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={17}
-              color="#FFFFFF"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.backButtonText
-              }
-            >
-              GO BACK
-            </AppText>
-          </Pressable>
-        </View>
+        </Pressable>
       </AppScreen>
     );
   }
 
-  if (!initialRegion) {
-    return null;
-  }
-
   /* ==========================================================
-     RENDER
+     MAP
   ========================================================== */
 
   return (
@@ -761,40 +947,51 @@ export default function CustomerLiveMapScreen() {
       }
     >
       <MapView
-        ref={mapRef}
-        style={
-          styles.map
+        ref={
+          mapRef
         }
         provider={
           PROVIDER_GOOGLE
         }
+        style={
+          styles.map
+        }
         initialRegion={
           initialRegion
         }
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        toolbarEnabled={false}
-        onMapReady={() =>
-          setMapReady(true)
+        showsUserLocation={
+          false
         }
+        showsMyLocationButton={
+          false
+        }
+        showsCompass={
+          false
+        }
+        toolbarEnabled={
+          false
+        }
+        onMapReady={() => {
+          setMapReady(
+            true,
+          );
+        }}
       >
         {/* ====================================================
-            CUSTOMER LOCATION
+            SERVICE LOCATION
         ==================================================== */}
 
         <Marker
-          coordinate={{
-            latitude:
-              initialLatitude as number,
-
-            longitude:
-              initialLongitude as number,
-          }}
+          coordinate={
+            serviceLocation
+          }
           title="Service location"
           description={
-            address ||
+            serviceAddress ||
             "Customer service location"
+          }
+          tracksViewChanges={
+            false
           }
         >
           <View
@@ -802,19 +999,21 @@ export default function CustomerLiveMapScreen() {
               styles.customerMarker
             }
           >
-            <Ionicons
+            <AppIcon
               name="home"
-              size={20}
-              color="#FFFFFF"
+              size="sm"
+              color={
+                Colors.textInverse
+              }
             />
           </View>
         </Marker>
 
         {/* ====================================================
-            WORKER LIVE LOCATION
+            WORKER
         ==================================================== */}
 
-        {liveLocation && (
+        {liveLocation ? (
           <Marker
             coordinate={{
               latitude:
@@ -825,6 +1024,9 @@ export default function CustomerLiveMapScreen() {
             }}
             title="Worker"
             description="Worker's live location"
+            tracksViewChanges={
+              false
+            }
           >
             <View
               style={
@@ -837,25 +1039,33 @@ export default function CustomerLiveMapScreen() {
                 }
               />
 
-              <Ionicons
-                name="person"
-                size={19}
-                color="#FFFFFF"
+              <AppIcon
+                name="profile"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
           </Marker>
-        )}
+        ) : null}
       </MapView>
 
       {/* ======================================================
-          TOP HEADER
+          HEADER
       ====================================================== */}
 
       <View
         pointerEvents="box-none"
-        style={
-          styles.topOverlay
-        }
+        style={[
+          styles.topOverlay,
+
+          {
+            top:
+              insets.top +
+              FixxamTokens.spacing.sm,
+          },
+        ]}
       >
         <Pressable
           onPress={
@@ -863,16 +1073,22 @@ export default function CustomerLiveMapScreen() {
           }
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.iconButton,
-            pressed &&
-              styles.buttonPressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={22}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            size="md"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
 
@@ -882,6 +1098,7 @@ export default function CustomerLiveMapScreen() {
           }
         >
           <AppText
+            variant="body"
             weight="bold"
             style={
               styles.title
@@ -891,6 +1108,8 @@ export default function CustomerLiveMapScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.subtitle
             }
@@ -903,17 +1122,26 @@ export default function CustomerLiveMapScreen() {
       </View>
 
       {/* ======================================================
-          STATUS CARD
+          STATUS
       ====================================================== */}
 
       <View
-        style={
-          styles.statusCard
-        }
+        style={[
+          styles.statusCard,
+
+          {
+            top:
+              insets.top +
+              FixxamTokens.size
+                .minimumTouchTarget +
+              FixxamTokens.spacing.xl,
+          },
+        ]}
       >
         <View
           style={[
             styles.statusDot,
+
             liveLocation
               ? styles.statusDotLive
               : styles.statusDotWaiting,
@@ -926,10 +1154,15 @@ export default function CustomerLiveMapScreen() {
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
-            style={
-              styles.statusTitle
-            }
+            style={[
+              styles.statusTitle,
+
+              liveLocation
+                ? styles.statusTitleLive
+                : styles.statusTitleWaiting,
+            ]}
           >
             {liveLocation
               ? "WORKER IS LIVE"
@@ -937,6 +1170,8 @@ export default function CustomerLiveMapScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.statusText
             }
@@ -949,94 +1184,85 @@ export default function CustomerLiveMapScreen() {
       </View>
 
       {/* ======================================================
-          LOCATION BUTTONS
+          MAP CONTROLS
       ====================================================== */}
 
       <View
-        style={
-          styles.locationButtons
-        }
+        style={[
+          styles.locationButtons,
+
+          {
+            bottom:
+              insets.bottom +
+              124,
+          },
+        ]}
       >
-        <Pressable
+        <MapControlButton
+          icon="home"
+          color={
+            CustomerColors.primary
+          }
+          label="Center on service location"
           onPress={
             handleCustomerLocation
           }
-          accessibilityRole="button"
-          accessibilityLabel="Center on service location"
-          style={({ pressed }) => [
-            styles.locationButton,
-            pressed &&
-              styles.buttonPressed,
-          ]}
-        >
-          <Ionicons
-            name="home-outline"
-            size={19}
-            color="#2563EB"
-          />
-        </Pressable>
+        />
 
-        {liveLocation && (
+        {liveLocation ? (
           <>
-            <Pressable
+            <MapControlButton
+              icon="profile"
+              color={
+                Colors.success
+              }
+              label="Center on worker"
               onPress={
                 handleWorkerLocation
               }
-              accessibilityRole="button"
-              accessibilityLabel="Center on worker"
-              style={({ pressed }) => [
-                styles.locationButton,
-                pressed &&
-                  styles.buttonPressed,
-              ]}
-            >
-              <Ionicons
-                name="person-outline"
-                size={19}
-                color="#16A34A"
-              />
-            </Pressable>
+            />
 
-            <Pressable
+            <MapControlButton
+              icon="locate"
+              color={
+                Colors.textPrimary
+              }
+              label="Show worker and service location"
               onPress={
                 handleShowBoth
               }
-              accessibilityRole="button"
-              accessibilityLabel="Show worker and service location"
-              style={({ pressed }) => [
-                styles.locationButton,
-                pressed &&
-                  styles.buttonPressed,
-              ]}
-            >
-              <Ionicons
-                name="scan-outline"
-                size={19}
-                color="#0F172A"
-              />
-            </Pressable>
+            />
           </>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
-          BOTTOM ADDRESS
+          ADDRESS CARD
       ====================================================== */}
 
       <View
-        style={
-          styles.bottomCard
-        }
+        style={[
+          styles.bottomCard,
+
+          {
+            bottom:
+              insets.bottom +
+              FixxamTokens.spacing.lg,
+          },
+        ]}
       >
         <View
           style={
             styles.bottomIcon
           }
         >
-          <Ionicons
+          <AppIcon
             name="location"
-            size={19}
-            color="#2563EB"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
@@ -1046,6 +1272,7 @@ export default function CustomerLiveMapScreen() {
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.bottomTitle
@@ -1055,24 +1282,81 @@ export default function CustomerLiveMapScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={2}
             style={
               styles.bottomAddress
             }
           >
-            {address ||
+            {serviceAddress ||
               "Customer service location"}
           </AppText>
         </View>
 
-        {!mapReady && (
+        {!mapReady ? (
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
-        )}
+        ) : null}
       </View>
     </View>
+  );
+}
+
+/* ============================================================
+   MAP CONTROL
+============================================================ */
+
+function MapControlButton({
+  icon,
+  color,
+  label,
+  onPress,
+}: {
+  icon:
+    | "home"
+    | "profile"
+    | "locate";
+
+  color: string;
+
+  label: string;
+
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={
+        onPress
+      }
+      accessibilityRole="button"
+      accessibilityLabel={
+        label
+      }
+      style={({
+        pressed,
+      }) => [
+        styles.locationButton,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
+    >
+      <AppIcon
+        name={
+          icon
+        }
+        size="sm"
+        color={
+          color
+        }
+      />
+    </Pressable>
   );
 }
 
@@ -1082,16 +1366,43 @@ export default function CustomerLiveMapScreen() {
 
 const styles =
   StyleSheet.create({
-    screen: {
+    /* ========================================================
+       STATE SCREEN
+    ======================================================== */
+
+    stateScreen: {
       flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
+
+    loadingText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       MAP
+    ======================================================== */
 
     mapContainer: {
       flex: 1,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     map: {
@@ -1103,59 +1414,90 @@ const styles =
     ======================================================== */
 
     topOverlay: {
-      position: "absolute",
-      top: 52,
-      left: 16,
-      right: 16,
-      flexDirection: "row",
-      alignItems: "center",
+      position:
+        "absolute",
+
+      left:
+        FixxamTokens.spacing.lg,
+
+      right:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     iconButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     titleCard: {
       flex: 1,
-      marginLeft: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 14,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     title: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1163,59 +1505,90 @@ const styles =
     ======================================================== */
 
     statusCard: {
-      position: "absolute",
-      top: 116,
-      left: 16,
-      right: 16,
-      minHeight: 60,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 15,
+      position:
+        "absolute",
+
+      left:
+        FixxamTokens.spacing.lg,
+
+      right:
+        FixxamTokens.spacing.lg,
+
+      minHeight: 62,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     statusDot: {
-      width: 11,
-      height: 11,
-      borderRadius: 6,
+      width: 10,
+
+      height: 10,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusDotLive: {
       backgroundColor:
-        "#16A34A",
+        Colors.success,
     },
 
     statusDotWaiting: {
       backgroundColor:
-        "#F59E0B",
+        Colors.warning,
     },
 
     statusContent: {
       flex: 1,
-      marginLeft: 9,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
-    statusTitle: {
-      fontSize: 9.5,
-      color: "#0F172A",
+    statusTitle: {},
+
+    statusTitleLive: {
+      color:
+        Colors.success,
+    },
+
+    statusTitleWaiting: {
+      color:
+        Colors.warning,
     },
 
     statusText: {
-      marginTop: 2,
-      fontSize: 9,
-      lineHeight: 13,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 15,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1223,201 +1596,292 @@ const styles =
     ======================================================== */
 
     customerMarker: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
+      width: 42,
+
+      height: 42,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 3,
+
       borderColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     workerMarker: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor:
-        "#16A34A",
-      alignItems: "center",
-      justifyContent: "center",
+      width: 44,
+
+      height: 44,
+
+      position:
+        "relative",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       borderWidth: 3,
+
       borderColor:
-        "#FFFFFF",
-      position: "relative",
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
     },
 
     workerPulse: {
-      position: "absolute",
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      position:
+        "absolute",
+
+      width: 54,
+
+      height: 54,
+
       borderWidth: 2,
+
       borderColor:
-        "#16A34A",
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       opacity: 0.25,
     },
 
     /* ========================================================
-       LOCATION BUTTONS
+       MAP CONTROLS
     ======================================================== */
 
     locationButtons: {
-      position: "absolute",
-      right: 16,
-      bottom: 166,
-      gap: 8,
+      position:
+        "absolute",
+
+      right:
+        FixxamTokens.spacing.lg,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     locationButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      elevation: 4,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
-       BOTTOM
+       BOTTOM CARD
     ======================================================== */
 
     bottomCard: {
-      position: "absolute",
-      left: 16,
-      right: 16,
-      bottom: 24,
-      minHeight: 76,
-      padding: 12,
-      borderRadius: 18,
+      position:
+        "absolute",
+
+      left:
+        FixxamTokens.spacing.lg,
+
+      right:
+        FixxamTokens.spacing.lg,
+
+      minHeight: 78,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
       backgroundColor:
-        "#FFFFFF",
-      flexDirection: "row",
-      alignItems: "center",
-      shadowColor: "#000000",
-      shadowOpacity: 0.14,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 5,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     bottomIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 14,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        CustomerColors.primarySoft,
     },
 
     bottomContent: {
       flex: 1,
-      marginLeft: 10,
-      marginRight: 8,
+
+      minWidth: 0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     bottomTitle: {
-      fontSize: 9.5,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     bottomAddress: {
-      marginTop: 3,
-      fontSize: 9.5,
-      lineHeight: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
        ERROR
     ======================================================== */
 
-    center: {
-      flex: 1,
-      minHeight: 500,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    loadingText: {
-      marginTop: 10,
-      fontSize: 11,
-      color: "#64748B",
-    },
-
-    errorContainer: {
-      flex: 1,
-      minHeight: 500,
-      paddingHorizontal: 30,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
     errorIcon: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        CustomerColors.primarySoft,
     },
 
     errorTitle: {
-      marginTop: 14,
-      fontSize: 17,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
     },
 
     errorText: {
-      marginTop: 7,
-      fontSize: 11.5,
-      lineHeight: 18,
-      color: "#64748B",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
-    backButton: {
-      marginTop: 18,
-      minHeight: 42,
-      paddingHorizontal: 16,
-      borderRadius: 11,
+    errorBackButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#2563EB",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
+        CustomerColors.primary,
     },
 
-    backButtonText: {
-      fontSize: 9,
-      color: "#FFFFFF",
+    errorBackText: {
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
        PRESS
     ======================================================== */
 
-    buttonPressed: {
-      opacity: 0.82,
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

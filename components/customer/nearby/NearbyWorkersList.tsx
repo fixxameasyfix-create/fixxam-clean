@@ -1,5 +1,7 @@
 import React, {
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -10,14 +12,30 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
-  Text,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { router } from "expo-router";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import {
+  router,
+} from "expo-router";
+
+import {
+  AppButton,
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   WorkerCard,
@@ -32,17 +50,21 @@ import {
   getServicesByIds,
 } from "@/firebase/queries/getServicesByIds";
 
-/* ============================================================
+/* ==============================================================
    TYPES
-============================================================ */
+============================================================== */
 
 type Props = {
   workers: WorkerCardData[];
+
   refreshing: boolean;
-  onRefresh: () => void;
+
+  onRefresh: () => void | Promise<void>;
 
   serviceId?: string;
+
   serviceName?: string;
+
   categoryId?: string;
 };
 
@@ -51,27 +73,37 @@ type WorkerService = Omit<
   "id" | "name"
 > & {
   id: string;
+
   name: string;
 };
 
-/* ============================================================
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
+/* ==============================================================
    CONSTANTS
-============================================================ */
+============================================================== */
 
-const MAX_SERVICES_TO_SHOW = 4;
+const MAX_SERVICES_TO_SHOW =
+  4;
 
-const DEFAULT_ICON_COLOR =
-  "#64748B";
-
-const DEFAULT_ICON_BACKGROUND =
-  "#F1F5F9";
-
-const DEFAULT_SELECTED_BACKGROUND =
-  "#DBEAFE";
-
-/* ============================================================
+/* ==============================================================
    HELPERS
-============================================================ */
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
 
 function normalizeService(
   service: unknown,
@@ -86,61 +118,65 @@ function normalizeService(
   const item = service as {
     id?: unknown;
     serviceId?: unknown;
+
     name?: unknown;
     serviceName?: unknown;
+
     icon?: unknown;
+
     color?: unknown;
+
     backgroundColor?: unknown;
   };
 
   const id =
-    typeof item.id === "string"
-      ? item.id.trim()
-      : typeof item.serviceId === "string"
-        ? item.serviceId.trim()
-        : "";
+    cleanString(
+      item.id,
+    ) ||
+    cleanString(
+      item.serviceId,
+    );
 
   const name =
-    typeof item.name === "string"
-      ? item.name.trim()
-      : typeof item.serviceName === "string"
-        ? item.serviceName.trim()
-        : "";
+    cleanString(
+      item.name,
+    ) ||
+    cleanString(
+      item.serviceName,
+    );
 
-  if (!id || !name) {
+  if (
+    !id ||
+    !name
+  ) {
     return null;
   }
 
   const icon =
-    typeof item.icon === "string"
-      ? item.icon.trim()
-      : "";
+    cleanString(
+      item.icon,
+    );
 
   const color =
-    typeof item.color === "string"
-      ? item.color.trim()
-      : "";
+    cleanString(
+      item.color,
+    );
 
   const backgroundColor =
-    typeof item.backgroundColor ===
-    "string"
-      ? item.backgroundColor.trim()
-      : "";
+    cleanString(
+      item.backgroundColor,
+    );
 
   return {
     id,
     name,
 
     ...(icon
-      ? {
-          icon,
-        }
+      ? { icon }
       : {}),
 
     ...(color
-      ? {
-          color,
-        }
+      ? { color }
       : {}),
 
     ...(backgroundColor
@@ -151,91 +187,332 @@ function normalizeService(
   };
 }
 
-/* ============================================================
-   NORMALIZE SERVICE IDS
-============================================================ */
-
 function normalizeServiceIds(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(value)
+  ) {
     return [];
   }
 
   return Array.from(
     new Set(
       value
-        .filter(
-          (id): id is string =>
-            typeof id === "string" &&
-            id.trim().length > 0,
+        .map(
+          cleanString,
         )
-        .map((id) => id.trim()),
+        .filter(
+          Boolean,
+        ),
     ),
   );
 }
 
-/* ============================================================
+function prioritizeServices(
+  services: WorkerService[],
+  requestedServiceId: string,
+  requestedServiceName: string,
+): WorkerService[] {
+  const requestedName =
+    requestedServiceName.toLowerCase();
+
+  const requested =
+    services.find(
+      (service) =>
+        (requestedServiceId &&
+          service.id ===
+            requestedServiceId) ||
+        (requestedName &&
+          service.name
+            .trim()
+            .toLowerCase() ===
+            requestedName),
+    );
+
+  if (!requested) {
+    return services.slice(
+      0,
+      MAX_SERVICES_TO_SHOW,
+    );
+  }
+
+  return [
+    requested,
+
+    ...services.filter(
+      (service) =>
+        service.id !==
+        requested.id,
+    ),
+  ].slice(
+    0,
+    MAX_SERVICES_TO_SHOW,
+  );
+}
+
+/* ==============================================================
+   WORKER PHOTO
+============================================================== */
+
+function getWorkerPhotoUrl(
+  worker: WorkerCardData,
+): string {
+  const profile =
+    worker.workerProfile;
+
+  const workerRecord =
+    worker as WorkerCardData & {
+      image?: unknown;
+
+      photoUrl?: unknown;
+
+      photoURL?: unknown;
+    };
+
+  const profileRecord =
+    profile as {
+      photoUrl?: unknown;
+
+      photoURL?: unknown;
+    };
+
+  const candidates: unknown[] =
+    [
+      profileRecord.photoUrl,
+
+      profileRecord.photoURL,
+
+      workerRecord.image,
+
+      workerRecord.photoUrl,
+
+      workerRecord.photoURL,
+    ];
+
+  for (
+    const value of candidates
+  ) {
+    const url =
+      cleanString(
+        value,
+      );
+
+    if (
+      url.startsWith(
+        "https://",
+      ) ||
+      url.startsWith(
+        "http://",
+      )
+    ) {
+      return url;
+    }
+  }
+
+  return "";
+}
+
+/* ==============================================================
+   WORKER NAME
+============================================================== */
+
+function getWorkerName(
+  worker: WorkerCardData,
+): string {
+  const fullName =
+    cleanString(
+      worker.fullName,
+    );
+
+  if (fullName) {
+    return fullName;
+  }
+
+  const combined =
+    [
+      cleanString(
+        worker.firstName,
+      ),
+
+      cleanString(
+        worker.surname,
+      ),
+    ]
+      .filter(
+        Boolean,
+      )
+      .join(" ");
+
+  return (
+    combined ||
+    "Service Provider"
+  );
+}
+
+/* ==============================================================
    COMPONENT
-============================================================ */
+============================================================== */
 
 export default function NearbyWorkersList({
   workers,
   refreshing,
   onRefresh,
   categoryId,
-  serviceId: requestedServiceId,
-  serviceName: requestedServiceName,
+  serviceId:
+    requestedServiceId,
+  serviceName:
+    requestedServiceName,
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
   const [
     selectedWorker,
     setSelectedWorker,
-  ] = useState<WorkerCardData | null>(
-    null,
-  );
+  ] =
+    useState<WorkerCardData | null>(
+      null,
+    );
 
   const [
     selectedService,
     setSelectedService,
-  ] = useState<WorkerService | null>(
-    null,
-  );
+  ] =
+    useState<WorkerService | null>(
+      null,
+    );
 
   const [
     availableServices,
     setAvailableServices,
-  ] = useState<WorkerService[]>(
-    [],
-  );
+  ] =
+    useState<WorkerService[]>(
+      [],
+    );
 
   const [
     loadingServices,
     setLoadingServices,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     openingBooking,
     setOpeningBooking,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  /* ==========================================================
+  const serviceRequestRef =
+    useRef(0);
+
+  const bookingTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
+
+  const normalizedRequestedId =
+    cleanString(
+      requestedServiceId,
+    );
+
+  const normalizedRequestedName =
+    cleanString(
+      requestedServiceName,
+    );
+
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
+
+  useEffect(() => {
+    return () => {
+      serviceRequestRef.current +=
+        1;
+
+      if (
+        bookingTimerRef.current
+      ) {
+        clearTimeout(
+          bookingTimerRef.current,
+        );
+      }
+    };
+  }, []);
+
+  /* ============================================================
+     SELECT REQUESTED SERVICE
+  ============================================================ */
+
+  const resolveInitialSelection =
+    useCallback(
+      (
+        services: WorkerService[],
+      ) => {
+        if (
+          services.length === 0
+        ) {
+          return null;
+        }
+
+        const requestedName =
+          normalizedRequestedName.toLowerCase();
+
+        const matching =
+          services.find(
+            (service) =>
+              (normalizedRequestedId &&
+                service.id ===
+                  normalizedRequestedId) ||
+              (requestedName &&
+                service.name
+                  .trim()
+                  .toLowerCase() ===
+                  requestedName),
+          );
+
+        if (matching) {
+          return matching;
+        }
+
+        return services.length ===
+          1
+          ? services[0]
+          : null;
+      },
+      [
+        normalizedRequestedId,
+        normalizedRequestedName,
+      ],
+    );
+
+  /* ============================================================
      LOAD WORKER SERVICES
-  ========================================================== */
+  ============================================================ */
 
   const loadWorkerServices =
     useCallback(
       async (
         worker: WorkerCardData,
       ) => {
-        setLoadingServices(true);
-        setAvailableServices([]);
-        setSelectedService(null);
+        const requestId =
+          ++serviceRequestRef.current;
+
+        setLoadingServices(
+          true,
+        );
+
+        setAvailableServices(
+          [],
+        );
+
+        setSelectedService(
+          null,
+        );
 
         try {
-          /* ----------------------------------------------------
-             EXISTING SERVICES ON WORKER
-          ---------------------------------------------------- */
-
           const existingServices =
             Array.isArray(
               worker.services,
@@ -252,37 +529,16 @@ export default function NearbyWorkersList({
                   )
               : [];
 
-          /* ----------------------------------------------------
-             SERVICE IDS FROM WORKER
-          ---------------------------------------------------- */
-
           const serviceIds =
             normalizeServiceIds(
               worker.serviceIds,
             );
 
-          /* ----------------------------------------------------
-             IDS FROM MAPPED SERVICES
-          ---------------------------------------------------- */
-
           const mappedServiceIds =
-            existingServices
-              .map(
-                (service) =>
-                  service.id,
-              )
-              .filter(
-                (
-                  id,
-                ): id is string =>
-                  typeof id ===
-                    "string" &&
-                  id.trim().length > 0,
-              );
-
-          /* ----------------------------------------------------
-             MERGE IDS
-          ---------------------------------------------------- */
+            existingServices.map(
+              (service) =>
+                service.id,
+            );
 
           const allServiceIds =
             Array.from(
@@ -292,12 +548,13 @@ export default function NearbyWorkersList({
               ]),
             );
 
-          /* ----------------------------------------------------
-             FETCH SERVICES FROM FIREBASE
-          ---------------------------------------------------- */
+          /* ==================================================
+             FIRESTORE SERVICES
+          ================================================== */
 
           if (
-            allServiceIds.length > 0
+            allServiceIds.length >
+            0
           ) {
             try {
               const services =
@@ -305,7 +562,14 @@ export default function NearbyWorkersList({
                   allServiceIds,
                 );
 
-              const mappedServices =
+              if (
+                requestId !==
+                serviceRequestRef.current
+              ) {
+                return;
+              }
+
+              const normalized =
                 services
                   .map(
                     normalizeService,
@@ -315,96 +579,28 @@ export default function NearbyWorkersList({
                       service,
                     ): service is WorkerService =>
                       service !== null,
-                  )
-                  .slice(
-                    0,
-                    MAX_SERVICES_TO_SHOW,
                   );
 
               if (
-                mappedServices.length >
+                normalized.length >
                 0
               ) {
+                const visible =
+                  prioritizeServices(
+                    normalized,
+                    normalizedRequestedId,
+                    normalizedRequestedName,
+                  );
+
                 setAvailableServices(
-                  mappedServices,
+                  visible,
                 );
 
-                /* ----------------------------------------------
-                   MATCH REQUESTED SERVICE ID
-                ---------------------------------------------- */
-
-                const requestedId =
-                  requestedServiceId?.trim();
-
-                if (
-                  requestedId
-                ) {
-                  const matching =
-                    mappedServices.find(
-                      (
-                        service,
-                      ) =>
-                        service.id ===
-                        requestedId,
-                    );
-
-                  if (
-                    matching
-                  ) {
-                    setSelectedService(
-                      matching,
-                    );
-
-                    return;
-                  }
-                }
-
-                /* ----------------------------------------------
-                   MATCH REQUESTED SERVICE NAME
-                ---------------------------------------------- */
-
-                const requestedName =
-                  requestedServiceName
-                    ?.trim()
-                    .toLowerCase();
-
-                if (
-                  requestedName
-                ) {
-                  const matching =
-                    mappedServices.find(
-                      (
-                        service,
-                      ) =>
-                        service.name
-                          .trim()
-                          .toLowerCase() ===
-                        requestedName,
-                    );
-
-                  if (
-                    matching
-                  ) {
-                    setSelectedService(
-                      matching,
-                    );
-
-                    return;
-                  }
-                }
-
-                /* ----------------------------------------------
-                   AUTO SELECT ONLY ONE
-                ---------------------------------------------- */
-
-                if (
-                  mappedServices.length ===
-                  1
-                ) {
-                  setSelectedService(
-                    mappedServices[0],
-                  );
-                }
+                setSelectedService(
+                  resolveInitialSelection(
+                    visible,
+                  ),
+                );
 
                 return;
               }
@@ -418,147 +614,128 @@ export default function NearbyWorkersList({
             }
           }
 
-          /* ----------------------------------------------------
-             FALLBACK TO WORKER MAPPED SERVICES
-          ---------------------------------------------------- */
+          /* ==================================================
+             FALLBACK TO MAPPED WORKER SERVICES
+          ================================================== */
 
           if (
-            existingServices.length >
-            0
+            requestId !==
+            serviceRequestRef.current
           ) {
-            const visible =
-              existingServices.slice(
-                0,
-                MAX_SERVICES_TO_SHOW,
-              );
-
-            setAvailableServices(
-              visible,
-            );
-
-            const requestedId =
-              requestedServiceId?.trim();
-
-            if (
-              requestedId
-            ) {
-              const matching =
-                visible.find(
-                  (
-                    service,
-                  ) =>
-                    service.id ===
-                    requestedId,
-                );
-
-              if (
-                matching
-              ) {
-                setSelectedService(
-                  matching,
-                );
-
-                return;
-              }
-            }
-
-            const requestedName =
-              requestedServiceName
-                ?.trim()
-                .toLowerCase();
-
-            if (
-              requestedName
-            ) {
-              const matching =
-                visible.find(
-                  (
-                    service,
-                  ) =>
-                    service.name
-                      .trim()
-                      .toLowerCase() ===
-                    requestedName,
-                );
-
-              if (
-                matching
-              ) {
-                setSelectedService(
-                  matching,
-                );
-
-                return;
-              }
-            }
-
-            if (
-              visible.length ===
-              1
-            ) {
-              setSelectedService(
-                visible[0],
-              );
-            }
-
             return;
           }
 
-          setAvailableServices([]);
+          const visible =
+            prioritizeServices(
+              existingServices,
+              normalizedRequestedId,
+              normalizedRequestedName,
+            );
+
+          setAvailableServices(
+            visible,
+          );
+
+          setSelectedService(
+            resolveInitialSelection(
+              visible,
+            ),
+          );
         } catch (error) {
           console.error(
             "LOAD_WORKER_SERVICES_ERROR:",
             error,
           );
 
-          setAvailableServices([]);
+          if (
+            requestId ===
+            serviceRequestRef.current
+          ) {
+            setAvailableServices(
+              [],
+            );
+
+            setSelectedService(
+              null,
+            );
+          }
         } finally {
-          setLoadingServices(false);
+          if (
+            requestId ===
+            serviceRequestRef.current
+          ) {
+            setLoadingServices(
+              false,
+            );
+          }
         }
       },
       [
-        requestedServiceId,
-        requestedServiceName,
+        normalizedRequestedId,
+        normalizedRequestedName,
+        resolveInitialSelection,
       ],
     );
 
-  /* ==========================================================
-     REQUEST NOW
-  ========================================================== */
+  /* ============================================================
+     REQUEST WORKER
+  ============================================================ */
 
   const handleBookWorker =
     useCallback(
       (
         worker: WorkerCardData,
       ) => {
-        setSelectedWorker(worker);
+        setSelectedWorker(
+          worker,
+        );
 
         void loadWorkerServices(
           worker,
         );
       },
-      [loadWorkerServices],
+      [
+        loadWorkerServices,
+      ],
     );
 
-  /* ==========================================================
+  /* ============================================================
      CLOSE MODAL
-  ========================================================== */
+  ============================================================ */
 
   const handleCloseModal =
     useCallback(() => {
-      if (openingBooking) {
+      if (
+        openingBooking
+      ) {
         return;
       }
 
-      setSelectedWorker(null);
-      setSelectedService(null);
-      setAvailableServices([]);
-      setLoadingServices(false);
-    }, [openingBooking]);
+      serviceRequestRef.current +=
+        1;
 
-  /* ==========================================================
+      setSelectedWorker(
+        null,
+      );
+
+      setSelectedService(
+        null,
+      );
+
+      setAvailableServices(
+        [],
+      );
+
+      setLoadingServices(
+        false,
+      );
+    }, [
+      openingBooking,
+    ]);
+
+  /* ============================================================
      CONTINUE BOOKING
-  ========================================================== */
+  ============================================================ */
 
   const handleContinueBooking =
     useCallback(() => {
@@ -571,13 +748,19 @@ export default function NearbyWorkersList({
       }
 
       const workerId =
-        selectedWorker.id.trim();
+        cleanString(
+          selectedWorker.id,
+        );
 
       const finalServiceId =
-        selectedService.id.trim();
+        cleanString(
+          selectedService.id,
+        );
 
       const finalServiceName =
-        selectedService.name.trim();
+        cleanString(
+          selectedService.name,
+        );
 
       if (
         !workerId ||
@@ -587,28 +770,85 @@ export default function NearbyWorkersList({
         return;
       }
 
-      setOpeningBooking(true);
-
       const workerName =
-        `${selectedWorker.firstName ?? ""} ${
-          selectedWorker.surname ?? ""
-        }`.trim();
+        getWorkerName(
+          selectedWorker,
+        );
 
-      /* ------------------------------------------------------
-         FIREBASE ICON DATA
-      ------------------------------------------------------ */
+      const workerPhoto =
+        getWorkerPhotoUrl(
+          selectedWorker,
+        );
 
       const serviceIcon =
-        selectedService.icon?.trim() ??
-        "";
+        cleanString(
+          selectedService.icon,
+        );
 
       const serviceColor =
-        selectedService.color?.trim() ??
-        "";
+        cleanString(
+          selectedService.color,
+        );
 
       const serviceBackgroundColor =
-        selectedService.backgroundColor?.trim() ??
-        "";
+        cleanString(
+          selectedService.backgroundColor,
+        );
+
+      const workerCategory =
+        cleanString(
+          selectedWorker.category,
+        );
+
+      const workerHourlyRate =
+        Number(
+          selectedWorker
+            .workerProfile
+            .hourlyRate,
+        );
+
+      const safeHourlyRate =
+        Number.isFinite(
+          workerHourlyRate,
+        ) &&
+        workerHourlyRate >= 0
+          ? workerHourlyRate
+          : 0;
+
+      if (__DEV__) {
+        console.log(
+          "CHOOSE_SERVICE_TO_BOOKING",
+          {
+            workerId,
+
+            workerName,
+
+            workerPhoto,
+
+            hasWorkerPhoto:
+              Boolean(
+                workerPhoto,
+              ),
+
+            workerProfile:
+              selectedWorker.workerProfile,
+
+            serviceId:
+              finalServiceId,
+
+            serviceName:
+              finalServiceName,
+          },
+        );
+      }
+
+      setOpeningBooking(
+        true,
+      );
+
+      /* ======================================================
+         ROUTE — PRESERVED EXACTLY
+      ====================================================== */
 
       router.push({
         pathname:
@@ -619,14 +859,20 @@ export default function NearbyWorkersList({
 
           workerName,
 
-          workerPhoto:
-            selectedWorker
-              .workerProfile
-              ?.photoUrl ?? "",
+          workerPhoto,
 
-          workerCategory:
-            selectedWorker.category ??
-            "",
+          workerCategory,
+
+          workerHourlyRate:
+            String(
+              safeHourlyRate,
+            ),
+
+          workerOnline:
+            String(
+              selectedWorker.online ===
+                true,
+            ),
 
           serviceId:
             finalServiceId,
@@ -641,56 +887,122 @@ export default function NearbyWorkersList({
           serviceBackgroundColor,
 
           categoryId:
-            categoryId?.trim() ??
-            "",
+            cleanString(
+              categoryId,
+            ),
 
           basePrice:
             String(
-              selectedWorker
-                .workerProfile
-                ?.hourlyRate ?? 0,
-            ),
-
-          workerOnline:
-            String(
-              selectedWorker.online ===
-                true,
+              safeHourlyRate,
             ),
         },
       });
 
-      setTimeout(() => {
-        setOpeningBooking(false);
-        setSelectedWorker(null);
-        setSelectedService(null);
-        setAvailableServices([]);
-      }, 350);
+      bookingTimerRef.current =
+        setTimeout(() => {
+          setOpeningBooking(
+            false,
+          );
+
+          setSelectedWorker(
+            null,
+          );
+
+          setSelectedService(
+            null,
+          );
+
+          setAvailableServices(
+            [],
+          );
+
+          setLoadingServices(
+            false,
+          );
+
+          bookingTimerRef.current =
+            null;
+        }, 350);
     }, [
-      selectedWorker,
-      selectedService,
-      openingBooking,
       categoryId,
+      openingBooking,
+      selectedService,
+      selectedWorker,
     ]);
 
-  /* ==========================================================
-     EMPTY
-  ========================================================== */
+  /* ============================================================
+     PROFILE
+  ============================================================ */
+
+  const handleProfilePress =
+    useCallback(
+      (
+        worker: WorkerCardData,
+      ) => {
+        router.push({
+          pathname:
+            "/(customer)/details/worker-profile/[id]",
+
+          params: {
+            id: worker.id,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     LIST ITEM
+  ============================================================ */
+
+  const renderWorker =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: WorkerCardData;
+      }) => (
+        <WorkerCard
+          worker={item}
+          onProfilePress={() =>
+            handleProfilePress(
+              item,
+            )
+          }
+          onBookPress={() =>
+            handleBookWorker(
+              item,
+            )
+          }
+        />
+      ),
+      [
+        handleBookWorker,
+        handleProfilePress,
+      ],
+    );
 
   const noServices =
     !loadingServices &&
     selectedWorker !== null &&
-    availableServices.length === 0;
+    availableServices.length ===
+      0;
 
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
     <>
       <FlatList
-        data={workers}
-        keyExtractor={(item) =>
-          item.id
+        data={
+          workers
+        }
+        keyExtractor={(
+          item,
+        ) => item.id}
+        renderItem={
+          renderWorker
         }
         showsVerticalScrollIndicator={
           false
@@ -706,29 +1018,14 @@ export default function NearbyWorkersList({
             onRefresh={
               onRefresh
             }
+            tintColor={
+              CustomerColors.primary
+            }
+            colors={[
+              CustomerColors.primary,
+            ]}
           />
         }
-        renderItem={({
-          item,
-        }) => (
-          <WorkerCard
-            worker={item}
-            onProfilePress={() =>
-              router.push({
-                pathname:
-                  "/(customer)/details/worker-profile/[id]",
-                params: {
-                  id: item.id,
-                },
-              })
-            }
-            onBookPress={() =>
-              handleBookWorker(
-                item,
-              )
-            }
-          />
-        )}
       />
 
       {/* ======================================================
@@ -737,7 +1034,8 @@ export default function NearbyWorkersList({
 
       <Modal
         visible={
-          selectedWorker !== null
+          selectedWorker !==
+          null
         }
         transparent
         animationType="slide"
@@ -761,14 +1059,26 @@ export default function NearbyWorkersList({
           />
 
           <View
-            style={
-              styles.modalCard
-            }
+            accessibilityViewIsModal
+            style={[
+              styles.modalCard,
+
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
+                    FixxamTokens
+                      .spacing.lg,
+                  ),
+              },
+            ]}
           >
             {/* HANDLE */}
 
             <View
-              style={styles.handle}
+              style={
+                styles.handle
+              }
             />
 
             {/* HEADER */}
@@ -783,10 +1093,11 @@ export default function NearbyWorkersList({
                   styles.headerIcon
                 }
               >
-                <Ionicons
-                  name="construct-outline"
-                  size={23}
-                  color="#2563EB"
+                <AppIcon
+                  name="service"
+                  role="customer"
+                  size="md"
+                  state="active"
                 />
               </View>
 
@@ -795,48 +1106,58 @@ export default function NearbyWorkersList({
                   styles.headerText
                 }
               >
-                <Text
-                  style={
-                    styles.modalTitle
-                  }
+                <AppText
+                  variant="bodyLarge"
+                  weight="bold"
                 >
                   Choose a service
-                </Text>
+                </AppText>
 
-                <Text
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={2}
                   style={
                     styles.modalSubtitle
                   }
-                  numberOfLines={2}
                 >
                   Select the service you
                   want from{" "}
                   {selectedWorker
-                    ? `${selectedWorker.firstName ?? ""} ${
-                        selectedWorker.surname ?? ""
-                      }`.trim()
+                    ? getWorkerName(
+                        selectedWorker,
+                      )
                     : "this worker"}
                   .
-                </Text>
+                </AppText>
               </View>
 
               <Pressable
-                onPress={
-                  handleCloseModal
-                }
+                accessibilityRole="button"
+                accessibilityLabel="Close service selection"
+                hitSlop={8}
                 disabled={
                   openingBooking
                 }
-                style={
-                  styles.closeButton
+                onPress={
+                  handleCloseModal
                 }
-                accessibilityRole="button"
-                accessibilityLabel="Close service selection"
+                style={({
+                  pressed,
+                }) => [
+                  styles.closeButton,
+
+                  pressed &&
+                  !openingBooking
+                    ? styles.pressed
+                    : null,
+                ]}
               >
-                <Ionicons
+                <AppIcon
                   name="close"
-                  size={22}
-                  color="#64748B"
+                  role="customer"
+                  size="sm"
+                  state="muted"
                 />
               </Pressable>
             </View>
@@ -851,16 +1172,20 @@ export default function NearbyWorkersList({
               >
                 <ActivityIndicator
                   size="large"
-                  color="#2563EB"
+                  color={
+                    CustomerColors.primary
+                  }
                 />
 
-                <Text
+                <AppText
+                  variant="body"
+                  tone="secondary"
                   style={
                     styles.loadingText
                   }
                 >
                   Loading services...
-                </Text>
+                </AppText>
               </View>
             ) : noServices ? (
               <View
@@ -873,22 +1198,26 @@ export default function NearbyWorkersList({
                     styles.emptyIcon
                   }
                 >
-                  <Ionicons
-                    name="construct-outline"
-                    size={38}
-                    color="#94A3B8"
+                  <AppIcon
+                    name="service"
+                    role="customer"
+                    size="xl"
+                    state="muted"
                   />
                 </View>
 
-                <Text
-                  style={
-                    styles.emptyTitle
-                  }
+                <AppText
+                  variant="bodyLarge"
+                  weight="bold"
+                  center
                 >
                   No services available
-                </Text>
+                </AppText>
 
-                <Text
+                <AppText
+                  variant="body"
+                  tone="secondary"
+                  center
                   style={
                     styles.emptyText
                   }
@@ -896,7 +1225,7 @@ export default function NearbyWorkersList({
                   This worker has not added
                   a service that can be
                   requested yet.
-                </Text>
+                </AppText>
               </View>
             ) : (
               <View
@@ -913,61 +1242,60 @@ export default function NearbyWorkersList({
                       service.id;
 
                     const serviceColor =
-                      service.color ||
+                      cleanString(
+                        service.color,
+                      ) ||
                       (isSelected
-                        ? "#2563EB"
-                        : DEFAULT_ICON_COLOR);
+                        ? CustomerColors.primary
+                        : Colors.textSecondary);
 
                     const serviceBackground =
-                      service.backgroundColor ||
+                      cleanString(
+                        service.backgroundColor,
+                      ) ||
                       (isSelected
-                        ? DEFAULT_SELECTED_BACKGROUND
-                        : DEFAULT_ICON_BACKGROUND);
-
-                    /*
-                     * IMPORTANT:
-                     *
-                     * The icon name comes directly
-                     * from Firebase.
-                     *
-                     * We now render it with the
-                     * SAME icon library used by
-                     * CategoryCard:
-                     *
-                     * MaterialCommunityIcons
-                     */
+                        ? CustomerColors.primarySoft
+                        : Colors.disabledBackground);
 
                     const iconName =
-                      service.icon?.trim();
+                      cleanString(
+                        service.icon,
+                      );
 
                     return (
                       <Pressable
                         key={
                           service.id
                         }
+                        accessibilityRole="radio"
+                        accessibilityLabel={
+                          service.name
+                        }
+                        accessibilityState={{
+                          checked:
+                            isSelected,
+                        }}
+                        disabled={
+                          openingBooking
+                        }
                         onPress={() =>
                           setSelectedService(
                             service,
                           )
                         }
-                        disabled={
-                          openingBooking
-                        }
-                        accessibilityRole="radio"
-                        accessibilityState={{
-                          checked:
-                            isSelected,
-                        }}
                         style={({
                           pressed,
                         }) => [
                           styles.serviceOption,
 
-                          isSelected &&
-                            styles.serviceOptionSelected,
+                          isSelected
+                            ? styles.serviceOptionSelected
+                            : null,
 
                           pressed &&
-                            styles.serviceOptionPressed,
+                          !openingBooking
+                            ? styles.pressed
+                            : null,
                         ]}
                       >
                         {/* SERVICE ICON */}
@@ -975,6 +1303,7 @@ export default function NearbyWorkersList({
                         <View
                           style={[
                             styles.serviceIcon,
+
                             {
                               backgroundColor:
                                 serviceBackground,
@@ -984,9 +1313,7 @@ export default function NearbyWorkersList({
                           {iconName ? (
                             <MaterialCommunityIcons
                               name={
-                                iconName as React.ComponentProps<
-                                  typeof MaterialCommunityIcons
-                                >["name"]
+                                iconName as MaterialIconName
                               }
                               size={23}
                               color={
@@ -994,9 +1321,10 @@ export default function NearbyWorkersList({
                               }
                             />
                           ) : (
-                            <Ionicons
-                              name="help-outline"
-                              size={23}
+                            <AppIcon
+                              name="help"
+                              role="customer"
+                              size="md"
                               color={
                                 serviceColor
                               }
@@ -1011,28 +1339,28 @@ export default function NearbyWorkersList({
                             styles.serviceContent
                           }
                         >
-                          <Text
-                            style={[
-                              styles.serviceName,
-                              isSelected &&
-                                styles.serviceNameSelected,
-                            ]}
-                            numberOfLines={
-                              2
+                          <AppText
+                            variant="bodyMedium"
+                            weight="bold"
+                            numberOfLines={2}
+                            style={
+                              isSelected
+                                ? styles.serviceNameSelected
+                                : undefined
                             }
                           >
-                            {
-                              service.name
-                            }
-                          </Text>
+                            {service.name}
+                          </AppText>
 
-                          <Text
+                          <AppText
+                            variant="caption"
+                            tone="secondary"
                             style={
                               styles.serviceHint
                             }
                           >
                             Request this service
-                          </Text>
+                          </AppText>
                         </View>
 
                         {/* RADIO */}
@@ -1040,17 +1368,19 @@ export default function NearbyWorkersList({
                         <View
                           style={[
                             styles.radio,
-                            isSelected &&
-                              styles.radioSelected,
+
+                            isSelected
+                              ? styles.radioSelected
+                              : null,
                           ]}
                         >
-                          {isSelected && (
+                          {isSelected ? (
                             <View
                               style={
                                 styles.radioDot
                               }
                             />
-                          )}
+                          ) : null}
                         </View>
                       </Pressable>
                     );
@@ -1061,55 +1391,24 @@ export default function NearbyWorkersList({
 
             {/* CONTINUE */}
 
-            <Pressable
-              onPress={
-                handleContinueBooking
+            <AppButton
+              title="Continue"
+              role="customer"
+              loading={
+                openingBooking
               }
               disabled={
                 !selectedService ||
                 loadingServices ||
                 openingBooking
               }
-              accessibilityRole="button"
-              accessibilityLabel="Continue to booking"
-              style={({
-                pressed,
-              }) => [
-                styles.continueButton,
-
-                (!selectedService ||
-                  loadingServices) &&
-                  styles.continueButtonDisabled,
-
-                pressed &&
-                  selectedService &&
-                  !openingBooking &&
-                  styles.continueButtonPressed,
-              ]}
-            >
-              {openingBooking ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
-              ) : (
-                <>
-                  <Text
-                    style={
-                      styles.continueText
-                    }
-                  >
-                    CONTINUE
-                  </Text>
-
-                  <Ionicons
-                    name="arrow-forward"
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </>
-              )}
-            </Pressable>
+              onPress={
+                handleContinueBooking
+              }
+              style={
+                styles.continueButton
+              }
+            />
           </View>
         </View>
       </Modal>
@@ -1124,221 +1423,266 @@ export default function NearbyWorkersList({
 const styles =
   StyleSheet.create({
     listContent: {
-      paddingBottom: 24,
+      paddingBottom:
+        FixxamTokens.spacing.xl,
     },
+
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
     modalOverlay: {
       flex: 1,
-      justifyContent: "flex-end",
+
+      justifyContent:
+        "flex-end",
+
       backgroundColor:
-        "rgba(15, 23, 42, 0.55)",
+        Colors.overlayStrong,
     },
 
     modalCard: {
-      backgroundColor: "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 20,
-      paddingTop: 10,
-      paddingBottom: 28,
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
 
-      shadowColor: "#000000",
-      shadowOpacity: 0.18,
-      shadowRadius: 24,
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
 
-      shadowOffset: {
-        width: 0,
-        height: -8,
-      },
+      backgroundColor:
+        Colors.surface,
 
-      elevation: 15,
+      ...FixxamTokens.shadow.card,
     },
 
     handle: {
-      alignSelf: "center",
+      alignSelf:
+        "center",
 
       width: 42,
+
       height: 5,
 
-      borderRadius: 3,
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
 
       backgroundColor:
-        "#CBD5E1",
-
-      marginBottom: 20,
+        Colors.disabled,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     modalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 20,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     headerIcon: {
-      width: 48,
-      height: 48,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 16,
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        "#EFF6FF",
-
-      borderWidth: 1,
-      borderColor:
-        "#DBEAFE",
-
-      alignItems: "center",
-      justifyContent: "center",
+        CustomerColors.primarySoft,
     },
 
     headerText: {
       flex: 1,
 
-      marginLeft: 12,
-      marginRight: 8,
-    },
+      minWidth: 0,
 
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: "700",
-      color: "#0F172A",
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     modalSubtitle: {
-      marginTop: 4,
-
-      fontSize: 12,
-      lineHeight: 18,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     closeButton: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 13,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#F8FAFC",
-
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.disabledBackground,
     },
+
+    /* ========================================================
+       LOADING
+    ======================================================== */
 
     loadingContainer: {
       minHeight: 220,
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 12,
-
-      fontSize: 14,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
     },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
 
     emptyServices: {
       minHeight: 250,
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
 
-      paddingHorizontal: 30,
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
     },
 
     emptyIcon: {
       width: 88,
+
       height: 88,
 
-      borderRadius: 28,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
 
       backgroundColor:
-        "#F1F5F9",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      marginBottom: 20,
-    },
-
-    emptyTitle: {
-      fontSize: 19,
-
-      fontWeight: "700",
-
-      color: "#0F172A",
-
-      textAlign: "center",
+        Colors.disabledBackground,
     },
 
     emptyText: {
-      marginTop: 8,
-
-      fontSize: 14,
-      lineHeight: 21,
-
-      color: "#64748B",
-
-      textAlign: "center",
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
+    /* ========================================================
+       SERVICES
+    ======================================================== */
+
     servicesContainer: {
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     serviceOption: {
       minHeight: 72,
 
-      borderRadius: 17,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        "#FFFFFF",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+        Colors.surface,
     },
 
     serviceOptionSelected: {
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
 
       backgroundColor:
-        "#EFF6FF",
-    },
-
-    serviceOptionPressed: {
-      opacity: 0.75,
-
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
+        CustomerColors.primarySoft,
     },
 
     serviceIcon: {
-      width: 46,
-      height: 46,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 14,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-      alignItems: "center",
-      justifyContent: "center",
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     serviceContent: {
@@ -1346,100 +1690,93 @@ const styles =
 
       minWidth: 0,
 
-      marginHorizontal: 12,
-    },
-
-    serviceName: {
-      fontSize: 15,
-
-      lineHeight: 20,
-
-      fontWeight: "700",
-
-      color: "#334155",
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     serviceNameSelected: {
-      color: "#2563EB",
+      color:
+        CustomerColors.primary,
     },
 
     serviceHint: {
-      marginTop: 3,
-
-      fontSize: 11,
-
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    radio: {
-      width: 23,
-      height: 23,
+    /* ========================================================
+       RADIO
+    ======================================================== */
 
-      borderRadius: 12,
+    radio: {
+      width: 24,
+
+      height: 24,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderWidth: 2,
 
       borderColor:
-        "#CBD5E1",
+        Colors.disabled,
 
-      alignItems: "center",
-      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     radioSelected: {
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
     },
 
     radioDot: {
-      width: 11,
-      height: 11,
+      width: 12,
 
-      borderRadius: 6,
+      height: 12,
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#2563EB",
+        CustomerColors.primary,
     },
+
+    /* ========================================================
+       CONTINUE
+    ======================================================== */
 
     continueButton: {
-      minHeight: 54,
+      width: "100%",
 
-      marginTop: 20,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-      borderRadius: 16,
-
-      backgroundColor:
-        "#2563EB",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-      justifyContent: "center",
-
-      gap: 9,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
-    continueButtonDisabled: {
-      opacity: 0.45,
-    },
+    /* ========================================================
+       PRESSED
+    ======================================================== */
 
-    continueButtonPressed: {
-      opacity: 0.9,
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
-    },
-
-    continueText: {
-      fontSize: 14,
-
-      fontWeight: "700",
-
-      color: "#FFFFFF",
-
-      letterSpacing: 0.4,
     },
   });

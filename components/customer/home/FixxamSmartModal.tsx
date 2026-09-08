@@ -1,22 +1,42 @@
 import React, {
   useEffect,
+  useMemo,
   useRef,
+  useState,
 } from "react";
 
 import {
   Animated,
-  Dimensions,
-  Modal,
   Pressable,
   StyleSheet,
   View,
+  useWindowDimensions,
+  type LayoutChangeEvent,
+} from "react-native";
+
+import {
+  Modal,
 } from "react-native";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
+import {
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 interface FixxamSmartModalProps {
   visible: boolean;
@@ -31,86 +51,292 @@ interface FixxamSmartModalProps {
   onClose: () => void;
 }
 
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_CARD_WIDTH = 350;
+
+const ANCHOR_GAP = 10;
+
+const ARROW_SIZE = 14;
+
+const INITIAL_SCALE = 0.88;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function clamp(
+  value: number,
+  min: number,
+  max: number,
+): number {
+  return Math.min(
+    Math.max(value, min),
+    max,
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function FixxamSmartModal({
   visible,
   anchor,
   onClose,
 }: FixxamSmartModalProps) {
-  const opacity = useRef(
-    new Animated.Value(0),
-  ).current;
+  const {
+    width: screenWidth,
+    height: screenHeight,
+  } = useWindowDimensions();
 
-  const scale = useRef(
-    new Animated.Value(0.88),
-  ).current;
+  const insets =
+    useSafeAreaInsets();
+
+  const [
+    cardHeight,
+    setCardHeight,
+  ] = useState(0);
+
+  const opacity =
+    useRef(
+      new Animated.Value(0),
+    ).current;
+
+  const scale =
+    useRef(
+      new Animated.Value(
+        INITIAL_SCALE,
+      ),
+    ).current;
+
+  /* ==========================================================
+     ANIMATION
+  ========================================================== */
 
   useEffect(() => {
-    if (visible) {
+    if (!visible) {
       opacity.setValue(0);
-      scale.setValue(0.88);
 
-      Animated.parallel([
-        Animated.spring(scale, {
-          toValue: 1,
-          useNativeDriver: true,
-          damping: 18,
-          stiffness: 260,
-          mass: 0.7,
-        }),
-
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 160,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      scale.setValue(
+        INITIAL_SCALE,
+      );
 
       return;
     }
 
     opacity.setValue(0);
-    scale.setValue(0.88);
+
+    scale.setValue(
+      INITIAL_SCALE,
+    );
+
+    const animation =
+      Animated.parallel([
+        Animated.spring(
+          scale,
+          {
+            toValue: 1,
+            useNativeDriver: true,
+            damping: 18,
+            stiffness: 260,
+            mass: 0.7,
+          },
+        ),
+
+        Animated.timing(
+          opacity,
+          {
+            toValue: 1,
+            duration:
+              FixxamTokens.motion.fast,
+            useNativeDriver: true,
+          },
+        ),
+      ]);
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
   }, [
     visible,
     opacity,
     scale,
   ]);
 
-  const screenWidth =
-    Dimensions.get("window").width;
+  /* ==========================================================
+     CARD SIZE
+  ========================================================== */
 
-  const cardWidth = Math.min(
-    screenWidth - 32,
-    350,
-  );
+  const cardWidth =
+    useMemo(
+      () =>
+        Math.min(
+          screenWidth -
+            FixxamTokens.spacing.lg *
+              2,
 
-  const left = Math.max(
-    16,
-    Math.min(
-      anchor.x +
-        anchor.width -
-        cardWidth,
-      screenWidth -
-        cardWidth -
-        16,
-    ),
-  );
+          MAX_CARD_WIDTH,
+        ),
+      [screenWidth],
+    );
 
-  const top =
-    anchor.y +
-    anchor.height +
-    10;
+  /* ==========================================================
+     POSITION
+  ========================================================== */
 
-  const arrowRight = Math.max(
-    16,
-    Math.min(
-      anchor.x +
-        anchor.width / 2 -
-        left -
-        7,
-      cardWidth - 22,
-    ),
-  );
+  const position =
+    useMemo(() => {
+      const edgePadding =
+        FixxamTokens.spacing.lg;
+
+      const safeTop =
+        insets.top +
+        edgePadding;
+
+      const safeBottom =
+        screenHeight -
+        insets.bottom -
+        edgePadding;
+
+      const maxLeft =
+        Math.max(
+          edgePadding,
+
+          screenWidth -
+            cardWidth -
+            edgePadding,
+        );
+
+      const left =
+        clamp(
+          anchor.x +
+            anchor.width -
+            cardWidth,
+
+          edgePadding,
+
+          maxLeft,
+        );
+
+      const spaceBelow =
+        safeBottom -
+        (anchor.y +
+          anchor.height);
+
+      const spaceAbove =
+        anchor.y -
+        safeTop;
+
+      /*
+       * Prefer below the anchor.
+       *
+       * If the measured card cannot fit
+       * below and there is more room
+       * above, flip the popover upward.
+       */
+      const showAbove =
+        cardHeight > 0 &&
+        spaceBelow <
+          cardHeight +
+            ANCHOR_GAP &&
+        spaceAbove >
+          spaceBelow;
+
+      const preferredTop =
+        showAbove
+          ? anchor.y -
+            cardHeight -
+            ANCHOR_GAP
+          : anchor.y +
+            anchor.height +
+            ANCHOR_GAP;
+
+      const maxTop =
+        cardHeight > 0
+          ? Math.max(
+              safeTop,
+
+              safeBottom -
+                cardHeight,
+            )
+          : safeBottom;
+
+      const top =
+        clamp(
+          preferredTop,
+
+          safeTop,
+
+          maxTop,
+        );
+
+      const anchorCenter =
+        anchor.x +
+        anchor.width / 2;
+
+      const arrowLeft =
+        clamp(
+          anchorCenter -
+            left -
+            ARROW_SIZE / 2,
+
+          FixxamTokens.spacing.md,
+
+          cardWidth -
+            ARROW_SIZE -
+            FixxamTokens.spacing.md,
+        );
+
+      return {
+        left,
+        top,
+        arrowLeft,
+        showAbove,
+      };
+    }, [
+      anchor.height,
+      anchor.width,
+      anchor.x,
+      anchor.y,
+      cardHeight,
+      cardWidth,
+      insets.bottom,
+      insets.top,
+      screenHeight,
+      screenWidth,
+    ]);
+
+  /* ==========================================================
+     MEASURE CARD
+  ========================================================== */
+
+  const handleCardLayout = (
+    event: LayoutChangeEvent,
+  ) => {
+    const nextHeight =
+      event.nativeEvent.layout
+        .height;
+
+    if (
+      Math.abs(
+        nextHeight -
+          cardHeight,
+      ) > 1
+    ) {
+      setCardHeight(
+        nextHeight,
+      );
+    }
+  };
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
@@ -120,24 +346,46 @@ export default function FixxamSmartModal({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        {/* BACKDROP */}
+      <View
+        style={styles.overlay}
+      >
+        {/* ==================================================
+            BACKDROP
+        ================================================== */}
 
         <Pressable
-          style={StyleSheet.absoluteFill}
+          style={
+            StyleSheet.absoluteFill
+          }
           onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close Fixxam Smart"
         />
 
-        {/* MODAL */}
+        {/* ==================================================
+            SMART CARD
+        ================================================== */}
 
         <Animated.View
+          accessibilityViewIsModal
+          onLayout={
+            handleCardLayout
+          }
           style={[
             styles.card,
+
             {
-              width: cardWidth,
-              left,
-              top,
+              width:
+                cardWidth,
+
+              left:
+                position.left,
+
+              top:
+                position.top,
+
               opacity,
+
               transform: [
                 {
                   scale,
@@ -146,36 +394,54 @@ export default function FixxamSmartModal({
             },
           ]}
         >
-          {/* ==================================================
-              ARROW
-          ================================================== */}
+          {/* =================================================
+              POINTER ARROW
+          ================================================= */}
 
           <View
+            pointerEvents="none"
             style={[
               styles.arrow,
+
+              position.showAbove
+                ? styles.arrowBottom
+                : styles.arrowTop,
+
               {
-                right: arrowRight,
+                left:
+                  position.arrowLeft,
               },
             ]}
           />
 
-          {/* ==================================================
+          {/* =================================================
               HEADER
-          ================================================== */}
+          ================================================= */}
 
-          <View style={styles.header}>
-            <View style={styles.smartIconBox}>
+          <View
+            style={styles.header}
+          >
+            <View
+              style={
+                styles.smartIconBox
+              }
+            >
               <MaterialCommunityIcons
                 name="lightbulb-on-outline"
                 size={27}
-                color="#F97316"
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
             <View
-              style={styles.headerContent}
+              style={
+                styles.headerContent
+              }
             >
               <AppText
+                variant="bodyLarge"
                 weight="bold"
                 style={styles.title}
               >
@@ -183,7 +449,11 @@ export default function FixxamSmartModal({
               </AppText>
 
               <AppText
-                style={styles.subtitle}
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.subtitle
+                }
               >
                 Your smart way to get things done.
               </AppText>
@@ -196,70 +466,86 @@ export default function FixxamSmartModal({
               accessibilityLabel="Close Fixxam Smart"
               style={({ pressed }) => [
                 styles.closeButton,
-                pressed &&
-                  styles.closePressed,
+
+                pressed
+                  ? styles.closePressed
+                  : null,
               ]}
             >
               <MaterialCommunityIcons
                 name="close"
                 size={19}
-                color="#64748B"
+                color={
+                  Colors.textSecondary
+                }
               />
             </Pressable>
           </View>
 
-          {/* ==================================================
+          {/* =================================================
               CONTENT
-          ================================================== */}
+          ================================================= */}
 
-          <View style={styles.content}>
+          <View
+            style={styles.content}
+          >
             <AppText
+              variant="body"
+              tone="secondary"
               style={styles.paragraph}
             >
-              Fixxam Smart helps you find the
-              right service and trusted
-              professional for your needs.
+              Fixxam Smart helps you find the right service and trusted professional for your needs.
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               style={styles.paragraph}
             >
-              Tell us what you need, and Fixxam
-              makes it easier to discover the
-              right help, compare available
-              options, and get your job started
-              with confidence.
+              Tell us what you need, and Fixxam makes it easier to discover the right help, compare available options, and get your job started with confidence.
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               style={[
                 styles.paragraph,
                 styles.lastParagraph,
               ]}
             >
-              From small repairs to bigger
-              projects, Fixxam is here to make
-              getting help simple, safe, and
-              stress-free.
+              From small repairs to bigger projects, Fixxam is here to make getting help simple, safe, and stress-free.
             </AppText>
           </View>
 
-          {/* ==================================================
+          {/* =================================================
               FOOTER
-          ================================================== */}
+          ================================================= */}
 
-          <View style={styles.footer}>
-            <MaterialCommunityIcons
-              name="shield-check-outline"
-              size={17}
-              color="#16A34A"
-            />
+          <View
+            style={styles.footer}
+          >
+            <View
+              style={
+                styles.footerIcon
+              }
+            >
+              <MaterialCommunityIcons
+                name="shield-check-outline"
+                size={17}
+                color={
+                  Colors.success
+                }
+              />
+            </View>
 
             <AppText
-              style={styles.footerText}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.footerText
+              }
             >
-              Smart help from Fixxam, whenever
-              you need it.
+              Smart help from Fixxam, whenever you need it.
             </AppText>
           </View>
         </Animated.View>
@@ -274,10 +560,15 @@ export default function FixxamSmartModal({
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       OVERLAY
+    ======================================================== */
+
     overlay: {
       flex: 1,
+
       backgroundColor:
-        "rgba(15, 23, 42, 0.22)",
+        Colors.overlayLight,
     },
 
     /* ========================================================
@@ -287,24 +578,21 @@ const styles =
     card: {
       position: "absolute",
 
-      backgroundColor: "#FFFFFF",
-
-      borderRadius: 20,
-
-      padding: 15,
+      padding:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
-      borderColor: "#E2E8F0",
 
-      shadowColor: "#000",
-      shadowOffset: {
-        width: 0,
-        height: 8,
-      },
-      shadowOpacity: 0.16,
-      shadowRadius: 18,
+      borderColor:
+        Colors.border,
 
-      elevation: 10,
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -314,16 +602,14 @@ const styles =
     arrow: {
       position: "absolute",
 
-      top: -7,
+      width:
+        ARROW_SIZE,
 
-      width: 14,
-      height: 14,
+      height:
+        ARROW_SIZE,
 
-      backgroundColor: "#FFFFFF",
-
-      borderLeftWidth: 1,
-      borderTopWidth: 1,
-      borderColor: "#E2E8F0",
+      backgroundColor:
+        Colors.surface,
 
       transform: [
         {
@@ -332,68 +618,121 @@ const styles =
       ],
     },
 
+    arrowTop: {
+      top:
+        -(ARROW_SIZE / 2),
+
+      borderTopWidth: 1,
+
+      borderLeftWidth: 1,
+
+      borderColor:
+        Colors.border,
+    },
+
+    arrowBottom: {
+      bottom:
+        -(ARROW_SIZE / 2),
+
+      borderRightWidth: 1,
+
+      borderBottomWidth: 1,
+
+      borderColor:
+        Colors.border,
+    },
+
     /* ========================================================
        HEADER
     ======================================================== */
 
     header: {
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     smartIconBox: {
       width: 46,
+
       height: 46,
 
-      borderRadius: 14,
-
-      backgroundColor: "#FFF7ED",
-
-      borderWidth: 1,
-      borderColor: "#FFEDD5",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     headerContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 9,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     title: {
-      fontSize: 16,
-      lineHeight: 20,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      lineHeight: 14,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 15,
     },
 
     closeButton: {
-      width: 31,
-      height: 31,
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      marginLeft: 7,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 9,
+      flexShrink: 0,
 
-      backgroundColor: "#F8FAFC",
+      marginLeft:
+        FixxamTokens.spacing.xs,
 
       alignItems: "center",
-      justifyContent: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     closePressed: {
-      opacity: 0.65,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.94,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
@@ -403,16 +742,15 @@ const styles =
     ======================================================== */
 
     content: {
-      marginTop: 17,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     paragraph: {
-      marginBottom: 11,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 11.5,
-      lineHeight: 18,
-
-      color: "#475569",
+      lineHeight: 19,
     },
 
     lastParagraph: {
@@ -424,24 +762,49 @@ const styles =
     ======================================================== */
 
     footer: {
-      marginTop: 13,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      paddingTop: 11,
-
-      borderTopWidth: 1,
-      borderTopColor: "#F1F5F9",
+      paddingTop:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
+
       alignItems: "center",
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.divider,
+    },
+
+    footerIcon: {
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     footerText: {
       flex: 1,
-      marginLeft: 6,
 
-      fontSize: 9,
-      lineHeight: 14,
+      minWidth: 0,
 
-      color: "#64748B",
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 15,
     },
   });

@@ -1,7 +1,22 @@
 import * as dotenv from "dotenv";
 import * as admin from "firebase-admin";
 
-import { onRequest } from "firebase-functions/v2/https";
+import {
+  HttpsError,
+  onCall,
+  onRequest,
+} from "firebase-functions/v2/https";
+
+import {
+  defineSecret,
+  defineString,
+} from "firebase-functions/params";
+
+import {
+  AccessToken,
+  TrackSource,
+} from "livekit-server-sdk";
+
 import { Resend } from "resend";
 
 dotenv.config();
@@ -11,6 +26,483 @@ admin.initializeApp();
 const resend = new Resend(
   process.env.RESEND_API_KEY ?? "",
 );
+
+/* ============================================================
+   LIVEKIT
+============================================================ */
+
+/**
+ * LiveKit credentials stay on Firebase Functions only.
+ *
+ * Never expose these values inside the React Native app.
+ */
+const LIVEKIT_API_KEY =
+  defineSecret(
+    "LIVEKIT_API_KEY",
+  );
+
+const LIVEKIT_API_SECRET =
+  defineSecret(
+    "LIVEKIT_API_SECRET",
+  );
+
+/**
+ * Example:
+ *
+ * wss://your-project.livekit.cloud
+ *
+ * This is configuration, not a secret.
+ */
+const LIVEKIT_URL =
+  defineString(
+    "LIVEKIT_URL",
+  );
+
+const LIVEKIT_TOKEN_TTL_SECONDS =
+  5 * 60;
+
+type FixxamCallRole =
+  | "customer"
+  | "worker";
+
+type FixxamCallStatus =
+  | "ringing"
+  | "accepted"
+  | "connected"
+  | "declined"
+  | "missed"
+  | "ended"
+  | "failed";
+
+type LiveKitCallTokenRequest = {
+  callId?: unknown;
+};
+
+function cleanLiveKitString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function isFixxamCallRole(
+  value: unknown,
+): value is FixxamCallRole {
+  return (
+    value === "customer" ||
+    value === "worker"
+  );
+}
+
+function isFixxamCallStatus(
+  value: unknown,
+): value is FixxamCallStatus {
+  return (
+    value === "ringing" ||
+    value === "accepted" ||
+    value === "connected" ||
+    value === "declined" ||
+    value === "missed" ||
+    value === "ended" ||
+    value === "failed"
+  );
+}
+
+/* ============================================================
+   GET LIVEKIT CALL TOKEN
+============================================================ */
+
+/**
+ * Secure authenticated endpoint used by both:
+ *
+ * - customer
+ * - worker
+ *
+ * Requirements:
+ *
+ * - Firebase Auth user must exist
+ * - calls/{callId} must exist
+ * - user must be caller or callee
+ * - call must be accepted/connected
+ *
+ * Permissions:
+ *
+ * - join this room only
+ * - publish microphone only
+ * - subscribe to remote audio
+ */
+export const getLiveKitCallToken =
+  onCall(
+    {
+      secrets: [
+        LIVEKIT_API_KEY,
+        LIVEKIT_API_SECRET,
+      ],
+
+      timeoutSeconds: 15,
+
+      memory: "256MiB",
+    },
+
+    async (request) => {
+      /* ======================================================
+         AUTH
+      ====================================================== */
+
+      const userId =
+        cleanLiveKitString(
+          request.auth?.uid,
+        );
+
+      if (!userId) {
+        throw new HttpsError(
+          "unauthenticated",
+          "You must be signed in to join a Fixxam call.",
+        );
+      }
+
+      /* ======================================================
+         CALL ID
+      ====================================================== */
+
+      const requestData =
+        request.data as
+          | LiveKitCallTokenRequest
+          | undefined
+          | null;
+
+      const callId =
+        cleanLiveKitString(
+          requestData?.callId,
+        );
+
+      if (
+        !callId ||
+        callId.length > 128 ||
+        callId.includes("/")
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "A valid callId is required.",
+        );
+      }
+
+      /* ======================================================
+         LOAD CALL
+      ====================================================== */
+
+      const callSnapshot =
+        await admin
+          .firestore()
+          .collection("calls")
+          .doc(callId)
+          .get();
+
+      if (!callSnapshot.exists) {
+        throw new HttpsError(
+          "not-found",
+          "This call is no longer available.",
+        );
+      }
+
+      const call =
+        callSnapshot.data();
+
+      if (!call) {
+        throw new HttpsError(
+          "internal",
+          "Call information is unavailable.",
+        );
+      }
+
+      /* ======================================================
+         PARTICIPANTS
+      ====================================================== */
+
+      const callerId =
+        cleanLiveKitString(
+          call.callerId,
+        );
+
+      const calleeId =
+        cleanLiveKitString(
+          call.calleeId,
+        );
+
+      if (
+        !callerId ||
+        !calleeId
+      ) {
+        console.error(
+          "FIXXAM_LIVEKIT_INVALID_CALL_PARTICIPANTS:",
+          {
+            callId,
+          },
+        );
+
+        throw new HttpsError(
+          "internal",
+          "Call participant information is invalid.",
+        );
+      }
+
+      /* ======================================================
+         ROLES
+      ====================================================== */
+
+      if (
+        !isFixxamCallRole(
+          call.callerRole,
+        ) ||
+        !isFixxamCallRole(
+          call.calleeRole,
+        )
+      ) {
+        console.error(
+          "FIXXAM_LIVEKIT_INVALID_CALL_ROLES:",
+          {
+            callId,
+          },
+        );
+
+        throw new HttpsError(
+          "internal",
+          "Call role information is invalid.",
+        );
+      }
+
+      /* ======================================================
+         AUTHORIZATION
+      ====================================================== */
+
+      const isCaller =
+        callerId === userId;
+
+      const isCallee =
+        calleeId === userId;
+
+      if (
+        !isCaller &&
+        !isCallee
+      ) {
+        throw new HttpsError(
+          "permission-denied",
+          "You are not a participant in this call.",
+        );
+      }
+
+      const participantRole:
+        FixxamCallRole =
+        isCaller
+          ? call.callerRole
+          : call.calleeRole;
+
+      /* ======================================================
+         STATUS
+      ====================================================== */
+
+      if (
+        !isFixxamCallStatus(
+          call.status,
+        )
+      ) {
+        throw new HttpsError(
+          "internal",
+          "Call status is invalid.",
+        );
+      }
+
+      const callStatus =
+        call.status;
+
+      /*
+       * Do not allow either side into LiveKit
+       * before the recipient accepts the call.
+       *
+       * "connected" is permitted for reconnects.
+       */
+      if (
+        callStatus !== "accepted" &&
+        callStatus !== "connected"
+      ) {
+        if (
+          callStatus === "ringing"
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "The call has not been accepted yet.",
+          );
+        }
+
+        throw new HttpsError(
+          "failed-precondition",
+          "This call is no longer active.",
+        );
+      }
+
+      /* ======================================================
+         LIVEKIT CONFIG
+      ====================================================== */
+
+      const apiKey =
+        LIVEKIT_API_KEY
+          .value()
+          .trim();
+
+      const apiSecret =
+        LIVEKIT_API_SECRET
+          .value()
+          .trim();
+
+      const liveKitUrl =
+        LIVEKIT_URL
+          .value()
+          .trim()
+          .replace(
+            /\/+$/,
+            "",
+          );
+
+      if (
+        !apiKey ||
+        !apiSecret
+      ) {
+        console.error(
+          "FIXXAM_LIVEKIT_CREDENTIALS_MISSING",
+        );
+
+        throw new HttpsError(
+          "internal",
+          "Voice calling is temporarily unavailable.",
+        );
+      }
+
+      if (
+        !liveKitUrl.startsWith(
+          "wss://",
+        )
+      ) {
+        console.error(
+          "FIXXAM_LIVEKIT_URL_INVALID",
+        );
+
+        throw new HttpsError(
+          "internal",
+          "Voice calling is temporarily unavailable.",
+        );
+      }
+
+      /* ======================================================
+         ROOM
+      ====================================================== */
+
+      /*
+       * Firestore call ID is already opaque.
+       *
+       * Do not use customer/worker:
+       *
+       * - name
+       * - email
+       * - phone number
+       *
+       * in LiveKit identity or room name.
+       */
+      const roomName =
+        `fixxam_call_${callId}`;
+
+      /*
+       * Only two identities are needed inside
+       * each private one-to-one call room.
+       */
+      const identity =
+        isCaller
+          ? "caller"
+          : "callee";
+
+      /* ======================================================
+         TOKEN
+      ====================================================== */
+
+      const accessToken =
+        new AccessToken(
+          apiKey,
+          apiSecret,
+          {
+            identity,
+
+            ttl:
+              LIVEKIT_TOKEN_TTL_SECONDS,
+          },
+        );
+
+      accessToken.addGrant({
+        roomJoin: true,
+
+        room:
+          roomName,
+
+        /*
+         * Required when using
+         * canPublishSources.
+         */
+        canPublish: true,
+
+        /*
+         * Voice-only:
+         *
+         * no camera
+         * no screen sharing
+         */
+        canPublishSources: [
+          TrackSource.MICROPHONE,
+        ],
+
+        /*
+         * Allow listening to the other
+         * call participant.
+         */
+        canSubscribe: true,
+
+        /*
+         * No arbitrary data publishing
+         * is needed for Fixxam voice.
+         */
+        canPublishData: false,
+
+        canUpdateOwnMetadata: false,
+      });
+
+      const token =
+        await accessToken.toJwt();
+
+      console.log(
+        "FIXXAM_LIVEKIT_CALL_TOKEN_ISSUED:",
+        {
+          callId,
+
+          participantRole,
+
+          callStatus,
+        },
+      );
+
+      return {
+        token,
+
+        url:
+          liveKitUrl,
+
+        roomName,
+
+        participantRole,
+
+        expiresInSeconds:
+          LIVEKIT_TOKEN_TTL_SECONDS,
+      };
+    },
+  );
 
 /* ============================================================
    AI
@@ -83,26 +575,23 @@ export {
   sendServiceRequest,
 } from "./serviceRequests/sendServiceRequest";
 
-
 /* ============================================================
    CUSTOMER PUSH NOTIFICATIONS
 ============================================================ */
 
-
 export {
+  bookingCreatedNotifications,
   bookingNotifications,
 } from "./notifications/bookingNotifications";
-
-
 
 /* ============================================================
    MARKET ORDER NOTIFICATIONS
 ============================================================ */
 
 export {
+  marketOrderCreatedNotifications,
   marketOrderNotifications,
 } from "./notifications/marketOrderNotifications";
-
 
 /* ============================================================
    PASSWORD RESET OTP

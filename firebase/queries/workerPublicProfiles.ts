@@ -1,11 +1,12 @@
 import {
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
   query,
-  setDoc,
   serverTimestamp,
+  setDoc,
   where,
   type DocumentData,
   type QuerySnapshot,
@@ -18,7 +19,9 @@ import {
   uploadBytes,
 } from "firebase/storage";
 
-import { db } from "@/firebase/config";
+import {
+  db,
+} from "@/firebase/config";
 
 /* ============================================================
    PUBLIC WORKER PROFILE
@@ -28,50 +31,71 @@ export type WorkerPublicProfile = {
   uid: string;
 
   firstName?: string;
+
   otherName?: string;
+
   surname?: string;
 
   name?: string;
+
   fullName?: string;
 
   rating?: number;
 
   online?: boolean;
+
   available?: boolean;
 
-  phoneNumber?: string;
+  /*
+   * Legacy public image fields.
+   *
+   * New writes use:
+   *
+   * workerProfile.photoUrl
+   */
+  photoURL?: string;
+
+  photoUrl?: string;
+
+  category?: string;
+
+  subcategory?: string;
 
   workerProfile?: {
     category?: string;
+
     subcategory?: string;
 
     experience?: string;
+
     about?: string;
 
     hourlyRate?: number;
 
-    /**
-     * IMPORTANT:
+    /*
+     * Public worker profile image.
      *
-     * This must always be:
+     * Expected value:
      *
      * https://...
      *
-     * or an empty string.
-     *
-     * Never save file:// here.
+     * or empty string.
      */
     photoUrl?: string;
+
+    photoURL?: string;
 
     workGallery?: string[];
 
     latitude?: number | null;
+
     longitude?: number | null;
 
     selectedServices?: string[];
 
     serviceDetails?: {
       state?: string;
+
       subcategory?: string;
     };
   };
@@ -81,6 +105,22 @@ export type WorkerPublicProfile = {
 
 export type PublicWorkerProfile =
   WorkerPublicProfile;
+
+/* ============================================================
+   CALL PUBLIC PROFILE
+============================================================ */
+
+export type WorkerCallPublicProfile = {
+  id: string;
+
+  name: string;
+
+  service: string;
+
+  rating: number;
+
+  photoUrl: string;
+};
 
 /* ============================================================
    COLLECTION
@@ -93,19 +133,23 @@ const workerPublicProfilesCollection =
   );
 
 /* ============================================================
+   CONSTANTS
+============================================================ */
+
+const WORKER_PROFILE_STORAGE_FOLDER =
+  "workerProfiles";
+
+/* ============================================================
    STRING HELPER
 ============================================================ */
 
 function cleanString(
   value: unknown,
 ): string {
-  if (
-    typeof value !== "string"
-  ) {
-    return "";
-  }
-
-  return value.trim();
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
 }
 
 /* ============================================================
@@ -117,11 +161,44 @@ function cleanNumber(
   fallback = 0,
 ): number {
   return (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   )
     ? value
     : fallback;
+}
+
+/* ============================================================
+   NULLABLE NUMBER
+============================================================ */
+
+function cleanNullableNumber(
+  value: unknown,
+): number | null {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  )
+    ? value
+    : null;
+}
+
+/* ============================================================
+   HTTPS URL
+============================================================ */
+
+function isHttpsUrl(
+  value: string,
+): boolean {
+  return value.startsWith(
+    "https://",
+  );
 }
 
 /* ============================================================
@@ -143,6 +220,34 @@ function isHttpUrl(
 
 /* ============================================================
    FIREBASE STORAGE URL
+============================================================ */
+
+function isFirebaseStorageUrl(
+  value: string,
+): boolean {
+  const normalized =
+    cleanString(
+      value,
+    );
+
+  if (
+    !normalized
+  ) {
+    return false;
+  }
+
+  return (
+    normalized.includes(
+      "firebasestorage.googleapis.com",
+    ) ||
+    normalized.includes(
+      "storage.googleapis.com",
+    )
+  );
+}
+
+/* ============================================================
+   FIREBASE GS URL
 ============================================================ */
 
 function isGsUrl(
@@ -171,6 +276,24 @@ function isLocalFileUri(
 }
 
 /* ============================================================
+   SAFE RATING
+============================================================ */
+
+function normalizeRating(
+  value: unknown,
+): number {
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      cleanNumber(
+        value,
+      ),
+    ),
+  );
+}
+
+/* ============================================================
    GET PUBLIC WORKER
 ============================================================ */
 
@@ -178,9 +301,13 @@ export async function getPublicWorker(
   workerId: string,
 ) {
   const normalizedId =
-    cleanString(workerId);
+    cleanString(
+      workerId,
+    );
 
-  if (!normalizedId) {
+  if (
+    !normalizedId
+  ) {
     throw new Error(
       "Worker ID is required.",
     );
@@ -196,24 +323,310 @@ export async function getPublicWorker(
 }
 
 /* ============================================================
+   GET FRESH WORKER PROFILE PHOTO URL
+============================================================ */
+
+/**
+ * Stable Firebase Storage path:
+ *
+ * workerProfiles/{workerId}/profile.jpg
+ */
+export async function getFreshWorkerProfilePhotoUrl(
+  workerId: string,
+): Promise<string> {
+  const normalizedId =
+    cleanString(
+      workerId,
+    );
+
+  if (
+    !normalizedId
+  ) {
+    return "";
+  }
+
+  const storagePath =
+    `${WORKER_PROFILE_STORAGE_FOLDER}/${normalizedId}/profile.jpg`;
+
+  try {
+    const storage =
+      getStorage();
+
+    const storageRef =
+      ref(
+        storage,
+        storagePath,
+      );
+
+    const downloadUrl =
+      await getDownloadURL(
+        storageRef,
+      );
+
+    if (
+      !isHttpsUrl(
+        downloadUrl,
+      )
+    ) {
+      if (
+        __DEV__
+      ) {
+        console.warn(
+          "INVALID_FRESH_WORKER_PHOTO_URL:",
+          {
+            workerId:
+              normalizedId,
+
+            storagePath,
+
+            downloadUrl,
+          },
+        );
+      }
+
+      return "";
+    }
+
+    return downloadUrl;
+  } catch (
+    error
+  ) {
+    if (
+      __DEV__
+    ) {
+      console.warn(
+        "FRESH_WORKER_PROFILE_PHOTO_ERROR:",
+        {
+          workerId:
+            normalizedId,
+
+          storagePath,
+
+          error,
+        },
+      );
+    }
+
+    return "";
+  }
+}
+
+/* ============================================================
+   GET PUBLIC WORKER CALL PROFILE
+============================================================ */
+
+/**
+ * Source used by the Fixxam in-app call screen.
+ *
+ * No private worker information is returned here.
+ */
+export async function getPublicWorkerCallProfile(
+  workerId: string,
+): Promise<
+  WorkerCallPublicProfile | null
+> {
+  const normalizedId =
+    cleanString(
+      workerId,
+    );
+
+  if (
+    !normalizedId
+  ) {
+    return null;
+  }
+
+  try {
+    const snapshot =
+      await getDoc(
+        doc(
+          db,
+          "workerPublicProfiles",
+          normalizedId,
+        ),
+      );
+
+    if (
+      !snapshot.exists()
+    ) {
+      return null;
+    }
+
+    const data =
+      snapshot.data() as WorkerPublicProfile;
+
+    /* ========================================================
+       NAME
+    ======================================================== */
+
+    const generatedName =
+      [
+        cleanString(
+          data.firstName,
+        ),
+
+        cleanString(
+          data.otherName,
+        ),
+
+        cleanString(
+          data.surname,
+        ),
+      ]
+        .filter(
+          Boolean,
+        )
+        .join(
+          " ",
+        )
+        .trim();
+
+    const name =
+      cleanString(
+        data.fullName,
+      ) ||
+      cleanString(
+        data.name,
+      ) ||
+      generatedName ||
+      "Worker";
+
+    /* ========================================================
+       SERVICE
+    ======================================================== */
+
+    const service =
+      cleanString(
+        data.workerProfile
+          ?.subcategory,
+      ) ||
+      cleanString(
+        data.workerProfile
+          ?.category,
+      ) ||
+      cleanString(
+        data.subcategory,
+      ) ||
+      cleanString(
+        data.category,
+      ) ||
+      "Service Provider";
+
+    /* ========================================================
+       RATING
+    ======================================================== */
+
+    const rating =
+      normalizeRating(
+        data.rating,
+      );
+
+    /* ========================================================
+       PHOTO FROM FIRESTORE
+    ======================================================== */
+
+    let photoUrl =
+      cleanString(
+        data.workerProfile
+          ?.photoUrl,
+      ) ||
+      cleanString(
+        data.workerProfile
+          ?.photoURL,
+      ) ||
+      cleanString(
+        data.photoURL,
+      ) ||
+      cleanString(
+        data.photoUrl,
+      );
+
+    /*
+     * Only allow HTTPS URLs to leave
+     * the public worker call profile.
+     */
+    if (
+      photoUrl &&
+      !isHttpsUrl(
+        photoUrl,
+      )
+    ) {
+      photoUrl =
+        "";
+    }
+
+    /* ========================================================
+       STORAGE FALLBACK
+    ======================================================== */
+
+    if (
+      !photoUrl
+    ) {
+      photoUrl =
+        await getFreshWorkerProfilePhotoUrl(
+          normalizedId,
+        );
+    }
+
+    if (
+      __DEV__
+    ) {
+      console.log(
+        "WORKER_CALL_PUBLIC_PROFILE:",
+        {
+          workerId:
+            normalizedId,
+
+          name,
+
+          service,
+
+          rating,
+
+          hasPhoto:
+            Boolean(
+              photoUrl,
+            ),
+        },
+      );
+    }
+
+    return {
+      id:
+        normalizedId,
+
+      name,
+
+      service,
+
+      rating,
+
+      photoUrl,
+    };
+  } catch (
+    error
+  ) {
+    console.error(
+      "GET_PUBLIC_WORKER_CALL_PROFILE_ERROR:",
+      {
+        workerId:
+          normalizedId,
+
+        error,
+      },
+    );
+
+    return null;
+  }
+}
+
+/* ============================================================
    GET ALL PUBLIC WORKERS
 ============================================================ */
 
 export async function getPublicWorkers(): Promise<
   QuerySnapshot<DocumentData>
 > {
-  /*
-   * IMPORTANT:
-   *
-   * Do not filter by available here.
-   *
-   * Home and See All should read
-   * from the same public collection.
-   *
-   * The UI can decide whether to hide
-   * available === false workers.
-   */
-
   return getDocs(
     workerPublicProfilesCollection,
   );
@@ -229,9 +642,13 @@ export async function getPublicWorkersByService(
   QuerySnapshot<DocumentData>
 > {
   const normalizedServiceId =
-    cleanString(serviceId);
+    cleanString(
+      serviceId,
+    );
 
-  if (!normalizedServiceId) {
+  if (
+    !normalizedServiceId
+  ) {
     throw new Error(
       "Service ID is required.",
     );
@@ -261,7 +678,9 @@ type WorkerUserData = {
   uid?: string;
 
   firstName?: string;
+
   otherName?: string;
+
   surname?: string;
 
   fullName?: string;
@@ -269,39 +688,44 @@ type WorkerUserData = {
   rating?: number;
 
   online?: boolean;
+
   available?: boolean;
 
+  /*
+   * Private source field.
+   *
+   * It may exist in the source user object,
+   * but it is NEVER written to
+   * workerPublicProfiles.
+   */
   phoneNumber?: string;
 
   workerProfile?: {
     category?: string;
+
     subcategory?: string;
 
     experience?: string;
+
     about?: string;
 
     hourlyRate?: number;
 
-    /*
-     * Can be:
-     *
-     * file://...
-     * content://...
-     * https://...
-     * gs://...
-     */
     photoUrl?: string;
+
     photoURL?: string;
 
     workGallery?: string[];
 
     latitude?: number | null;
+
     longitude?: number | null;
 
     selectedServices?: string[];
 
     serviceDetails?: {
       state?: string;
+
       subcategory?: string;
     };
   };
@@ -315,59 +739,56 @@ async function resolveStorageUrl(
   source: string,
 ): Promise<string> {
   const normalizedSource =
-    cleanString(source);
+    cleanString(
+      source,
+    );
 
-  if (!normalizedSource) {
+  if (
+    !normalizedSource
+  ) {
     return "";
   }
 
-  /*
-   * Already a normal URL.
-   */
+  /* ==========================================================
+     HTTPS
+  ========================================================== */
+
   if (
-    isHttpUrl(
+    isHttpsUrl(
       normalizedSource,
     )
   ) {
     return normalizedSource;
   }
 
-  /*
-   * Firebase Storage gs:// URL.
-   */
+  /* ==========================================================
+     HTTP REJECT
+  ========================================================== */
+
   if (
-    isGsUrl(
-      normalizedSource,
+    normalizedSource.startsWith(
+      "http://",
     )
   ) {
-    try {
-      const storage =
-        getStorage();
-
-      return await getDownloadURL(
-        ref(
-          storage,
-          normalizedSource,
-        ),
-      );
-    } catch (error) {
+    if (
+      __DEV__
+    ) {
       console.warn(
-        "WORKER_STORAGE_URL_ERROR:",
+        "INSECURE_WORKER_IMAGE_URL_REJECTED:",
         {
           source:
             normalizedSource,
-          error,
         },
       );
-
-      return "";
     }
+
+    return "";
   }
 
-  /*
-   * Local Expo image must NEVER
-   * be returned as a public URL.
-   */
+  /* ==========================================================
+     LOCAL FILE REJECT
+  ========================================================== */
+
   if (
     isLocalFileUri(
       normalizedSource,
@@ -376,24 +797,89 @@ async function resolveStorageUrl(
     return "";
   }
 
-  /*
-   * Unknown value.
-   */
-  return "";
+  /* ==========================================================
+     FIREBASE STORAGE
+  ========================================================== */
+
+  try {
+    const storage =
+      getStorage();
+
+    /*
+     * Supports:
+     *
+     * gs://...
+     *
+     * and:
+     *
+     * workerProfiles/uid/profile.jpg
+     */
+    const storageRef =
+      ref(
+        storage,
+        normalizedSource,
+      );
+
+    const downloadUrl =
+      await getDownloadURL(
+        storageRef,
+      );
+
+    return isHttpsUrl(
+      downloadUrl,
+    )
+      ? downloadUrl
+      : "";
+  } catch (
+    error
+  ) {
+    if (
+      __DEV__
+    ) {
+      console.warn(
+        "WORKER_STORAGE_URL_ERROR:",
+        {
+          source:
+            normalizedSource,
+
+          error,
+        },
+      );
+    }
+
+    return "";
+  }
 }
 
 /* ============================================================
-   UPLOAD PROFILE IMAGE
+   UPLOAD / RESOLVE WORKER PROFILE IMAGE
 ============================================================ */
 
 async function uploadWorkerProfileImage(
   userId: string,
   source: string,
 ): Promise<string> {
-  const normalizedSource =
-    cleanString(source);
+  const normalizedUserId =
+    cleanString(
+      userId,
+    );
 
-  if (!normalizedSource) {
+  const normalizedSource =
+    cleanString(
+      source,
+    );
+
+  if (
+    !normalizedUserId
+  ) {
+    throw new Error(
+      "Worker user ID is required.",
+    );
+  }
+
+  if (
+    !normalizedSource
+  ) {
     return "";
   }
 
@@ -402,15 +888,65 @@ async function uploadWorkerProfileImage(
   ========================================================== */
 
   if (
-    isHttpUrl(
+    isHttpsUrl(
       normalizedSource,
     )
   ) {
+    /*
+     * If this is already a Firebase
+     * download URL, try to refresh it
+     * from the stable path.
+     */
+    if (
+      isFirebaseStorageUrl(
+        normalizedSource,
+      )
+    ) {
+      const freshUrl =
+        await getFreshWorkerProfilePhotoUrl(
+          normalizedUserId,
+        );
+
+      /*
+       * Preserve the existing valid HTTPS
+       * URL if the stable path cannot
+       * currently be resolved.
+       */
+      return (
+        freshUrl ||
+        normalizedSource
+      );
+    }
+
     return normalizedSource;
   }
 
   /* ==========================================================
-     FIREBASE STORAGE URL
+     HTTP REJECT
+  ========================================================== */
+
+  if (
+    isHttpUrl(
+      normalizedSource,
+    )
+  ) {
+    if (
+      __DEV__
+    ) {
+      console.warn(
+        "INSECURE_WORKER_IMAGE_SOURCE_REJECTED:",
+        {
+          userId:
+            normalizedUserId,
+        },
+      );
+    }
+
+    return "";
+  }
+
+  /* ==========================================================
+     GS://
   ========================================================== */
 
   if (
@@ -418,22 +954,13 @@ async function uploadWorkerProfileImage(
       normalizedSource,
     )
   ) {
-    const storage =
-      getStorage();
-
-    const storageRef =
-      ref(
-        storage,
-        normalizedSource,
-      );
-
-    return getDownloadURL(
-      storageRef,
+    return resolveStorageUrl(
+      normalizedSource,
     );
   }
 
   /* ==========================================================
-     ONLY LOCAL FILES CAN BE UPLOADED
+     STORAGE PATH
   ========================================================== */
 
   if (
@@ -441,25 +968,24 @@ async function uploadWorkerProfileImage(
       normalizedSource,
     )
   ) {
-    console.warn(
-      "INVALID_WORKER_IMAGE_SOURCE:",
+    return resolveStorageUrl(
       normalizedSource,
     );
-
-    return "";
   }
 
-  try {
-    /*
-     * Read Expo ImagePicker file.
-     */
+  /* ==========================================================
+     LOCAL IMAGE
+  ========================================================== */
 
+  try {
     const response =
       await fetch(
         normalizedSource,
       );
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
       throw new Error(
         `Unable to read local image. HTTP ${response.status}`,
       );
@@ -478,22 +1004,14 @@ async function uploadWorkerProfileImage(
     }
 
     /* ========================================================
-       FIREBASE STORAGE
+       STORAGE
     ======================================================== */
 
     const storage =
       getStorage();
 
-    /*
-     * Stable path.
-     *
-     * Every worker has one profile image.
-     *
-     * A new image replaces the old one.
-     */
-
     const storagePath =
-      `workerProfiles/${userId}/profile.jpg`;
+      `${WORKER_PROFILE_STORAGE_FOLDER}/${normalizedUserId}/profile.jpg`;
 
     const storageRef =
       ref(
@@ -527,42 +1045,45 @@ async function uploadWorkerProfileImage(
         storageRef,
       );
 
-    /*
-     * Safety check.
-     *
-     * Only HTTPS URL is allowed
-     * to enter Firestore.
-     */
-
     if (
-      !isHttpUrl(
+      !isHttpsUrl(
         downloadUrl,
       )
     ) {
       throw new Error(
-        "Firebase did not return a valid image URL.",
+        "Firebase did not return a valid HTTPS image URL.",
       );
     }
 
-    if (__DEV__) {
+    if (
+      __DEV__
+    ) {
       console.log(
         "WORKER_IMAGE_UPLOADED:",
         {
-          userId,
+          userId:
+            normalizedUserId,
+
           storagePath,
-          downloadUrl,
+
+          hasDownloadUrl:
+            Boolean(
+              downloadUrl,
+            ),
         },
       );
     }
 
     return downloadUrl;
-  } catch (error) {
+  } catch (
+    error
+  ) {
     console.error(
       "WORKER_PROFILE_IMAGE_UPLOAD_ERROR:",
       {
-        userId,
-        source:
-          normalizedSource,
+        userId:
+          normalizedUserId,
+
         error,
       },
     );
@@ -580,7 +1101,11 @@ async function uploadWorkerProfileImage(
 function normalizeWorkGallery(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return [];
   }
 
@@ -594,19 +1119,27 @@ function normalizeWorkGallery(
         item.trim().length >
           0,
     )
-    .map((item) =>
-      item.trim(),
+    .map(
+      (
+        item,
+      ) =>
+        item.trim(),
     )
-    /*
-     * Never save local Expo ImagePicker
-     * paths to public Firestore.
-     */
     .filter(
-      (item) =>
-        isHttpUrl(item) ||
-        isGsUrl(item),
+      (
+        item,
+      ) =>
+        isHttpsUrl(
+          item,
+        ) ||
+        isGsUrl(
+          item,
+        ),
     )
-    .slice(0, 6);
+    .slice(
+      0,
+      6,
+    );
 }
 
 /* ============================================================
@@ -616,64 +1149,88 @@ function normalizeWorkGallery(
 async function getExistingPhotoUrl(
   userId: string,
 ): Promise<string> {
+  const normalizedUserId =
+    cleanString(
+      userId,
+    );
+
+  if (
+    !normalizedUserId
+  ) {
+    return "";
+  }
+
+  /* ==========================================================
+     STABLE STORAGE PATH
+  ========================================================== */
+
+  const freshStorageUrl =
+    await getFreshWorkerProfilePhotoUrl(
+      normalizedUserId,
+    );
+
+  if (
+    freshStorageUrl
+  ) {
+    return freshStorageUrl;
+  }
+
+  /* ==========================================================
+     FIRESTORE FALLBACK
+  ========================================================== */
+
   try {
     const snapshot =
       await getDoc(
         doc(
           db,
           "workerPublicProfiles",
-          userId,
+          normalizedUserId,
         ),
       );
 
-    if (!snapshot.exists()) {
-      return "";
-    }
-
-    const data =
-      snapshot.data();
-
-    const workerProfile =
-      data.workerProfile;
-
     if (
-      !workerProfile ||
-      typeof workerProfile !==
-        "object"
+      !snapshot.exists()
     ) {
       return "";
     }
 
+    const data =
+      snapshot.data() as WorkerPublicProfile;
+
     const existingPhoto =
       cleanString(
-        (
-          workerProfile as {
-            photoUrl?: unknown;
-          }
-        ).photoUrl,
+        data.workerProfile
+          ?.photoUrl,
+      ) ||
+      cleanString(
+        data.workerProfile
+          ?.photoURL,
+      ) ||
+      cleanString(
+        data.photoURL,
+      ) ||
+      cleanString(
+        data.photoUrl,
       );
 
-    if (!existingPhoto) {
+    if (
+      !existingPhoto
+    ) {
       return "";
     }
 
     /*
-     * Existing permanent HTTPS URL.
+     * Existing valid HTTPS public
+     * image remains usable.
      */
-
     if (
-      isHttpUrl(
+      isHttpsUrl(
         existingPhoto,
       )
     ) {
       return existingPhoto;
     }
-
-    /*
-     * Existing gs:// URL.
-     *
-     * Convert it to HTTPS.
-     */
 
     if (
       isGsUrl(
@@ -685,43 +1242,45 @@ async function getExistingPhotoUrl(
       );
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * If Firestore contains:
-     *
-     * file:///data/user/0/...
-     *
-     * it is an old temporary Expo path.
-     *
-     * We must NOT return it.
-     */
-
     if (
       isLocalFileUri(
         existingPhoto,
       )
     ) {
-      console.warn(
-        "OLD_TEMPORARY_WORKER_IMAGE_FOUND:",
-        {
-          userId,
-          existingPhoto,
-        },
-      );
+      if (
+        __DEV__
+      ) {
+        console.warn(
+          "OLD_TEMPORARY_WORKER_IMAGE_FOUND:",
+          {
+            userId:
+              normalizedUserId,
+          },
+        );
+      }
 
       return "";
     }
 
-    return "";
-  } catch (error) {
-    console.warn(
-      "GET_EXISTING_WORKER_PHOTO_ERROR:",
-      {
-        userId,
-        error,
-      },
+    return resolveStorageUrl(
+      existingPhoto,
     );
+  } catch (
+    error
+  ) {
+    if (
+      __DEV__
+    ) {
+      console.warn(
+        "GET_EXISTING_WORKER_PHOTO_ERROR:",
+        {
+          userId:
+            normalizedUserId,
+
+          error,
+        },
+      );
+    }
 
     return "";
   }
@@ -736,9 +1295,13 @@ export async function syncWorkerPublicProfile(
   user: WorkerUserData,
 ): Promise<void> {
   const normalizedUserId =
-    cleanString(userId);
+    cleanString(
+      userId,
+    );
 
-  if (!normalizedUserId) {
+  if (
+    !normalizedUserId
+  ) {
     throw new Error(
       "Worker user ID is required.",
     );
@@ -771,14 +1334,19 @@ export async function syncWorkerPublicProfile(
       user.fullName,
     );
 
-  const generatedName = [
-    firstName,
-    otherName,
-    surname,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const generatedName =
+    [
+      firstName,
+      otherName,
+      surname,
+    ]
+      .filter(
+        Boolean,
+      )
+      .join(
+        " ",
+      )
+      .trim();
 
   const fullName =
     suppliedFullName ||
@@ -800,35 +1368,18 @@ export async function syncWorkerPublicProfile(
      PHOTO
   ========================================================== */
 
-  let photoUrl = "";
+  let photoUrl =
+    "";
 
-  if (photoSource) {
-    /*
-     * New photo selected.
-     *
-     * file://...
-     *     ↓
-     * Firebase Storage
-     *     ↓
-     * https://...
-     */
-
+  if (
+    photoSource
+  ) {
     photoUrl =
       await uploadWorkerProfileImage(
         normalizedUserId,
         photoSource,
       );
   } else {
-    /*
-     * No new photo selected.
-     *
-     * Keep existing valid photo.
-     *
-     * IMPORTANT:
-     * getExistingPhotoUrl() will reject
-     * old file:// paths.
-     */
-
     photoUrl =
       await getExistingPhotoUrl(
         normalizedUserId,
@@ -839,21 +1390,28 @@ export async function syncWorkerPublicProfile(
      FINAL PHOTO SAFETY
   ========================================================== */
 
-  /*
-   * Never allow file:// or content://
-   * into Firestore.
-   */
-
   if (
     photoUrl &&
-    !isHttpUrl(photoUrl)
-  ) {
-    console.warn(
-      "INVALID_FINAL_WORKER_PHOTO_URL:",
+    !isHttpsUrl(
       photoUrl,
-    );
+    )
+  ) {
+    if (
+      __DEV__
+    ) {
+      console.warn(
+        "INVALID_FINAL_WORKER_PHOTO_URL:",
+        {
+          workerId:
+            normalizedUserId,
 
-    photoUrl = "";
+          photoUrl,
+        },
+      );
+    }
+
+    photoUrl =
+      "";
   }
 
   /* ==========================================================
@@ -869,22 +1427,46 @@ export async function syncWorkerPublicProfile(
      RATING
   ========================================================== */
 
-  const rating = Math.min(
-    5,
-    Math.max(
-      0,
-      cleanNumber(
-        user.rating,
-      ),
-    ),
-  );
+  const rating =
+    normalizeRating(
+      user.rating,
+    );
+
+  /* ==========================================================
+     SELECTED SERVICES
+  ========================================================== */
+
+  const selectedServices =
+    Array.isArray(
+      profile
+        ?.selectedServices,
+    )
+      ? profile!.selectedServices!
+          .filter(
+            (
+              service,
+            ): service is string =>
+              typeof service ===
+                "string" &&
+              service.trim()
+                .length >
+                0,
+          )
+          .map(
+            (
+              service,
+            ) =>
+              service.trim(),
+          )
+      : [];
 
   /* ==========================================================
      PUBLIC PROFILE
   ========================================================== */
 
   const publicProfile = {
-    uid: normalizedUserId,
+    uid:
+      normalizedUserId,
 
     firstName,
 
@@ -903,15 +1485,24 @@ export async function syncWorkerPublicProfile(
     rating,
 
     online:
-      user.online === true,
+      user.online ===
+      true,
 
     available:
-      user.available !== false,
+      user.available !==
+      false,
 
+    /*
+     * Privacy migration.
+     *
+     * Remove any legacy phone fields
+     * previously stored in this public document.
+     */
     phoneNumber:
-      cleanString(
-        user.phoneNumber,
-      ),
+      deleteField(),
+
+    phone:
+      deleteField(),
 
     workerProfile: {
       category:
@@ -922,12 +1513,14 @@ export async function syncWorkerPublicProfile(
 
       subcategory:
         cleanString(
-          profile?.subcategory,
+          profile
+            ?.subcategory,
         ),
 
       experience:
         cleanString(
-          profile?.experience,
+          profile
+            ?.experience,
         ),
 
       about:
@@ -937,62 +1530,43 @@ export async function syncWorkerPublicProfile(
 
       hourlyRate:
         cleanNumber(
-          profile?.hourlyRate,
+          profile
+            ?.hourlyRate,
         ),
 
-      /*
-       * IMPORTANT:
-       *
-       * This is now ONLY:
-       *
-       * https://...
-       *
-       * or ""
-       */
       photoUrl,
+
+      /*
+       * Remove legacy alternative field.
+       */
+      photoURL:
+        deleteField(),
+
+      /*
+       * Remove any legacy public
+       * phone fields.
+       */
+      phoneNumber:
+        deleteField(),
+
+      phone:
+        deleteField(),
 
       workGallery,
 
       latitude:
-        typeof profile?.latitude ===
-          "number" &&
-        Number.isFinite(
-          profile.latitude,
-        )
-          ? profile.latitude
-          : null,
+        cleanNullableNumber(
+          profile
+            ?.latitude,
+        ),
 
       longitude:
-        typeof profile?.longitude ===
-          "number" &&
-        Number.isFinite(
-          profile.longitude,
-        )
-          ? profile.longitude
-          : null,
+        cleanNullableNumber(
+          profile
+            ?.longitude,
+        ),
 
-      selectedServices:
-        Array.isArray(
-          profile?.selectedServices,
-        )
-          ? profile.selectedServices
-              .filter(
-                (
-                  service,
-                ): service is string =>
-                  typeof service ===
-                    "string" &&
-                  service.trim()
-                    .length >
-                    0,
-              )
-              .map(
-                (
-                  service,
-                ) =>
-                  service.trim(),
-              )
-          : [],
+      selectedServices,
 
       serviceDetails: {
         state:
@@ -1027,7 +1601,8 @@ export async function syncWorkerPublicProfile(
     ),
     publicProfile,
     {
-      merge: true,
+      merge:
+        true,
     },
   );
 
@@ -1035,7 +1610,9 @@ export async function syncWorkerPublicProfile(
      DEVELOPMENT LOG
   ========================================================== */
 
-  if (__DEV__) {
+  if (
+    __DEV__
+  ) {
     console.log(
       "WORKER_PUBLIC_PROFILE_SYNCED:",
       {
@@ -1046,21 +1623,18 @@ export async function syncWorkerPublicProfile(
           fullName ||
           "Worker",
 
-        photoUrl,
+        hasPhoto:
+          Boolean(
+            photoUrl,
+          ),
 
-        photoIsHttp:
-          photoUrl
-            ? isHttpUrl(
-                photoUrl,
-              )
-            : false,
-
-        photoIsLocal:
-          photoUrl
-            ? isLocalFileUri(
-                photoUrl,
-              )
-            : false,
+        photoIsHttps:
+          Boolean(
+            photoUrl &&
+            isHttpsUrl(
+              photoUrl,
+            ),
+          ),
 
         available:
           user.available !==

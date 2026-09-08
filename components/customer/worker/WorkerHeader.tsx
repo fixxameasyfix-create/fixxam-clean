@@ -1,155 +1,353 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+  useState,
+} from "react";
 
 import {
+  Pressable,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   value: string;
-  onChangeText: (text: string) => void;
+
+  onChangeText: (
+    text: string,
+  ) => void;
+
   total: number;
+
   onOpenFilter: () => void;
 };
 
-export default function WorkersHeader({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkersHeader({
   value,
   onChangeText,
   total,
   onOpenFilter,
 }: Props) {
+  const [
+    searchFocused,
+    setSearchFocused,
+  ] =
+    useState(false);
+
+  const safeTotal =
+    useMemo(
+      () =>
+        Number.isFinite(
+          total,
+        )
+          ? Math.max(
+              0,
+              Math.floor(
+                total,
+              ),
+            )
+          : 0,
+      [
+        total,
+      ],
+    );
+
+  const workerLabel =
+    safeTotal === 1
+      ? "Professional Worker Found"
+      : "Professional Workers Found";
+
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="bodyLarge"
         weight="bold"
-        style={styles.title}
         numberOfLines={1}
       >
         Available Workers
       </AppText>
 
       <AppText
-        style={styles.subtitle}
+        variant="caption"
+        tone="secondary"
         numberOfLines={1}
+        style={
+          styles.subtitle
+        }
       >
-        {total} Professional Workers Found
+        {safeTotal} {workerLabel}
       </AppText>
 
-      <View style={styles.searchRow}>
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color="#94A3B8"
+      {/* ======================================================
+          SEARCH + FILTER
+      ====================================================== */}
+
+      <View
+        style={
+          styles.searchRow
+        }
+      >
+        <View
+          style={[
+            styles.searchContainer,
+
+            searchFocused
+              ? styles.searchContainerFocused
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="search"
+            role="customer"
+            size="sm"
+            state={
+              searchFocused
+                ? "active"
+                : "muted"
+            }
           />
 
           <TextInput
-            value={value}
-            onChangeText={onChangeText}
+            value={
+              value
+            }
+            onChangeText={
+              onChangeText
+            }
+            onFocus={() =>
+              setSearchFocused(
+                true,
+              )
+            }
+            onBlur={() =>
+              setSearchFocused(
+                false,
+              )
+            }
             placeholder="Search workers..."
-            placeholderTextColor="#94A3B8"
-            style={styles.searchInput}
+            placeholderTextColor={
+              Colors.textMuted
+            }
+            selectionColor={
+              CustomerColors.primary
+            }
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
+            accessibilityLabel="Search workers"
+            style={
+              styles.searchInput
+            }
           />
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={styles.filterButton}
-          onPress={onOpenFilter}
+        {/* ====================================================
+            FILTER
+        ==================================================== */}
+
+        <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open worker filters"
+          hitSlop={4}
+          onPress={
+            onOpenFilter
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.filterButton,
+
+            pressed
+              ? styles.filterButtonPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="options-outline"
-            size={17}
-            color="#FFFFFF"
+          <AppIcon
+            name="filter"
+            role="customer"
+            size="sm"
+            color={
+              Colors.textInverse
+            }
           />
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 2,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  title: {
-    fontSize: 16,
-    lineHeight: 20,
-    color: "#0F172A",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  subtitle: {
-    marginTop: 1,
-    marginBottom: 5,
-    fontSize: 10,
-    lineHeight: 13,
-    color: "#64748B",
-  },
+      paddingTop:
+        FixxamTokens.spacing.md,
 
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      paddingBottom:
+        FixxamTokens.spacing.xs,
+    },
 
-  searchContainer: {
-    flex: 1,
-    height: 36,
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-    flexDirection: "row",
-    alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
 
-    backgroundColor: "#FFFFFF",
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
-    borderRadius: 10,
+    searchRow: {
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 9,
+      alignItems:
+        "center",
 
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
-    elevation: 1,
-  },
+    searchContainer: {
+      flex: 1,
 
-  searchInput: {
-    flex: 1,
-    height: "100%",
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
 
-    marginLeft: 6,
+      flexDirection:
+        "row",
 
-    paddingVertical: 0,
+      alignItems:
+        "center",
 
-    fontSize: 11,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    color: "#0F172A",
-  },
+      borderWidth: 1,
 
-  filterButton: {
-    width: 36,
-    height: 36,
+      borderColor:
+        Colors.border,
 
-    marginLeft: 6,
+      borderRadius:
+        FixxamTokens.radius.search,
 
-    borderRadius: 10,
+      backgroundColor:
+        Colors.surface,
 
-    backgroundColor: "#2563EB",
+      ...FixxamTokens.shadow.card,
+    },
 
-    alignItems: "center",
-    justifyContent: "center",
+    searchContainerFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
 
-    elevation: 2,
-  },
-});
+    searchInput: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .inputHeight,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal: 0,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       FILTER
+    ======================================================== */
+
+    filterButton: {
+      width:
+        FixxamTokens.size
+          .inputHeight,
+
+      height:
+        FixxamTokens.size
+          .inputHeight,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primary,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    filterButtonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  WorkersHeader,
+);

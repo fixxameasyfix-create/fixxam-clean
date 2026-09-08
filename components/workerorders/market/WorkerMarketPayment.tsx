@@ -1,15 +1,26 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -23,7 +34,14 @@ export type WorkerMarketPaymentMethod =
 
 type Props = {
   paymentMethod?: WorkerMarketPaymentMethod;
+
   paymentStatus?: string;
+};
+
+type PaymentConfig = {
+  label: string;
+
+  icon: AppIconName;
 };
 
 /* ============================================================
@@ -35,7 +53,8 @@ function normalizeValue(
   fallback: string,
 ): string {
   if (
-    typeof value === "string" &&
+    typeof value ===
+      "string" &&
     value.trim()
   ) {
     return value.trim();
@@ -44,37 +63,88 @@ function normalizeValue(
   return fallback;
 }
 
+function normalizeStatus(
+  value: unknown,
+): string {
+  return normalizeValue(
+    value,
+    "pending",
+  )
+    .toLowerCase()
+    .replace(
+      /[_\s]+/g,
+      "-",
+    );
+}
+
 function getPaymentConfig(
   method: string,
-): {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-} {
-  switch (method.toLowerCase()) {
+): PaymentConfig {
+  switch (
+    method
+      .trim()
+      .toLowerCase()
+  ) {
     case "cash":
       return {
-        label: "Pay on Delivery",
-        icon: "cash-outline",
+        label:
+          "Pay on Delivery",
+
+        icon:
+          "wallet",
       };
 
     case "card":
       return {
-        label: "Card Payment",
-        icon: "card-outline",
+        label:
+          "Card Payment",
+
+        icon:
+          "payment",
       };
 
     case "transfer":
       return {
-        label: "Bank Transfer",
-        icon: "business-outline",
+        label:
+          "Bank Transfer",
+
+        icon:
+          "payment",
       };
 
     default:
       return {
-        label: "Payment Method",
-        icon: "wallet-outline",
+        label:
+          "Payment Method",
+
+        icon:
+          "wallet",
       };
   }
+}
+
+function formatStatusLabel(
+  status: string,
+): string {
+  if (
+    status === "paid" ||
+    status === "completed" ||
+    status === "success" ||
+    status === "successful"
+  ) {
+    return "Paid";
+  }
+
+  return status
+    .replace(
+      /-/g,
+      " ",
+    )
+    .replace(
+      /\b\w/g,
+      character =>
+        character.toUpperCase(),
+    );
 }
 
 /* ============================================================
@@ -85,21 +155,21 @@ function WorkerMarketPayment({
   paymentMethod,
   paymentStatus,
 }: Props) {
-  const method = normalizeValue(
-    paymentMethod,
-    "cash",
-  );
-
-  const status = normalizeValue(
-    paymentStatus,
-    "pending",
-  );
-
-  const config =
-    getPaymentConfig(method);
+  const method =
+    normalizeValue(
+      paymentMethod,
+      "cash",
+    );
 
   const normalizedStatus =
-    status.toLowerCase();
+    normalizeStatus(
+      paymentStatus,
+    );
+
+  const config =
+    getPaymentConfig(
+      method,
+    );
 
   const isPaid =
     normalizedStatus ===
@@ -111,46 +181,86 @@ function WorkerMarketPayment({
     normalizedStatus ===
       "successful";
 
+  const statusLabel =
+    formatStatusLabel(
+      normalizedStatus,
+    );
+
   return (
     <View
-      style={styles.card}
+      style={
+        styles.card
+      }
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
       <AppText
+        variant="heading3"
         weight="bold"
-        style={styles.title}
+        style={
+          styles.title
+        }
       >
         Payment
       </AppText>
 
+      {/* ======================================================
+          PAYMENT METHOD
+      ====================================================== */}
+
       <View
-        style={styles.row}
+        style={
+          styles.row
+        }
       >
         <View
-          style={styles.iconBox}
+          style={
+            styles.iconBox
+          }
         >
-          <Ionicons
-            name={config.icon}
-            size={21}
-            color="#2563EB"
+          <AppIcon
+            name={
+              config.icon
+            }
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
         <View
-          style={styles.content}
+          style={
+            styles.content
+          }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
-            style={styles.method}
+            numberOfLines={1}
+            style={
+              styles.method
+            }
           >
             {config.label}
           </AppText>
 
+          {/* ==================================================
+              STATUS
+          ================================================== */}
+
           <View
-            style={styles.statusRow}
+            style={
+              styles.statusRow
+            }
           >
             <View
               style={[
                 styles.statusDot,
+
                 isPaid
                   ? styles.statusDotPaid
                   : styles.statusDotPending,
@@ -158,17 +268,17 @@ function WorkerMarketPayment({
             />
 
             <AppText
+              variant="caption"
+              weight="bold"
               style={[
                 styles.statusText,
+
                 isPaid
                   ? styles.statusPaid
                   : styles.statusPending,
               ]}
             >
-              Payment:{" "}
-              {isPaid
-                ? "paid"
-                : status}
+              Payment: {statusLabel}
             </AppText>
           </View>
         </View>
@@ -176,6 +286,13 @@ function WorkerMarketPayment({
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerMarketPayment.displayName =
+  "WorkerMarketPayment";
 
 export default memo(
   WorkerMarketPayment,
@@ -188,75 +305,136 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: 20,
-      padding: 17,
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
     title: {
-      fontSize: 16,
-      color: "#0F172A",
-      marginBottom: 13,
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       METHOD
+    ======================================================== */
+
     row: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     iconBox: {
-      width: 43,
-      height: 43,
-      borderRadius: 13,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     content: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 11,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     method: {
-      fontSize: 13,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
     statusRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 4,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     statusDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 3,
-      marginRight: 6,
+      width: 7,
+
+      height: 7,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusDotPaid: {
-      backgroundColor: "#16A34A",
+      backgroundColor:
+        Colors.success,
     },
 
     statusDotPending: {
-      backgroundColor: "#F59E0B",
+      backgroundColor:
+        Colors.warning,
     },
 
     statusText: {
-      fontSize: 10,
+      flexShrink: 1,
     },
 
     statusPaid: {
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
     statusPending: {
-      color: "#64748B",
+      color:
+        Colors.warning,
     },
   });

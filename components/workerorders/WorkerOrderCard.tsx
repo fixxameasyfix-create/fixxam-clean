@@ -1,20 +1,30 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
+
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import type {
   WorkerOrderStatus,
@@ -33,6 +43,14 @@ type Props = {
   ) => void;
 };
 
+type StatusConfig = {
+  label: string;
+
+  backgroundColor: string;
+
+  color: string;
+};
+
 /* ==============================================================
    HELPERS
 ============================================================== */
@@ -42,13 +60,121 @@ function getSafeText(
   fallback = "",
 ): string {
   if (
-    typeof value === "string" &&
-    value.trim().length > 0
+    typeof value ===
+      "string" &&
+    value.trim().length >
+      0
   ) {
     return value.trim();
   }
 
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  ) {
+    return String(
+      value,
+    );
+  }
+
   return fallback;
+}
+
+function getOptionalNumber(
+  value: unknown,
+): number | undefined {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const cleaned =
+      value
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
+        .trim();
+
+    if (!cleaned) {
+      return undefined;
+    }
+
+    const parsed =
+      Number(
+        cleaned,
+      );
+
+    return Number.isFinite(
+      parsed,
+    )
+      ? parsed
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function formatMoney(
+  value: unknown,
+): string {
+  const amount =
+    getOptionalNumber(
+      value,
+    );
+
+  if (
+    amount ===
+    undefined
+  ) {
+    return "₦0";
+  }
+
+  return `₦${Math.max(
+    0,
+    amount,
+  ).toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits:
+        2,
+    },
+  )}`;
+}
+
+/* ==============================================================
+   SERVICE ICON
+============================================================== */
+
+function resolveServiceIcon(
+  value: unknown,
+): keyof typeof MaterialCommunityIcons.glyphMap {
+  const icon =
+    getSafeText(
+      value,
+      "tools",
+    );
+
+  if (
+    icon in
+    MaterialCommunityIcons.glyphMap
+  ) {
+    return icon as keyof typeof MaterialCommunityIcons.glyphMap;
+  }
+
+  return "tools";
 }
 
 /* ==============================================================
@@ -68,7 +194,9 @@ function getLocationText(
   }
 
   const location =
-    order.location;
+    getSafeText(
+      order.location,
+    );
 
   if (location) {
     return location;
@@ -78,6 +206,149 @@ function getLocationText(
 }
 
 /* ==============================================================
+   STATUS
+============================================================== */
+
+function getStatusConfig(
+  status: WorkerOrderStatus,
+): StatusConfig {
+  switch (status) {
+    case "accepted":
+      return {
+        label:
+          "ACCEPTED",
+
+        backgroundColor:
+          Colors.infoSoft,
+
+        color:
+          Colors.info,
+      };
+
+    case "in-progress":
+      return {
+        label:
+          "IN PROGRESS",
+
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
+      };
+
+    case "completed":
+      return {
+        label:
+          "COMPLETED",
+
+        backgroundColor:
+          Colors.successSoft,
+
+        color:
+          Colors.success,
+      };
+
+    case "cancelled":
+      return {
+        label:
+          "CANCELLED",
+
+        backgroundColor:
+          Colors.errorSoft,
+
+        color:
+          Colors.error,
+      };
+
+    case "expired":
+      return {
+        label:
+          "EXPIRED",
+
+        backgroundColor:
+          Colors.disabledBackground,
+
+        color:
+          Colors.textSecondary,
+      };
+
+    case "pending":
+    default:
+      return {
+        label:
+          "PENDING",
+
+        backgroundColor:
+          Colors.warningSoft,
+
+        color:
+          Colors.warning,
+      };
+  }
+}
+
+/* ==============================================================
+   STATUS BADGE
+============================================================== */
+
+const StatusBadge =
+  memo(
+    function StatusBadge({
+      status,
+    }: {
+      status: WorkerOrderStatus;
+    }) {
+      const config =
+        getStatusConfig(
+          status,
+        );
+
+      return (
+        <View
+          style={[
+            styles.statusBadge,
+
+            {
+              backgroundColor:
+                config.backgroundColor,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+
+              {
+                backgroundColor:
+                  config.color,
+              },
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={[
+              styles.statusText,
+
+              {
+                color:
+                  config.color,
+              },
+            ]}
+          >
+            {config.label}
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+StatusBadge.displayName =
+  "WorkerServiceOrderStatusBadge";
+
+/* ==============================================================
    CARD
 ============================================================== */
 
@@ -85,35 +356,146 @@ function WorkerOrderCard({
   order,
   onPress,
 }: Props) {
-  const isPending =
-    order.status === "pending";
+  /* ============================================================
+     DISPLAY VALUES
+  ============================================================ */
+
+  const orderId =
+    useMemo(
+      () =>
+        getSafeText(
+          order.id,
+        ),
+      [
+        order.id,
+      ],
+    );
+
+  const serviceName =
+    useMemo(
+      () =>
+        getSafeText(
+          order.serviceName,
+          "Service",
+        ),
+      [
+        order.serviceName,
+      ],
+    );
+
+  const serviceIcon =
+    useMemo(
+      () =>
+        resolveServiceIcon(
+          order.serviceIcon,
+        ),
+      [
+        order.serviceIcon,
+      ],
+    );
+
+  const serviceColor =
+    getSafeText(
+      order.serviceColor,
+      WorkerColors.primary,
+    );
+
+  const serviceBackgroundColor =
+    getSafeText(
+      order.serviceBackgroundColor,
+      WorkerColors.primarySoft,
+    );
 
   const locationText =
-    getLocationText(order);
+    useMemo(
+      () =>
+        getLocationText(
+          order,
+        ),
+      [
+        order,
+      ],
+    );
 
   const customerName =
-    getSafeText(
-      order.customerName,
-      "Customer",
+    useMemo(
+      () =>
+        getSafeText(
+          order.customerName,
+          "Customer",
+        ),
+      [
+        order.customerName,
+      ],
     );
 
   const customerPhoto =
-    getSafeText(
-      order.customerPhotoURL ??
+    useMemo(
+      () =>
+        getSafeText(
+          order.customerPhotoURL ??
+            order.customerPhoto,
+        ),
+      [
         order.customerPhoto,
+        order.customerPhotoURL,
+      ],
     );
+
+  const dateText =
+    getSafeText(
+      order.date,
+      "Date unavailable",
+    );
+
+  const timeText =
+    getSafeText(
+      order.time,
+    );
+
+  const description =
+    getSafeText(
+      order.description,
+    );
+
+  const isPending =
+    order.status ===
+    "pending";
+
+  const offerAmount =
+    getOptionalNumber(
+      order.offerAmount,
+    );
+
+  const hasOffer =
+    order.offerStatus ===
+      "sent";
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <Pressable
+      onPress={() => {
+        if (!orderId) {
+          return;
+        }
+
+        onPress(
+          order,
+        );
+      }}
       accessibilityRole="button"
-      accessibilityLabel={`View job ${order.id}`}
-      onPress={() =>
-        onPress(order)
-      }
-      style={({ pressed }) => [
+      accessibilityLabel={`View job ${orderId || "unknown"}`}
+      style={({
+        pressed,
+      }) => [
         styles.card,
-        pressed &&
-          styles.cardPressed,
+
+        pressed
+          ? styles.cardPressed
+          : null,
       ]}
     >
       {/* ========================================================
@@ -136,20 +518,26 @@ function WorkerOrderCard({
             styles.orderIdRow
           }
         >
+          <AppIcon
+            name="file"
+            size="xs"
+            color={
+              Colors.textMuted
+            }
+          />
+
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.orderId
             }
           >
-            #{order.id}
+            {orderId
+              ? `#${orderId}`
+              : "#—"}
           </AppText>
-
-          <Ionicons
-            name="copy-outline"
-            size={15}
-            color="#94A3B8"
-          />
         </View>
       </View>
 
@@ -162,22 +550,29 @@ function WorkerOrderCard({
           styles.mainRow
         }
       >
+        {/* ======================================================
+            KEEP MATERIAL COMMUNITY ICONS
+
+            Service icons are dynamic Firestore/service icons.
+        ====================================================== */}
+
         <View
           style={[
             styles.serviceIcon,
+
             {
               backgroundColor:
-                order.serviceBackgroundColor,
+                serviceBackgroundColor,
             },
           ]}
         >
           <MaterialCommunityIcons
             name={
-              order.serviceIcon
+              serviceIcon
             }
             size={24}
             color={
-              order.serviceColor
+              serviceColor
             }
           />
         </View>
@@ -188,16 +583,14 @@ function WorkerOrderCard({
           }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
             style={
               styles.serviceName
             }
           >
-            {getSafeText(
-              order.serviceName,
-              "Service",
-            )}
+            {serviceName}
           </AppText>
 
           <View
@@ -208,12 +601,18 @@ function WorkerOrderCard({
             {customerPhoto ? (
               <Image
                 source={{
-                  uri: customerPhoto,
+                  uri:
+                    customerPhoto,
                 }}
+                contentFit="cover"
+                transition={150}
+                recyclingKey={
+                  customerPhoto
+                }
+                accessibilityLabel={`${customerName} profile photo`}
                 style={
                   styles.customerPhoto
                 }
-                accessibilityLabel="Customer profile photo"
               />
             ) : (
               <View
@@ -221,10 +620,12 @@ function WorkerOrderCard({
                   styles.customerPlaceholder
                 }
               >
-                <Ionicons
-                  name="person"
-                  size={14}
-                  color="#94A3B8"
+                <AppIcon
+                  name="profile"
+                  size="xs"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </View>
             )}
@@ -235,6 +636,7 @@ function WorkerOrderCard({
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 numberOfLines={1}
                 style={
@@ -245,6 +647,8 @@ function WorkerOrderCard({
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 numberOfLines={1}
                 style={
                   styles.customerLabel
@@ -261,10 +665,13 @@ function WorkerOrderCard({
             styles.arrow
           }
         >
-          <Ionicons
-            name="chevron-forward"
-            size={17}
-            color="#64748B"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
       </View>
@@ -278,20 +685,31 @@ function WorkerOrderCard({
           styles.metaRow
         }
       >
-        <Ionicons
-          name="location-outline"
-          size={15}
-          color="#64748B"
-        />
-
-        <AppText
-          numberOfLines={1}
+        <View
           style={
-            styles.location
+            styles.locationRow
           }
         >
-          {locationText}
-        </AppText>
+          <AppIcon
+            name="location"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={
+              styles.location
+            }
+          >
+            {locationText}
+          </AppText>
+        </View>
 
         <View
           style={
@@ -299,93 +717,123 @@ function WorkerOrderCard({
           }
         />
 
-        <Ionicons
-          name="calendar-outline"
-          size={14}
-          color="#64748B"
-        />
-
-        <AppText
-          numberOfLines={1}
+        <View
           style={
-            styles.date
+            styles.dateRow
           }
         >
-          {getSafeText(
-            order.date,
-            "Date unavailable",
-          )}
-        </AppText>
+          <AppIcon
+            name="calendar"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.date
+            }
+          >
+            {dateText}
+          </AppText>
+        </View>
       </View>
 
       {/* ========================================================
           TIME
       ======================================================== */}
 
-      {!!order.time && (
+      {timeText ? (
         <View
           style={
             styles.timeRow
           }
         >
-          <Ionicons
-            name="time-outline"
-            size={14}
-            color="#64748B"
+          <AppIcon
+            name="clock"
+            size="xs"
+            color={
+              Colors.textSecondary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             numberOfLines={1}
             style={
               styles.timeText
             }
           >
-            {order.time}
+            {timeText}
           </AppText>
         </View>
-      )}
+      ) : null}
 
       {/* ========================================================
           DESCRIPTION
       ======================================================== */}
 
-      {!!order.description && (
+      {description ? (
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={2}
           style={
             styles.description
           }
         >
-          {order.description}
+          {description}
         </AppText>
-      )}
+      ) : null}
 
       {/* ========================================================
           PENDING
       ======================================================== */}
 
-      {isPending && (
+      {isPending ? (
         <View
           style={
             styles.pendingNotice
           }
         >
-          <Ionicons
-            name="time-outline"
-            size={15}
-            color="#D97706"
-          />
-
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.pendingTitle
+              styles.pendingLeft
             }
           >
-            NEW REQUEST
-          </AppText>
+            <View
+              style={
+                styles.pendingIcon
+              }
+            >
+              <AppIcon
+                name="clock"
+                size="xs"
+                color={
+                  Colors.warning
+                }
+              />
+            </View>
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.pendingTitle
+              }
+            >
+              NEW REQUEST
+            </AppText>
+          </View>
 
           <AppText
+            variant="caption"
+            weight="bold"
             style={
               styles.pendingHint
             }
@@ -393,50 +841,58 @@ function WorkerOrderCard({
             Review & respond
           </AppText>
         </View>
-      )}
+      ) : null}
 
       {/* ========================================================
           OFFER
       ======================================================== */}
 
-      {order.offerStatus ===
-        "sent" && (
+      {hasOffer ? (
         <View
           style={
             styles.offerNotice
           }
         >
-          <Ionicons
-            name="cash-outline"
-            size={15}
-            color="#15803D"
-          />
-
-          <AppText
-            weight="bold"
+          <View
             style={
-              styles.offerTitle
+              styles.offerLeft
             }
           >
-            OFFER SENT
-          </AppText>
+            <AppIcon
+              name="payment"
+              size="xs"
+              color={
+                Colors.success
+              }
+            />
 
-          {typeof order.offerAmount ===
-            "number" && (
             <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.offerTitle
+              }
+            >
+              OFFER SENT
+            </AppText>
+          </View>
+
+          {offerAmount !==
+          undefined ? (
+            <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.offerAmount
               }
             >
-              ₦
-              {order.offerAmount.toLocaleString(
-                "en-NG",
+              {formatMoney(
+                offerAmount,
               )}
             </AppText>
-          )}
+          ) : null}
         </View>
-      )}
+      ) : null}
 
       {/* ========================================================
           FOOTER
@@ -447,18 +903,35 @@ function WorkerOrderCard({
           styles.footer
         }
       >
-        <AppText
-          numberOfLines={1}
+        <View
           style={
-            styles.requestedText
+            styles.requestedContainer
           }
         >
-          Requested on{" "}
-          {getSafeText(
-            order.date,
-            "Unknown date",
-          )}
-        </AppText>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.requestedLabel
+            }
+          >
+            Requested on
+          </AppText>
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.requestedDate
+            }
+          >
+            {getSafeText(
+              order.date,
+              "Unknown date",
+            )}
+          </AppText>
+        </View>
 
         <View
           style={
@@ -466,6 +939,7 @@ function WorkerOrderCard({
           }
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.viewButtonText
@@ -474,10 +948,13 @@ function WorkerOrderCard({
             VIEW JOB
           </AppText>
 
-          <Ionicons
-            name="arrow-forward"
-            size={15}
-            color="#FFFFFF"
+          <AppIcon
+            name="next"
+            role="worker"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
         </View>
       </View>
@@ -486,112 +963,15 @@ function WorkerOrderCard({
 }
 
 /* ==============================================================
-   STATUS BADGE
+   MEMO
 ============================================================== */
 
-const StatusBadge = memo(
-  function StatusBadge({
-    status,
-  }: {
-    status: WorkerOrderStatus;
-  }) {
-    const config =
-      getStatusConfig(
-        status,
-      );
+WorkerOrderCard.displayName =
+  "WorkerServiceOrderCard";
 
-    return (
-      <View
-        style={[
-          styles.statusBadge,
-          config.background,
-        ]}
-      >
-        <View
-          style={[
-            styles.statusDot,
-            config.dot,
-          ]}
-        />
-
-        <AppText
-          weight="bold"
-          style={[
-            styles.statusText,
-            config.text,
-          ]}
-        >
-          {config.label}
-        </AppText>
-      </View>
-    );
-  },
+export default memo(
+  WorkerOrderCard,
 );
-
-/* ==============================================================
-   STATUS CONFIG
-============================================================== */
-
-function getStatusConfig(
-  status: WorkerOrderStatus,
-) {
-  switch (status) {
-    case "accepted":
-      return {
-        label: "ACCEPTED",
-        background:
-          styles.statusAccepted,
-        dot: styles.dotAccepted,
-        text: styles.textAccepted,
-      };
-
-    case "in-progress":
-      return {
-        label: "IN PROGRESS",
-        background:
-          styles.statusProgress,
-        dot: styles.dotProgress,
-        text: styles.textProgress,
-      };
-
-    case "completed":
-      return {
-        label: "COMPLETED",
-        background:
-          styles.statusCompleted,
-        dot: styles.dotCompleted,
-        text: styles.textCompleted,
-      };
-
-    case "cancelled":
-      return {
-        label: "CANCELLED",
-        background:
-          styles.statusCancelled,
-        dot: styles.dotCancelled,
-        text: styles.textCancelled,
-      };
-
-    case "expired":
-      return {
-        label: "EXPIRED",
-        background:
-          styles.statusExpired,
-        dot: styles.dotExpired,
-        text: styles.textExpired,
-      };
-
-    case "pending":
-    default:
-      return {
-        label: "PENDING",
-        background:
-          styles.statusPending,
-        dot: styles.dotPending,
-        text: styles.textPending,
-      };
-  }
-}
 
 /* ==============================================================
    STYLES
@@ -599,415 +979,602 @@ function getStatusConfig(
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
       width: "100%",
-      padding: 10,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
 
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.045,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      elevation: 2,
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     cardPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.987,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
+      minHeight: 28,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 9,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     statusBadge: {
+      minHeight: 26,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 8,
-      gap: 5,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
     },
 
     statusDot: {
       width: 6,
+
       height: 6,
-      borderRadius: 3,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusText: {
-      fontSize: 7.5,
-      lineHeight: 10,
+      lineHeight: 14,
     },
 
     orderIdRow: {
       maxWidth: "55%",
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 5,
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     orderId: {
       flexShrink: 1,
-      fontSize: 8,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
+
+    /* ========================================================
+       MAIN
+    ======================================================== */
 
     mainRow: {
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
     serviceIcon: {
-      width: 55,
-      height: 55,
-      borderRadius: 15,
+      width: 56,
+
+      height: 56,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
     },
 
     mainInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     serviceName: {
-      fontSize: 13,
-      lineHeight: 17,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       CUSTOMER
+    ======================================================== */
+
     customerRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      marginTop: 5,
     },
 
     customerPhoto: {
-      width: 27,
-      height: 27,
-      borderRadius: 14,
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     customerPlaceholder: {
-      width: 27,
-      height: 27,
-      borderRadius: 14,
-      backgroundColor:
-        "#E2E8F0",
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     customerInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 7,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     customerName: {
-      fontSize: 10,
-      lineHeight: 13,
-      color: "#334155",
+      color:
+        Colors.textSecondary,
     },
 
     customerLabel: {
-      fontSize: 8.5,
-      lineHeight: 11,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
 
     arrow: {
-      width: 31,
-      height: 31,
-      borderRadius: 16,
-      backgroundColor:
-        "#F8FAFC",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
+    /* ========================================================
+       META
+    ======================================================== */
+
     metaRow: {
-      minHeight: 34,
-      marginTop: 9,
-      paddingVertical: 7,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 5,
+
+      borderTopWidth: 1,
+
+      borderBottomWidth: 1,
+
+      borderColor:
+        Colors.divider,
+    },
+
+    locationRow: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     location: {
       flex: 1,
+
       minWidth: 0,
-      fontSize: 8.5,
-      color: "#64748B",
+
+      color:
+        Colors.textSecondary,
     },
 
     divider: {
       width: 1,
-      height: 15,
-      marginHorizontal: 3,
+
+      height: 18,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
       backgroundColor:
-        "#E2E8F0",
+        Colors.divider,
+    },
+
+    dateRow: {
+      maxWidth: 120,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     date: {
       flexShrink: 1,
-      fontSize: 8.5,
-      color: "#64748B",
-    },
 
-    timeRow: {
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-      marginTop: 8,
-    },
-
-    timeText: {
-      fontSize: 8.5,
-      color: "#64748B",
-    },
-
-    description: {
-      marginTop: 8,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#475569",
-    },
-
-    pendingNotice: {
-      minHeight: 34,
-      marginTop: 8,
-      paddingHorizontal: 9,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor:
-        "#FFF7E8",
-      borderWidth: 1,
-      borderColor:
-        "#FDE68A",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-    },
-
-    pendingTitle: {
-      fontSize: 8,
-      color: "#D97706",
-    },
-
-    pendingHint: {
-      flex: 1,
-      textAlign:
-        "right",
-      fontSize: 8.5,
-      color: "#92400E",
-    },
-
-    offerNotice: {
-      minHeight: 34,
-      marginTop: 8,
-      paddingHorizontal: 9,
-      paddingVertical: 6,
-      borderRadius: 10,
-      backgroundColor:
-        "#F0FDF4",
-      borderWidth: 1,
-      borderColor:
-        "#BBF7D0",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 5,
-    },
-
-    offerTitle: {
-      flex: 1,
-      fontSize: 8,
-      color: "#15803D",
-    },
-
-    offerAmount: {
-      fontSize: 9,
-      color: "#15803D",
-    },
-
-    footer: {
-      minHeight: 36,
-      marginTop: 8,
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      gap: 8,
-    },
-
-    requestedText: {
-      flex: 1,
-      fontSize: 8.5,
-      lineHeight: 12,
-      color: "#64748B",
-    },
-
-    viewButton: {
-      minWidth: 112,
-      height: 36,
-      paddingHorizontal: 11,
-      borderRadius: 11,
-      backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      gap: 7,
-    },
-
-    viewButtonText: {
-      fontSize: 8.5,
-      color: "#FFFFFF",
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
-       STATUS COLORS
+       TIME
     ======================================================== */
 
-    statusPending: {
+    timeRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    timeText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       DESCRIPTION
+    ======================================================== */
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       PENDING
+    ======================================================== */
+
+    pendingNotice: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.warning,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFF7E8",
+        Colors.warningSoft,
     },
 
-    dotPending: {
+    pendingLeft: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    pendingIcon: {
+      width: 30,
+
+      height: 30,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
       backgroundColor:
-        "#F59E0B",
+        Colors.surface,
     },
 
-    textPending: {
-      color: "#D97706",
+    pendingTitle: {
+      color:
+        Colors.warning,
     },
 
-    statusAccepted: {
+    pendingHint: {
+      flexShrink: 0,
+
+      color:
+        Colors.warning,
+    },
+
+    /* ========================================================
+       OFFER
+    ======================================================== */
+
+    offerNotice: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
+        Colors.successSoft,
     },
 
-    dotAccepted: {
+    offerLeft: {
+      flex: 1,
+
+      minWidth: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    offerTitle: {
+      color:
+        Colors.success,
+    },
+
+    offerAmount: {
+      flexShrink: 0,
+
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
+
+    footer: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    requestedContainer: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    requestedLabel: {
+      color:
+        Colors.textMuted,
+    },
+
+    requestedDate: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    viewButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#2563EB",
+        WorkerColors.primary,
     },
 
-    textAccepted: {
-      color: "#1D4ED8",
-    },
-
-    statusProgress: {
-      backgroundColor:
-        "#F3E8FF",
-    },
-
-    dotProgress: {
-      backgroundColor:
-        "#7C3AED",
-    },
-
-    textProgress: {
-      color: "#6D28D9",
-    },
-
-    statusCompleted: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    dotCompleted: {
-      backgroundColor:
-        "#16A34A",
-    },
-
-    textCompleted: {
-      color: "#15803D",
-    },
-
-    statusCancelled: {
-      backgroundColor:
-        "#FEF2F2",
-    },
-
-    dotCancelled: {
-      backgroundColor:
-        "#DC2626",
-    },
-
-    textCancelled: {
-      color: "#B91C1C",
-    },
-
-    statusExpired: {
-      backgroundColor:
-        "#F1F5F9",
-    },
-
-    dotExpired: {
-      backgroundColor:
-        "#64748B",
-    },
-
-    textExpired: {
-      color: "#475569",
+    viewButtonText: {
+      color:
+        Colors.textInverse,
     },
   });
-
-export default memo(
-  WorkerOrderCard,
-);

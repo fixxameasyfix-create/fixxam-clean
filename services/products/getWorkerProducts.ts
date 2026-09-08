@@ -48,18 +48,12 @@ export type WorkerProduct = {
   createdAt?: unknown;
   updatedAt?: unknown;
 
-  /* ============================================================
-     ACTIVE DEAL
-  ============================================================ */
-
   discountPercent: number;
-
   discountedPrice?: number;
 
   dealId?: string;
 
   discountStartsAt?: unknown;
-
   discountExpiresAt?: unknown;
 };
 
@@ -83,16 +77,10 @@ type DealData = {
    HELPERS
 ============================================================== */
 
-/**
- * Safely convert Firestore Timestamp / Date
- * into milliseconds.
- */
 function getTimestampMillis(
   value: unknown,
 ): number {
-  if (
-    value instanceof Date
-  ) {
+  if (value instanceof Date) {
     const milliseconds =
       value.getTime();
 
@@ -149,9 +137,7 @@ function getTimestampMillis(
           }
         ).toDate();
 
-      if (
-        !(date instanceof Date)
-      ) {
+      if (!(date instanceof Date)) {
         return 0;
       }
 
@@ -171,10 +157,6 @@ function getTimestampMillis(
   return 0;
 }
 
-/* ==============================================================
-   SAFE NUMBER
-============================================================== */
-
 function getSafeNumber(
   value: unknown,
 ): number {
@@ -188,10 +170,6 @@ function getSafeNumber(
   return value;
 }
 
-/* ==============================================================
-   SAFE STRING
-============================================================== */
-
 function getSafeString(
   value: unknown,
 ): string {
@@ -200,16 +178,10 @@ function getSafeString(
     : "";
 }
 
-/* ==============================================================
-   SAFE IMAGES
-============================================================== */
-
 function getSafeImages(
   value: unknown,
 ): string[] {
-  if (
-    !Array.isArray(value)
-  ) {
+  if (!Array.isArray(value)) {
     return [];
   }
 
@@ -232,17 +204,13 @@ function normalizeProduct(
 ): WorkerProduct {
   const price = Math.max(
     0,
-    getSafeNumber(
-      data.price,
-    ),
+    getSafeNumber(data.price),
   );
 
   const stock = Math.max(
     0,
     Math.floor(
-      getSafeNumber(
-        data.stock,
-      ),
+      getSafeNumber(data.stock),
     ),
   );
 
@@ -260,9 +228,7 @@ function normalizeProduct(
       ),
 
     name:
-      getSafeString(
-        data.name,
-      ),
+      getSafeString(data.name),
 
     category:
       getSafeString(
@@ -300,8 +266,7 @@ function normalizeProduct(
       data.featured === true,
 
     status:
-      data.status ===
-      "out_of_stock"
+      data.status === "out_of_stock"
         ? "out_of_stock"
         : "active",
 
@@ -330,16 +295,10 @@ function normalizeProduct(
     ),
 
     createdAt:
-      data.createdAt ??
-      null,
+      data.createdAt ?? null,
 
     updatedAt:
-      data.updatedAt ??
-      null,
-
-    /* ==========================================================
-       DEFAULT DEAL
-    ========================================================== */
+      data.updatedAt ?? null,
 
     discountPercent: 0,
 
@@ -404,31 +363,19 @@ function getActiveDeal(
   productPrice: number,
   now: number,
 ): DealData | null {
-  if (
-    productPrice <= 0
-  ) {
+  if (productPrice <= 0) {
     return null;
   }
 
   const validDeals =
     deals.filter(
-      (
-        deal,
-      ) => {
-        /* ------------------------------------------------------
-           PRODUCT
-        ------------------------------------------------------ */
-
+      (deal) => {
         if (
           deal.productId !==
           productId
         ) {
           return false;
         }
-
-        /* ------------------------------------------------------
-           TYPE
-        ------------------------------------------------------ */
 
         if (
           deal.type !==
@@ -437,20 +384,12 @@ function getActiveDeal(
           return false;
         }
 
-        /* ------------------------------------------------------
-           STATUS
-        ------------------------------------------------------ */
-
         if (
           deal.status !==
           "active"
         ) {
           return false;
         }
-
-        /* ------------------------------------------------------
-           DISCOUNT PERCENTAGE
-        ------------------------------------------------------ */
 
         const discountPercentage =
           getSafeNumber(
@@ -463,10 +402,6 @@ function getActiveDeal(
         ) {
           return false;
         }
-
-        /* ------------------------------------------------------
-           DISCOUNTED PRICE
-        ------------------------------------------------------ */
 
         const discountedPrice =
           getSafeNumber(
@@ -481,10 +416,6 @@ function getActiveDeal(
           return false;
         }
 
-        /* ------------------------------------------------------
-           START DATE
-        ------------------------------------------------------ */
-
         const startsAtMillis =
           getTimestampMillis(
             deal.startsAt,
@@ -496,10 +427,6 @@ function getActiveDeal(
         ) {
           return false;
         }
-
-        /* ------------------------------------------------------
-           EXPIRY DATE
-        ------------------------------------------------------ */
 
         const expiresAtMillis =
           getTimestampMillis(
@@ -522,10 +449,6 @@ function getActiveDeal(
   ) {
     return null;
   }
-
-  /* ============================================================
-     MULTIPLE DEALS
-  ============================================================ */
 
   return validDeals.reduce(
     (
@@ -551,7 +474,7 @@ function getActiveDeal(
 }
 
 /* ==============================================================
-   APPLY DEAL
+   APPLY DEALS
 ============================================================== */
 
 function applyDeals(
@@ -571,18 +494,11 @@ function applyDeals(
           now,
         );
 
-      /* --------------------------------------------------------
-         NO ACTIVE DEAL
-      -------------------------------------------------------- */
-
-      if (
-        !activeDeal
-      ) {
+      if (!activeDeal) {
         return {
           ...product,
 
-          discountPercent:
-            0,
+          discountPercent: 0,
 
           discountedPrice:
             undefined,
@@ -597,10 +513,6 @@ function applyDeals(
             undefined,
         };
       }
-
-      /* --------------------------------------------------------
-         ACTIVE DEAL
-      -------------------------------------------------------- */
 
       const discountPercentage =
         Math.min(
@@ -649,10 +561,7 @@ function sortProducts(
   return [
     ...products,
   ].sort(
-    (
-      a,
-      b,
-    ) => {
+    (a, b) => {
       const aCreatedAt =
         getTimestampMillis(
           a.createdAt,
@@ -686,20 +595,14 @@ export default function getWorkerProducts(
       ? workerId.trim()
       : "";
 
-  /* ============================================================
-     INVALID WORKER
-  ============================================================ */
-
-  if (
-    !normalizedWorkerId
-  ) {
+  if (!normalizedWorkerId) {
     callback([]);
 
     return () => {};
   }
 
   /* ============================================================
-     PRODUCTS QUERY
+     PRODUCTS
   ============================================================ */
 
   const productsQuery =
@@ -716,28 +619,8 @@ export default function getWorkerProducts(
     );
 
   /* ============================================================
-     DEALS QUERY
+     DEALS
   ============================================================ */
-
-  /*
-   * IMPORTANT
-   *
-   * We query deals by workerId only.
-   *
-   * Then we filter:
-   *
-   * - productId
-   * - type
-   * - status
-   * - start date
-   * - expiry date
-   *
-   * locally.
-   *
-   * This means we don't need a composite index for:
-   *
-   * workerId + type + status
-   */
 
   const dealsQuery =
     query(
@@ -791,10 +674,7 @@ export default function getWorkerProducts(
   const unsubscribeProducts =
     onSnapshot(
       productsQuery,
-
-      (
-        snapshot,
-      ) => {
+      (snapshot) => {
         latestProducts =
           snapshot.docs.map(
             (
@@ -808,16 +688,12 @@ export default function getWorkerProducts(
 
         emitProducts();
       },
-
       (error) => {
         console.error(
           "FIXXAM_WORKER_PRODUCTS_SNAPSHOT_ERROR:",
           error,
         );
 
-        /*
-         * Product loading failed.
-         */
         latestProducts = [];
 
         emitProducts();
@@ -831,10 +707,7 @@ export default function getWorkerProducts(
   const unsubscribeDeals =
     onSnapshot(
       dealsQuery,
-
-      (
-        snapshot,
-      ) => {
+      (snapshot) => {
         latestDeals =
           snapshot.docs.map(
             (
@@ -848,17 +721,12 @@ export default function getWorkerProducts(
 
         emitProducts();
       },
-
       (error) => {
         console.error(
           "FIXXAM_WORKER_PRODUCT_DEALS_SNAPSHOT_ERROR:",
           error,
         );
 
-        /*
-         * Don't destroy products
-         * when deals fail.
-         */
         latestDeals = [];
 
         emitProducts();
@@ -866,17 +734,8 @@ export default function getWorkerProducts(
     );
 
   /* ============================================================
-     EXPIRY REFRESH
+     DEAL EXPIRY REFRESH
   ============================================================ */
-
-  /*
-   * Firestore will not automatically send
-   * a snapshot just because expiresAt has
-   * passed.
-   *
-   * Therefore refresh periodically so an
-   * expired deal disappears from the UI.
-   */
 
   const expiryInterval =
     setInterval(

@@ -1,4 +1,8 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+  useState,
+} from "react";
 
 import {
   Pressable,
@@ -9,122 +13,251 @@ import {
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-interface Props {
-  value: string;
-  onChangeText: (text: string) => void;
-}
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
-export default function ServicesSearch({
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type Props = {
+  value: string;
+
+  onChangeText: (
+    text: string,
+  ) => void;
+};
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ServicesSearch({
   value,
   onChangeText,
 }: Props) {
+  const [
+    focused,
+    setFocused,
+  ] =
+    useState(false);
+
   const hasValue =
-    value.trim().length > 0;
+    value.trim().length >
+    0;
+
+  const handleClear =
+    useCallback(() => {
+      onChangeText("");
+    }, [
+      onChangeText,
+    ]);
 
   return (
-    <View style={styles.container}>
-      {/* SEARCH ICON */}
+    <View
+      style={[
+        styles.container,
+
+        focused
+          ? styles.focusedContainer
+          : null,
+      ]}
+    >
+      {/* ========================================================
+          SEARCH ICON
+      ======================================================== */}
+
       <MaterialCommunityIcons
         name="magnify"
-        size={22}
-        color="#9CA3AF"
+        size={
+          FixxamTokens.size.iconMd
+        }
+        color={
+          focused
+            ? CustomerColors.primary
+            : Colors.textMuted
+        }
       />
 
-      {/* INPUT */}
+      {/* ========================================================
+          INPUT
+      ======================================================== */}
+
       <TextInput
-        value={value}
-        onChangeText={onChangeText}
+        accessibilityLabel="Search services"
+        accessibilityHint="Search available services by name"
+        value={
+          value
+        }
+        onChangeText={
+          onChangeText
+        }
+        onFocus={() =>
+          setFocused(
+            true,
+          )
+        }
+        onBlur={() =>
+          setFocused(
+            false,
+          )
+        }
         placeholder="Search services..."
-        placeholderTextColor="#9CA3AF"
-        autoCorrect={false}
+        placeholderTextColor={
+          Colors.textMuted
+        }
+        selectionColor={
+          CustomerColors.primary
+        }
+        autoCorrect={
+          false
+        }
         autoCapitalize="none"
         returnKeyType="search"
         clearButtonMode="never"
-        style={styles.input}
+        maxLength={80}
+        style={
+          styles.input
+        }
       />
 
-      {/* CLEAR */}
-      {hasValue && (
+      {/* ========================================================
+          CLEAR
+      ======================================================== */}
+
+      {hasValue ? (
         <Pressable
-          onPress={() => onChangeText("")}
           accessibilityRole="button"
           accessibilityLabel="Clear service search"
-          hitSlop={8}
-          style={({ pressed }) => [
+          hitSlop={4}
+          onPress={
+            handleClear
+          }
+          style={({
+            pressed,
+          }) => [
             styles.clearButton,
-            pressed && styles.pressed,
+
+            pressed
+              ? styles.pressed
+              : null,
           ]}
         >
           <MaterialCommunityIcons
             name="close-circle"
-            size={19}
-            color="#9CA3AF"
+            size={
+              FixxamTokens.size.iconSm
+            }
+            color={
+              Colors.textMuted
+            }
           />
         </Pressable>
-      )}
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    height: 50,
+export default memo(
+  ServicesSearch,
+);
 
-    width: "100%",
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    flexDirection: "row",
-    alignItems: "center",
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    paddingHorizontal: 14,
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-    marginBottom: 16,
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#FFFFFF",
+      paddingLeft:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 15,
+      paddingRight:
+        FixxamTokens.spacing.xs,
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+      flexDirection:
+        "row",
 
-    shadowColor: "#0F172A",
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      alignItems:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 7,
 
-    elevation: 2,
-  },
+    focusedContainer: {
+      borderColor:
+        CustomerColors.primary,
+    },
 
-  input: {
-    flex: 1,
+    input: {
+      flex: 1,
 
-    minWidth: 0,
+      minWidth: 0,
 
-    marginLeft: 10,
+      minHeight:
+        FixxamTokens.size.inputHeight,
 
-    paddingVertical: 0,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-    fontSize: 15,
+      paddingVertical: 0,
 
-    color: "#111827",
-  },
+      fontSize: 15,
 
-  clearButton: {
-    width: 28,
-    height: 28,
+      color:
+        Colors.textPrimary,
+    },
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    clearButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-  pressed: {
-    opacity: 0.55,
-    transform: [
-      {
-        scale: 0.94,
-      },
-    ],
-  },
-});
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
+  });

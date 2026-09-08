@@ -14,7 +14,8 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 import {
   collection,
@@ -27,6 +28,7 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -34,6 +36,12 @@ import {
   auth,
   db,
 } from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -57,20 +65,42 @@ type DeletableStatus =
   | "completed"
   | "cancelled";
 
+type OrderRowFilter =
+  | "pending"
+  | "active"
+  | "completed"
+  | "cancelled";
+
+type OrderTone =
+  | "pending"
+  | "active"
+  | "completed"
+  | "cancelled";
+
 type Props = {
   visible: boolean;
-
   counts: OrderDeletionCounts;
-
   selectedFilter: OrderDeletionFilter;
-
   onClose: () => void;
-
   onFilterSelect: (
     filter: OrderDeletionFilter,
   ) => void;
-
   onDeleted?: () => void;
+};
+
+type RowIcon =
+  | "clock"
+  | "service"
+  | "success"
+  | "error";
+
+type RowConfig = {
+  filter: OrderRowFilter;
+  label: string;
+  count: number;
+  icon: RowIcon;
+  tone: OrderTone;
+  deletable: boolean;
 };
 
 /* ============================================================
@@ -78,6 +108,82 @@ type Props = {
 ============================================================ */
 
 const BATCH_LIMIT = 450;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeCount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
+
+function showError(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccess(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "success",
+    text1: title,
+    text2: message,
+  });
+}
+
+function getToneColors(
+  tone: OrderTone,
+) {
+  switch (tone) {
+    case "pending":
+      return {
+        color: Colors.warning,
+        background:
+          Colors.warningSoft,
+      };
+
+    case "active":
+      return {
+        color: Colors.info,
+        background:
+          Colors.infoSoft,
+      };
+
+    case "completed":
+      return {
+        color: Colors.success,
+        background:
+          Colors.successSoft,
+      };
+
+    case "cancelled":
+      return {
+        color: Colors.error,
+        background:
+          Colors.errorSoft,
+      };
+  }
+}
 
 /* ============================================================
    COMPONENT
@@ -91,6 +197,9 @@ function OrderDeletionManager({
   onFilterSelect,
   onDeleted,
 }: Props) {
+  const insets =
+    useSafeAreaInsets();
+
   const [
     deletingStatus,
     setDeletingStatus,
@@ -100,34 +209,99 @@ function OrderDeletionManager({
     );
 
   /* ==========================================================
-     ROLE
+     SAFE COUNTS
   ========================================================== */
 
-  /*
-   * This manager is currently used
-   * by the customer OrdersScreen.
-   *
-   * Therefore deletion is marked
-   * with deletedByCustomer.
-   *
-   * Worker has its own manager.
-   */
+  const safeCounts =
+    useMemo(
+      () => ({
+        pending:
+          normalizeCount(
+            counts.pending,
+          ),
 
-  const userId =
-    auth.currentUser?.uid;
+        active:
+          normalizeCount(
+            counts.active,
+          ),
 
-  /* ==========================================================
-     TOTAL
-  ========================================================== */
+        completed:
+          normalizeCount(
+            counts.completed,
+          ),
+
+        cancelled:
+          normalizeCount(
+            counts.cancelled,
+          ),
+      }),
+      [
+        counts.pending,
+        counts.active,
+        counts.completed,
+        counts.cancelled,
+      ],
+    );
 
   const total =
-    useMemo(
-      () =>
-        counts.pending +
-        counts.active +
-        counts.completed +
-        counts.cancelled,
-      [counts],
+    safeCounts.pending +
+    safeCounts.active +
+    safeCounts.completed +
+    safeCounts.cancelled;
+
+  /* ==========================================================
+     ROWS
+  ========================================================== */
+
+  const rows =
+    useMemo<RowConfig[]>(
+      () => [
+        {
+          filter: "pending",
+          label: "Pending",
+          count:
+            safeCounts.pending,
+          icon: "clock",
+          tone: "pending",
+          deletable: false,
+        },
+
+        {
+          filter: "active",
+          label: "Active",
+          count:
+            safeCounts.active,
+          icon: "service",
+          tone: "active",
+          deletable: false,
+        },
+
+        {
+          filter: "completed",
+          label: "Completed",
+          count:
+            safeCounts.completed,
+          icon: "success",
+          tone: "completed",
+          deletable: true,
+        },
+
+        {
+          filter: "cancelled",
+          label: "Cancelled",
+          count:
+            safeCounts.cancelled,
+          icon: "error",
+          tone: "cancelled",
+          deletable: true,
+        },
+      ],
+      [
+        safeCounts.pending,
+        safeCounts.active,
+        safeCounts.completed,
+        safeCounts.cancelled,
+      ],
     );
 
   /* ==========================================================
@@ -136,7 +310,9 @@ function OrderDeletionManager({
 
   const handleClose =
     useCallback(() => {
-      if (deletingStatus) {
+      if (
+        deletingStatus !== null
+      ) {
         return;
       }
 
@@ -155,7 +331,9 @@ function OrderDeletionManager({
       (
         filter: OrderDeletionFilter,
       ) => {
-        if (deletingStatus) {
+        if (
+          deletingStatus !== null
+        ) {
           return;
         }
 
@@ -167,26 +345,31 @@ function OrderDeletionManager({
       },
       [
         deletingStatus,
-        onFilterSelect,
         onClose,
+        onFilterSelect,
       ],
     );
 
   /* ==========================================================
-     DELETE
+     EXECUTE DELETE
   ========================================================== */
 
-  const handleDelete =
+  const executeDelete =
     useCallback(
       async (
         status: DeletableStatus,
       ) => {
-        if (deletingStatus) {
+        if (
+          deletingStatus !== null
+        ) {
           return;
         }
 
+        const userId =
+          auth.currentUser?.uid?.trim();
+
         if (!userId) {
-          Alert.alert(
+          showError(
             "Sign in required",
             "Please sign in again before deleting order history.",
           );
@@ -194,26 +377,222 @@ function OrderDeletionManager({
           return;
         }
 
+        const statusLabel =
+          status === "completed"
+            ? "Completed"
+            : "Cancelled";
+
+        try {
+          setDeletingStatus(
+            status,
+          );
+
+          const bookingsRef =
+            collection(
+              db,
+              "bookings",
+            );
+
+          const ordersQuery =
+            query(
+              bookingsRef,
+
+              where(
+                "customerId",
+                "==",
+                userId,
+              ),
+
+              where(
+                "status",
+                "==",
+                status,
+              ),
+            );
+
+          const snapshot =
+            await getDocs(
+              ordersQuery,
+            );
+
+          const targetOrders =
+            snapshot.docs.filter(
+              (order) =>
+                order.data()
+                  .deletedByCustomer !==
+                true,
+            );
+
+          if (
+            targetOrders.length === 0
+          ) {
+            showError(
+              "Nothing to delete",
+              `There are no ${statusLabel.toLowerCase()} orders available to remove.`,
+            );
+
+            return;
+          }
+
+          /* ==================================================
+             FIRESTORE BATCHES
+
+             Firestore max = 500 writes.
+             We intentionally use 450.
+          ================================================== */
+
+          for (
+            let start = 0;
+            start <
+            targetOrders.length;
+            start += BATCH_LIMIT
+          ) {
+            const chunk =
+              targetOrders.slice(
+                start,
+                start +
+                  BATCH_LIMIT,
+              );
+
+            const batch =
+              writeBatch(db);
+
+            for (
+              const order of chunk
+            ) {
+              const orderRef =
+                doc(
+                  db,
+                  "bookings",
+                  order.id,
+                );
+
+              batch.update(
+                orderRef,
+                {
+                  deletedByCustomer:
+                    true,
+
+                  deletedAt:
+                    serverTimestamp(),
+
+                  updatedAt:
+                    serverTimestamp(),
+                },
+              );
+            }
+
+            await batch.commit();
+          }
+
+          onClose();
+
+          try {
+            onDeleted?.();
+          } catch (
+            callbackError
+          ) {
+            console.error(
+              "CUSTOMER_ORDER_DELETE_CALLBACK_ERROR",
+              callbackError,
+            );
+          }
+
+          showSuccess(
+            "History removed",
+            `${targetOrders.length} ${statusLabel.toLowerCase()} ${
+              targetOrders.length === 1
+                ? "order"
+                : "orders"
+            } removed from your history.`,
+          );
+        } catch (error) {
+          console.error(
+            "CUSTOMER_ORDER_SOFT_DELETE_ERROR",
+            error,
+          );
+
+          const firebaseCode =
+            (
+              error as {
+                code?: string;
+              }
+            )?.code;
+
+          if (
+            firebaseCode ===
+            "permission-denied"
+          ) {
+            showError(
+              "Permission denied",
+              "You do not have permission to remove these orders.",
+            );
+          } else {
+            showError(
+              "Unable to delete",
+              "We could not remove these orders from your history. Please try again.",
+            );
+          }
+        } finally {
+          setDeletingStatus(
+            null,
+          );
+        }
+      },
+      [
+        deletingStatus,
+        onClose,
+        onDeleted,
+      ],
+    );
+
+  /* ==========================================================
+     DELETE CONFIRMATION
+  ========================================================== */
+
+  const handleDelete =
+    useCallback(
+      (
+        status: DeletableStatus,
+      ) => {
+        if (
+          deletingStatus !== null
+        ) {
+          return;
+        }
+
         const count =
-          status ===
-          "completed"
-            ? counts.completed
-            : counts.cancelled;
+          status === "completed"
+            ? safeCounts.completed
+            : safeCounts.cancelled;
 
         if (count <= 0) {
+          showError(
+            "Nothing to delete",
+            "There are no orders available to remove.",
+          );
+
           return;
         }
 
         const statusLabel =
-          status ===
-          "completed"
+          status === "completed"
             ? "Completed"
             : "Cancelled";
+
+        /*
+         * Keep Alert only here because this
+         * is a destructive confirmation.
+         */
 
         Alert.alert(
           `Delete ${statusLabel} orders?`,
 
-          `You have ${count} ${statusLabel.toLowerCase()} orders.\n\nThey will be removed from your order history. This action cannot be undone.`,
+          `You have ${count} ${statusLabel.toLowerCase()} ${
+            count === 1
+              ? "order"
+              : "orders"
+          }.\n\nThey will be removed from your order history. This action cannot be undone.`,
 
           [
             {
@@ -222,280 +601,110 @@ function OrderDeletionManager({
             },
 
             {
-              text: `Delete ${count}`,
-              style: "destructive",
+              text:
+                `Delete ${count}`,
+              style:
+                "destructive",
 
-              onPress:
-                async () => {
-                  try {
-                    setDeletingStatus(
-                      status,
-                    );
-
-                    /*
-                     * Load only this customer's
-                     * orders that match the
-                     * selected deletable status.
-                     *
-                     * We intentionally do not
-                     * trust the local count.
-                     */
-
-                    const bookingsRef =
-                      collection(
-                        db,
-                        "bookings",
-                      );
-
-                    const ordersQuery =
-                      query(
-                        bookingsRef,
-
-                        where(
-                          "customerId",
-                          "==",
-                          userId,
-                        ),
-
-                        where(
-                          "status",
-                          "==",
-                          status,
-                        ),
-                      );
-
-                    const snapshot =
-                      await getDocs(
-                        ordersQuery,
-                      );
-
-                    /*
-                     * Never delete records that
-                     * have already been hidden
-                     * from this customer.
-                     */
-
-                    const targetOrders =
-                      snapshot.docs.filter(
-                        (
-                          order,
-                        ) => {
-                          const data =
-                            order.data();
-
-                          return (
-                            data.deletedByCustomer !==
-                            true
-                          );
-                        },
-                      );
-
-                    if (
-                      targetOrders.length ===
-                      0
-                    ) {
-                      setDeletingStatus(
-                        null,
-                      );
-
-                      Alert.alert(
-                        "Nothing to delete",
-                        `There are no ${statusLabel.toLowerCase()} orders available to remove.`,
-                      );
-
-                      return;
-                    }
-
-                    /*
-                     * Firestore batch limit is
-                     * 500 operations.
-                     *
-                     * Keep 450 as a safe limit.
-                     */
-
-                    for (
-                      let start = 0;
-                      start <
-                      targetOrders.length;
-                      start +=
-                        BATCH_LIMIT
-                    ) {
-                      const chunk =
-                        targetOrders.slice(
-                          start,
-                          start +
-                            BATCH_LIMIT,
-                        );
-
-                      const batch =
-                        writeBatch(db);
-
-                      for (
-                        const order of chunk
-                      ) {
-                        const orderRef =
-                          doc(
-                            db,
-                            "bookings",
-                            order.id,
-                          );
-
-                        batch.update(
-                          orderRef,
-                          {
-                            deletedByCustomer:
-                              true,
-
-                            deletedAt:
-                              serverTimestamp(),
-
-                            updatedAt:
-                              serverTimestamp(),
-                          },
-                        );
-                      }
-
-                      await batch.commit();
-                    }
-
-                    setDeletingStatus(
-                      null,
-                    );
-
-                    onClose();
-
-                    onDeleted?.();
-                  } catch (
-                    error
-                  ) {
-                    console.error(
-                      "CUSTOMER_ORDER_SOFT_DELETE_ERROR",
-                      error,
-                    );
-
-                    setDeletingStatus(
-                      null,
-                    );
-
-                    Alert.alert(
-                      "Unable to delete",
-                      "We could not remove these orders from your history. Please try again.",
-                    );
-                  }
-                },
+              onPress: () => {
+                void executeDelete(
+                  status,
+                );
+              },
             },
           ],
         );
       },
       [
-        counts,
         deletingStatus,
-        onClose,
-        onDeleted,
-        userId,
+        executeDelete,
+        safeCounts.completed,
+        safeCounts.cancelled,
       ],
     );
 
   /* ==========================================================
-     ROW
+     RENDER ROW
   ========================================================== */
 
   const renderRow =
     useCallback(
-      ({
-        filter,
-        label,
-        count,
-        icon,
-        tone,
-        deletable,
-      }: {
-        filter:
-          | "pending"
-          | "active"
-          | "completed"
-          | "cancelled";
+      (
+        row: RowConfig,
+      ) => {
+        const {
+          filter,
+          label,
+          count,
+          icon,
+          tone,
+          deletable,
+        } = row;
 
-        label: string;
+        const busy =
+          deletingStatus !== null;
 
-        count: number;
-
-        icon: keyof typeof Ionicons.glyphMap;
-
-        tone:
-          | "pending"
-          | "active"
-          | "completed"
-          | "cancelled";
-
-        deletable: boolean;
-      }) => {
         const isSelected =
-          selectedFilter ===
-          filter;
+          selectedFilter === filter;
 
         const isDeleting =
-          deletingStatus ===
-          filter;
+          deletingStatus === filter;
+
+        const toneColors =
+          getToneColors(tone);
 
         return (
           <View
-            style={
-              styles.row
-            }
+            key={filter}
+            style={styles.row}
           >
+            {/* STATUS */}
+
             <View
               style={[
                 styles.rowIcon,
-
-                tone ===
-                  "pending" &&
-                  styles.rowIconPending,
-
-                tone ===
-                  "active" &&
-                  styles.rowIconActive,
-
-                tone ===
-                  "completed" &&
-                  styles.rowIconCompleted,
-
-                tone ===
-                  "cancelled" &&
-                  styles.rowIconCancelled,
+                {
+                  backgroundColor:
+                    toneColors.background,
+                },
               ]}
             >
-              <Ionicons
+              <AppIcon
                 name={icon}
-                size={20}
+                size="sm"
                 color={
-                  tone ===
-                  "pending"
-                    ? "#D97706"
-                    : tone ===
-                        "active"
-                      ? "#2563EB"
-                      : tone ===
-                          "completed"
-                        ? "#16A34A"
-                        : "#DC2626"
+                  toneColors.color
                 }
               />
             </View>
 
+            {/* FILTER */}
+
             <Pressable
-              disabled={
-                deletingStatus !==
-                null
-              }
               onPress={() =>
                 handleFilter(
                   filter,
                 )
               }
-              style={
-                styles.rowInfo
-              }
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${label.toLowerCase()} orders`}
+              accessibilityState={{
+                selected:
+                  isSelected,
+                disabled:
+                  busy,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.rowInfo,
+
+                pressed &&
+                !busy
+                  ? styles.rowPressed
+                  : null,
+              ]}
             >
               <View
                 style={
@@ -503,7 +712,9 @@ function OrderDeletionManager({
                 }
               >
                 <AppText
+                  variant="body"
                   weight="bold"
+                  numberOfLines={1}
                   style={
                     styles.rowLabel
                   }
@@ -511,84 +722,104 @@ function OrderDeletionManager({
                   {label}
                 </AppText>
 
-                {isSelected && (
+                {isSelected ? (
                   <View
                     style={
                       styles.selectedIndicator
                     }
                   >
-                    <Ionicons
-                      name="checkmark"
-                      size={11}
-                      color="#2563EB"
+                    <AppIcon
+                      name="check"
+                      size="xs"
+                      color={
+                        CustomerColors.primary
+                      }
                     />
                   </View>
-                )}
+                ) : null}
               </View>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.rowCount
                 }
               >
-                {count} orders
+                {count}{" "}
+                {count === 1
+                  ? "order"
+                  : "orders"}
               </AppText>
             </Pressable>
 
+            {/* DELETE / LOCK */}
+
             {deletable ? (
               <Pressable
-                disabled={
-                  deletingStatus !==
-                  null ||
-                  count === 0
-                }
                 onPress={() =>
                   handleDelete(
                     filter as DeletableStatus,
                   )
                 }
+                disabled={
+                  busy ||
+                  count === 0
+                }
                 accessibilityRole="button"
                 accessibilityLabel={`Delete ${label.toLowerCase()} orders`}
-                style={({ pressed }) => [
+                accessibilityState={{
+                  disabled:
+                    busy ||
+                    count === 0,
+                  busy:
+                    isDeleting,
+                }}
+                style={({
+                  pressed,
+                }) => [
                   styles.deleteButton,
 
-                  count === 0 &&
-                    styles.disabledButton,
-
-                  deletingStatus !==
-                    null &&
-                    styles.disabledButton,
+                  busy ||
+                  count === 0
+                    ? styles.disabledButton
+                    : null,
 
                   pressed &&
-                    styles.deletePressed,
+                  !busy &&
+                  count > 0
+                    ? styles.deletePressed
+                    : null,
                 ]}
               >
                 {isDeleting ? (
                   <ActivityIndicator
                     size="small"
-                    color="#DC2626"
+                    color={
+                      Colors.error
+                    }
                   />
                 ) : (
                   <>
-                    <Ionicons
-                      name="trash-outline"
-                      size={15}
+                    <AppIcon
+                      name="delete"
+                      size="xs"
                       color={
-                        count ===
-                        0
-                          ? "#94A3B8"
-                          : "#DC2626"
+                        count === 0
+                          ? Colors.textMuted
+                          : Colors.error
                       }
                     />
 
                     <AppText
+                      variant="caption"
                       weight="bold"
                       style={[
                         styles.deleteText,
 
-                        count ===
-                          0 &&
-                          styles.deleteTextDisabled,
+                        count === 0
+                          ? styles.deleteTextDisabled
+                          : null,
                       ]}
                     >
                       Delete
@@ -598,14 +829,18 @@ function OrderDeletionManager({
               </Pressable>
             ) : (
               <View
+                accessible
+                accessibilityLabel={`${label} orders cannot be deleted`}
                 style={
                   styles.lockedButton
                 }
               >
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={14}
-                  color="#94A3B8"
+                <AppIcon
+                  name="lock"
+                  size="xs"
+                  color={
+                    Colors.textMuted
+                  }
                 />
               </View>
             )}
@@ -629,6 +864,7 @@ function OrderDeletionManager({
       visible={visible}
       transparent
       animationType="slide"
+      statusBarTranslucent
       onRequestClose={
         handleClose
       }
@@ -648,17 +884,27 @@ function OrderDeletionManager({
             handleClose
           }
           disabled={
-            deletingStatus !==
-            null
+            deletingStatus !== null
           }
+          accessibilityRole="button"
+          accessibilityLabel="Close order management"
         />
 
         {/* SHEET */}
 
         <View
-          style={
-            styles.modalCard
-          }
+          accessibilityViewIsModal
+          style={[
+            styles.modalCard,
+            {
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens
+                    .spacing.lg,
+                ),
+            },
+          ]}
         >
           {/* HANDLE */}
 
@@ -685,10 +931,13 @@ function OrderDeletionManager({
                   styles.headerIcon
                 }
               >
-                <Ionicons
-                  name="options-outline"
-                  size={20}
-                  color="#2563EB"
+                <AppIcon
+                  name="filter"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
                 />
               </View>
 
@@ -698,6 +947,7 @@ function OrderDeletionManager({
                 }
               >
                 <AppText
+                  variant="bodyLarge"
                   weight="bold"
                   style={
                     styles.modalTitle
@@ -707,11 +957,16 @@ function OrderDeletionManager({
                 </AppText>
 
                 <AppText
+                  variant="caption"
+                  tone="secondary"
                   style={
                     styles.modalSubtitle
                   }
                 >
-                  {total} total orders
+                  {total}{" "}
+                  {total === 1
+                    ? "total order"
+                    : "total orders"}
                 </AppText>
               </View>
             </View>
@@ -721,22 +976,31 @@ function OrderDeletionManager({
                 handleClose
               }
               disabled={
-                deletingStatus !==
-                null
+                deletingStatus !== null
               }
               accessibilityRole="button"
               accessibilityLabel="Close order management"
-              style={({ pressed }) => [
+              accessibilityState={{
+                disabled:
+                  deletingStatus !== null,
+              }}
+              style={({
+                pressed,
+              }) => [
                 styles.closeButton,
 
                 pressed &&
-                  styles.closePressed,
+                deletingStatus === null
+                  ? styles.closePressed
+                  : null,
               ]}
             >
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={20}
-                color="#475569"
+                size="sm"
+                color={
+                  Colors.textSecondary
+                }
               />
             </Pressable>
           </View>
@@ -744,83 +1008,41 @@ function OrderDeletionManager({
           {/* DESCRIPTION */}
 
           <AppText
+            variant="body"
+            tone="secondary"
             style={
               styles.description
             }
           >
-            Choose a category to view, or
-            remove completed and cancelled
-            order history.
+            Choose a category to view, or remove completed and cancelled order history.
           </AppText>
 
           {/* ROWS */}
 
           <View
-            style={
-              styles.rows
-            }
+            style={styles.rows}
           >
-            {renderRow({
-              filter: "pending",
-              label: "Pending",
-              count:
-                counts.pending,
-              icon:
-                "time-outline",
-              tone: "pending",
-              deletable: false,
-            })}
-
-            {renderRow({
-              filter: "active",
-              label: "Active",
-              count:
-                counts.active,
-              icon:
-                "flash-outline",
-              tone: "active",
-              deletable: false,
-            })}
-
-            {renderRow({
-              filter: "completed",
-              label: "Completed",
-              count:
-                counts.completed,
-              icon:
-                "checkmark-circle-outline",
-              tone: "completed",
-              deletable: true,
-            })}
-
-            {renderRow({
-              filter: "cancelled",
-              label: "Cancelled",
-              count:
-                counts.cancelled,
-              icon:
-                "close-circle-outline",
-              tone: "cancelled",
-              deletable: true,
-            })}
+            {rows.map(
+              renderRow,
+            )}
           </View>
 
-          {/* SECURITY INFO */}
+          {/* INFO */}
 
           <View
-            style={
-              styles.infoBox
-            }
+            style={styles.infoBox}
           >
             <View
               style={
                 styles.infoIcon
               }
             >
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={17}
-                color="#2563EB"
+              <AppIcon
+                name="verified"
+                size="sm"
+                color={
+                  Colors.info
+                }
               />
             </View>
 
@@ -830,6 +1052,7 @@ function OrderDeletionManager({
               }
             >
               <AppText
+                variant="body"
                 weight="bold"
                 style={
                   styles.infoTitle
@@ -839,13 +1062,13 @@ function OrderDeletionManager({
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.infoText
                 }
               >
-                Pending and active orders cannot
-                be deleted. Only completed and
-                cancelled history can be removed.
+                Pending and active orders cannot be deleted. Only completed and cancelled history can be removed.
               </AppText>
             </View>
           </View>
@@ -857,34 +1080,67 @@ function OrderDeletionManager({
               handleClose
             }
             disabled={
-              deletingStatus !==
-              null
+              deletingStatus !== null
             }
-            style={({ pressed }) => [
+            accessibilityRole="button"
+            accessibilityLabel="Done managing orders"
+            accessibilityState={{
+              disabled:
+                deletingStatus !== null,
+            }}
+            style={({
+              pressed,
+            }) => [
               styles.doneButton,
 
-              pressed &&
-                styles.donePressed,
+              deletingStatus !== null
+                ? styles.doneDisabled
+                : null,
 
-              deletingStatus !==
-                null &&
-                styles.doneDisabled,
+              pressed &&
+              deletingStatus === null
+                ? styles.donePressed
+                : null,
             ]}
           >
-            <AppText
-              weight="bold"
-              style={
-                styles.doneText
-              }
-            >
-              DONE
-            </AppText>
+            {deletingStatus ? (
+              <ActivityIndicator
+                size="small"
+                color={
+                  Colors.textInverse
+                }
+              />
+            ) : (
+              <>
+                <AppIcon
+                  name="check"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.doneText
+                  }
+                >
+                  Done
+                </AppText>
+              </>
+            )}
           </Pressable>
         </View>
       </View>
     </Modal>
   );
 }
+
+/* ============================================================
+   EXPORT
+============================================================ */
 
 export default memo(
   OrderDeletionManager,
@@ -905,27 +1161,44 @@ const styles =
     backdrop: {
       ...StyleSheet.absoluteFillObject,
       backgroundColor:
-        "rgba(15,23,42,0.48)",
+        Colors.overlayMedium,
     },
 
     modalCard: {
-      paddingHorizontal: 18,
-      paddingTop: 10,
-      paddingBottom: 28,
-      borderTopLeftRadius: 28,
-      borderTopRightRadius: 28,
+      width: "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     sheetHandle: {
-      alignSelf: "center",
       width: 42,
       height: 4,
-      borderRadius: 2,
+
+      alignSelf: "center",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#CBD5E1",
-      marginBottom: 16,
+        Colors.disabled,
     },
 
     /* ========================================================
@@ -937,59 +1210,88 @@ const styles =
       alignItems: "center",
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     headerInfo: {
       flex: 1,
+      minWidth: 0,
+
       flexDirection: "row",
       alignItems: "center",
     },
 
     headerIcon: {
-      width: 43,
-      height: 43,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     headerText: {
       flex: 1,
-      marginLeft: 11,
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     modalTitle: {
-      fontSize: 19,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalSubtitle: {
-      marginTop: 2,
-      fontSize: 10,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     closeButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor:
-        "#F8FAFC",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     closePressed: {
-      opacity: 0.65,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     description: {
-      marginTop: 13,
-      fontSize: 10.5,
-      lineHeight: 16,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      lineHeight: 20,
     },
 
     /* ========================================================
@@ -997,82 +1299,107 @@ const styles =
     ======================================================== */
 
     rows: {
-      marginTop: 16,
-      gap: 9,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      overflow: "hidden",
+
+      backgroundColor:
+        Colors.surface,
     },
 
     row: {
-      minHeight: 66,
-      paddingHorizontal: 10,
-      borderRadius: 16,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      minHeight: 72,
+
       flexDirection: "row",
       alignItems: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
     },
 
     rowIcon: {
       width: 42,
       height: 42,
-      borderRadius: 13,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
-    },
+      justifyContent:
+        "center",
 
-    rowIconPending: {
-      backgroundColor:
-        "#FFF7E8",
-    },
-
-    rowIconActive: {
-      backgroundColor:
-        "#EFF6FF",
-    },
-
-    rowIconCompleted: {
-      backgroundColor:
-        "#ECFDF5",
-    },
-
-    rowIconCancelled: {
-      backgroundColor:
-        "#FEF2F2",
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
     rowInfo: {
       flex: 1,
-      marginLeft: 11,
       minWidth: 0,
+
+      alignSelf: "stretch",
+      justifyContent:
+        "center",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    rowPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     rowTitleLine: {
       flexDirection: "row",
       alignItems: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     rowLabel: {
-      fontSize: 12,
-      color: "#0F172A",
-    },
-
-    selectedIndicator: {
-      width: 18,
-      height: 18,
-      marginLeft: 6,
-      borderRadius: 9,
-      backgroundColor:
-        "#DBEAFE",
-      alignItems: "center",
-      justifyContent: "center",
+      color:
+        Colors.textPrimary,
     },
 
     rowCount: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    selectedIndicator: {
+      width: 22,
+      height: 22,
+
+      alignItems: "center",
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     /* ========================================================
@@ -1080,47 +1407,89 @@ const styles =
     ======================================================== */
 
     deleteButton: {
-      minWidth: 76,
-      height: 35,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-      backgroundColor:
-        "#FEF2F2",
-      borderWidth: 1,
-      borderColor:
-        "#FECACA",
+      minWidth: 78,
+
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       flexDirection: "row",
       alignItems: "center",
       justifyContent:
         "center",
-      gap: 5,
-    },
 
-    deletePressed: {
-      opacity: 0.7,
-    },
+      gap:
+        FixxamTokens.spacing.xs,
 
-    disabledButton: {
-      opacity: 0.45,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     deleteText: {
-      fontSize: 9,
-      color: "#DC2626",
+      color:
+        Colors.error,
     },
 
     deleteTextDisabled: {
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
+    },
+
+    disabledButton: {
+      borderColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    deletePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
     lockedButton: {
-      width: 35,
-      height: 35,
-      borderRadius: 10,
-      backgroundColor:
-        "#F1F5F9",
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     /* ========================================================
@@ -1128,40 +1497,63 @@ const styles =
     ======================================================== */
 
     infoBox: {
-      marginTop: 14,
-      padding: 11,
-      borderRadius: 14,
-      backgroundColor:
-        "#EFF6FF",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.infoSoft,
     },
 
     infoIcon: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
-      backgroundColor:
-        "#FFFFFF",
+      width: 36,
+      height: 36,
+
+      flexShrink: 0,
+
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     infoContent: {
       flex: 1,
-      marginLeft: 8,
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     infoTitle: {
-      fontSize: 9.5,
-      color: "#1D4ED8",
+      color:
+        Colors.textPrimary,
     },
 
     infoText: {
-      marginTop: 2,
-      fontSize: 9,
-      lineHeight: 14,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 17,
     },
 
     /* ========================================================
@@ -1169,25 +1561,53 @@ const styles =
     ======================================================== */
 
     doneButton: {
-      marginTop: 14,
-      height: 46,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-    },
+      justifyContent:
+        "center",
 
-    donePressed: {
-      opacity: 0.75,
-    },
+      gap:
+        FixxamTokens.spacing.xs,
 
-    doneDisabled: {
-      opacity: 0.5,
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     doneText: {
-      fontSize: 10,
-      color: "#334155",
+      color:
+        Colors.textInverse,
+    },
+
+    doneDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    donePressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

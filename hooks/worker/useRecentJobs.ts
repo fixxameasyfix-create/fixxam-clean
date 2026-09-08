@@ -15,6 +15,11 @@ import {
 } from "react";
 
 import {
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
+
+import {
   auth,
   db,
 } from "@/firebase/config";
@@ -50,9 +55,7 @@ export type RecentJobsState = {
 ============================================================== */
 
 const MAX_RECENT_JOBS = 2;
-
 const BOOKING_READ_LIMIT = 25;
-
 const MARKET_ORDER_READ_LIMIT = 25;
 
 const EXCLUDED_STATUSES =
@@ -64,15 +67,11 @@ const EXCLUDED_STATUSES =
   ]);
 
 /* ==============================================================
-   STRING
+   HELPERS
 ============================================================== */
 
-function getString(
-  value: unknown,
-): string {
-  if (
-    typeof value === "string"
-  ) {
+function getString(value: unknown): string {
+  if (typeof value === "string") {
     return value.trim();
   }
 
@@ -86,18 +85,13 @@ function getString(
   return "";
 }
 
-/* ==============================================================
-   STATUS
-============================================================== */
-
 function normalizeStatus(
   value: unknown,
 ): RecentJobStatus {
-  const status =
-    getString(value)
-      .toLowerCase()
-      .replace(/_/g, "-")
-      .replace(/\s+/g, "-");
+  const status = getString(value)
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-");
 
   switch (status) {
     case "pending":
@@ -126,26 +120,13 @@ function normalizeStatus(
   }
 }
 
-/* ==============================================================
-   ACTIVE JOB
-============================================================== */
-
 function isActiveJob(
   job: RecentJob,
 ): boolean {
-  const status =
-    normalizeStatus(
-      job.status,
-    );
-
   return !EXCLUDED_STATUSES.has(
-    status,
+    normalizeStatus(job.status),
   );
 }
-
-/* ==============================================================
-   TIMESTAMP
-============================================================== */
 
 export function getTimestamp(
   value: unknown,
@@ -154,15 +135,10 @@ export function getTimestamp(
     return 0;
   }
 
-  if (
-    value instanceof Date
-  ) {
-    const time =
-      value.getTime();
+  if (value instanceof Date) {
+    const time = value.getTime();
 
-    return Number.isFinite(
-      time,
-    )
+    return Number.isFinite(time)
       ? time
       : 0;
   }
@@ -176,17 +152,10 @@ export function getTimestamp(
       : value;
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const time =
-      new Date(
-        value,
-      ).getTime();
+  if (typeof value === "string") {
+    const time = new Date(value).getTime();
 
-    return Number.isFinite(
-      time,
-    )
+    return Number.isFinite(time)
       ? time
       : 0;
   }
@@ -195,29 +164,21 @@ export function getTimestamp(
     typeof value === "object" &&
     value !== null
   ) {
-    const timestamp =
-      value as {
-        toDate?: unknown;
-        seconds?: unknown;
-      };
+    const timestamp = value as {
+      toDate?: unknown;
+      seconds?: unknown;
+    };
 
     if (
-      typeof timestamp.toDate ===
-      "function"
+      typeof timestamp.toDate === "function"
     ) {
       try {
-        const date =
-          timestamp.toDate();
+        const date = timestamp.toDate();
 
-        if (
-          date instanceof Date
-        ) {
-          const time =
-            date.getTime();
+        if (date instanceof Date) {
+          const time = date.getTime();
 
-          return Number.isFinite(
-            time,
-          )
+          return Number.isFinite(time)
             ? time
             : 0;
         }
@@ -227,25 +188,15 @@ export function getTimestamp(
     }
 
     if (
-      typeof timestamp.seconds ===
-        "number" &&
-      Number.isFinite(
-        timestamp.seconds,
-      )
+      typeof timestamp.seconds === "number" &&
+      Number.isFinite(timestamp.seconds)
     ) {
-      return (
-        timestamp.seconds *
-        1000
-      );
+      return timestamp.seconds * 1000;
     }
   }
 
   return 0;
 }
-
-/* ==============================================================
-   DOCUMENT
-============================================================== */
 
 function mapDocument(
   snapshot:
@@ -261,49 +212,33 @@ function mapDocument(
   };
 }
 
-/* ==============================================================
-   SORT
-============================================================== */
-
 function sortNewestFirst(
   jobs: RecentJob[],
 ): RecentJob[] {
-  return [...jobs].sort(
-    (a, b) => {
-      const aTime =
-        getTimestamp(
-          a.createdAt ??
-            a.date ??
-            a.updatedAt,
-        );
+  return [...jobs].sort((a, b) => {
+    const aTime = getTimestamp(
+      a.createdAt ??
+        a.date ??
+        a.updatedAt,
+    );
 
-      const bTime =
-        getTimestamp(
-          b.createdAt ??
-            b.date ??
-            b.updatedAt,
-        );
+    const bTime = getTimestamp(
+      b.createdAt ??
+        b.date ??
+        b.updatedAt,
+    );
 
-      return (
-        bTime -
-        aTime
-      );
-    },
-  );
+    return bTime - aTime;
+  });
 }
-
-/* ==============================================================
-   UNIQUE
-============================================================== */
 
 function uniqueJobs(
   jobs: RecentJob[],
 ): RecentJob[] {
-  const map =
-    new Map<
-      string,
-      RecentJob
-    >();
+  const map = new Map<
+    string,
+    RecentJob
+  >();
 
   for (const job of jobs) {
     if (!job.id) {
@@ -316,9 +251,7 @@ function uniqueJobs(
     );
   }
 
-  return Array.from(
-    map.values(),
-  );
+  return Array.from(map.values());
 }
 
 /* ==============================================================
@@ -329,229 +262,245 @@ export function useRecentJobs(): RecentJobsState {
   const [
     bookingJobs,
     setBookingJobs,
-  ] =
-    useState<RecentJob[]>(
-      [],
-    );
+  ] = useState<RecentJob[]>([]);
 
   const [
     marketJobs,
     setMarketJobs,
-  ] =
-    useState<RecentJob[]>(
-      [],
-    );
+  ] = useState<RecentJob[]>([]);
 
   const [
     loading,
     setLoading,
-  ] =
-    useState(true);
+  ] = useState(true);
 
   const [
     error,
     setError,
-  ] =
-    useState<Error | null>(
-      null,
-    );
+  ] = useState<Error | null>(null);
 
   useEffect(() => {
-    const workerId =
-      auth.currentUser?.uid ?? "";
-
-    if (!workerId) {
-      setBookingJobs([]);
-      setMarketJobs([]);
-      setLoading(false);
-      setError(null);
-
-      return;
-    }
-
     let mounted = true;
+
+    let unsubscribeBookings:
+      | (() => void)
+      | null = null;
+
+    let unsubscribeMarketOrders:
+      | (() => void)
+      | null = null;
 
     let bookingsLoaded = false;
     let marketOrdersLoaded = false;
 
-    const finishLoading =
-      () => {
-        if (!mounted) {
-          return;
-        }
+    const finishLoading = () => {
+      if (!mounted) {
+        return;
+      }
 
-        if (
-          bookingsLoaded &&
-          marketOrdersLoaded
-        ) {
-          setLoading(false);
-        }
-      };
+      if (
+        bookingsLoaded &&
+        marketOrdersLoaded
+      ) {
+        setLoading(false);
+      }
+    };
+
+    const stopListeners = () => {
+      unsubscribeBookings?.();
+      unsubscribeMarketOrders?.();
+
+      unsubscribeBookings = null;
+      unsubscribeMarketOrders = null;
+    };
 
     setLoading(true);
     setError(null);
 
     /* ==========================================================
-       BOOKINGS
+       AUTH
     ========================================================== */
 
-    const bookingsQuery =
-      query(
-        collection(
-          db,
-          "bookings",
-        ),
-
-        where(
-          "workerId",
-          "==",
-          workerId,
-        ),
-
-        limit(
-          BOOKING_READ_LIMIT,
-        ),
-      );
-
-    const unsubscribeBookings =
-      onSnapshot(
-        bookingsQuery,
-
-        (snapshot) => {
+    const unsubscribeAuth =
+      onAuthStateChanged(
+        auth,
+        (user: User | null) => {
           if (!mounted) {
             return;
           }
 
-          const bookings =
-            snapshot.docs
-              .map(
-                mapDocument,
-              )
-              .map(
-                (job) => ({
-                  ...job,
-                  type: "booking" as const,
-                }),
-              )
-              .filter(
-                isActiveJob,
-              );
+          stopListeners();
 
-          setBookingJobs(
-            bookings,
-          );
-
-          bookingsLoaded = true;
-
-          finishLoading();
-        },
-
-        (firebaseError) => {
-          if (!mounted) {
-            return;
-          }
-
-          console.error(
-            "FIXXAM_RECENT_BOOKINGS_ERROR:",
-            firebaseError,
-          );
+          bookingsLoaded = false;
+          marketOrdersLoaded = false;
 
           setBookingJobs([]);
-
-          setError(
-            firebaseError,
-          );
-
-          bookingsLoaded = true;
-
-          finishLoading();
-        },
-      );
-
-    /* ==========================================================
-       MARKET ORDERS
-    ========================================================== */
-
-    const marketOrdersQuery =
-      query(
-        collection(
-          db,
-          "orders",
-        ),
-
-        where(
-          "workerId",
-          "==",
-          workerId,
-        ),
-
-        limit(
-          MARKET_ORDER_READ_LIMIT,
-        ),
-      );
-
-    const unsubscribeMarketOrders =
-      onSnapshot(
-        marketOrdersQuery,
-
-        (snapshot) => {
-          if (!mounted) {
-            return;
-          }
-
-          const marketOrders =
-            snapshot.docs
-              .map(
-                mapDocument,
-              )
-              .map(
-                (job) => ({
-                  ...job,
-                  type: "market" as const,
-                }),
-              )
-              .filter(
-                isActiveJob,
-              );
-
-          setMarketJobs(
-            marketOrders,
-          );
-
-          marketOrdersLoaded =
-            true;
-
-          finishLoading();
-        },
-
-        (firebaseError) => {
-          if (!mounted) {
-            return;
-          }
-
-          console.error(
-            "FIXXAM_RECENT_MARKET_ORDERS_ERROR:",
-            firebaseError,
-          );
-
           setMarketJobs([]);
+          setError(null);
 
-          setError(
-            firebaseError,
+          if (!user?.uid) {
+            setLoading(false);
+            return;
+          }
+
+          const workerId = user.uid;
+
+          /* ====================================================
+             BOOKINGS
+          ==================================================== */
+
+          const bookingsQuery = query(
+            collection(db, "bookings"),
+            where(
+              "workerId",
+              "==",
+              workerId,
+            ),
+            limit(
+              BOOKING_READ_LIMIT,
+            ),
           );
 
-          marketOrdersLoaded =
-            true;
+          unsubscribeBookings =
+            onSnapshot(
+              bookingsQuery,
+              (snapshot) => {
+                if (!mounted) {
+                  return;
+                }
 
-          finishLoading();
+                const bookings =
+                  snapshot.docs
+                    .map(mapDocument)
+                    .map((job) => ({
+                      ...job,
+                      type:
+                        "booking" as const,
+                    }))
+                    .filter(
+                      isActiveJob,
+                    );
+
+                setBookingJobs(
+                  bookings,
+                );
+
+                bookingsLoaded = true;
+
+                finishLoading();
+              },
+              (firebaseError) => {
+                if (!mounted) {
+                  return;
+                }
+
+                console.warn(
+                  "FIXXAM_RECENT_BOOKINGS_ERROR",
+                  firebaseError,
+                );
+
+                setBookingJobs([]);
+
+                setError(
+                  firebaseError instanceof
+                    Error
+                    ? firebaseError
+                    : new Error(
+                        "Unable to load recent bookings.",
+                      ),
+                );
+
+                bookingsLoaded = true;
+
+                finishLoading();
+              },
+            );
+
+          /* ====================================================
+             MARKET ORDERS
+          ==================================================== */
+
+          const marketOrdersQuery =
+            query(
+              collection(
+                db,
+                "orders",
+              ),
+              where(
+                "workerId",
+                "==",
+                workerId,
+              ),
+              limit(
+                MARKET_ORDER_READ_LIMIT,
+              ),
+            );
+
+          unsubscribeMarketOrders =
+            onSnapshot(
+              marketOrdersQuery,
+              (snapshot) => {
+                if (!mounted) {
+                  return;
+                }
+
+                const marketOrders =
+                  snapshot.docs
+                    .map(mapDocument)
+                    .map((job) => ({
+                      ...job,
+                      type:
+                        "market" as const,
+                    }))
+                    .filter(
+                      isActiveJob,
+                    );
+
+                setMarketJobs(
+                  marketOrders,
+                );
+
+                marketOrdersLoaded =
+                  true;
+
+                finishLoading();
+              },
+              (firebaseError) => {
+                if (!mounted) {
+                  return;
+                }
+
+                console.warn(
+                  "FIXXAM_RECENT_MARKET_ORDERS_ERROR",
+                  firebaseError,
+                );
+
+                setMarketJobs([]);
+
+                setError(
+                  firebaseError instanceof
+                    Error
+                    ? firebaseError
+                    : new Error(
+                        "Unable to load recent market orders.",
+                      ),
+                );
+
+                marketOrdersLoaded =
+                  true;
+
+                finishLoading();
+              },
+            );
         },
       );
 
     return () => {
       mounted = false;
 
-      unsubscribeBookings();
-      unsubscribeMarketOrders();
+      unsubscribeAuth();
+
+      stopListeners();
     };
   }, []);
 
@@ -559,43 +508,31 @@ export function useRecentJobs(): RecentJobsState {
      FINAL JOBS
   ============================================================ */
 
-  const jobs =
-    useMemo<RecentJob[]>(
-      () => {
-        const combined =
-          uniqueJobs([
-            ...bookingJobs,
-            ...marketJobs,
-          ]);
+  const jobs = useMemo<RecentJob[]>(
+    () => {
+      const combined = uniqueJobs([
+        ...bookingJobs,
+        ...marketJobs,
+      ]);
 
-        const active =
-          combined.filter(
-            isActiveJob,
-          );
-
-        const sorted =
-          sortNewestFirst(
-            active,
-          );
-
-        /*
-         * IMPORTANT:
-         *
-         * Booking + Market orders
-         * dukansu suna cikin list daya.
-         *
-         * MAX = 2 kawai.
-         */
-        return sorted.slice(
-          0,
-          MAX_RECENT_JOBS,
+      const active =
+        combined.filter(
+          isActiveJob,
         );
-      },
-      [
-        bookingJobs,
-        marketJobs,
-      ],
-    );
+
+      const sorted =
+        sortNewestFirst(active);
+
+      return sorted.slice(
+        0,
+        MAX_RECENT_JOBS,
+      );
+    },
+    [
+      bookingJobs,
+      marketJobs,
+    ],
+  );
 
   /* ============================================================
      RESULT
@@ -614,9 +551,5 @@ export function useRecentJobs(): RecentJobsState {
     ],
   );
 }
-
-/* ==============================================================
-   DEFAULT
-============================================================== */
 
 export default useRecentJobs;

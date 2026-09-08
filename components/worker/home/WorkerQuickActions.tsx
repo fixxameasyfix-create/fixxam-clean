@@ -1,4 +1,8 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,13 +10,27 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  router,
+  type Href,
+} from "expo-router";
 
-import { router } from "expo-router";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
-import usePendingBookingsCount from "@/hooks/booking/usePendingBookingsCount";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+import useWorkerOrders from "@/hooks/orders/useWorkerOrders";
 
 /* ============================================================
    TYPES
@@ -20,141 +38,271 @@ import usePendingBookingsCount from "@/hooks/booking/usePendingBookingsCount";
 
 type ActionItem = {
   title: string;
-  icon: React.ComponentProps<
-    typeof Ionicons
-  >["name"];
-  route?: string;
+
+  icon: AppIconName;
+
+  route?: Href;
+
   badge?: string;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function getBadgeValue(
+  value: unknown,
+): string | undefined {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return undefined;
+  }
+
+  const count =
+    Math.floor(value);
+
+  return count > 99
+    ? "99+"
+    : String(count);
+}
 
 /* ============================================================
    COMPONENT
 ============================================================ */
 
 function WorkerQuickActions() {
-  const pendingCount =
-    usePendingBookingsCount();
+  /* ==========================================================
+     SINGLE SOURCE OF TRUTH
+  ========================================================== */
 
-  const actions: ActionItem[] = [
-    {
-      title: "Helping Box",
-      icon: "briefcase-outline",
-      route: "/(worker)/jobs/helping-box",
-    },
+  const {
+    counts,
+  } = useWorkerOrders();
 
-    {
-      title: "Profile",
-      icon: "person-outline",
-      route: "/(worker)/jobs/build-profile",
-    },
-
-    {
-      title: "New Jobs",
-      icon: "notifications-outline",
-      route: "/(worker)/new-job",
-      badge:
-        pendingCount > 0
-          ? String(pendingCount)
-          : undefined,
-    },
-
-    {
-      title: "Specialise",
-      icon: "locate-outline",
-      route: "/(worker)/specialise",
-    },
-
-    {
-      title: "Market",
-      icon: "cart-outline",
-      route: "/(worker)/(tabs)/my-products",
-    },
-
-    {
-      title: "More",
-      icon: "grid-outline",
-    },
-  ];
-
-  const handlePress = (
-    item: ActionItem,
-  ) => {
-    if (!item.route) {
-      return;
-    }
-
-    router.push(
-      item.route as never,
+  const pendingBadge =
+    getBadgeValue(
+      counts.pending,
     );
-  };
+
+  /* ==========================================================
+     ACTIONS
+  ========================================================== */
+
+  const actions =
+    useMemo<ActionItem[]>(
+      () => [
+        {
+          title:
+            "Helping Box",
+
+          icon:
+            "jobs",
+
+          route:
+            "/(worker)/jobs/helping-box",
+        },
+
+        {
+          title:
+            "Profile",
+
+          icon:
+            "profile",
+
+          route:
+            "/(worker)/jobs/build-profile",
+        },
+
+        {
+          title:
+            "New Jobs",
+
+          icon:
+            "notifications",
+
+          route:
+            "/(worker)/new-job",
+
+          badge:
+            pendingBadge,
+        },
+
+        {
+          title:
+            "Specialise",
+
+          icon:
+            "locate",
+
+          route:
+            "/(worker)/specialise",
+        },
+
+        {
+          title:
+            "Market",
+
+          icon:
+            "cart",
+
+          route:
+            "/(worker)/(tabs)/my-products",
+        },
+
+        {
+          title:
+            "More",
+
+          icon:
+            "grid",
+        },
+      ],
+      [
+        pendingBadge,
+      ],
+    );
+
+  /* ==========================================================
+     NAVIGATION
+  ========================================================== */
+
+  const handlePress =
+    useCallback(
+      (
+        item: ActionItem,
+      ) => {
+        if (
+          !item.route
+        ) {
+          return;
+        }
+
+        router.push(
+          item.route,
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     UI
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
-      <View style={styles.grid}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={
+          styles.grid
+        }
+      >
         {actions.map(
-          (item) => (
-            <Pressable
-              key={item.title}
-              accessibilityRole="button"
-              accessibilityLabel={
-                item.title
-              }
-              onPress={() =>
-                handlePress(item)
-              }
-              style={({ pressed }) => [
-                styles.item,
-                pressed &&
-                  styles.pressed,
-              ]}
-            >
-              <View
-                style={
-                  styles.iconWrapper
-                }
-              >
-                <Ionicons
-                  name={
-                    item.icon
-                  }
-                  size={22}
-                  color="#FF6B00"
-                />
+          item => {
+            const accessibilityLabel =
+              item.badge
+                ? `${item.title}, ${item.badge} pending`
+                : item.title;
 
-                {item.badge && (
-                  <View
-                    style={
-                      styles.badge
+            return (
+              <Pressable
+                key={
+                  item.title
+                }
+                onPress={() => {
+                  handlePress(
+                    item,
+                  );
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  accessibilityLabel
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.item,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
+              >
+                {/* ============================================
+                    ICON
+                ============================================ */}
+
+                <View
+                  style={
+                    styles.iconWrapper
+                  }
+                >
+                  <AppIcon
+                    name={
+                      item.icon
                     }
-                  >
-                    <AppText
-                      weight="bold"
+                    role="worker"
+                    size="md"
+                    color={
+                      WorkerColors.primary
+                    }
+                  />
+
+                  {/* ==========================================
+                      BADGE
+                  ========================================== */}
+
+                  {item.badge ? (
+                    <View
                       style={
-                        styles.badgeText
+                        styles.badge
                       }
                     >
-                      {item.badge}
-                    </AppText>
-                  </View>
-                )}
-              </View>
+                      <AppText
+                        weight="bold"
+                        numberOfLines={1}
+                        style={
+                          styles.badgeText
+                        }
+                      >
+                        {item.badge}
+                      </AppText>
+                    </View>
+                  ) : null}
+                </View>
 
-              <AppText
-                weight="medium"
-                numberOfLines={1}
-                style={
-                  styles.title
-                }
-              >
-                {item.title}
-              </AppText>
-            </Pressable>
-          ),
+                {/* ============================================
+                    TITLE
+                ============================================ */}
+
+                <AppText
+                  variant="caption"
+                  weight="medium"
+                  numberOfLines={1}
+                  center
+                  style={
+                    styles.title
+                  }
+                >
+                  {item.title}
+                </AppText>
+              </Pressable>
+            );
+          },
         )}
       </View>
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
 
 WorkerQuickActions.displayName =
   "WorkerQuickActions";
@@ -167,109 +315,168 @@ export default memo(
    STYLES
 ============================================================ */
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-    marginBottom: 14,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-    backgroundColor: "#FFFFFF",
+    container: {
+      width: "100%",
 
-    borderRadius: 20,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+      borderWidth: 1,
 
-    shadowColor: "#000000",
-    shadowOpacity: 0.045,
-    shadowRadius: 8,
+      borderColor:
+        Colors.border,
 
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 2,
-  },
+    /* ========================================================
+       GRID
+    ======================================================== */
 
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
+    grid: {
+      flexDirection:
+        "row",
 
-  item: {
-    width: "25%",
+      flexWrap:
+        "wrap",
+    },
 
-    minHeight: 76,
+    item: {
+      width:
+        "33.333%",
 
-    alignItems: "center",
-    justifyContent: "center",
+      minHeight: 90,
 
-    paddingHorizontal: 3,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-  iconWrapper: {
-    width: 46,
-    height: 46,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-    borderRadius: 15,
+      alignItems:
+        "center",
 
-    backgroundColor: "#FFF7ED",
+      justifyContent:
+        "center",
+    },
 
-    alignItems: "center",
-    justifyContent: "center",
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-    position: "relative",
-  },
+    iconWrapper: {
+      width:
+        FixxamTokens.size.iconBox,
 
-  title: {
-    marginTop: 7,
+      height:
+        FixxamTokens.size.iconBox,
 
-    fontSize: 10.5,
-    lineHeight: 14,
+      position:
+        "relative",
 
-    color: "#475569",
+      alignItems:
+        "center",
 
-    textAlign: "center",
-  },
+      justifyContent:
+        "center",
 
-  badge: {
-    position: "absolute",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    top: -5,
-    right: -5,
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
 
-    minWidth: 18,
-    height: 18,
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
-    paddingHorizontal: 4,
+    title: {
+      width: "100%",
 
-    borderRadius: 999,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#EF4444",
+      color:
+        Colors.textSecondary,
+    },
 
-    alignItems: "center",
-    justifyContent: "center",
+    /* ========================================================
+       BADGE
+    ======================================================== */
 
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
+    badge: {
+      position:
+        "absolute",
 
-  badgeText: {
-    color: "#FFFFFF",
+      top: -6,
 
-    fontSize: 8,
-    lineHeight: 10,
-  },
+      right: -6,
 
-  pressed: {
-    opacity: 0.55,
-    transform: [
-      {
-        scale: 0.96,
-      },
-    ],
-  },
-});
+      minWidth: 20,
+
+      height: 20,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    badgeText: {
+      fontSize: 9,
+
+      lineHeight: 11,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

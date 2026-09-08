@@ -1,60 +1,50 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  View,
   StyleSheet,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
 import {
-  CustomerColors,
-  WorkerColors,
+  FixxamTokens,
+  type FixxamRole,
 } from "@/theme";
 
 type Props = {
   title: string;
   subtitle: string;
-  icon?: keyof typeof Ionicons.glyphMap;
+
+  icon?: string;
+
+  role?: FixxamRole;
+
+  // Legacy support
   variant?: "customer" | "worker";
 };
 
-export default function AuthHeader({
+function AuthHeader({
   title,
   subtitle,
-  icon = "person-circle",
-  variant = "customer",
+  icon = "profile",
+  role = "customer",
+  variant,
 }: Props) {
-  const primaryColor =
-    variant === "worker"
-      ? WorkerColors.primary
-      : CustomerColors.primary;
-
-  const secondaryColor =
-    variant === "worker"
-      ? WorkerColors.textSecondary
-      : CustomerColors.textSecondary;
+  const resolvedRole: FixxamRole =
+    variant ?? role;
 
   return (
     <View style={styles.container}>
-      <View
-        style={[
-          styles.iconBox,
-          {
-            backgroundColor: `${primaryColor}12`,
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={30}
-          color={primaryColor}
-        />
-      </View>
+      <AppIcon
+        name={icon}
+        role={resolvedRole}
+        state="active"
+        size="xl"
+      />
 
       <AppText
-        weight="bold"
+        variant="heading1"
         center
         style={styles.title}
       >
@@ -62,13 +52,10 @@ export default function AuthHeader({
       </AppText>
 
       <AppText
+        variant="body"
+        tone="secondary"
         center
-        style={[
-          styles.subtitle,
-          {
-            color: secondaryColor,
-          },
-        ]}
+        style={styles.subtitle}
       >
         {subtitle}
       </AppText>
@@ -78,46 +65,24 @@ export default function AuthHeader({
 
 const styles = StyleSheet.create({
   container: {
+    width: "100%",
     alignItems: "center",
 
-    paddingTop: 6,
-    paddingBottom: 18,
-
-    paddingHorizontal: 20,
-  },
-
-  iconBox: {
-    width: 56,
-    height: 56,
-
-    borderRadius: 16,
-
-    justifyContent: "center",
-    alignItems: "center",
-
-    marginBottom: 12,
+    marginBottom:
+      FixxamTokens.spacing.xxl,
   },
 
   title: {
-    fontSize: 24,
-    fontWeight: "800",
+    marginTop:
+      FixxamTokens.spacing.md,
 
-    color: "#0B2D6B",
-
-    textAlign: "center",
-
-    letterSpacing: 0.3,
-
-    marginBottom: 5,
+    marginBottom:
+      FixxamTokens.spacing.xs,
   },
 
   subtitle: {
-    fontSize: 13,
-
-    lineHeight: 20,
-
-    textAlign: "center",
-
-    paddingHorizontal: 28,
+    maxWidth: 320,
   },
 });
+
+export default memo(AuthHeader);

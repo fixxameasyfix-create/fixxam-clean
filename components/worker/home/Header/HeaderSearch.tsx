@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useState,
+} from "react";
 
 import {
   Pressable,
@@ -9,130 +12,352 @@ import {
 
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import {
+  AppIcon,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  Typography,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Props = {
   value: string;
-  onChangeText: (text: string) => void;
+
+  onChangeText: (
+    text: string,
+  ) => void;
+
   onFilter?: () => void;
+
   onVoiceSearch?: () => void;
 };
 
-export default function HeaderSearch({
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function HeaderSearch({
   value,
   onChangeText,
   onFilter,
   onVoiceSearch,
 }: Props) {
+  const [
+    focused,
+    setFocused,
+  ] = useState(false);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.searchBox}>
-        <Ionicons
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
+
+      <View
+        style={[
+          styles.searchBox,
+
+          focused
+            ? styles.searchBoxFocused
+            : null,
+        ]}
+      >
+        <AppIcon
           name="search"
-          size={12}
-          color="#94A3B8"
+          size="sm"
+          color={
+            focused
+              ? WorkerColors.primary
+              : Colors.textMuted
+          }
         />
 
         <TextInput
-          value={value}
-          onChangeText={onChangeText}
+          value={
+            value
+          }
+          onChangeText={
+            onChangeText
+          }
+          onFocus={() => {
+            setFocused(
+              true,
+            );
+          }}
+          onBlur={() => {
+            setFocused(
+              false,
+            );
+          }}
           placeholder="Search jobs, customers..."
-          placeholderTextColor="#94A3B8"
-          style={styles.input}
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          selectionColor={
+            WorkerColors.primary
+          }
+          cursorColor={
+            WorkerColors.primary
+          }
+          style={
+            styles.input
+          }
           returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+          maxLength={120}
+          accessibilityLabel="Search jobs and customers"
         />
 
-        <Pressable
-          hitSlop={4}
-          onPress={onVoiceSearch}
-        >
-          <Ionicons
-            name="mic-outline"
-            size={12}
-            color="#94A3B8"
-          />
-        </Pressable>
+        {onVoiceSearch ? (
+          <Pressable
+            onPress={
+              onVoiceSearch
+            }
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Voice search"
+            style={({
+              pressed,
+            }) => [
+              styles.trailingButton,
+
+              pressed
+                ? styles.trailingPressed
+                : null,
+            ]}
+          >
+            <Ionicons
+              name="mic-outline"
+              size={20}
+              color={
+                Colors.textMuted
+              }
+            />
+          </Pressable>
+        ) : null}
       </View>
 
+      {/* ======================================================
+          FILTER
+      ====================================================== */}
+
       <Pressable
-        style={styles.filter}
-        onPress={onFilter}
+        onPress={
+          onFilter
+        }
+        disabled={
+          !onFilter
+        }
+        accessibilityRole={
+          onFilter
+            ? "button"
+            : undefined
+        }
+        accessibilityLabel="Filter search results"
+        style={({
+          pressed,
+        }) => [
+          styles.filter,
+
+          pressed &&
+          onFilter
+            ? styles.filterPressed
+            : null,
+
+          !onFilter
+            ? styles.filterDisabled
+            : null,
+        ]}
       >
-        <Ionicons
-          name="options-outline"
-          size={17}
-          color="#FFFFFF"
+        <AppIcon
+          name="filter"
+          role="worker"
+          size="sm"
+          color={
+            Colors.textInverse
+          }
         />
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
-    marginBottom: 14,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  searchBox: {
-    flex: 1,
-    height: 40,
+HeaderSearch.displayName =
+  "HeaderSearch";
 
-    flexDirection: "row",
-    alignItems: "center",
+export default memo(
+  HeaderSearch,
+);
 
-    paddingHorizontal: 12,
+/* ============================================================
+   STYLES
+============================================================ */
 
-    backgroundColor: "#FFFFFF",
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    borderRadius: 12,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    shadowColor: "#000",
-    shadowOpacity: 0.02,
-    shadowRadius: 4,
-    shadowOffset: {
-      width: 0,
-      height: 1,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    elevation: 1,
-  },
+    /* ========================================================
+       SEARCH
+    ======================================================== */
 
-  input: {
-    flex: 1,
-    marginLeft: 8,
+    searchBox: {
+      flex: 1,
 
-    fontSize: 13,
-    color: "#0F172A",
+      minWidth: 0,
 
-    paddingVertical: 0,
-    includeFontPadding: false,
-  },
+      height:
+        FixxamTokens.size.inputHeight,
 
-  filter: {
-    width: 40,
-    height: 40,
+      paddingLeft:
+        FixxamTokens.spacing.md,
 
-    marginLeft: 8,
+      paddingRight:
+        FixxamTokens.spacing.xs,
 
-    borderRadius: 12,
+      flexDirection:
+        "row",
 
-    justifyContent: "center",
-    alignItems: "center",
+      alignItems:
+        "center",
 
-    backgroundColor: "#FF6B00",
+      borderWidth: 1,
 
-    shadowColor: "#FF6B00",
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    elevation: 2,
-  },
-});
+    searchBoxFocused: {
+      borderColor:
+        WorkerColors.primary,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      height: "100%",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      color:
+        Colors.textPrimary,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      includeFontPadding:
+        false,
+    },
+
+    trailingButton: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    trailingPressed: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    /* ========================================================
+       FILTER
+    ======================================================== */
+
+    filter: {
+      width:
+        FixxamTokens.size.inputHeight,
+
+      height:
+        FixxamTokens.size.inputHeight,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    filterPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+
+    filterDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+  });

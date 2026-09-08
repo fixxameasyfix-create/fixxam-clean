@@ -1,23 +1,32 @@
 import React, {
   memo,
+  useCallback,
   useMemo,
   useRef,
 } from "react";
 
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+import type {
   MenuAnchor,
 } from "../products/ProductPopupMenu/ProductPopupMenu.types";
 
@@ -57,7 +66,7 @@ type Props = {
    HELPERS
 ============================================================== */
 
-function getNumber(
+function getSafeNumber(
   value: unknown,
 ): number {
   if (
@@ -70,12 +79,20 @@ function getNumber(
   if (
     typeof value === "string"
   ) {
+    const cleaned =
+      value
+        .replace(
+          /[₦,\s]/g,
+          "",
+        )
+        .trim();
+
+    if (!cleaned) {
+      return 0;
+    }
+
     const parsed =
-      Number(
-        value
-          .replace(/[₦,\s]/g, "")
-          .trim(),
-      );
+      Number(cleaned);
 
     return Number.isFinite(
       parsed,
@@ -87,6 +104,20 @@ function getNumber(
   return 0;
 }
 
+function getSafeText(
+  value: unknown,
+  fallback = "",
+): string {
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  return fallback;
+}
+
 /* ==============================================================
    MONEY
 ============================================================== */
@@ -94,16 +125,20 @@ function getNumber(
 function formatMoney(
   value: number,
 ): string {
-  if (
-    !Number.isFinite(value) ||
-    value < 0
-  ) {
-    return "₦0";
-  }
+  const safeValue =
+    Number.isFinite(value)
+      ? Math.max(
+          0,
+          value,
+        )
+      : 0;
 
-  return `₦${Math.round(
-    value,
-  ).toLocaleString("en-NG")}`;
+  return `₦${safeValue.toLocaleString(
+    "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
+  )}`;
 }
 
 /* ==============================================================
@@ -123,19 +158,72 @@ function ProductCard({
   onMore,
 }: Props) {
   const moreButtonRef =
-    useRef<View>(null);
+    useRef<View>(
+      null,
+    );
+
+  /* ============================================================
+     DISPLAY VALUES
+  ============================================================ */
+
+  const safeWidth =
+    useMemo(
+      () =>
+        Number.isFinite(
+          width,
+        )
+          ? Math.max(
+              140,
+              width,
+            )
+          : 156,
+      [width],
+    );
+
+  const displayTitle =
+    useMemo(
+      () =>
+        getSafeText(
+          title,
+          "Unnamed Product",
+        ),
+      [title],
+    );
+
+  const displayCategory =
+    useMemo(
+      () =>
+        getSafeText(
+          category,
+          "Others",
+        ),
+      [category],
+    );
+
+  const displayThumbnail =
+    useMemo(
+      () =>
+        getSafeText(
+          thumbnail,
+        ),
+      [thumbnail],
+    );
 
   /* ============================================================
      ORIGINAL PRICE
   ============================================================ */
 
   const originalPrice =
-    useMemo(() => {
-      return Math.max(
-        0,
-        getNumber(price),
-      );
-    }, [price]);
+    useMemo(
+      () =>
+        Math.max(
+          0,
+          getSafeNumber(
+            price,
+          ),
+        ),
+      [price],
+    );
 
   /* ============================================================
      DISCOUNT
@@ -144,7 +232,7 @@ function ProductCard({
   const discount =
     useMemo(() => {
       const value =
-        getNumber(
+        getSafeNumber(
           discountPercent,
         );
 
@@ -173,7 +261,7 @@ function ProductCard({
   const salePrice =
     useMemo(() => {
       const value =
-        getNumber(
+        getSafeNumber(
           discountedPrice,
         );
 
@@ -188,9 +276,9 @@ function ProductCard({
 
       return value;
     }, [
+      discount,
       discountedPrice,
       originalPrice,
-      discount,
     ]);
 
   /* ============================================================
@@ -201,39 +289,57 @@ function ProductCard({
     originalPrice > 0 &&
     discount > 0 &&
     salePrice > 0 &&
-    salePrice < originalPrice;
-
-  /* ============================================================
-     SAVING
-  ============================================================ */
+    salePrice <
+      originalPrice;
 
   const saving =
     hasDiscount
-      ? originalPrice -
-        salePrice
+      ? Math.max(
+          0,
+          originalPrice -
+            salePrice,
+        )
       : 0;
 
   /* ============================================================
      STOCK
   ============================================================ */
 
-  const hasStock =
-    typeof stock ===
-      "number" &&
-    Number.isFinite(
+  const safeStock =
+    useMemo(() => {
+      if (
+        typeof stock !==
+          "number" ||
+        !Number.isFinite(
+          stock,
+        )
+      ) {
+        return null;
+      }
+
+      return Math.max(
+        0,
+        Math.floor(
+          stock,
+        ),
+      );
+    }, [
       stock,
-    );
+    ]);
+
+  const hasStock =
+    safeStock !== null;
 
   const inStock =
     hasStock &&
-    (stock as number) > 0;
+    safeStock > 0;
 
   /* ============================================================
      MORE MENU
   ============================================================ */
 
   const handleMore =
-    () => {
+    useCallback(() => {
       if (!onMore) {
         return;
       }
@@ -243,18 +349,38 @@ function ProductCard({
           x,
           y,
           measuredWidth,
-          height,
+          measuredHeight,
         ) => {
           onMore({
             x,
             y,
+
             width:
               measuredWidth,
-            height,
+
+            height:
+              measuredHeight,
           });
         },
       );
-    };
+    }, [
+      onMore,
+    ]);
+
+  /* ============================================================
+     ACCESSIBILITY
+  ============================================================ */
+
+  const accessibilityLabel =
+    hasDiscount
+      ? `${displayTitle}, ${Math.round(
+          discount,
+        )}% discount, ${formatMoney(
+          salePrice,
+        )}`
+      : `${displayTitle}, ${formatMoney(
+          originalPrice,
+        )}`;
 
   /* ============================================================
      RENDER
@@ -262,28 +388,32 @@ function ProductCard({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={
+        onPress
+      }
       accessibilityRole="button"
       accessibilityLabel={
-        hasDiscount
-          ? `${title}, ${Math.round(
-              discount,
-            )}% discount, ${formatMoney(
-              salePrice,
-            )}`
-          : `${title}, ${formatMoney(
-              originalPrice,
-            )}`
+        accessibilityLabel
       }
-      style={({ pressed }) => [
+      style={({
+        pressed,
+      }) => [
         styles.card,
+
         {
-          width,
-          minWidth: width,
-          maxWidth: width,
+          width:
+            safeWidth,
+
+          minWidth:
+            safeWidth,
+
+          maxWidth:
+            safeWidth,
         },
-        pressed &&
-          styles.cardPressed,
+
+        pressed
+          ? styles.cardPressed
+          : null,
       ]}
     >
       {/* ======================================================
@@ -293,40 +423,56 @@ function ProductCard({
       <View
         style={[
           styles.imageContainer,
+
           {
-            width,
+            width:
+              safeWidth,
           },
         ]}
       >
-        {thumbnail ? (
+        {displayThumbnail ? (
           <Image
             source={{
-              uri: thumbnail,
+              uri:
+                displayThumbnail,
             }}
             style={[
               styles.image,
+
               {
-                width,
+                width:
+                  safeWidth,
               },
             ]}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={150}
+            recyclingKey={
+              displayThumbnail
+            }
+            accessibilityLabel={`${displayTitle} product image`}
           />
         ) : (
           <View
             style={[
               styles.placeholder,
+
               {
-                width,
+                width:
+                  safeWidth,
               },
             ]}
           >
-            <Ionicons
-              name="image-outline"
-              size={34}
-              color="#CBD5E1"
+            <AppIcon
+              name="image"
+              size="lg"
+              color={
+                Colors.disabled
+              }
             />
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.noImageText
               }
@@ -340,30 +486,34 @@ function ProductCard({
             DISCOUNT BADGE
         ==================================================== */}
 
-        {hasDiscount && (
+        {hasDiscount ? (
           <View
             style={
               styles.discountBadge
             }
           >
             <AppText
+              variant="caption"
               weight="bold"
+              numberOfLines={1}
               style={
                 styles.discountText
               }
             >
-              -{Math.round(
+              -
+              {Math.round(
                 discount,
-              )}% OFF
+              )}
+              % OFF
             </AppText>
           </View>
-        )}
+        ) : null}
 
         {/* ====================================================
             MORE MENU
         ==================================================== */}
 
-        {onMore && (
+        {onMore ? (
           <View
             ref={
               moreButtonRef
@@ -376,57 +526,71 @@ function ProductCard({
             }
           >
             <Pressable
-              onPress={(
-                event,
-              ) => {
-                event.stopPropagation();
-                handleMore();
-              }}
-              hitSlop={8}
+              onPress={
+                event => {
+                  event.stopPropagation();
+
+                  handleMore();
+                }
+              }
+              hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={`More options for ${title}`}
-              style={({ pressed }) => [
+              accessibilityLabel={`More options for ${displayTitle}`}
+              style={({
+                pressed,
+              }) => [
                 styles.moreButton,
-                pressed &&
-                  styles.morePressed,
+
+                pressed
+                  ? styles.morePressed
+                  : null,
               ]}
             >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={18}
-                color="#334155"
+              <AppIcon
+                name="more"
+                size="sm"
+                color={
+                  Colors.textPrimary
+                }
               />
             </Pressable>
           </View>
-        )}
+        ) : null}
 
         {/* ====================================================
             STOCK
         ==================================================== */}
 
-        {hasStock && (
+        {hasStock ? (
           <View
             style={[
               styles.stockBadge,
-              !inStock &&
-                styles.outOfStock,
+
+              !inStock
+                ? styles.outOfStock
+                : null,
             ]}
           >
             <View
               style={[
                 styles.stockDot,
-                !inStock &&
-                  styles.outOfStockDot,
+
+                !inStock
+                  ? styles.outOfStockDot
+                  : null,
               ]}
             />
 
             <AppText
+              variant="caption"
               weight="bold"
               numberOfLines={1}
               style={[
                 styles.stockText,
-                !inStock &&
-                  styles.outStockText,
+
+                !inStock
+                  ? styles.outStockText
+                  : null,
               ]}
             >
               {inStock
@@ -434,7 +598,7 @@ function ProductCard({
                 : "Out of Stock"}
             </AppText>
           </View>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -444,8 +608,10 @@ function ProductCard({
       <View
         style={[
           styles.content,
+
           {
-            width,
+            width:
+              safeWidth,
           },
         ]}
       >
@@ -454,6 +620,7 @@ function ProductCard({
         ==================================================== */}
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
           numberOfLines={1}
           ellipsizeMode="tail"
@@ -461,8 +628,7 @@ function ProductCard({
             styles.title
           }
         >
-          {title ||
-            "Unnamed Product"}
+          {displayTitle}
         </AppText>
 
         {/* ====================================================
@@ -470,14 +636,15 @@ function ProductCard({
         ==================================================== */}
 
         <AppText
+          variant="caption"
+          tone="secondary"
           numberOfLines={1}
           ellipsizeMode="tail"
           style={
             styles.category
           }
         >
-          {category ||
-            "Others"}
+          {displayCategory}
         </AppText>
 
         {/* ====================================================
@@ -492,6 +659,7 @@ function ProductCard({
               }
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 numberOfLines={1}
                 style={
@@ -504,6 +672,7 @@ function ProductCard({
               </AppText>
 
               <AppText
+                variant="caption"
                 numberOfLines={1}
                 style={
                   styles.originalPrice
@@ -515,9 +684,9 @@ function ProductCard({
               </AppText>
             </View>
 
-            {/* SAVING */}
-
             <AppText
+              variant="caption"
+              weight="medium"
               numberOfLines={1}
               style={
                 styles.saveText
@@ -531,9 +700,8 @@ function ProductCard({
           </>
         ) : (
           <>
-            {/* NORMAL PRICE */}
-
             <AppText
+              variant="bodyMedium"
               weight="bold"
               numberOfLines={1}
               style={
@@ -545,15 +713,15 @@ function ProductCard({
               )}
             </AppText>
 
-            {/* NO SAVING */}
-
             <AppText
+              variant="caption"
+              tone="secondary"
               numberOfLines={1}
               style={
-                styles.notSaveText
+                styles.regularPriceText
               }
             >
-              Not Save
+              Regular price
             </AppText>
           </>
         )}
@@ -589,39 +757,33 @@ const styles =
       alignSelf:
         "flex-start",
 
-      backgroundColor:
-        "#FFFFFF",
-
-      borderRadius: 18,
-
-      overflow: "hidden",
+      overflow:
+        "hidden",
 
       borderWidth: 1,
 
       borderColor:
-        "#EEF1F5",
+        Colors.border,
 
-      shadowColor:
-        "#000000",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      shadowOpacity: 0.06,
+      backgroundColor:
+        Colors.surface,
 
-      shadowRadius: 9,
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      elevation: 3,
+      ...FixxamTokens.shadow.card,
     },
 
     cardPressed: {
-      opacity: 0.94,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
@@ -633,21 +795,21 @@ const styles =
     imageContainer: {
       height: 150,
 
-      backgroundColor:
-        "#F1F5F9",
-
       position:
         "relative",
 
       overflow:
         "hidden",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     image: {
       height: 150,
 
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     placeholder: {
@@ -660,16 +822,15 @@ const styles =
         "center",
 
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     noImageText: {
-      marginTop: 4,
-
-      fontSize: 12,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       color:
-        "#94A3B8",
+        Colors.textMuted,
     },
 
     /* ==========================================================
@@ -680,66 +841,72 @@ const styles =
       position:
         "absolute",
 
-      top: 8,
+      top:
+        FixxamTokens.spacing.sm,
 
-      left: 8,
-
-      backgroundColor:
-        "#DC2626",
-
-      paddingHorizontal: 8,
-
-      paddingVertical: 5,
-
-      borderRadius: 7,
+      left:
+        FixxamTokens.spacing.sm,
 
       zIndex: 5,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.sm,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     discountText: {
       color:
-        "#FFFFFF",
-
-      fontSize: 10,
-
-      lineHeight: 13,
+        Colors.textInverse,
     },
 
     /* ==========================================================
-       MORE MENU
+       MORE
     ========================================================== */
 
     moreWrapper: {
       position:
         "absolute",
 
-      top: 8,
+      top:
+        FixxamTokens.spacing.sm,
 
-      right: 8,
+      right:
+        FixxamTokens.spacing.sm,
 
       zIndex: 10,
     },
 
     moreButton: {
-      width: 32,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      height: 32,
-
-      borderRadius: 16,
-
-      backgroundColor:
-        "rgba(255,255,255,0.94)",
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     morePressed: {
       backgroundColor:
-        "#E2E8F0",
+        Colors.disabledBackground,
     },
 
     /* ==========================================================
@@ -750,9 +917,21 @@ const styles =
       position:
         "absolute",
 
-      right: 8,
+      right:
+        FixxamTokens.spacing.sm,
 
-      bottom: 8,
+      bottom:
+        FixxamTokens.spacing.sm,
+
+      zIndex: 5,
+
+      maxWidth: 105,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -760,18 +939,11 @@ const styles =
       alignItems:
         "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#DCFCE7",
-
-      paddingHorizontal: 9,
-
-      paddingVertical: 5,
-
-      borderRadius: 15,
-
-      zIndex: 5,
-
-      maxWidth: 100,
+        Colors.successSoft,
     },
 
     stockDot: {
@@ -779,36 +951,34 @@ const styles =
 
       height: 6,
 
-      borderRadius: 3,
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#16A34A",
-
-      marginRight: 5,
+        Colors.success,
     },
 
     stockText: {
       color:
-        "#15803D",
-
-      fontSize: 9,
-
-      lineHeight: 12,
+        Colors.success,
     },
 
     outOfStock: {
       backgroundColor:
-        "#FEE2E2",
+        Colors.errorSoft,
     },
 
     outOfStockDot: {
       backgroundColor:
-        "#DC2626",
+        Colors.error,
     },
 
     outStockText: {
       color:
-        "#DC2626",
+        Colors.error,
     },
 
     /* ==========================================================
@@ -816,46 +986,44 @@ const styles =
     ========================================================== */
 
     content: {
-      paddingHorizontal: 11,
+      minHeight: 96,
 
-      paddingTop: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      paddingBottom: 12,
+      paddingTop:
+        FixxamTokens.spacing.sm,
 
-      minHeight: 91,
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
       backgroundColor:
-        "#FFFFFF",
+        Colors.surface,
     },
 
     title: {
-      fontSize: 14.5,
-
-      lineHeight: 19,
+      marginBottom:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#0F172A",
-
-      marginBottom: 3,
+        Colors.textPrimary,
     },
 
     category: {
-      fontSize: 11,
-
-      lineHeight: 15,
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
       color:
-        "#94A3B8",
-
-      marginBottom: 5,
+        Colors.textMuted,
     },
 
     /* ==========================================================
-       PRICE ROW
+       PRICE
     ========================================================== */
 
     priceRow: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       flexDirection:
         "row",
@@ -863,82 +1031,52 @@ const styles =
       alignItems:
         "center",
 
-      gap: 5,
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     discountedPrice: {
-      color:
-        "#FF6B00",
-
-      fontSize: 15,
-
-      lineHeight: 19,
-
       flexShrink: 1,
+
+      color:
+        WorkerColors.primary,
     },
 
     originalPrice: {
+      flexShrink: 1,
+
       color:
-        "#94A3B8",
-
-      fontSize: 10,
-
-      lineHeight: 14,
+        Colors.textMuted,
 
       textDecorationLine:
         "line-through",
-
-      flexShrink: 1,
     },
-
-    /* ==========================================================
-       NORMAL PRICE
-    ========================================================== */
 
     price: {
-      marginTop: 3,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#FF6B00",
-
-      fontSize: 16,
-
-      lineHeight: 20,
+        WorkerColors.primary,
     },
 
     /* ==========================================================
-       SAVE
+       PRICE META
     ========================================================== */
 
     saveText: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#16A34A",
-
-      fontSize: 10,
-
-      lineHeight: 14,
-
-      fontWeight:
-        "600",
+        Colors.success,
     },
 
-    /* ==========================================================
-       NOT SAVE
-    ========================================================== */
-
-    notSaveText: {
-      marginTop: 2,
+    regularPriceText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#94A3B8",
-
-      fontSize: 10,
-
-      lineHeight: 14,
-
-      fontWeight:
-        "600",
+        Colors.textMuted,
     },
   });

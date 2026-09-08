@@ -1,60 +1,123 @@
-import React, { memo } from "react";
-import { StyleSheet, View } from "react-native";
+import React, {
+  memo,
+} from "react";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import WorkerOfferHeader from "./WorkerOfferHeader";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
 import WorkerOfferAmount from "./WorkerOfferAmount";
+import WorkerOfferHeader from "./WorkerOfferHeader";
 import WorkerOfferMessage from "./WorkerOfferMessage";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   amount: number;
+
   message?: string | null;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function WorkerOfferSentCard({
   amount,
   message,
 }: Props) {
   return (
-    <View style={styles.card}>
+    <View
+      accessible
+      accessibilityLabel="Offer sent. Waiting for the customer to respond."
+      style={styles.card}
+    >
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
       <WorkerOfferHeader
         title="Offer Sent"
         subtitle="Your offer is waiting for the customer."
-        icon="paper-plane-outline"
+        icon="check"
       />
+
+      {/* ======================================================
+          AMOUNT
+      ====================================================== */}
 
       <WorkerOfferAmount
         label="YOUR OFFER"
         amount={amount}
       />
 
+      {/* ======================================================
+          MESSAGE
+      ====================================================== */}
+
       <WorkerOfferMessage
         message={message}
       />
 
-      <View style={styles.waiting}>
-        <View style={styles.waitingIcon}>
-          <Ionicons
-            name="time-outline"
-            size={19}
-            color="#2563EB"
+      {/* ======================================================
+          WAITING STATUS
+      ====================================================== */}
+
+      <View
+        style={styles.waiting}
+      >
+        <View
+          style={
+            styles.waitingIcon
+          }
+        >
+          <AppIcon
+            name="clock"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
-        <View style={styles.waitingContent}>
+        <View
+          style={
+            styles.waitingContent
+          }
+        >
           <AppText
+            variant="caption"
             weight="bold"
-            style={styles.waitingTitle}
+            style={
+              styles.waitingTitle
+            }
           >
             WAITING FOR CUSTOMER
           </AppText>
 
-          <AppText style={styles.waitingText}>
-            The customer can accept or respond
-            with a counter offer.
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.waitingText
+            }
+          >
+            The customer can accept or respond with a counter offer.
           </AppText>
         </View>
       </View>
@@ -62,49 +125,104 @@ function WorkerOfferSentCard({
   );
 }
 
-export default memo(WorkerOfferSentCard);
+export default memo(
+  WorkerOfferSentCard,
+);
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: "#FAF8FF",
-    borderWidth: 1,
-    borderColor: "#DDD6FE",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  waiting: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 13,
-    backgroundColor: "#EFF6FF",
-    flexDirection: "row",
-    alignItems: "center",
-  },
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-  waitingIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    card: {
+      padding:
+        FixxamTokens.spacing.md,
 
-  waitingContent: {
-    flex: 1,
-    marginLeft: 9,
-  },
+      borderWidth: 1,
 
-  waitingTitle: {
-    fontSize: 9.5,
-    color: "#2563EB",
-  },
+      borderColor:
+        Colors.border,
 
-  waitingText: {
-    marginTop: 3,
-    fontSize: 9.5,
-    lineHeight: 14,
-    color: "#64748B",
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    /* ========================================================
+       WAITING
+    ======================================================== */
+
+    waiting: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    waitingIcon: {
+      width: 40,
+
+      height: 40,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    waitingContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    waitingTitle: {
+      letterSpacing: 0.3,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    waitingText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+    },
+  });

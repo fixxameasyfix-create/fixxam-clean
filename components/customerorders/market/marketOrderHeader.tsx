@@ -1,16 +1,28 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useState,
+} from "react";
 
 import {
-  Image,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import type {
   MarketProduct,
@@ -25,23 +37,27 @@ import {
   type MarketStatus,
 } from "./marketOrder.utils";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
 type Props = {
   orderId: string;
+
   status: MarketStatus;
+
   createdAt: unknown;
+
   products: MarketProduct[];
+
   storeName: string;
 };
 
-/* ==============================================================
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
-export default function MarketOrderHeader({
+function MarketOrderHeaderComponent({
   orderId,
   status,
   createdAt,
@@ -75,57 +91,33 @@ export default function MarketOrderHeader({
 
   return (
     <View
-      style={
-        styles.card
-      }
+      style={styles.card}
+      accessibilityLabel={`${productName}. Order ${orderNumber}. ${statusConfig.label}. Store ${storeName}.`}
     >
-      {/* ========================================================
+      {/* ======================================================
           ORDER INFORMATION
-      ======================================================== */}
+      ====================================================== */}
 
       <View
-        style={
-          styles.orderRow
-        }
+        style={styles.orderRow}
       >
-        {/* PRODUCT IMAGE */}
+        <ProductThumbnail
+          image={
+            productImage
+          }
+          productName={
+            productName
+          }
+        />
 
         <View
-          style={
-            styles.imageContainer
-          }
-        >
-          {productImage ? (
-            <Image
-              source={{
-                uri: productImage,
-              }}
-              style={
-                styles.productImage
-              }
-            />
-          ) : (
-            <Ionicons
-              name="bag-handle-outline"
-              size={28}
-              color="#2563EB"
-            />
-          )}
-        </View>
-
-        {/* ORDER INFO */}
-
-        <View
-          style={
-            styles.orderInfo
-          }
+          style={styles.orderInfo}
         >
           <View
-            style={
-              styles.titleRow
-            }
+            style={styles.titleRow}
           >
             <AppText
+              variant="bodyLarge"
               weight="bold"
               numberOfLines={2}
               style={
@@ -155,6 +147,7 @@ export default function MarketOrderHeader({
               />
 
               <AppText
+                variant="caption"
                 weight="bold"
                 style={[
                   styles.statusText,
@@ -164,14 +157,13 @@ export default function MarketOrderHeader({
                   },
                 ]}
               >
-                {
-                  statusConfig.label
-                }
+                {statusConfig.label}
               </AppText>
             </View>
           </View>
 
           <AppText
+            variant="caption"
             style={
               styles.orderIdLabel
             }
@@ -180,7 +172,9 @@ export default function MarketOrderHeader({
           </AppText>
 
           <AppText
+            variant="caption"
             weight="bold"
+            numberOfLines={1}
             style={
               styles.orderId
             }
@@ -188,54 +182,57 @@ export default function MarketOrderHeader({
             {orderNumber}
           </AppText>
 
-          <AppText
-            style={
-              styles.orderedDate
-            }
-          >
-            Ordered on{" "}
-            {orderedDate}
-          </AppText>
+          {orderedDate ? (
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.orderedDate
+              }
+            >
+              Ordered on{" "}
+              {orderedDate}
+            </AppText>
+          ) : null}
         </View>
       </View>
 
-      {/* ========================================================
-          SELLER / STORE
-      ======================================================== */}
+      {/* ======================================================
+          STORE
+      ====================================================== */}
 
       <View
-        style={
-          styles.storeRow
-        }
+        style={styles.storeRow}
       >
         <View
-          style={
-            styles.storeIcon
-          }
+          style={styles.storeIcon}
         >
-          <Ionicons
-            name="storefront-outline"
-            size={20}
-            color="#64748B"
+          <AppIcon
+            name="cart"
+            role="customer"
+            size="sm"
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <View
-          style={
-            styles.storeInfo
-          }
+          style={styles.storeInfo}
         >
           <AppText
+            variant="caption"
             weight="bold"
+            numberOfLines={1}
             style={
               styles.storeName
             }
-            numberOfLines={1}
           >
             {storeName}
           </AppText>
 
           <AppText
+            variant="caption"
             style={
               styles.storeLabel
             }
@@ -248,21 +245,123 @@ export default function MarketOrderHeader({
   );
 }
 
-/* ==============================================================
+/* ============================================================
+   PRODUCT THUMBNAIL
+============================================================ */
+
+function ProductThumbnail({
+  image,
+  productName,
+}: {
+  image:
+    | string
+    | null;
+
+  productName: string;
+}) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
+
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+  }, [
+    image,
+  ]);
+
+  const safeImage =
+    typeof image === "string"
+      ? image.trim()
+      : "";
+
+  const showImage =
+    safeImage.length > 0 &&
+    !imageFailed;
+
+  return (
+    <View
+      style={
+        styles.imageContainer
+      }
+    >
+      {showImage ? (
+        <Image
+          source={{
+            uri: safeImage,
+          }}
+          contentFit="cover"
+          transition={150}
+          accessibilityLabel={`${productName} product image`}
+          onError={() => {
+            setImageFailed(
+              true,
+            );
+          }}
+          style={
+            styles.productImage
+          }
+        />
+      ) : (
+        <AppIcon
+          name="package"
+          role="customer"
+          size="lg"
+          color={
+            CustomerColors.primary
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+const MarketOrderHeader =
+  memo(
+    MarketOrderHeaderComponent,
+  );
+
+MarketOrderHeader.displayName =
+  "MarketOrderHeader";
+
+export default MarketOrderHeader;
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -270,86 +369,143 @@ const styles =
     ======================================================== */
 
     orderRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
     },
 
     imageContainer: {
-      width: 72,
-      height: 72,
-      borderRadius: 18,
-      overflow: "hidden",
-      backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.avatarXl,
+
+      height:
+        FixxamTokens.size.avatarXl,
+
+      flexShrink: 0,
+
+      overflow:
+        "hidden",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     productImage: {
       width: "100%",
+
       height: "100%",
-      resizeMode: "cover",
     },
 
     orderInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 12,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     titleRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
       justifyContent:
         "space-between",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     productName: {
       flex: 1,
+
       minWidth: 0,
-      fontSize: 16,
-      lineHeight: 21,
-      color: "#0F172A",
+
+      color:
+        Colors.textPrimary,
     },
 
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
     statusBadge: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 999,
+      flexShrink: 0,
+
+      minHeight: 26,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.chip,
     },
 
     statusDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 3,
-      marginRight: 5,
+      width: 6,
+
+      height: 6,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     statusText: {
-      fontSize: 7.5,
       letterSpacing: 0.2,
     },
 
+    /* ========================================================
+       ORDER META
+    ======================================================== */
+
     orderIdLabel: {
-      marginTop: 7,
-      fontSize: 8.5,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textMuted,
     },
 
     orderId: {
-      marginTop: 1,
-      fontSize: 10,
-      color: "#334155",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textPrimary,
     },
 
     orderedDate: {
-      marginTop: 4,
-      fontSize: 8.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -357,40 +513,65 @@ const styles =
     ======================================================== */
 
     storeRow: {
-      marginTop: 13,
-      paddingTop: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderTopWidth: 1,
+
       borderTopColor:
-        "#F1F5F9",
-      flexDirection: "row",
-      alignItems: "center",
+        Colors.divider,
     },
 
     storeIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 11,
-      backgroundColor:
-        "#F8FAFC",
-      alignItems: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     storeInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 9,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     storeName: {
-      fontSize: 11,
-      color: "#334155",
+      color:
+        Colors.textPrimary,
     },
 
     storeLabel: {
-      marginTop: 2,
-      fontSize: 8,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
     },
   });

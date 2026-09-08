@@ -1,4 +1,6 @@
-import React, { useMemo } from "react";
+import React, {
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -6,25 +8,51 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   hasCustomerAccount: boolean;
 
   onSwitchCustomer: () => void;
+
   onCreateCustomer: () => void;
 
   onJobs: () => void;
+
   onProducts: () => void;
+
   onOrders: () => void;
+
   onEarnings: () => void;
+
   onOnlineStatus: () => void;
+
   onBusinessAddress: () => void;
+
   onNotifications: () => void;
+
   onReviews: () => void;
+
   onSupport: () => void;
+
   onSettings: () => void;
 
   onLogout: () => void;
@@ -32,12 +60,19 @@ type Props = {
 
 type MenuItem = {
   label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
+
+  icon: AppIconName;
+
+  onPress?: () => void;
 };
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function WorkerProfile({
   hasCustomerAccount,
+
   onSwitchCustomer,
   onCreateCustomer,
 
@@ -54,165 +89,266 @@ export default function WorkerProfile({
 
   onLogout,
 }: Props) {
-  const menuItems = useMemo<MenuItem[]>(
-    () => [
-      {
-        label: "My Jobs",
-        icon: "briefcase-outline",
-        onPress: onJobs,
-      },
-      {
-        label: "My Products",
-        icon: "cube-outline",
-        onPress: onProducts,
-      },
-      {
-        label: "Orders",
-        icon: "receipt-outline",
-        onPress: onOrders,
-      },
-      {
-        label: "Promotions",
-        icon: "pricetag-outline",
-        onPress: () => {},
-      },
-      {
-        label: "Earnings",
-        icon: "wallet-outline",
-        onPress: onEarnings,
-      },
-      {
-        label: "Saved",
-        icon: "bookmark-outline",
-        onPress: () => {},
-      },
-      {
-        label: "Reviews",
-        icon: "star-outline",
-        onPress: onReviews,
-      },
-      {
-        label: "Online / Offline",
-        icon: "radio-outline",
-        onPress: onOnlineStatus,
-      },
-      {
-        label: "Business Address",
-        icon: "location-outline",
-        onPress: onBusinessAddress,
-      },
-      {
-        label: "Notifications",
-        icon: "notifications-outline",
-        onPress: onNotifications,
-      },
-      {
-        label: "Help & Support",
-        icon: "help-circle-outline",
-        onPress: onSupport,
-      },
-      {
-        label: "Settings",
-        icon: "settings-outline",
-        onPress: onSettings,
-      },
-    ],
-    [
-      onJobs,
-      onProducts,
-      onOrders,
-      onEarnings,
-      onOnlineStatus,
-      onBusinessAddress,
-      onNotifications,
-      onReviews,
-      onSupport,
-      onSettings,
-    ],
-  );
+  /* ==========================================================
+     MENU
+  ========================================================== */
 
-  const handleCustomerAction = () => {
-    if (hasCustomerAccount) {
-      onSwitchCustomer();
-      return;
-    }
+  const menuItems =
+    useMemo<MenuItem[]>(
+      () => [
+        {
+          label: "My Jobs",
+          icon: "jobs",
+          onPress:
+            onJobs,
+        },
 
-    onCreateCustomer();
-  };
+        {
+          label: "My Products",
+          icon: "package",
+          onPress:
+            onProducts,
+        },
+
+        {
+          label: "Orders",
+          icon: "file",
+          onPress:
+            onOrders,
+        },
+
+        /*
+         * No real callback exists yet.
+         */
+        {
+          label: "Promotions",
+          icon: "info",
+        },
+
+        {
+          label: "Earnings",
+          icon: "wallet",
+          onPress:
+            onEarnings,
+        },
+
+        /*
+         * No real callback exists yet.
+         */
+        {
+          label: "Saved",
+          icon: "heart",
+        },
+
+        {
+          label: "Reviews",
+          icon: "star",
+          onPress:
+            onReviews,
+        },
+
+        {
+          label:
+            "Online / Offline",
+          icon: "wifi-off",
+          onPress:
+            onOnlineStatus,
+        },
+
+        {
+          label:
+            "Business Address",
+          icon: "location",
+          onPress:
+            onBusinessAddress,
+        },
+
+        {
+          label:
+            "Notifications",
+          icon:
+            "notifications",
+          onPress:
+            onNotifications,
+        },
+
+        {
+          label:
+            "Help & Support",
+          icon: "help",
+          onPress:
+            onSupport,
+        },
+
+        {
+          label: "Settings",
+          icon: "settings",
+          onPress:
+            onSettings,
+        },
+      ],
+      [
+        onBusinessAddress,
+        onEarnings,
+        onJobs,
+        onNotifications,
+        onOnlineStatus,
+        onOrders,
+        onProducts,
+        onReviews,
+        onSettings,
+        onSupport,
+      ],
+    );
+
+  /* ==========================================================
+     CUSTOMER ACTION
+  ========================================================== */
+
+  const handleCustomerAction =
+    () => {
+      if (
+        hasCustomerAccount
+      ) {
+        onSwitchCustomer();
+
+        return;
+      }
+
+      onCreateCustomer();
+    };
+
+  const customerTitle =
+    hasCustomerAccount
+      ? "Customer Mode"
+      : "Unlock Customer";
+
+  const customerDescription =
+    hasCustomerAccount
+      ? "Book services & shop instantly."
+      : "Create a customer profile in seconds.";
+
+  const customerActionLabel =
+    hasCustomerAccount
+      ? "Continue"
+      : "Start";
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* =====================================================
-          CUSTOMER MODE
+          WORKER → CUSTOMER
       ===================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.customerCard,
-          pressed &&
-            styles.customerCardPressed,
-        ]}
-        onPress={handleCustomerAction}
+        onPress={
+          handleCustomerAction
+        }
         accessibilityRole="button"
         accessibilityLabel={
           hasCustomerAccount
             ? "Switch to customer mode"
             : "Create customer account"
         }
+        accessibilityHint={
+          hasCustomerAccount
+            ? "Switches to your customer account"
+            : "Starts customer account setup"
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.customerCard,
+
+          pressed
+            ? styles.customerCardPressed
+            : null,
+        ]}
       >
-        <View style={styles.cardTop}>
-          <View style={styles.iconBox}>
-            <Ionicons
-              name={
-                hasCustomerAccount
-                  ? "swap-horizontal"
-                  : "person-add"
-              }
-              size={19}
-              color="#2563EB"
-            />
-          </View>
+        {/* CUSTOMER ICON */}
 
-          <View
-            style={styles.customerContent}
+        <View
+          style={
+            styles.customerIcon
+          }
+        >
+          <AppIcon
+            name={
+              hasCustomerAccount
+                ? "refresh"
+                : "profile"
+            }
+            role="customer"
+            size="md"
+            color={
+              CustomerColors.primary
+            }
+          />
+        </View>
+
+        {/* CONTENT */}
+
+        <View
+          style={
+            styles.customerContent
+          }
+        >
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.customerTitle
+            }
           >
-            <AppText
-              weight="bold"
-              style={styles.customerTitle}
-              numberOfLines={1}
-            >
-              {hasCustomerAccount
-                ? "Customer Mode"
-                : "Unlock Customer"}
-            </AppText>
+            {customerTitle}
+          </AppText>
 
-            <AppText
-              style={styles.customerText}
-              numberOfLines={1}
-            >
-              {hasCustomerAccount
-                ? "Book services & shop instantly."
-                : "Create a customer profile in seconds."}
-            </AppText>
-          </View>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={2}
+            style={
+              styles.customerText
+            }
+          >
+            {customerDescription}
+          </AppText>
+        </View>
 
-          {/* Small inline arrow instead of large button */}
-          <View style={styles.continueButton}>
-            <AppText
-              weight="bold"
-              style={styles.buttonText}
-            >
-              {hasCustomerAccount
-                ? "Continue"
-                : "Start"}
-            </AppText>
+        {/* ACTION */}
 
-            <Ionicons
-              name="arrow-forward"
-              size={14}
-              color="#FFFFFF"
-            />
-          </View>
+        <View
+          style={
+            styles.continueButton
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.buttonText
+            }
+          >
+            {customerActionLabel}
+          </AppText>
+
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
         </View>
       </Pressable>
 
@@ -220,53 +356,119 @@ export default function WorkerProfile({
           WORKER MENU
       ===================================================== */}
 
-      <View style={styles.menu}>
+      <View
+        style={styles.menu}
+      >
         {menuItems.map(
-          (item, index) => (
-            <Pressable
-              key={item.label}
-              style={({ pressed }) => [
-                styles.row,
-                index ===
-                  menuItems.length - 1 &&
-                  styles.lastRow,
-                pressed &&
-                  styles.rowPressed,
-              ]}
-              onPress={item.onPress}
-              accessibilityRole="button"
-              accessibilityLabel={
-                item.label
-              }
-            >
-              <View
-                style={styles.rowLeft}
+          (
+            item,
+            index,
+          ) => {
+            const isLast =
+              index ===
+              menuItems.length -
+                1;
+
+            const isDisabled =
+              !item.onPress;
+
+            return (
+              <Pressable
+                key={
+                  item.label
+                }
+                onPress={
+                  item.onPress
+                }
+                disabled={
+                  isDisabled
+                }
+                accessibilityRole="button"
+                accessibilityLabel={
+                  item.label
+                }
+                accessibilityState={{
+                  disabled:
+                    isDisabled,
+                }}
+                style={({
+                  pressed,
+                }) => [
+                  styles.row,
+
+                  !isLast
+                    ? styles.rowBorder
+                    : null,
+
+                  isDisabled
+                    ? styles.rowDisabled
+                    : null,
+
+                  pressed &&
+                  !isDisabled
+                    ? styles.rowPressed
+                    : null,
+                ]}
               >
+                {/* LEFT */}
+
                 <View
-                  style={styles.rowIcon}
+                  style={
+                    styles.rowLeft
+                  }
                 >
-                  <Ionicons
-                    name={item.icon}
-                    size={18}
-                    color="#64748B"
-                  />
+                  <View
+                    style={
+                      styles.rowIcon
+                    }
+                  >
+                    <AppIcon
+                      name={
+                        item.icon
+                      }
+                      role="worker"
+                      size="sm"
+                      color={
+                        isDisabled
+                          ? Colors.textMuted
+                          : WorkerColors.primary
+                      }
+                    />
+                  </View>
+
+                  <AppText
+                    variant="body"
+                    numberOfLines={1}
+                    style={[
+                      styles.rowText,
+
+                      isDisabled
+                        ? styles.disabledText
+                        : null,
+                    ]}
+                  >
+                    {item.label}
+                  </AppText>
                 </View>
 
-                <AppText
-                  style={styles.rowText}
-                  numberOfLines={1}
-                >
-                  {item.label}
-                </AppText>
-              </View>
+                {/* RIGHT */}
 
-              <Ionicons
-                name="chevron-forward"
-                size={17}
-                color="#94A3B8"
-              />
-            </Pressable>
-          ),
+                {isDisabled ? (
+                  <AppIcon
+                    name="lock"
+                    size="xs"
+                    state="muted"
+                  />
+                ) : (
+                  <AppIcon
+                    name="next"
+                    size="xs"
+                    state="muted"
+                  />
+                )}
+              </Pressable>
+            );
+          },
         )}
       </View>
 
@@ -275,24 +477,36 @@ export default function WorkerProfile({
       ===================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.logout,
-          pressed &&
-            styles.logoutPressed,
-        ]}
-        onPress={onLogout}
+        onPress={
+          onLogout
+        }
         accessibilityRole="button"
         accessibilityLabel="Logout"
+        style={({
+          pressed,
+        }) => [
+          styles.logout,
+
+          pressed
+            ? styles.logoutPressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="log-out-outline"
-          size={18}
-          color="#DC2626"
+        <AppIcon
+          name="logout"
+          size="sm"
+          state="error"
+          color={
+            Colors.error
+          }
         />
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.logoutText}
+          style={
+            styles.logoutText
+          }
         >
           Logout
         </AppText>
@@ -301,181 +515,237 @@ export default function WorkerProfile({
   );
 }
 
+/* ============================================================
+   STYLES
+============================================================ */
+
 const styles =
   StyleSheet.create({
+    container: {
+      width: "100%",
+    },
+
     /* ========================================================
        CUSTOMER MODE
     ======================================================== */
 
     customerCard: {
-      marginBottom: 8,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      padding: 10,
+      padding:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 17,
+      flexDirection: "row",
 
-      backgroundColor: "#FFFFFF",
+      alignItems: "center",
 
       borderWidth: 1,
-      borderColor: "#E2E8F0",
 
-      shadowColor: "#000",
-      shadowOpacity: 0.04,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      borderColor:
+        CustomerColors.primary,
 
-      elevation: 2,
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      ...FixxamTokens.shadow.card,
     },
 
     customerCardPressed: {
-      opacity: 0.88,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.99,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },
 
-    cardTop: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
+    customerIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    iconBox: {
-      width: 42,
-      height: 42,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      borderRadius: 13,
-
-      backgroundColor: "#EFF6FF",
+      flexShrink: 0,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      marginRight: 10,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     customerContent: {
       flex: 1,
+
       minWidth: 0,
 
-      marginRight: 8,
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
     },
 
     customerTitle: {
-      fontSize: 14,
-      lineHeight: 18,
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     customerText: {
-      marginTop: 2,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
-      fontSize: 10.5,
-      lineHeight: 14,
-
-      color: "#F97316",
+      lineHeight: 16,
     },
 
     continueButton: {
-      height: 38,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-      paddingHorizontal: 12,
+      flexShrink: 0,
 
-      borderRadius: 12,
-
-      backgroundColor: "#F97316",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
+
       alignItems: "center",
-      justifyContent: "center",
 
-      gap: 5,
+      justifyContent:
+        "center",
 
-      shadowColor: "#F97316",
-      shadowOpacity: 0.18,
-      shadowRadius: 5,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+      gap:
+        FixxamTokens.spacing.xxs,
 
-      elevation: 2,
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     buttonText: {
-      color: "#FFFFFF",
-      fontSize: 11.5,
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
-       MENU
+       WORKER MENU
     ======================================================== */
 
     menu: {
-      backgroundColor: "#FFFFFF",
-
-      borderRadius: 17,
+      overflow: "hidden",
 
       borderWidth: 1,
-      borderColor: "#E2E8F0",
 
-      overflow: "hidden",
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     row: {
-      minHeight: 52,
+      minHeight: 56,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
 
-      borderBottomWidth: 1,
-      borderBottomColor: "#F1F5F9",
+      alignItems: "center",
+
+      justifyContent:
+        "space-between",
     },
 
-    lastRow: {
-      borderBottomWidth: 0,
+    rowBorder: {
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
     },
 
     rowPressed: {
-      backgroundColor: "#F8FAFC",
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    rowDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     rowLeft: {
       flex: 1,
+
       minWidth: 0,
 
       flexDirection: "row",
+
       alignItems: "center",
     },
 
     rowIcon: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-      borderRadius: 12,
+      height:
+        FixxamTokens.size
+          .iconBox,
 
-      backgroundColor: "#F8FAFC",
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
 
       alignItems: "center",
-      justifyContent: "center",
 
-      marginRight: 10,
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     rowText: {
       flex: 1,
 
-      fontSize: 13,
-      lineHeight: 18,
+      minWidth: 0,
 
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
+    },
+
+    disabledText: {
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
@@ -483,27 +753,54 @@ const styles =
     ======================================================== */
 
     logout: {
-      marginTop: 8,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-      height: 46,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      borderRadius: 14,
-
-      backgroundColor: "#FEE2E2",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
 
-      gap: 7,
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.error,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     logoutPressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
 
     logoutText: {
-      fontSize: 13,
-      color: "#DC2626",
+      color:
+        Colors.error,
     },
   });

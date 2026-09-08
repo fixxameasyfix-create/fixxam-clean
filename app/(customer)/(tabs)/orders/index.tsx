@@ -6,7 +6,6 @@ import React, {
 } from "react";
 
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,10 +13,6 @@ import {
 } from "react-native";
 
 import { router } from "expo-router";
-
-import {
-  onAuthStateChanged,
-} from "firebase/auth";
 
 import {
   collection,
@@ -31,10 +26,11 @@ import {
   AppText,
 } from "@/components/ui";
 
-import {
-  auth,
-  db,
-} from "@/firebase/config";
+import AppLoader from "@/components/common/AppLoader";
+
+import { db } from "@/firebase/config";
+
+import { useAuth } from "@/hooks/useAuth";
 
 import OrderDeletionManager, {
   type OrderDeletionCounts,
@@ -42,13 +38,9 @@ import OrderDeletionManager, {
 } from "@/components/orders/OrderDeletionManager";
 
 import OrderCard from "@/components/customerorders/orderCard";
-
 import MarketOrderCard from "@/components/customerorders/marketOrderCard";
-
 import OrderEmptyState from "@/components/customerorders/orderEmptyState";
-
 import OrdersHeader from "@/components/customerorders/ordersHeader";
-
 import OrderSummary from "@/components/customerorders/ordersSummary";
 
 import type {
@@ -65,70 +57,100 @@ import {
   mapMarketOrder,
 } from "@/components/customerorders/orders.utils";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function matchesFilter(
+  status: string,
+  filter: FilterType,
+): boolean {
+  switch (filter) {
+    case "pending":
+      return status === "pending";
+
+    case "active":
+      return (
+        status === "accepted" ||
+        status === "in-progress"
+      );
+
+    case "completed":
+      return status === "completed";
+
+    case "cancelled":
+      return (
+        status === "cancelled" ||
+        status === "expired"
+      );
+
+    case "all":
+    default:
+      return true;
+  }
+}
+
 /* ==============================================================
    SCREEN
 ============================================================== */
 
 export default function OrdersScreen() {
-  /* ============================================================
-     AUTH
-  ============================================================ */
+  const {
+    user,
+    loading: authLoading,
+  } = useAuth();
 
-  const [
-    authenticated,
-    setAuthenticated,
-  ] = useState(false);
-
-  /* ============================================================
-     FILTER
-  ============================================================ */
+  const authenticated =
+    Boolean(user);
 
   const [
     selectedFilter,
     setSelectedFilter,
-  ] = useState<FilterType>("all");
-
-  /* ============================================================
-     SERVICE ORDERS
-  ============================================================ */
+  ] =
+    useState<FilterType>("all");
 
   const [
     orders,
     setOrders,
   ] = useState<Order[]>([]);
 
-  /* ============================================================
-     MARKET ORDERS
-  ============================================================ */
-
   const [
     marketOrders,
     setMarketOrders,
-  ] = useState<MarketOrder[]>([]);
-
-  /* ============================================================
-     LOADING
-  ============================================================ */
+  ] =
+    useState<MarketOrder[]>([]);
 
   const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  /* ============================================================
-     ERROR
-  ============================================================ */
+    serviceLoading,
+    setServiceLoading,
+  ] = useState(false);
 
   const [
-    error,
-    setError,
-  ] = useState<string | null>(
-    null,
-  );
+    marketLoading,
+    setMarketLoading,
+  ] = useState(false);
 
-  /* ============================================================
-     MANAGEMENT
-  ============================================================ */
+  const [
+    serviceError,
+    setServiceError,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    marketError,
+    setMarketError,
+  ] =
+    useState<string | null>(
+      null,
+    );
 
   const [
     managementVisible,
@@ -136,220 +158,167 @@ export default function OrdersScreen() {
   ] = useState(false);
 
   /* ============================================================
-     AUTH + FIRESTORE LISTENERS
+     FIRESTORE LISTENERS
   ============================================================ */
 
   useEffect(() => {
-    let unsubscribeBookings:
-      | (() => void)
-      | undefined;
+    if (!user) {
+      setOrders([]);
+      setMarketOrders([]);
 
-    let unsubscribeMarket:
-      | (() => void)
-      | undefined;
+      setServiceLoading(false);
+      setMarketLoading(false);
 
-    const unsubscribeAuth =
-      onAuthStateChanged(
-        auth,
-        (user) => {
-          /* -----------------------------------------------
-             CLEAN PREVIOUS LISTENERS
-          ------------------------------------------------ */
+      setServiceError(null);
+      setMarketError(null);
 
-          unsubscribeBookings?.();
-          unsubscribeMarket?.();
+      setManagementVisible(false);
 
-          unsubscribeBookings =
-            undefined;
+      return;
+    }
 
-          unsubscribeMarket =
-            undefined;
+    setServiceLoading(true);
+    setMarketLoading(true);
 
-          /* -----------------------------------------------
-             NOT AUTHENTICATED
-          ------------------------------------------------ */
+    setServiceError(null);
+    setMarketError(null);
 
-          if (!user) {
-            setAuthenticated(
-              false,
-            );
+    /* ========================================================
+       SERVICE ORDERS
+    ======================================================== */
 
-            setOrders([]);
+    const bookingsQuery = query(
+      collection(
+        db,
+        "bookings",
+      ),
+      where(
+        "customerId",
+        "==",
+        user.uid,
+      ),
+    );
 
-            setMarketOrders([]);
+    const unsubscribeBookings =
+      onSnapshot(
+        bookingsQuery,
 
-            setError(null);
+        (snapshot) => {
+          const nextOrders =
+            snapshot.docs
+              .map((document) =>
+                mapFirestoreOrder(
+                  document.id,
+                  document.data(),
+                ),
+              )
+              .sort(
+                (a, b) =>
+                  getTimestampMillis(
+                    b.createdAt,
+                  ) -
+                  getTimestampMillis(
+                    a.createdAt,
+                  ),
+              );
 
-            setLoading(false);
+          setOrders(nextOrders);
 
-            setManagementVisible(
-              false,
-            );
+          setServiceLoading(false);
+          setServiceError(null);
+        },
 
-            return;
-          }
-
-          /* -----------------------------------------------
-             AUTHENTICATED
-          ------------------------------------------------ */
-
-          setAuthenticated(
-            true,
+        (error) => {
+          console.error(
+            "CUSTOMER_ORDERS_LISTENER_ERROR:",
+            error,
           );
 
-          setLoading(true);
+          setOrders([]);
 
-          setError(null);
+          setServiceLoading(false);
 
-          /* ==================================================
-             SERVICE ORDERS
-          ================================================== */
-
-          const bookingsRef =
-            collection(
-              db,
-              "bookings",
-            );
-
-          const bookingsQuery =
-            query(
-              bookingsRef,
-              where(
-                "customerId",
-                "==",
-                user.uid,
-              ),
-            );
-
-          unsubscribeBookings =
-            onSnapshot(
-              bookingsQuery,
-
-              (snapshot) => {
-                const nextOrders =
-                  snapshot.docs
-                    .map(
-                      (document) =>
-                        mapFirestoreOrder(
-                          document.id,
-                          document.data(),
-                        ),
-                    )
-                    .sort(
-                      (a, b) =>
-                        getTimestampMillis(
-                          b.createdAt,
-                        ) -
-                        getTimestampMillis(
-                          a.createdAt,
-                        ),
-                    );
-
-                setOrders(
-                  nextOrders,
-                );
-
-                setLoading(false);
-
-                setError(null);
-              },
-
-              (snapshotError) => {
-                console.error(
-                  "CUSTOMER_ORDERS_LISTENER_ERROR:",
-                  snapshotError,
-                );
-
-                setOrders([]);
-
-                setLoading(false);
-
-                setError(
-                  getOrdersErrorMessage(
-                    snapshotError,
-                  ),
-                );
-              },
-            );
-
-          /* ==================================================
-             MARKET ORDERS
-          ================================================== */
-
-          const marketRef =
-            collection(
-              db,
-              "orders",
-            );
-
-          const marketQuery =
-            query(
-              marketRef,
-              where(
-                "customerId",
-                "==",
-                user.uid,
-              ),
-            );
-
-          unsubscribeMarket =
-            onSnapshot(
-              marketQuery,
-
-              (snapshot) => {
-                const nextMarketOrders =
-                  snapshot.docs
-                    .map(
-                      (document) =>
-                        mapMarketOrder(
-                          document.id,
-                          document.data(),
-                        ),
-                    )
-                    .sort(
-                      (a, b) =>
-                        getTimestampMillis(
-                          b.createdAt,
-                        ) -
-                        getTimestampMillis(
-                          a.createdAt,
-                        ),
-                    );
-
-                setMarketOrders(
-                  nextMarketOrders,
-                );
-              },
-
-              (marketError) => {
-                console.error(
-                  "CUSTOMER_MARKET_ORDERS_LISTENER_ERROR:",
-                  marketError,
-                );
-
-                setMarketOrders(
-                  [],
-                );
-              },
-            );
+          setServiceError(
+            getOrdersErrorMessage(
+              error,
+            ),
+          );
         },
       );
 
     /* ========================================================
-       CLEANUP
+       MARKET ORDERS
     ======================================================== */
 
+    const marketQuery = query(
+      collection(
+        db,
+        "orders",
+      ),
+      where(
+        "customerId",
+        "==",
+        user.uid,
+      ),
+    );
+
+    const unsubscribeMarket =
+      onSnapshot(
+        marketQuery,
+
+        (snapshot) => {
+          const nextMarketOrders =
+            snapshot.docs
+              .map((document) =>
+                mapMarketOrder(
+                  document.id,
+                  document.data(),
+                ),
+              )
+              .sort(
+                (a, b) =>
+                  getTimestampMillis(
+                    b.createdAt,
+                  ) -
+                  getTimestampMillis(
+                    a.createdAt,
+                  ),
+              );
+
+          setMarketOrders(
+            nextMarketOrders,
+          );
+
+          setMarketLoading(false);
+          setMarketError(null);
+        },
+
+        (error) => {
+          console.error(
+            "CUSTOMER_MARKET_ORDERS_LISTENER_ERROR:",
+            error,
+          );
+
+          setMarketOrders([]);
+
+          setMarketLoading(false);
+
+          setMarketError(
+            getOrdersErrorMessage(
+              error,
+            ),
+          );
+        },
+      );
+
     return () => {
-      unsubscribeBookings?.();
-
-      unsubscribeMarket?.();
-
-      unsubscribeAuth();
+      unsubscribeBookings();
+      unsubscribeMarket();
     };
-  }, []);
+  }, [user]);
 
   /* ============================================================
-     ORDER COUNTS
+     COUNTS
   ============================================================ */
 
   const orderCounts =
@@ -385,6 +354,9 @@ export default function OrdersScreen() {
               case "expired":
                 counts.cancelled += 1;
                 break;
+
+              default:
+                break;
             }
 
             return counts;
@@ -398,120 +370,26 @@ export default function OrdersScreen() {
         );
       },
       [
-        orders,
         marketOrders,
+        orders,
       ],
     );
 
   /* ============================================================
-     FILTER SERVICE ORDERS
-  ============================================================ */
-
-  const filteredOrders =
-    useMemo(() => {
-      switch (
-        selectedFilter
-      ) {
-        case "pending":
-          return orders.filter(
-            (order) =>
-              order.status ===
-              "pending",
-          );
-
-        case "active":
-          return orders.filter(
-            (order) =>
-              order.status ===
-                "accepted" ||
-              order.status ===
-                "in-progress",
-          );
-
-        case "completed":
-          return orders.filter(
-            (order) =>
-              order.status ===
-              "completed",
-          );
-
-        case "cancelled":
-          return orders.filter(
-            (order) =>
-              order.status ===
-                "cancelled" ||
-              order.status ===
-                "expired",
-          );
-
-        case "all":
-        default:
-          return orders;
-      }
-    }, [
-      orders,
-      selectedFilter,
-    ]);
-
-  /* ============================================================
-     FILTER MARKET ORDERS
-  ============================================================ */
-
-  const filteredMarketOrders =
-    useMemo(() => {
-      switch (
-        selectedFilter
-      ) {
-        case "pending":
-          return marketOrders.filter(
-            (order) =>
-              order.status ===
-              "pending",
-          );
-
-        case "active":
-          return marketOrders.filter(
-            (order) =>
-              order.status ===
-                "accepted" ||
-              order.status ===
-                "in-progress",
-          );
-
-        case "completed":
-          return marketOrders.filter(
-            (order) =>
-              order.status ===
-              "completed",
-          );
-
-        case "cancelled":
-          return marketOrders.filter(
-            (order) =>
-              order.status ===
-                "cancelled" ||
-              order.status ===
-                "expired",
-          );
-
-        case "all":
-        default:
-          return marketOrders;
-      }
-    }, [
-      marketOrders,
-      selectedFilter,
-    ]);
-
-  /* ============================================================
-     COMBINE + SORT
+     COMBINE + FILTER + SORT
   ============================================================ */
 
   const combinedOrders =
     useMemo(() => {
       const serviceItems =
-        filteredOrders.map(
-          (order) => ({
+        orders
+          .filter((order) =>
+            matchesFilter(
+              order.status,
+              selectedFilter,
+            ),
+          )
+          .map((order) => ({
             type:
               "service" as const,
 
@@ -521,12 +399,17 @@ export default function OrdersScreen() {
               getTimestampMillis(
                 order.createdAt,
               ),
-          }),
-        );
+          }));
 
       const marketItems =
-        filteredMarketOrders.map(
-          (order) => ({
+        marketOrders
+          .filter((order) =>
+            matchesFilter(
+              order.status,
+              selectedFilter,
+            ),
+          )
+          .map((order) => ({
             type:
               "market" as const,
 
@@ -536,8 +419,7 @@ export default function OrdersScreen() {
               getTimestampMillis(
                 order.createdAt,
               ),
-          }),
-        );
+          }));
 
       return [
         ...serviceItems,
@@ -548,20 +430,25 @@ export default function OrdersScreen() {
           a.createdAt,
       );
     }, [
-      filteredOrders,
-      filteredMarketOrders,
+      marketOrders,
+      orders,
+      selectedFilter,
     ]);
-
-  /* ============================================================
-     HAS ORDERS
-  ============================================================ */
 
   const hasOrders =
     combinedOrders.length >
     0;
 
+  const ordersLoading =
+    serviceLoading ||
+    marketLoading;
+
+  const listenerError =
+    serviceError ??
+    marketError;
+
   /* ============================================================
-     LOGIN
+     ACTIONS
   ============================================================ */
 
   const handleLogin =
@@ -570,10 +457,6 @@ export default function OrdersScreen() {
         "/(auth)/login",
       );
     }, []);
-
-  /* ============================================================
-     VIEW SERVICE ORDER
-  ============================================================ */
 
   const handleViewOrder =
     useCallback(
@@ -591,13 +474,11 @@ export default function OrdersScreen() {
       [],
     );
 
-  /* ============================================================
-     VIEW MARKET ORDER
-  ============================================================ */
-
   const handleViewMarketOrder =
     useCallback(
-      (order: MarketOrder) => {
+      (
+        order: MarketOrder,
+      ) => {
         router.push({
           pathname:
             "/(customer)/orders/market/[orderId]",
@@ -611,10 +492,6 @@ export default function OrdersScreen() {
       [],
     );
 
-  /* ============================================================
-     OPEN MANAGEMENT
-  ============================================================ */
-
   const handleOpenManagement =
     useCallback(() => {
       if (!authenticated) {
@@ -624,18 +501,20 @@ export default function OrdersScreen() {
       setManagementVisible(
         true,
       );
-    }, [
-      authenticated,
-    ]);
+    }, [authenticated]);
 
-  /* ============================================================
-     MANAGEMENT FILTER
-  ============================================================ */
+  const handleCloseManagement =
+    useCallback(() => {
+      setManagementVisible(
+        false,
+      );
+    }, []);
 
   const handleManagementFilter =
     useCallback(
       (
-        filter: OrderDeletionFilter,
+        filter:
+          OrderDeletionFilter,
       ) => {
         if (!authenticated) {
           return;
@@ -645,14 +524,8 @@ export default function OrdersScreen() {
           filter,
         );
       },
-      [
-        authenticated,
-      ],
+      [authenticated],
     );
-
-  /* ============================================================
-     AFTER DELETE
-  ============================================================ */
 
   const handleDeleted =
     useCallback(() => {
@@ -662,28 +535,20 @@ export default function OrdersScreen() {
     }, []);
 
   /* ============================================================
-     RENDER
+     UI
   ============================================================ */
 
   return (
     <>
       <AppScreen
+        role="customer"
+        padded={false}
+        scrollEnabled
         contentContainerStyle={
           styles.screen
         }
       >
-        <ScrollView
-          showsVerticalScrollIndicator={
-            false
-          }
-          contentContainerStyle={
-            styles.content
-          }
-        >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
-
+        <View style={styles.content}>
           <OrdersHeader
             authenticated={
               authenticated
@@ -693,14 +558,8 @@ export default function OrdersScreen() {
             }
           />
 
-          {/* ==================================================
-              SUMMARY
-          ================================================== */}
-
           <OrderSummary
-            counts={
-              orderCounts
-            }
+            counts={orderCounts}
             authenticated={
               authenticated
             }
@@ -730,38 +589,42 @@ export default function OrdersScreen() {
 
                 return (
                   <Pressable
-                    key={
-                      filter.key
-                    }
+                    key={filter.key}
                     onPress={() =>
                       setSelectedFilter(
                         filter.key,
                       )
                     }
                     accessibilityRole="button"
+                    accessibilityLabel={`${filter.label} orders`}
                     accessibilityState={{
                       selected:
                         active,
                     }}
-                    style={[
+                    style={({
+                      pressed,
+                    }) => [
                       styles.filterButton,
 
-                      active &&
-                        styles.filterButtonActive,
+                      active
+                        ? styles.filterButtonActive
+                        : null,
+
+                      pressed
+                        ? styles.filterPressed
+                        : null,
                     ]}
                   >
                     <AppText
-                      weight="bold"
-                      style={[
-                        styles.filterText,
-
-                        active &&
-                          styles.filterTextActive,
-                      ]}
+                      variant="caption"
+                      weight="semibold"
+                      style={{
+                        color: active
+                          ? Colors.textInverse
+                          : Colors.textSecondary,
+                      }}
                     >
-                      {
-                        filter.label
-                      }
+                      {filter.label}
                     </AppText>
                   </Pressable>
                 );
@@ -773,7 +636,19 @@ export default function OrdersScreen() {
               CONTENT
           ================================================== */}
 
-          {!authenticated ? (
+          {authLoading ? (
+            <View
+              style={
+                styles.loadingContainer
+              }
+            >
+              <AppLoader
+                role="customer"
+                size="sm"
+                message="Checking your account..."
+              />
+            </View>
+          ) : !authenticated ? (
             <OrderEmptyState
               filter={
                 selectedFilter
@@ -782,32 +657,27 @@ export default function OrdersScreen() {
                 handleLogin
               }
             />
-          ) : loading ? (
+          ) : ordersLoading ? (
             <View
               style={
                 styles.loadingContainer
               }
             >
-              <ActivityIndicator
-                size="small"
-                color="#2563EB"
+              <AppLoader
+                role="customer"
+                size="sm"
+                message="Loading your orders..."
               />
-
-              <AppText
-                style={
-                  styles.loadingText
-                }
-              >
-                Loading your
-                orders...
-              </AppText>
             </View>
-          ) : error ? (
+          ) : !hasOrders &&
+            listenerError ? (
             <OrderEmptyState
               filter={
                 selectedFilter
               }
-              error={error}
+              error={
+                listenerError
+              }
             />
           ) : !hasOrders ? (
             <OrderEmptyState
@@ -816,85 +686,81 @@ export default function OrdersScreen() {
               }
             />
           ) : (
-            <View
-              style={
-                styles.ordersList
-              }
-            >
-              {combinedOrders.map(
-                (item) => {
-                  /* ==========================================
-                     SERVICE ORDER
-                  ========================================== */
+            <>
+              {listenerError ? (
+                <View
+                  style={
+                    styles.warning
+                  }
+                >
+                  <AppText
+                    variant="caption"
+                    tone="warning"
+                  >
+                    Some orders could
+                    not be loaded.
+                  </AppText>
+                </View>
+              ) : null}
 
-                  if (
-                    item.type ===
-                    "service"
-                  ) {
+              <View
+                style={
+                  styles.ordersList
+                }
+              >
+                {combinedOrders.map(
+                  (item) => {
+                    if (
+                      item.type ===
+                      "service"
+                    ) {
+                      return (
+                        <OrderCard
+                          key={`service-${item.order.id}`}
+                          order={
+                            item.order
+                          }
+                          onPress={() =>
+                            handleViewOrder(
+                              item.order,
+                            )
+                          }
+                        />
+                      );
+                    }
+
                     return (
-                      <OrderCard
-                        key={`service-${item.order.id}`}
+                      <MarketOrderCard
+                        key={`market-${item.order.id}`}
                         order={
                           item.order
                         }
                         onPress={() =>
-                          handleViewOrder(
+                          handleViewMarketOrder(
                             item.order,
                           )
                         }
                       />
                     );
-                  }
-
-                  /* ==========================================
-                     MARKET ORDER
-
-                     MarketOrderCard itself handles:
-                     - chat listener
-                     - customer arrow ↑
-                     - seller arrow ↓
-                     - normal order arrow
-                  ========================================== */
-
-                  return (
-                    <MarketOrderCard
-                      key={`market-${item.order.id}`}
-                      order={
-                        item.order
-                      }
-                      onPress={() =>
-                        handleViewMarketOrder(
-                          item.order,
-                        )
-                      }
-                    />
-                  );
-                },
-              )}
-            </View>
+                  },
+                )}
+              </View>
+            </>
           )}
-        </ScrollView>
+        </View>
       </AppScreen>
-
-      {/* ========================================================
-          ORDER MANAGEMENT
-      ======================================================== */}
 
       {authenticated ? (
         <OrderDeletionManager
           visible={
             managementVisible
           }
-          counts={
-            orderCounts
-          }
+          counts={orderCounts}
           selectedFilter={
             selectedFilter
           }
-          onClose={() =>
-            setManagementVisible(
-              false,
-            )
+          onClose={
+            handleCloseManagement
           }
           onFilterSelect={
             handleManagementFilter
@@ -915,84 +781,113 @@ export default function OrdersScreen() {
 const styles =
   StyleSheet.create({
     screen: {
-      flex: 1,
-      width: "100%",
+      flexGrow: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 14,
-      paddingTop: 6,
-      paddingBottom: 30,
+      width: "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
-    /* ========================================================
-       FILTERS
-    ======================================================== */
-
     filterContent: {
-      paddingTop: 11,
-      paddingBottom: 2,
-      paddingRight: 4,
-      gap: 6,
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingRight:
+        FixxamTokens.spacing.sm,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     filterButton: {
-      minHeight: 32,
-      paddingHorizontal: 12,
-      borderRadius: 999,
-      backgroundColor:
-        "#FFFFFF",
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      alignItems: "center",
+      justifyContent: "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+        Colors.border,
+
+      borderRadius:
+  FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     filterButtonActive: {
-      backgroundColor:
-        "#2563EB",
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
-    filterText: {
-      fontSize: 9.5,
-      color: "#64748B",
-    },
+    filterPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-    filterTextActive: {
-      color: "#FFFFFF",
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
-
-    /* ========================================================
-       ORDERS
-    ======================================================== */
 
     ordersList: {
-      marginTop: 8,
-      gap: 7,
-    },
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    /* ========================================================
-       LOADING
-    ======================================================== */
+      gap:
+        FixxamTokens.spacing.sm,
+    },
 
     loadingContainer: {
       minHeight: 220,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
+
+      alignItems: "center",
+      justifyContent: "center",
     },
 
-    loadingText: {
-      marginTop: 8,
-      fontSize: 10,
-      color: "#64748B",
+    warning: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.warningSoft,
     },
   });

@@ -1,28 +1,116 @@
-import React from "react";
+import React, {
+  memo,
+  useEffect,
+  useState,
+} from "react";
+
 import {
-  View,
   StyleSheet,
-  Image,
+  View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { AppText } from "@/components/ui";
+import {
+  LinearGradient,
+} from "expo-linear-gradient";
 
-import { LinearGradient } from "expo-linear-gradient";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   photo?: string;
+
   name: string;
+
   category?: string;
+
   location?: string;
+
   rating: number;
+
   reviews: number;
+
   verified: boolean;
+
   online: boolean;
 };
 
-export default function WorkerHero({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function normalizeRating(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+function normalizeCount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(
+      value,
+    ),
+  );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function WorkerHero({
   photo,
   name,
   category,
@@ -32,219 +120,583 @@ export default function WorkerHero({
   verified,
   online,
 }: Props) {
+  const [
+    imageFailed,
+    setImageFailed,
+  ] =
+    useState(false);
 
+  const photoUri =
+    cleanString(
+      photo,
+    );
 
-return (
-  <View style={styles.container}>
-    <LinearGradient
-  colors={[
-    "#2563EB",
-    "#3B82F6",
-    "#60A5FA",
-  ]}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 1 }}
-  style={styles.cover}
->
-      <View
-  style={[
-    styles.avatarRing,
-    {
-      borderColor: online ? "#22C55E" : "#EF4444",
-    },
-  ]}
->
-  <Image
-    source={{
-      uri:
-        photo && photo.trim().length > 0
-          ? photo
-          : "https://ui-avatars.com/api/?name=Worker&background=2563EB&color=fff&size=256",
-    }}
-    style={styles.photo}
-    resizeMode="cover"
-  />
+  const workerName =
+    cleanString(
+      name,
+    ) ||
+    "Worker";
 
-  {verified && (
-    <View style={styles.verifiedBadge}>
-      <Ionicons
-        name="checkmark"
-        size={14}
-        color="#FFFFFF"
-      />
-    </View>
-  )}
-</View>
+  const workerCategory =
+    cleanString(
+      category,
+    );
 
-      <AppText
-        weight="bold"
-        style={styles.name}
+  const workerLocation =
+    cleanString(
+      location,
+    );
+
+  const safeRating =
+    normalizeRating(
+      rating,
+    );
+
+  const safeReviews =
+    normalizeCount(
+      reviews,
+    );
+
+  const showPhoto =
+    Boolean(
+      photoUri,
+    ) &&
+    !imageFailed;
+
+  /* ============================================================
+     RESET IMAGE ERROR
+  ============================================================ */
+
+  useEffect(() => {
+    setImageFailed(
+      false,
+    );
+  }, [
+    photoUri,
+  ]);
+
+  return (
+    <View
+      style={
+        styles.container
+      }
+    >
+      <LinearGradient
+        colors={[
+          CustomerColors.primaryDark,
+          CustomerColors.primary,
+          CustomerColors.primary,
+        ]}
+        start={{
+          x: 0,
+          y: 0,
+        }}
+        end={{
+          x: 1,
+          y: 1,
+        }}
+        style={
+          styles.cover
+        }
       >
-        {name}
-      </AppText>
+        {/* ====================================================
+            AVATAR
+        ==================================================== */}
 
-      {!!category && (
-        <AppText style={styles.category}>
-          {category}
-        </AppText>
-      )}
+        <View
+          style={[
+            styles.avatarRing,
 
-      <View style={styles.badgesRow}>
+            online
+              ? styles.avatarRingOnline
+              : styles.avatarRingOffline,
+          ]}
+        >
+          {showPhoto ? (
+            <Image
+              source={{
+                uri:
+                  photoUri,
+              }}
+              style={
+                styles.photo
+              }
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={
+                FixxamTokens.motion
+                  .fast
+              }
+              accessibilityLabel={`${workerName} profile photo`}
+              onError={() => {
+                setImageFailed(
+                  true,
+                );
+              }}
+            />
+          ) : (
+            <View
+              style={
+                styles.photoPlaceholder
+              }
+            >
+              <AppIcon
+                name="profile"
+                role="customer"
+                size="xl"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </View>
+          )}
 
-        <View style={styles.badge}>
-          <Ionicons
-            name="star"
-            size={14}
-            color="#FACC15"
-          />
+          {/* ==================================================
+              VERIFIED
+          ================================================== */}
 
-          <AppText style={styles.badgeText}>
-            {rating.toFixed(1)} ({reviews})
-          </AppText>
+          {verified ? (
+            <View
+              accessibilityLabel="Verified worker"
+              style={
+                styles.verifiedBadge
+              }
+            >
+              <AppIcon
+                name="check"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
+              />
+            </View>
+          ) : null}
         </View>
 
-        {!!location && (
-          <View style={styles.badge}>
-            <Ionicons
-              name="location"
-              size={14}
-              color="#60A5FA"
+        {/* ====================================================
+            NAME
+        ==================================================== */}
+
+        <AppText
+          variant="heading1"
+          weight="bold"
+          center
+          numberOfLines={2}
+          style={
+            styles.name
+          }
+        >
+          {workerName}
+        </AppText>
+
+        {/* ====================================================
+            CATEGORY
+        ==================================================== */}
+
+        {workerCategory ? (
+          <AppText
+            variant="body"
+            center
+            numberOfLines={1}
+            style={
+              styles.category
+            }
+          >
+            {workerCategory}
+          </AppText>
+        ) : null}
+
+        {/* ====================================================
+            BADGES
+        ==================================================== */}
+
+        <View
+          style={
+            styles.badgesRow
+          }
+        >
+          {/* ==================================================
+              RATING
+          ================================================== */}
+
+          <View
+            style={
+              styles.badge
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="xs"
+              color={
+                Colors.warning
+              }
             />
 
-            <AppText style={styles.badgeText}>
-              {location}
+            <AppText
+              variant="caption"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.badgeText
+              }
+            >
+              {safeRating.toFixed(
+                1,
+              )}{" "}
+              ({safeReviews})
             </AppText>
           </View>
-        )}
 
-      </View>
+          {/* ==================================================
+              LOCATION
+          ================================================== */}
 
-    </LinearGradient>
-  </View>
-);
+          {workerLocation ? (
+            <View
+              style={[
+                styles.badge,
+                styles.locationBadge,
+              ]}
+            >
+              <AppIcon
+                name="location"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
+              />
 
+              <AppText
+                variant="caption"
+                weight="bold"
+                numberOfLines={1}
+                style={[
+                  styles.badgeText,
+                  styles.locationText,
+                ]}
+              >
+                {workerLocation}
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+
+        {/* ====================================================
+            STATUS
+        ==================================================== */}
+
+        <View
+          style={
+            styles.statusRow
+          }
+        >
+          <View
+            style={[
+              styles.statusDot,
+
+              online
+                ? styles.statusDotOnline
+                : styles.statusDotOffline,
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.statusText
+            }
+          >
+            {online
+              ? "Online"
+              : "Offline"}
+          </AppText>
+        </View>
+      </LinearGradient>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginHorizontal: 16,
-    marginTop: 10,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    borderRadius: 26,
-    overflow: "hidden",
+const styles =
+  StyleSheet.create({
+    container: {
+      marginHorizontal:
+        FixxamTokens.spacing.lg,
 
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 6,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 6,
-  },
+    cover: {
+      alignItems:
+        "center",
 
-  cover: {
-    alignItems: "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    paddingTop: 24,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+      paddingTop:
+        FixxamTokens.spacing.xl,
 
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-  },
+      paddingBottom:
+        FixxamTokens.spacing.xl,
 
-  avatarRing: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
+      borderWidth: 1,
 
-    justifyContent: "center",
-    alignItems: "center",
+      borderColor:
+        "rgba(255,255,255,0.18)",
 
-    borderWidth: 3,
+      borderRadius:
+        FixxamTokens.radius.xl,
+    },
 
-    marginBottom: 14,
-  },
+    /* ========================================================
+       AVATAR
+    ======================================================== */
 
-  photo: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    avatarRing: {
+      width: 96,
 
-    backgroundColor: "#E2E8F0",
-  },
+      height: 96,
 
-  verifiedBadge: {
-    position: "absolute",
+      alignItems:
+        "center",
 
-    right: 2,
-    bottom: 2,
+      justifyContent:
+        "center",
 
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-    backgroundColor: "#22C55E",
+      borderWidth: 3,
 
-    justifyContent: "center",
-    alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
 
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
+    avatarRingOnline: {
+      borderColor:
+        Colors.success,
+    },
 
-  name: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    fontWeight: "800",
-  },
+    avatarRingOffline: {
+      borderColor:
+        Colors.textMuted,
+    },
 
-  category: {
-    marginTop: 4,
+    photo: {
+      width: 86,
 
-    fontSize: 15,
+      height: 86,
 
-    color: "rgba(255,255,255,0.82)",
-  },
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  badgesRow: {
-    flexDirection: "row",
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-    justifyContent: "center",
+    photoPlaceholder: {
+      width: 86,
 
-    flexWrap: "wrap",
+      height: 86,
 
-    marginTop: 16,
-  },
+      alignItems:
+        "center",
 
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
+      justifyContent:
+        "center",
 
-    height: 36,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    paddingHorizontal: 14,
+      backgroundColor:
+        Colors.surface,
+    },
 
-    backgroundColor: "rgba(255,255,255,0.14)",
+    /* ========================================================
+       VERIFIED
+    ======================================================== */
 
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
+    verifiedBadge: {
+      position:
+        "absolute",
 
-    borderRadius: 18,
+      right: 1,
 
-    marginHorizontal: 5,
-    marginVertical: 4,
-  },
+      bottom: 1,
 
-  badgeText: {
-    marginLeft: 6,
+      width: 24,
 
-    fontSize: 13,
+      height: 24,
 
-    fontWeight: "600",
+      alignItems:
+        "center",
 
-    color: "#FFFFFF",
-  },
-});
+      justifyContent:
+        "center",
+
+      borderWidth: 2,
+
+      borderColor:
+        Colors.textInverse,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    name: {
+      maxWidth: "90%",
+
+      color:
+        Colors.textInverse,
+    },
+
+    category: {
+      maxWidth: "90%",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textInverse,
+
+      opacity: 0.84,
+    },
+
+    /* ========================================================
+       BADGES
+    ======================================================== */
+
+    badgesRow: {
+      maxWidth: "100%",
+
+      flexDirection:
+        "row",
+
+      flexWrap:
+        "wrap",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+
+    badge: {
+      minHeight: 36,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        "rgba(255,255,255,0.22)",
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        "rgba(255,255,255,0.14)",
+    },
+
+    locationBadge: {
+      maxWidth: "75%",
+    },
+
+    badgeText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textInverse,
+    },
+
+    locationText: {
+      flexShrink: 1,
+    },
+
+    /* ========================================================
+       ONLINE STATUS
+    ======================================================== */
+
+    statusRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
+
+    statusDot: {
+      width: 8,
+
+      height: 8,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    statusDotOnline: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    statusDotOffline: {
+      backgroundColor:
+        Colors.textMuted,
+    },
+
+    statusText: {
+      color:
+        Colors.textInverse,
+    },
+  });
+
+export default memo(
+  WorkerHero,
+);

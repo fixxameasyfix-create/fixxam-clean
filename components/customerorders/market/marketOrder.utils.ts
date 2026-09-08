@@ -1,8 +1,15 @@
-import type { Ionicons } from "@expo/vector-icons";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
-/* ==============================================================
+import {
+  Colors,
+  CustomerColors,
+} from "@/theme";
+
+/* ============================================================
    MARKET STATUS
-============================================================== */
+============================================================ */
 
 export type MarketStatus =
   | "pending"
@@ -12,49 +19,86 @@ export type MarketStatus =
   | "cancelled"
   | "expired";
 
-/* ==============================================================
+/* ============================================================
    MARKET PRODUCT
-============================================================== */
+============================================================ */
 
 export type MarketProduct = {
   productId: string;
+
   name: string;
+
   image?: string;
+
   price: number;
+
   quantity: number;
 };
 
-/* ==============================================================
+/* ============================================================
+   PAYMENT STATUS
+============================================================ */
+
+export type MarketPaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
+
+/* ============================================================
    STATUS CONFIG
-============================================================== */
+============================================================ */
 
 export type MarketStatusConfig = {
   label: string;
+
   color: string;
+
   background: string;
+
   messageBackground: string;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  icon: AppIconName;
+
   message: string;
 };
 
-/* ==============================================================
+/* ============================================================
    NORMALIZE STATUS
-============================================================== */
+============================================================ */
 
 export function normalizeMarketStatus(
   value: unknown,
 ): MarketStatus {
-  switch (value) {
+  if (
+    typeof value !== "string"
+  ) {
+    return "pending";
+  }
+
+  const status =
+    value
+      .trim()
+      .toLowerCase();
+
+  switch (status) {
     case "accepted":
       return "accepted";
 
     case "in-progress":
+    case "in_progress":
+    case "in progress":
+    case "on-the-way":
+    case "on_the_way":
+    case "on the way":
       return "in-progress";
 
     case "completed":
+    case "delivered":
       return "completed";
 
     case "cancelled":
+    case "canceled":
       return "cancelled";
 
     case "expired":
@@ -66,9 +110,9 @@ export function normalizeMarketStatus(
   }
 }
 
-/* ==============================================================
+/* ============================================================
    STATUS CONFIG
-============================================================== */
+============================================================ */
 
 export function getMarketStatusConfig(
   status: MarketStatus,
@@ -76,55 +120,105 @@ export function getMarketStatusConfig(
   switch (status) {
     case "accepted":
       return {
-        label: "ACCEPTED",
-        color: "#2563EB",
-        background: "#EFF6FF",
-        messageBackground: "#EFF6FF",
-        icon: "checkmark-circle-outline",
+        label:
+          "ACCEPTED",
+
+        color:
+          CustomerColors.primary,
+
+        background:
+          CustomerColors.primarySoft,
+
+        messageBackground:
+          CustomerColors.primarySoft,
+
+        icon:
+          "success",
+
         message:
           "The seller has accepted your order.",
       };
 
     case "in-progress":
       return {
-        label: "ON THE WAY",
-        color: "#16A34A",
-        background: "#ECFDF5",
-        messageBackground: "#ECFDF5",
-        icon: "navigate-outline",
+        label:
+          "ON THE WAY",
+
+        color:
+          CustomerColors.primary,
+
+        background:
+          CustomerColors.primarySoft,
+
+        messageBackground:
+          CustomerColors.primarySoft,
+
+        icon:
+          "navigation",
+
         message:
           "Your order is on the way. You can track it in real time.",
       };
 
     case "completed":
       return {
-        label: "COMPLETED",
-        color: "#16A34A",
-        background: "#ECFDF5",
-        messageBackground: "#ECFDF5",
-        icon: "checkmark-done-outline",
+        label:
+          "COMPLETED",
+
+        color:
+          Colors.success,
+
+        background:
+          Colors.successSoft,
+
+        messageBackground:
+          Colors.successSoft,
+
+        icon:
+          "success",
+
         message:
           "Your order has been delivered successfully.",
       };
 
     case "cancelled":
       return {
-        label: "CANCELLED",
-        color: "#DC2626",
-        background: "#FEF2F2",
-        messageBackground: "#FEF2F2",
-        icon: "close-circle-outline",
+        label:
+          "CANCELLED",
+
+        color:
+          Colors.error,
+
+        background:
+          Colors.errorSoft,
+
+        messageBackground:
+          Colors.errorSoft,
+
+        icon:
+          "error",
+
         message:
           "This order has been cancelled.",
       };
 
     case "expired":
       return {
-        label: "EXPIRED",
-        color: "#64748B",
-        background: "#F1F5F9",
-        messageBackground: "#F1F5F9",
-        icon: "time-outline",
+        label:
+          "EXPIRED",
+
+        color:
+          Colors.textSecondary,
+
+        background:
+          Colors.disabledBackground,
+
+        messageBackground:
+          Colors.disabledBackground,
+
+        icon:
+          "clock",
+
         message:
           "This order has expired.",
       };
@@ -132,20 +226,30 @@ export function getMarketStatusConfig(
     case "pending":
     default:
       return {
-        label: "PENDING",
-        color: "#D97706",
-        background: "#FFF7E8",
-        messageBackground: "#FFF7E8",
-        icon: "time-outline",
+        label:
+          "PENDING",
+
+        color:
+          Colors.warning,
+
+        background:
+          Colors.warningSoft,
+
+        messageBackground:
+          Colors.warningSoft,
+
+        icon:
+          "clock",
+
         message:
           "We are waiting for the seller to accept your order.",
       };
   }
 }
 
-/* ==============================================================
+/* ============================================================
    STATUS INDEX
-============================================================== */
+============================================================ */
 
 export function getMarketStatusIndex(
   status: MarketStatus,
@@ -160,36 +264,49 @@ export function getMarketStatusIndex(
     case "completed":
       return 3;
 
+    case "pending":
     case "cancelled":
     case "expired":
-    case "pending":
     default:
       return 0;
   }
 }
 
-/* ==============================================================
+/* ============================================================
    STRING HELPER
-============================================================== */
+============================================================ */
 
 export function getMarketString(
   ...values: unknown[]
 ): string {
-  for (const value of values) {
+  for (
+    const value of values
+  ) {
     if (
-      typeof value === "string" &&
-      value.trim().length > 0
+      typeof value === "string"
     ) {
-      return value.trim();
+      const normalized =
+        value.trim();
+
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    if (
+      typeof value === "number" &&
+      Number.isFinite(value)
+    ) {
+      return String(value);
     }
   }
 
   return "";
 }
 
-/* ==============================================================
+/* ============================================================
    NUMBER HELPER
-============================================================== */
+============================================================ */
 
 export function getMarketOrderValue(
   value: unknown,
@@ -202,93 +319,134 @@ export function getMarketOrderValue(
     return value;
   }
 
+  if (
+    typeof value === "string"
+  ) {
+    const normalized =
+      value.trim();
+
+    if (normalized) {
+      const parsed =
+        Number(normalized);
+
+      if (
+        Number.isFinite(parsed)
+      ) {
+        return parsed;
+      }
+    }
+  }
+
   return fallback;
 }
 
-/* ==============================================================
+/* ============================================================
    PRODUCT NORMALIZER
-============================================================== */
+============================================================ */
 
 export function getMarketProducts(
   value: unknown,
 ): MarketProduct[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(value)
+  ) {
     return [];
   }
 
   return value
-    .map((item): MarketProduct | null => {
-      if (
-        typeof item !== "object" ||
-        item === null
-      ) {
-        return null;
-      }
+    .map(
+      (
+        item,
+        index,
+      ): MarketProduct | null => {
+        if (
+          typeof item !== "object" ||
+          item === null
+        ) {
+          return null;
+        }
 
-      const data =
-        item as Record<
-          string,
-          unknown
-        >;
+        const data =
+          item as Record<
+            string,
+            unknown
+          >;
 
-      const productId =
-        getMarketString(
-          data.productId,
-          data.id,
-        );
+        const productId =
+          getMarketString(
+            data.productId,
+            data.id,
+          ) ||
+          `product-${index}`;
 
-      const name =
-        getMarketString(
-          data.name,
-          data.productName,
-          "Product",
-        );
+        const name =
+          getMarketString(
+            data.name,
+            data.productName,
+            data.title,
+          ) ||
+          "Product";
 
-      const image =
-        getMarketString(
-          data.image,
-          data.imageUrl,
-          data.photo,
-        );
+        const image =
+          getMarketString(
+            data.image,
+            data.imageUrl,
+            data.photo,
+            data.photoUrl,
+          );
 
-      const price =
-        getMarketOrderValue(
-          data.price,
-          0,
-        );
+        const rawPrice =
+          getMarketOrderValue(
+            data.price,
+            getMarketOrderValue(
+              data.unitPrice,
+              getMarketOrderValue(
+                data.amount,
+                0,
+              ),
+            ),
+          );
 
-      const quantity =
-        getMarketOrderValue(
-          data.quantity,
-          1,
-        );
+        const price =
+          Math.max(
+            0,
+            rawPrice,
+          );
 
-      return {
-        productId:
-          productId ||
-          `product-${Math.random()
-            .toString(36)
-            .slice(2)}`,
+        const rawQuantity =
+          getMarketOrderValue(
+            data.quantity,
+            getMarketOrderValue(
+              data.qty,
+              1,
+            ),
+          );
 
-        name,
-
-        ...(image
-          ? {
-              image,
-            }
-          : {}),
-
-        price,
-
-        quantity:
+        const quantity =
           Math.max(
             1,
             Math.floor(
-              quantity,
+              rawQuantity,
             ),
-          ),
-      };
-    })
+          );
+
+        return {
+          productId,
+
+          name,
+
+          ...(image
+            ? {
+                image,
+              }
+            : {}),
+
+          price,
+
+          quantity,
+        };
+      },
+    )
     .filter(
       (
         item,
@@ -297,9 +455,9 @@ export function getMarketProducts(
     );
 }
 
-/* ==============================================================
+/* ============================================================
    SUBTOTAL
-============================================================== */
+============================================================ */
 
 export function calculateMarketSubtotal(
   products: MarketProduct[],
@@ -308,30 +466,58 @@ export function calculateMarketSubtotal(
     (
       total,
       product,
-    ) =>
-      total +
-      product.price *
-        product.quantity,
+    ) => {
+      const price =
+        Number.isFinite(
+          product.price,
+        )
+          ? Math.max(
+              0,
+              product.price,
+            )
+          : 0;
+
+      const quantity =
+        Number.isFinite(
+          product.quantity,
+        )
+          ? Math.max(
+              1,
+              Math.floor(
+                product.quantity,
+              ),
+            )
+          : 1;
+
+      return (
+        total +
+        price *
+          quantity
+      );
+    },
     0,
   );
 }
 
-/* ==============================================================
+/* ============================================================
    FIRST PRODUCT NAME
-============================================================== */
+============================================================ */
 
 export function getFirstMarketProductName(
   products: MarketProduct[],
 ): string {
+  const name =
+    products[0]?.name?.trim();
+
   return (
-    products[0]?.name ??
+    name ||
     "Market Order"
   );
 }
 
-/* ==============================================================
+/* ============================================================
    FIRST PRODUCT IMAGE
-============================================================== */
+============================================================ */
 
 export function getFirstMarketProductImage(
   products: MarketProduct[],
@@ -340,88 +526,105 @@ export function getFirstMarketProductImage(
     products[0]?.image;
 
   if (
-    typeof image === "string" &&
-    image.trim()
+    typeof image === "string"
   ) {
-    return image.trim();
+    const normalized =
+      image.trim();
+
+    if (normalized) {
+      return normalized;
+    }
   }
 
   return null;
 }
 
-/* ==============================================================
+/* ============================================================
    PAYMENT METHOD
-============================================================== */
+============================================================ */
 
 export function formatMarketPaymentMethod(
   value: string,
 ): string {
-  switch (
+  const method =
     value
-      .toLowerCase()
       .trim()
-  ) {
+      .toLowerCase();
+
+  switch (method) {
     case "card":
       return "Card Payment";
 
     case "transfer":
     case "bank_transfer":
+    case "bank-transfer":
       return "Bank Transfer";
 
     case "cash":
     case "cod":
+    case "cash_on_delivery":
+    case "cash-on-delivery":
     default:
       return "Pay on Delivery";
   }
 }
 
-/* ==============================================================
+/* ============================================================
    PAYMENT ICON
-============================================================== */
+============================================================ */
 
 export function getMarketPaymentIcon(
   value: string,
-): keyof typeof import("@expo/vector-icons/Ionicons").default.glyphMap {
-  switch (
+): AppIconName {
+  const method =
     value
-      .toLowerCase()
       .trim()
-  ) {
+      .toLowerCase();
+
+  switch (method) {
     case "card":
-      return "card-outline";
+      return "payment";
 
     case "transfer":
     case "bank_transfer":
-      return "business-outline";
+    case "bank-transfer":
+      return "wallet";
 
     case "cash":
     case "cod":
+    case "cash_on_delivery":
+    case "cash-on-delivery":
     default:
-      return "cash-outline";
+      return "wallet";
   }
 }
 
-/* ==============================================================
+/* ============================================================
    PAYMENT STATUS
-============================================================== */
+============================================================ */
 
 export function normalizeMarketPaymentStatus(
   value: unknown,
-): "pending" | "paid" | "failed" | "refunded" {
-  switch (
-    String(value ?? "")
-      .toLowerCase()
+): MarketPaymentStatus {
+  const status =
+    String(
+      value ?? "",
+    )
       .trim()
-  ) {
+      .toLowerCase();
+
+  switch (status) {
     case "paid":
     case "success":
     case "successful":
       return "paid";
 
     case "failed":
+    case "failure":
       return "failed";
 
     case "refunded":
+    case "refund":
       return "refunded";
 
     case "pending":
@@ -430,24 +633,28 @@ export function normalizeMarketPaymentStatus(
   }
 }
 
-/* ==============================================================
+/* ============================================================
    DATE VALUE
-============================================================== */
+============================================================ */
 
 export function getMarketDate(
   value: unknown,
 ): Date | null {
-  if (!value) {
+  if (
+    value == null
+  ) {
     return null;
   }
 
   try {
-    if (value instanceof Date) {
-      return Number.isNaN(
+    if (
+      value instanceof Date
+    ) {
+      return Number.isFinite(
         value.getTime(),
       )
-        ? null
-        : value;
+        ? value
+        : null;
     }
 
     if (
@@ -460,18 +667,24 @@ export function getMarketDate(
         }
       ).toDate === "function"
     ) {
-      const date = (
-        value as {
-          toDate: () => Date;
-        }
-      ).toDate();
+      const date =
+        (
+          value as {
+            toDate:
+              () => Date;
+          }
+        ).toDate();
 
-      return date instanceof Date &&
-        !Number.isNaN(
+      if (
+        date instanceof Date &&
+        Number.isFinite(
           date.getTime(),
         )
-        ? date
-        : null;
+      ) {
+        return date;
+      }
+
+      return null;
     }
 
     if (
@@ -484,36 +697,74 @@ export function getMarketDate(
         }
       ).toMillis === "function"
     ) {
-      const millis = (
-        value as {
-          toMillis: () => number;
-        }
-      ).toMillis();
+      const millis =
+        (
+          value as {
+            toMillis:
+              () => number;
+          }
+        ).toMillis();
+
+      if (
+        !Number.isFinite(
+          millis,
+        )
+      ) {
+        return null;
+      }
 
       const date =
-        new Date(millis);
+        new Date(
+          millis,
+        );
 
-      return Number.isNaN(
+      return Number.isFinite(
         date.getTime(),
       )
-        ? null
-        : date;
+        ? date
+        : null;
     }
 
     if (
-      typeof value === "string" ||
-      typeof value === "number"
+      typeof value === "number" &&
+      Number.isFinite(value)
     ) {
       const date =
-        new Date(value);
+        new Date(
+          value,
+        );
 
-      return Number.isNaN(
+      return Number.isFinite(
         date.getTime(),
       )
-        ? null
-        : date;
+        ? date
+        : null;
     }
-  } catch (error) {
+
+    if (
+      typeof value === "string"
+    ) {
+      const normalized =
+        value.trim();
+
+      if (!normalized) {
+        return null;
+      }
+
+      const date =
+        new Date(
+          normalized,
+        );
+
+      return Number.isFinite(
+        date.getTime(),
+      )
+        ? date
+        : null;
+    }
+  } catch (
+    error
+  ) {
     console.error(
       "MARKET_DATE_PARSE_ERROR:",
       error,
@@ -523,15 +774,17 @@ export function getMarketDate(
   return null;
 }
 
-/* ==============================================================
+/* ============================================================
    DATE FORMAT
-============================================================== */
+============================================================ */
 
 export function formatMarketDate(
   value: unknown,
 ): string {
   const date =
-    getMarketDate(value);
+    getMarketDate(
+      value,
+    );
 
   if (!date) {
     return "Date unavailable";
@@ -540,22 +793,29 @@ export function formatMarketDate(
   return date.toLocaleDateString(
     "en-NG",
     {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
+      day:
+        "numeric",
+
+      month:
+        "short",
+
+      year:
+        "numeric",
     },
   );
 }
 
-/* ==============================================================
+/* ============================================================
    DATE + TIME FORMAT
-============================================================== */
+============================================================ */
 
 export function formatMarketDateTime(
   value: unknown,
 ): string {
   const date =
-    getMarketDate(value);
+    getMarketDate(
+      value,
+    );
 
   if (!date) {
     return "Date unavailable";
@@ -564,33 +824,43 @@ export function formatMarketDateTime(
   return date.toLocaleString(
     "en-NG",
     {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
+      day:
+        "numeric",
+
+      month:
+        "short",
+
+      year:
+        "numeric",
+
+      hour:
+        "numeric",
+
+      minute:
+        "2-digit",
     },
   );
 }
 
-/* ==============================================================
+/* ============================================================
    ORDER NUMBER
-============================================================== */
+============================================================ */
 
 export function formatMarketOrderNumber(
   id: string,
 ): string {
-  if (!id) {
-    return "#FX-ORDER";
-  }
-
   const clean =
     id
+      .trim()
       .replace(
         /[^a-zA-Z0-9]/g,
         "",
       )
       .toUpperCase();
+
+  if (!clean) {
+    return "#FX-ORDER";
+  }
 
   const shortId =
     clean.length > 6
@@ -600,9 +870,9 @@ export function formatMarketOrderNumber(
   return `#FX-${shortId}`;
 }
 
-/* ==============================================================
+/* ============================================================
    TRACKING
-============================================================== */
+============================================================ */
 
 export function canTrackMarketOrder(
   status: MarketStatus,
@@ -613,24 +883,29 @@ export function canTrackMarketOrder(
   );
 }
 
-/* ==============================================================
+/* ============================================================
    CANCELLATION
-============================================================== */
+============================================================ */
 
 export function canCancelMarketOrder(
   status: MarketStatus,
 ): boolean {
-  return status === "pending";
+  return (
+    status === "pending"
+  );
 }
 
-/* ==============================================================
+/* ============================================================
    ACTIONS
-============================================================== */
+============================================================ */
 
 export type MarketOrderActionState = {
   canCancel: boolean;
+
   canTrack: boolean;
+
   canCallStore: boolean;
+
   canChatStore: boolean;
 };
 
@@ -638,6 +913,12 @@ export function getMarketOrderActions(
   status: MarketStatus,
   storePhone?: string,
 ): MarketOrderActionState {
+  const normalizedPhone =
+    typeof storePhone ===
+      "string"
+      ? storePhone.trim()
+      : "";
+
   return {
     canCancel:
       canCancelMarketOrder(
@@ -650,10 +931,14 @@ export function getMarketOrderActions(
       ),
 
     canCallStore:
-      Boolean(
-        storePhone?.trim(),
-      ),
+      normalizedPhone.length >
+      0,
 
-    canChatStore: true,
+    /*
+     * Chat is order-based, therefore a
+     * phone number is not required.
+     */
+    canChatStore:
+      true,
   };
 }

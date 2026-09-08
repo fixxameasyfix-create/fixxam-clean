@@ -1,39 +1,125 @@
-import React, { memo } from "react";
-import { StyleSheet, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
-import { AppText } from "@/components/ui";
+import {
+  StyleSheet,
+  View,
+} from "react-native";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type LegacyOfferIcon =
+  | "cash-outline"
+  | "swap-horizontal-outline";
 
 type Props = {
   title: string;
+
   subtitle: string;
-  icon?: keyof typeof Ionicons.glyphMap;
+
+  icon?:
+    | AppIconName
+    | LegacyOfferIcon;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function resolveOfferIcon(
+  icon:
+    | AppIconName
+    | LegacyOfferIcon,
+): AppIconName {
+  switch (icon) {
+    case "cash-outline":
+      return "payment";
+
+    case "swap-horizontal-outline":
+      return "refresh";
+
+    default:
+      return icon;
+  }
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 function WorkerOfferHeader({
   title,
   subtitle,
-  icon = "cash-outline",
+  icon = "payment",
 }: Props) {
+  const resolvedIcon =
+    useMemo(
+      () =>
+        resolveOfferIcon(
+          icon,
+        ),
+      [icon],
+    );
+
   return (
-    <View style={styles.container}>
-      <View style={styles.icon}>
-        <Ionicons
-          name={icon}
-          size={23}
-          color="#7C3AED"
+    <View
+      style={styles.container}
+    >
+      {/* ICON */}
+
+      <View
+        style={styles.icon}
+      >
+        <AppIcon
+          name={resolvedIcon}
+          role="worker"
+          size="md"
+          color={
+            WorkerColors.primary
+          }
         />
       </View>
 
-      <View style={styles.content}>
+      {/* CONTENT */}
+
+      <View
+        style={styles.content}
+      >
         <AppText
+          variant="bodyLarge"
           weight="bold"
+          numberOfLines={2}
           style={styles.title}
         >
           {title}
         </AppText>
 
-        <AppText style={styles.subtitle}>
+        <AppText
+          variant="caption"
+          tone="secondary"
+          style={
+            styles.subtitle
+          }
+        >
           {subtitle}
         </AppText>
       </View>
@@ -41,37 +127,63 @@ function WorkerOfferHeader({
   );
 }
 
-export default memo(WorkerOfferHeader);
+export default memo(
+  WorkerOfferHeader,
+);
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  icon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#EDE9FE",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flexDirection: "row",
 
-  content: {
-    flex: 1,
-    marginLeft: 11,
-  },
+      alignItems: "center",
+    },
 
-  title: {
-    fontSize: 14,
-    color: "#0F172A",
-  },
+    icon: {
+      width:
+        FixxamTokens.size
+          .iconBox,
 
-  subtitle: {
-    marginTop: 3,
-    fontSize: 10.5,
-    lineHeight: 16,
-    color: "#64748B",
-  },
-});
+      height:
+        FixxamTokens.size
+          .iconBox,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    content: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 16,
+    },
+  });

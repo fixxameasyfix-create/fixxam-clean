@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import React, {
+  useCallback,
+  useState,
+} from "react";
 
 import {
   StyleSheet,
@@ -8,59 +11,194 @@ import {
 
 import Carousel from "react-native-reanimated-carousel";
 
+import {
+  FixxamTokens,
+} from "@/theme";
+
 import HeroBanner from "./HeroBanner";
-import { heroData } from "./HeroData";
+import {
+  heroData,
+} from "./HeroData";
 import HeroPagination from "./HeroPagination";
 
+import type {
+  HeroBannerItem,
+} from "./HeroTypes";
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const BANNER_ASPECT_RATIO = 0.42;
+
+const AUTO_PLAY_INTERVAL = 4500;
+
+const SCROLL_ANIMATION_DURATION = 600;
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 export default function HeroCarousel() {
-  const { width } = useWindowDimensions();
+  const {
+    width: screenWidth,
+  } = useWindowDimensions();
 
-  const [activeIndex, setActiveIndex] =
-    useState(0);
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] = useState(0);
 
-  const bannerWidth = width - 32;
-  const bannerHeight = Math.round(
-    bannerWidth * 0.42,
-  );
+  /* ==========================================================
+     EMPTY
+  ========================================================== */
+
+  if (
+    heroData.length ===
+    0
+  ) {
+    return null;
+  }
+
+  /* ==========================================================
+     SIZE
+  ========================================================== */
+
+  const bannerWidth =
+    Math.max(
+      0,
+      screenWidth -
+        FixxamTokens.spacing.lg *
+          2,
+    );
+
+  const bannerHeight =
+    Math.round(
+      bannerWidth *
+        BANNER_ASPECT_RATIO,
+    );
+
+  const hasMultipleBanners =
+    heroData.length > 1;
+
+  /* ==========================================================
+     SNAP
+  ========================================================== */
+
+  const handleSnapToItem =
+    useCallback(
+      (
+        index: number,
+      ) => {
+        setActiveIndex(
+          index,
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     RENDER ITEM
+  ========================================================== */
+
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: HeroBannerItem;
+        index: number;
+      }) => (
+        <View
+          style={
+            styles.itemContainer
+          }
+        >
+          <HeroBanner
+            item={item}
+          />
+        </View>
+      ),
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <Carousel
-        width={width}
-        height={bannerHeight}
-        data={heroData}
-        loop
-        autoPlay
-        autoPlayInterval={4500}
+        width={
+          screenWidth
+        }
+        height={
+          bannerHeight
+        }
+        data={
+          heroData
+        }
+        loop={
+          hasMultipleBanners
+        }
+        autoPlay={
+          hasMultipleBanners
+        }
+        autoPlayInterval={
+          AUTO_PLAY_INTERVAL
+        }
         pagingEnabled
         snapEnabled
-        scrollAnimationDuration={600}
-        onSnapToItem={setActiveIndex}
-        renderItem={({ item }) => (
-          <View style={styles.itemContainer}>
-            <HeroBanner item={item} />
-          </View>
-        )}
+        scrollAnimationDuration={
+          SCROLL_ANIMATION_DURATION
+        }
+        onSnapToItem={
+          handleSnapToItem
+        }
+        renderItem={
+          renderItem
+        }
       />
 
-      <HeroPagination
-        total={heroData.length}
-        activeIndex={activeIndex}
-      />
+      {hasMultipleBanners ? (
+        <HeroPagination
+          total={
+            heroData.length
+          }
+          activeIndex={
+            activeIndex
+          }
+        />
+      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 8,
-    marginBottom: 12,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  itemContainer: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    container: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    itemContainer: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+  });

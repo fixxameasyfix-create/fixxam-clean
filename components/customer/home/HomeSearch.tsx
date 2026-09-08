@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useRef,
   useState,
 } from "react";
@@ -6,116 +7,225 @@ import React, {
 import {
   Pressable,
   StyleSheet,
-  Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
 import FixxamSmartModal from "@/components/customer/home/FixxamSmartModal";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
 type Anchor = {
   x: number;
+
   y: number;
+
   width: number;
+
   height: number;
 };
+
+/* ============================================================
+   INITIAL STATE
+============================================================ */
+
+const INITIAL_ANCHOR: Anchor = {
+  x: 0,
+  y: 0,
+  width: 0,
+  height: 0,
+};
+
+/* ============================================================
+   COMPONENT
+============================================================ */
 
 export default function HomeSearch() {
   const workerButtonRef =
     useRef<View>(null);
 
-  const [smartVisible, setSmartVisible] =
+  const [
+    smartVisible,
+    setSmartVisible,
+  ] =
     useState(false);
 
-  const [anchor, setAnchor] =
-    useState<Anchor>({
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-    });
+  const [
+    anchor,
+    setAnchor,
+  ] =
+    useState<Anchor>(
+      INITIAL_ANCHOR,
+    );
 
-  const openSmartModal = () => {
-    workerButtonRef.current?.measureInWindow(
-      (x, y, width, height) => {
-        setAnchor({
+  /* ==========================================================
+     SEARCH
+  ========================================================== */
+
+  const handleSearchPress =
+    useCallback(() => {
+      router.push(
+        "/search",
+      );
+    }, []);
+
+  /* ==========================================================
+     FIXXAM SMART
+  ========================================================== */
+
+  const openSmartModal =
+    useCallback(() => {
+      workerButtonRef.current?.measureInWindow(
+        (
           x,
           y,
           width,
           height,
-        });
+        ) => {
+          /*
+           * Avoid opening against an
+           * invalid/unmeasured anchor.
+           */
+          if (
+            width <= 0 ||
+            height <= 0
+          ) {
+            return;
+          }
 
-        setSmartVisible(true);
-      },
-    );
-  };
+          setAnchor({
+            x,
+            y,
+            width,
+            height,
+          });
 
-  const closeSmartModal = () => {
-    setSmartVisible(false);
-  };
+          setSmartVisible(
+            true,
+          );
+        },
+      );
+    }, []);
+
+  const closeSmartModal =
+    useCallback(() => {
+      setSmartVisible(
+        false,
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <>
-      <View style={styles.container}>
+      <View
+        style={
+          styles.container
+        }
+      >
         {/* ==================================================
             SEARCH
         ================================================== */}
 
         <Pressable
-          style={({ pressed }) => [
-            styles.searchBox,
-            pressed &&
-              styles.searchPressed,
-          ]}
-          android_ripple={{
-            color: "#F1F5F9",
-          }}
-          onPress={() => {
-            router.push("/search");
-          }}
+          onPress={
+            handleSearchPress
+          }
           accessibilityRole="button"
           accessibilityLabel="Search workers or services"
+          accessibilityHint="Opens search"
+          style={({
+            pressed,
+          }) => [
+            styles.searchBox,
+
+            pressed
+              ? styles.searchPressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="search-outline"
-            size={18}
-            color="#94A3B8"
+          <AppIcon
+            name="search"
+            role="customer"
+            size="sm"
+            state="muted"
+            color={
+              Colors.textMuted
+            }
           />
 
-          <Text
+          <AppText
+            variant="body"
             numberOfLines={1}
-            style={styles.placeholder}
+            style={
+              styles.placeholder
+            }
           >
             Search workers or services...
-          </Text>
+          </AppText>
         </Pressable>
 
         {/* ==================================================
-            FIXxAM SMART / WORKER BUTTON
+            FIXXAM SMART
+
+            MaterialCommunityIcons intentionally
+            preserved for this existing icon.
         ================================================== */}
 
         <View
-          ref={workerButtonRef}
+          ref={
+            workerButtonRef
+          }
           collapsable={false}
+          style={
+            styles.smartAnchor
+          }
         >
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.workerButton}
-            onPress={openSmartModal}
+          <Pressable
+            onPress={
+              openSmartModal
+            }
             accessibilityRole="button"
             accessibilityLabel="Open Fixxam Smart"
+            accessibilityHint="Shows information about Fixxam Smart"
+            style={({
+              pressed,
+            }) => [
+              styles.workerButton,
+
+              pressed
+                ? styles.workerButtonPressed
+                : null,
+            ]}
           >
             <MaterialCommunityIcons
               name="account-hard-hat-outline"
-              size={21}
-              color="#FFFFFF"
+              size={22}
+              color={
+                Colors.textInverse
+              }
             />
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
 
@@ -124,9 +234,15 @@ export default function HomeSearch() {
       ==================================================== */}
 
       <FixxamSmartModal
-        visible={smartVisible}
-        anchor={anchor}
-        onClose={closeSmartModal}
+        visible={
+          smartVisible
+        }
+        anchor={
+          anchor
+        }
+        onClose={
+          closeSmartModal
+        }
       />
     </>
   );
@@ -138,13 +254,21 @@ export default function HomeSearch() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CONTAINER
+    ======================================================== */
+
     container: {
       width: "100%",
 
-      flexDirection: "row",
-      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      marginBottom: 7,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     /* ========================================================
@@ -154,70 +278,98 @@ const styles =
     searchBox: {
       flex: 1,
 
-      height: 38,
+      minWidth: 0,
 
-      flexDirection: "row",
-      alignItems: "center",
+      height:
+        FixxamTokens.size
+          .inputHeight,
 
-      backgroundColor: "#FFFFFF",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 12,
+      flexDirection:
+        "row",
 
-      paddingHorizontal: 10,
+      alignItems:
+        "center",
 
       borderWidth: 1,
-      borderColor: "#EEF2F7",
 
-      shadowColor: "#000",
-      shadowOpacity: 0.02,
-      shadowRadius: 3,
-      shadowOffset: {
-        width: 0,
-        height: 1,
-      },
+      borderColor:
+        Colors.border,
 
-      elevation: 1,
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     searchPressed: {
-      opacity: 0.8,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     placeholder: {
       flex: 1,
 
-      marginLeft: 7,
+      minWidth: 0,
 
-      fontSize: 12,
-      color: "#94A3B8",
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
-       WORKER / FIXXAM SMART
+       FIXXAM SMART
     ======================================================== */
 
+    smartAnchor: {
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
     workerButton: {
-      width: 38,
-      height: 38,
+      width:
+        FixxamTokens.size
+          .inputHeight,
 
-      marginLeft: 6,
+      height:
+        FixxamTokens.size
+          .inputHeight,
 
-      borderRadius: 12,
+      alignItems:
+        "center",
 
-      backgroundColor: "#2563EB",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
-      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.search,
 
-      elevation: 2,
+      backgroundColor:
+        CustomerColors.primary,
 
-      shadowColor: "#2563EB",
-      shadowOpacity: 0.18,
-      shadowRadius: 5,
+      ...FixxamTokens.shadow.card,
+    },
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+    workerButtonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -6,34 +8,113 @@ import {
   View,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
 
-export default function AllProductsLoading() {
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AllProductsLoading() {
   return (
-    <View style={styles.container}>
-      <ActivityIndicator
-        size="large"
-        color="#F97316"
-      />
+    <View
+      style={
+        styles.container
+      }
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading products"
+    >
+      <View
+        style={
+          styles.loaderContainer
+        }
+      >
+        <ActivityIndicator
+          size="large"
+          color={
+            WorkerColors.primary
+          }
+        />
+      </View>
 
-      <AppText style={styles.text}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.text
+        }
+      >
         Loading products...
       </AppText>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    minHeight: 300,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  text: {
-    marginTop: 16,
-    fontSize: 15,
-    color: "#64748B",
-  },
-});
+AllProductsLoading.displayName =
+  "AllProductsLoading";
+
+export default memo(
+  AllProductsLoading,
+);
+
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+
+      minHeight: 300,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    loaderContainer: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    text: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textSecondary,
+    },
+  });

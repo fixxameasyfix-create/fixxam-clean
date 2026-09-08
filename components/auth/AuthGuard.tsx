@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 
 import {
   ActivityIndicator,
@@ -6,21 +6,22 @@ import {
   View,
 } from "react-native";
 
-import {
-  Redirect,
-} from "expo-router";
+import { Redirect } from "expo-router";
+
+import { useAuth } from "@/hooks/useAuth";
 
 import {
-  useAuth,
-} from "@/hooks/useAuth";
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
-type Props = {
-  children: React.ReactNode;
-};
+export interface AuthGuardProps {
+  children: ReactNode;
+}
 
 export default function AuthGuard({
   children,
-}: Props) {
+}: AuthGuardProps) {
   const {
     user,
     loading,
@@ -28,8 +29,15 @@ export default function AuthGuard({
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" />
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel="Checking authentication"
+        style={styles.loadingContainer}
+      >
+        <ActivityIndicator
+          size="large"
+          color={Colors.textSecondary}
+        />
       </View>
     );
   }
@@ -44,9 +52,16 @@ export default function AuthGuard({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
-    justifyContent: "center",
+
     alignItems: "center",
+    justifyContent: "center",
+
+    backgroundColor:
+      Colors.background,
+
+    padding:
+      FixxamTokens.spacing.xl,
   },
 });

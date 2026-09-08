@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   Pressable,
@@ -7,7 +10,6 @@ import {
 } from "react-native";
 
 import {
-  Ionicons,
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 
@@ -16,211 +18,412 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-import {
+import type {
   AiMessage,
 } from "../types";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 interface AssistantBubbleProps {
   message: AiMessage;
+
   showHeader?: boolean;
+
   onCopy?: (
     text: string,
   ) => void;
 }
 
-export default function AssistantBubble({
+/* ==============================================================
+   TIME
+============================================================== */
+
+function formatMessageTime(
+  value: AiMessage["createdAt"],
+): string {
+  try {
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return "";
+    }
+
+    return date.toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+    );
+  } catch {
+    return "";
+  }
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function AssistantBubble({
   message,
   showHeader = true,
   onCopy,
 }: AssistantBubbleProps) {
+  const time =
+    useMemo(
+      () =>
+        formatMessageTime(
+          message.createdAt,
+        ),
+      [
+        message.createdAt,
+      ],
+    );
+
+  const handleCopy =
+    () => {
+      if (!onCopy) {
+        return;
+      }
+
+      onCopy(
+        message.content,
+      );
+    };
+
   return (
     <View
       style={[
         styles.container,
-        !showHeader &&
-          styles.groupedContainer,
+
+        !showHeader
+          ? styles.groupedContainer
+          : null,
       ]}
     >
+      {/* ======================================================
+          AVATAR
+      ====================================================== */}
+
       {showHeader ? (
-        <View style={styles.avatar}>
+        <View
+          style={
+            styles.avatar
+          }
+        >
           <MaterialCommunityIcons
             name="headset"
-            size={22}
-            color="#EA580C"
+            size={
+              FixxamTokens.size
+                .iconSm
+            }
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
       ) : (
         <View
-          style={styles.avatarSpacer}
+          style={
+            styles.avatarSpacer
+          }
         />
       )}
 
-      <View style={styles.content}>
-        {showHeader && (
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <View
+        style={
+          styles.content
+        }
+      >
+        {showHeader ? (
           <AppText
-            weight="bold"
-            style={styles.name}
+            variant="caption"
+            weight="semibold"
+            tone="secondary"
+            style={
+              styles.name
+            }
           >
             Fixxam Smarter
           </AppText>
-        )}
+        ) : null}
 
-        <View style={styles.bubble}>
-          <AppText style={styles.text}>
+        {/* ====================================================
+            MESSAGE
+        ==================================================== */}
+
+        <View
+          style={
+            styles.bubble
+          }
+        >
+          <AppText
+            variant="body"
+            style={
+              styles.text
+            }
+          >
             {message.content}
           </AppText>
         </View>
 
-        <View style={styles.footer}>
-          <AppText style={styles.time}>
-            {new Date(
-              message.createdAt,
-            ).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </AppText>
+        {/* ====================================================
+            FOOTER
+        ==================================================== */}
 
-          <Pressable
-            hitSlop={8}
-            style={
-              styles.copyButton
-            }
-            onPress={() =>
-              onCopy?.(
-                message.content,
-              )
-            }
-          >
-            <Ionicons
-              name="copy-outline"
-              size={15}
-              color={
-                CustomerColors.textSecondary
-              }
-            />
-
+        <View
+          style={
+            styles.footer
+          }
+        >
+          {time ? (
             <AppText
-              size="xs"
-              style={
-                styles.copyText
-              }
+              variant="caption"
+              tone="muted"
             >
-              Copy
+              {time}
             </AppText>
-          </Pressable>
+          ) : (
+            <View />
+          )}
+
+          {onCopy ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copy assistant message"
+              hitSlop={8}
+              onPress={
+                handleCopy
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.copyButton,
+
+                pressed
+                  ? styles.copyPressed
+                  : null,
+              ]}
+            >
+              <MaterialCommunityIcons
+                name="content-copy"
+                size={
+                  FixxamTokens.size
+                    .iconXs
+                }
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+              >
+                Copy
+              </AppText>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     container: {
       flexDirection: "row",
+
       alignItems:
         "flex-start",
+
       paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginTop:
         FixxamTokens.spacing.md,
-      marginTop: 14,
     },
 
     groupedContainer: {
-      marginTop: 6,
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
+    /* ========================================================
+       AVATAR
+    ======================================================== */
+
     avatar: {
-      width: 52,
-      height: 52,
-      borderRadius: 18,
+      width:
+        FixxamTokens.size
+          .avatarMd,
+
+      height:
+        FixxamTokens.size
+          .avatarMd,
+
+      flexShrink: 0,
+
+      alignItems: "center",
 
       justifyContent:
         "center",
 
-      alignItems:
-        "center",
-
-      marginRight: 12,
-
-      backgroundColor:
-        "#FFF7ED",
+      marginRight:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        "#FED7AA",
+        CustomerColors.primaryLight,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     avatarSpacer: {
-      width: 52,
-      marginRight: 12,
+      width:
+        FixxamTokens.size
+          .avatarMd,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.md,
     },
+
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
     content: {
       flex: 1,
+
+      minWidth: 0,
     },
 
     name: {
-      marginBottom: 6,
-      fontSize: 13,
-      color:
-        CustomerColors.textSecondary,
+      marginBottom:
+        FixxamTokens.spacing.xs,
     },
 
+    /* ========================================================
+       BUBBLE
+    ======================================================== */
+
     bubble: {
-      backgroundColor:
-        "#F8FAFC",
+      alignSelf:
+        "flex-start",
 
-      borderRadius: 20,
+      maxWidth: "96%",
 
-      borderTopLeftRadius: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingHorizontal: 16,
-
-      paddingVertical: 14,
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
 
-      maxWidth: "96%",
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     text: {
-      fontSize: 16,
-      lineHeight: 26,
       color:
-        CustomerColors.textPrimary,
+        Colors.textPrimary,
     },
+
+    /* ========================================================
+       FOOTER
+    ======================================================== */
 
     footer: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       flexDirection: "row",
+
+      alignItems: "center",
+
       justifyContent:
         "space-between",
-      alignItems: "center",
-      marginTop: 8,
-    },
 
-    time: {
-      fontSize: 12,
-      color:
-        CustomerColors.textSecondary,
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
 
     copyButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       flexDirection: "row",
+
       alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
-    copyText: {
-      marginLeft: 4,
-      color:
-        CustomerColors.textSecondary,
+    copyPressed: {
+      backgroundColor:
+        CustomerColors.primarySoft,
+
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });
+
+export default memo(
+  AssistantBubble,
+);

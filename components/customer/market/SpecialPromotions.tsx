@@ -1,261 +1,457 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
   StyleSheet,
   View,
-  Image,
 } from "react-native";
 
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
-export default function SpecialPromotions() {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type Props = {
+  onSeeAll?: () => void;
+
+  onClaimOffer?: () => void;
+
+  onShopNow?: () => void;
+};
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function SpecialPromotions({
+  onSeeAll,
+  onClaimOffer,
+  onShopNow,
+}: Props) {
   return (
-
     <View style={styles.container}>
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <View style={styles.header}>
-
         <AppText
+          variant="heading3"
           weight="bold"
           style={styles.title}
         >
           Special Promotions
         </AppText>
 
-        <Pressable>
+        {onSeeAll ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="See all special promotions"
+            hitSlop={8}
+            onPress={onSeeAll}
+            style={({ pressed }) => [
+              styles.seeAllButton,
 
-          <AppText
-            style={styles.seeAll}
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            See All
-          </AppText>
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              style={styles.seeAll}
+            >
+              See All
+            </AppText>
 
-        </Pressable>
-
+            <AppIcon
+              name="next"
+              role="customer"
+              size="xs"
+              state="active"
+            />
+          </Pressable>
+        ) : null}
       </View>
 
+      {/* ======================================================
+          PROMOTIONS
+      ====================================================== */}
 
       <View style={styles.row}>
+        {/* ====================================================
+            CEMENT OFFER
+        ==================================================== */}
 
-
-        <View style={styles.cardGreen}>
+        <View
+          style={[
+            styles.card,
+            styles.greenCard,
+          ]}
+        >
+          <View
+            style={[
+              styles.iconBox,
+              styles.greenIconBox,
+            ]}
+          >
+            <AppIcon
+              name="package"
+              role="customer"
+              size="md"
+              state="success"
+            />
+          </View>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
+            numberOfLines={2}
             style={styles.heading}
           >
             Buy 2 Bags of Cement
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={styles.sub}
           >
             Get 5% OFF
           </AppText>
 
           <Pressable
-            style={styles.greenButton}
-          >
+            accessibilityRole="button"
+            accessibilityLabel="Claim cement promotion"
+            accessibilityState={{
+              disabled: !onClaimOffer,
+            }}
+            disabled={!onClaimOffer}
+            onPress={onClaimOffer}
+            style={({ pressed }) => [
+              styles.actionButton,
 
+              !onClaimOffer
+                ? styles.actionDisabled
+                : null,
+
+              pressed &&
+              onClaimOffer
+                ? styles.pressed
+                : null,
+            ]}
+          >
             <AppText
+              variant="caption"
               weight="bold"
+              numberOfLines={1}
               style={styles.buttonText}
             >
               Claim Offer
             </AppText>
-
           </Pressable>
-
         </View>
 
+        {/* ====================================================
+            DELIVERY OFFER
+        ==================================================== */}
 
-        <View style={styles.cardOrange}>
-
-          <Image
-
-            source={{
-              uri:
-                "https://images.unsplash.com/photo-1556740749-887f6717d7e4",
-            }}
-
-            style={styles.image}
-
-          />
+        <View
+          style={[
+            styles.card,
+            styles.deliveryCard,
+          ]}
+        >
+          <View
+            style={[
+              styles.iconBox,
+              styles.deliveryIconBox,
+            ]}
+          >
+            <AppIcon
+              name="delivery"
+              role="customer"
+              size="md"
+              color={Colors.warning}
+            />
+          </View>
 
           <AppText
+            variant="bodyMedium"
             weight="bold"
+            numberOfLines={2}
             style={styles.heading}
           >
             Free Delivery
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={2}
             style={styles.sub}
           >
             Orders above ₦20,000
           </AppText>
 
           <Pressable
-            style={styles.orangeButton}
-          >
+            accessibilityRole="button"
+            accessibilityLabel="Shop free delivery promotion"
+            accessibilityState={{
+              disabled: !onShopNow,
+            }}
+            disabled={!onShopNow}
+            onPress={onShopNow}
+            style={({ pressed }) => [
+              styles.actionButton,
 
+              !onShopNow
+                ? styles.actionDisabled
+                : null,
+
+              pressed &&
+              onShopNow
+                ? styles.pressed
+                : null,
+            ]}
+          >
             <AppText
+              variant="caption"
               weight="bold"
+              numberOfLines={1}
               style={styles.buttonText}
             >
               Shop Now
             </AppText>
-
           </Pressable>
-
         </View>
-
       </View>
-
     </View>
-
   );
-
 }
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles = StyleSheet.create({
-
   container: {
+    marginTop:
+      FixxamTokens.spacing.xl,
 
-    marginTop: 30,
-
-    marginBottom: 24,
-
+    marginBottom:
+      FixxamTokens.spacing.xl,
   },
 
-  header: {
+  /* ==========================================================
+     HEADER
+  ========================================================== */
 
+  header: {
     flexDirection: "row",
+
+    alignItems: "center",
 
     justifyContent: "space-between",
 
-    alignItems: "center",
+    gap:
+      FixxamTokens.spacing.md,
 
-    marginBottom: 16,
-
+    marginBottom:
+      FixxamTokens.spacing.md,
   },
 
   title: {
+    flex: 1,
 
-    fontSize: 22,
+    minWidth: 0,
 
+    color:
+      Colors.textPrimary,
   },
 
-  seeAll: {
-
-    color: "#2563EB",
-
-    fontWeight: "700",
-
-  },
-
-  row: {
+  seeAllButton: {
+    minHeight:
+      FixxamTokens.size.minimumTouchTarget,
 
     flexDirection: "row",
 
-    gap: 12,
+    alignItems: "center",
 
+    justifyContent: "center",
+
+    gap:
+      FixxamTokens.spacing.xs,
   },
 
-  cardGreen: {
-
-    flex: 1,
-
-    backgroundColor: "#E8F8EC",
-
-    borderRadius: 20,
-
-    padding: 16,
-
+  seeAll: {
+    color:
+      CustomerColors.primary,
   },
 
-  cardOrange: {
+  /* ==========================================================
+     CARDS
+  ========================================================== */
 
+  row: {
+    flexDirection: "row",
+
+    gap:
+      FixxamTokens.spacing.md,
+  },
+
+  card: {
     flex: 1,
 
-    backgroundColor: "#FFF4E6",
+    minWidth: 0,
 
-    borderRadius: 20,
+    minHeight: 190,
 
-    padding: 16,
+    padding:
+      FixxamTokens.spacing.md,
+
+    borderWidth: 1,
+
+    borderRadius:
+      FixxamTokens.radius.lg,
+  },
+
+  greenCard: {
+    borderColor:
+      Colors.success,
+
+    backgroundColor:
+      Colors.successSoft,
+  },
+
+  deliveryCard: {
+    borderColor:
+      Colors.warning,
+
+    backgroundColor:
+      Colors.warningSoft,
+  },
+
+  /* ==========================================================
+     ICON
+  ========================================================== */
+
+  iconBox: {
+    width: 44,
+
+    height: 44,
 
     alignItems: "center",
 
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.md,
+
+    backgroundColor:
+      Colors.surface,
   },
 
-  image: {
+  greenIconBox: {
+    borderWidth: 1,
 
-    width: 70,
-
-    height: 70,
-
-    borderRadius: 10,
-
-    marginBottom: 10,
-
+    borderColor:
+      Colors.success,
   },
+
+  deliveryIconBox: {
+    borderWidth: 1,
+
+    borderColor:
+      Colors.warning,
+  },
+
+  /* ==========================================================
+     CONTENT
+  ========================================================== */
 
   heading: {
+    marginTop:
+      FixxamTokens.spacing.md,
 
-    fontSize: 16,
-
+    color:
+      Colors.textPrimary,
   },
 
   sub: {
+    marginTop:
+      FixxamTokens.spacing.xs,
 
-    color: "#64748B",
-
-    marginVertical: 8,
-
+    lineHeight: 18,
   },
 
-  greenButton: {
+  /* ==========================================================
+     ACTION
+  ========================================================== */
 
-    backgroundColor: "#16A34A",
-
-    height: 42,
-
-    borderRadius: 12,
-
-    justifyContent: "center",
+  actionButton: {
+    minHeight:
+      FixxamTokens.size.buttonSmallHeight,
 
     alignItems: "center",
 
-    marginTop: 10,
-
-  },
-
-  orangeButton: {
-
-    backgroundColor: "#F97316",
-
-    height: 42,
-
-    borderRadius: 12,
-
     justifyContent: "center",
 
-    alignItems: "center",
+    marginTop: "auto",
 
-    marginTop: 10,
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
 
-    alignSelf: "stretch",
+    borderRadius:
+      FixxamTokens.radius.button,
 
+    backgroundColor:
+      CustomerColors.primary,
   },
 
   buttonText: {
-
-    color: "#FFFFFF",
-
+    color:
+      Colors.textInverse,
   },
 
+  actionDisabled: {
+    backgroundColor:
+      Colors.disabled,
+
+    opacity:
+      FixxamTokens.motion.disabledOpacity,
+  },
+
+  /* ==========================================================
+     PRESSED
+  ========================================================== */
+
+  pressed: {
+    opacity:
+      FixxamTokens.motion.pressedOpacity,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion.scalePressed,
+      },
+    ],
+  },
 });
+
+export default memo(
+  SpecialPromotions,
+);

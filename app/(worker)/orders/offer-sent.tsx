@@ -1,10 +1,9 @@
 import React, {
+  memo,
   useCallback,
-  useMemo,
 } from "react";
 
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -15,88 +14,143 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppButton,
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ==============================================================
    TYPES
 ============================================================== */
 
 type OfferSentParams = {
-  orderId?: string;
-  serviceName?: string;
-  customerName?: string;
-  amount?: string;
-  message?: string;
+  orderId?:
+    | string
+    | string[];
+
+  serviceName?:
+    | string
+    | string[];
+
+  customerName?:
+    | string
+    | string[];
+
+  amount?:
+    | string
+    | string[];
+
+  message?:
+    | string
+    | string[];
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function resolveParam(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    return value.trim();
+  }
+
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0]?.trim() ||
+      ""
+    );
+  }
+
+  return "";
+}
+
+function resolveAmount(
+  value: string,
+): number {
+  const cleaned =
+    value.replace(
+      /[^0-9]/g,
+      "",
+    );
+
+  if (!cleaned) {
+    return 0;
+  }
+
+  const amount =
+    Number(
+      cleaned,
+    );
+
+  return Number.isFinite(
+    amount,
+  )
+    ? amount
+    : 0;
+}
 
 /* ==============================================================
    SCREEN
 ============================================================== */
 
 export default function OfferSentScreen() {
-  const {
-    orderId,
-    serviceName,
-    customerName,
-    amount,
-    message,
-  } =
+  const params =
     useLocalSearchParams<OfferSentParams>();
 
   /* ============================================================
      RESOLVED DATA
   ============================================================ */
 
-  const resolvedOrderId = useMemo(
-    () => orderId?.trim() || "",
-    [orderId],
-  );
-
-  const resolvedServiceName = useMemo(
-    () =>
-      serviceName?.trim() ||
-      "Service request",
-    [serviceName],
-  );
-
-  const resolvedCustomerName = useMemo(
-    () =>
-      customerName?.trim() ||
-      "Customer",
-    [customerName],
-  );
-
-  const numericAmount = useMemo(() => {
-    if (typeof amount !== "string") {
-      return 0;
-    }
-
-    const value = Number(
-      amount.replace(/[^0-9]/g, ""),
+  const resolvedOrderId =
+    resolveParam(
+      params.orderId,
     );
 
-    return Number.isFinite(value)
-      ? value
-      : 0;
-  }, [amount]);
+  const resolvedServiceName =
+    resolveParam(
+      params.serviceName,
+    ) ||
+    "Service request";
 
-  const formattedAmount = useMemo(
-    () =>
-      `₦${numericAmount.toLocaleString(
-        "en-NG",
-      )}`,
-    [numericAmount],
-  );
+  const resolvedCustomerName =
+    resolveParam(
+      params.customerName,
+    ) ||
+    "Customer";
 
-  const resolvedMessage = useMemo(
-    () => message?.trim() || "",
-    [message],
-  );
+  const resolvedMessage =
+    resolveParam(
+      params.message,
+    );
+
+  const numericAmount =
+    resolveAmount(
+      resolveParam(
+        params.amount,
+      ),
+    );
+
+  const formattedAmount =
+    `₦${numericAmount.toLocaleString(
+      "en-NG",
+    )}`;
 
   /* ============================================================
      BACK TO ORDERS
@@ -115,21 +169,26 @@ export default function OfferSentScreen() {
 
   const handleViewOrder =
     useCallback(() => {
-      if (!resolvedOrderId) {
+      if (
+        !resolvedOrderId
+      ) {
         handleBackToOrders();
+
         return;
       }
 
       router.replace({
         pathname:
           "/(worker)/orders/[orderId]",
+
         params: {
-          orderId: resolvedOrderId,
+          orderId:
+            resolvedOrderId,
         },
       });
     }, [
-      resolvedOrderId,
       handleBackToOrders,
+      resolvedOrderId,
     ]);
 
   /* ============================================================
@@ -138,12 +197,15 @@ export default function OfferSentScreen() {
 
   return (
     <AppScreen
+      role="worker"
       contentContainerStyle={
         styles.screen
       }
     >
       <ScrollView
-        style={styles.scrollView}
+        style={
+          styles.scrollView
+        }
         contentContainerStyle={
           styles.content
         }
@@ -153,10 +215,9 @@ export default function OfferSentScreen() {
         showsHorizontalScrollIndicator={
           false
         }
-        bounces
       >
         {/* ====================================================
-            SUCCESS ICON
+            SUCCESS
         ==================================================== */}
 
         <View
@@ -174,10 +235,12 @@ export default function OfferSentScreen() {
                 styles.successCircle
               }
             >
-              <Ionicons
-                name="checkmark"
-                size={43}
-                color="#FFFFFF"
+              <AppIcon
+                name="success"
+                size="xl"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
           </View>
@@ -188,22 +251,28 @@ export default function OfferSentScreen() {
         ==================================================== */}
 
         <AppText
+          variant="heading2"
           weight="bold"
           center
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Offer Sent Successfully
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           center
-          style={styles.subtitle}
+          style={
+            styles.subtitle
+          }
         >
           Your offer has been sent to{" "}
           {resolvedCustomerName}.
           {"\n"}
-          They can now review your
-          offer.
+          They can now review and respond to it.
         </AppText>
 
         {/* ====================================================
@@ -220,10 +289,12 @@ export default function OfferSentScreen() {
               styles.statusIcon
             }
           >
-            <Ionicons
-              name="paper-plane-outline"
-              size={22}
-              color="#2563EB"
+            <AppIcon
+              name="success"
+              size="md"
+              color={
+                Colors.success
+              }
             />
           </View>
 
@@ -233,6 +304,7 @@ export default function OfferSentScreen() {
             }
           >
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.statusTitle
@@ -242,12 +314,13 @@ export default function OfferSentScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.statusText
               }
             >
-              Waiting for the customer
-              to respond.
+              Waiting for the customer to respond.
             </AppText>
           </View>
 
@@ -257,6 +330,7 @@ export default function OfferSentScreen() {
             }
           >
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.sentBadgeText
@@ -268,7 +342,7 @@ export default function OfferSentScreen() {
         </View>
 
         {/* ====================================================
-            OFFER SUMMARY
+            SUMMARY
         ==================================================== */}
 
         <View
@@ -286,10 +360,13 @@ export default function OfferSentScreen() {
                 styles.summaryIcon
               }
             >
-              <Ionicons
-                name="receipt-outline"
-                size={22}
-                color="#2563EB"
+              <AppIcon
+                name="payment"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
 
@@ -299,6 +376,7 @@ export default function OfferSentScreen() {
               }
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.summaryTitle
@@ -308,18 +386,21 @@ export default function OfferSentScreen() {
               </AppText>
 
               <AppText
+                variant="caption"
+                tone="secondary"
                 style={
                   styles.summarySubtitle
                 }
               >
-                Details sent to the
-                customer.
+                Details sent to the customer.
               </AppText>
             </View>
           </View>
 
           <View
-            style={styles.divider}
+            style={
+              styles.divider
+            }
           />
 
           <SummaryRow
@@ -344,19 +425,19 @@ export default function OfferSentScreen() {
             strong
           />
 
-          {resolvedOrderId && (
+          {resolvedOrderId ? (
             <SummaryRow
               label="Order ID"
               value={`#${resolvedOrderId}`}
             />
-          )}
+          ) : null}
         </View>
 
         {/* ====================================================
             MESSAGE
         ==================================================== */}
 
-        {resolvedMessage && (
+        {resolvedMessage ? (
           <View
             style={
               styles.messageCard
@@ -367,10 +448,13 @@ export default function OfferSentScreen() {
                 styles.messageIcon
               }
             >
-              <Ionicons
-                name="chatbubble-ellipses-outline"
-                size={20}
-                color="#2563EB"
+              <AppIcon
+                name="messages"
+                role="worker"
+                size="sm"
+                color={
+                  WorkerColors.primary
+                }
               />
             </View>
 
@@ -380,6 +464,7 @@ export default function OfferSentScreen() {
               }
             >
               <AppText
+                variant="caption"
                 weight="bold"
                 style={
                   styles.messageTitle
@@ -389,6 +474,8 @@ export default function OfferSentScreen() {
               </AppText>
 
               <AppText
+                variant="body"
+                tone="secondary"
                 style={
                   styles.messageText
                 }
@@ -397,7 +484,7 @@ export default function OfferSentScreen() {
               </AppText>
             </View>
           </View>
-        )}
+        ) : null}
 
         {/* ====================================================
             INFO
@@ -408,97 +495,81 @@ export default function OfferSentScreen() {
             styles.infoCard
           }
         >
-          <Ionicons
-            name="information-circle-outline"
-            size={20}
-            color="#2563EB"
-          />
+          <View
+            style={
+              styles.infoIcon
+            }
+          >
+            <AppIcon
+              name="info"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.infoText
             }
           >
-            You will see the customer's
-            response in your orders when
-            they accept or decline your
-            offer.
+            You will see the customer&apos;s response in your orders when they accept, decline, or send a counter offer.
           </AppText>
         </View>
 
         {/* ====================================================
-            VIEW ORDER
+            ACTIONS
         ==================================================== */}
 
-        {resolvedOrderId && (
-          <Pressable
-            onPress={
-              handleViewOrder
-            }
-            accessibilityRole="button"
-            accessibilityLabel="View order"
-            style={({ pressed }) => [
-              styles.viewButton,
-              pressed &&
-                styles.buttonPressed,
-            ]}
-          >
-            <Ionicons
-              name="receipt-outline"
-              size={19}
-              color="#2563EB"
-            />
-
-            <AppText
-              weight="bold"
-              style={
-                styles.viewButtonText
-              }
-            >
-              VIEW ORDER
-            </AppText>
-
-            <Ionicons
-              name="arrow-forward"
-              size={19}
-              color="#2563EB"
-            />
-          </Pressable>
-        )}
-
-        {/* ====================================================
-            BACK
-        ==================================================== */}
-
-        <Pressable
-          onPress={
-            handleBackToOrders
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Back to my orders"
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed &&
-              styles.buttonPressed,
-          ]}
-        >
-          <AppText
-            weight="bold"
+        {resolvedOrderId ? (
+          <View
             style={
-              styles.backButtonText
+              styles.viewAction
             }
           >
-            BACK TO MY ORDERS
-          </AppText>
-        </Pressable>
+            <AppButton
+              title="View Order"
+              role="worker"
+              variant="outline"
+              leftIconName="file"
+              onPress={
+                handleViewOrder
+              }
+            />
+          </View>
+        ) : null}
+
+        <View
+          style={
+            styles.backAction
+          }
+        >
+          <AppButton
+            title="Back to My Orders"
+            role="worker"
+            variant="primary"
+            leftIconName="jobs"
+            onPress={
+              handleBackToOrders
+            }
+          />
+        </View>
 
         {/* ====================================================
             FOOTER
         ==================================================== */}
 
         <AppText
+          variant="caption"
+          tone="secondary"
           center
-          style={styles.footer}
+          style={
+            styles.footer
+          }
         >
           Fixxam Easyfix
         </AppText>
@@ -511,45 +582,64 @@ export default function OfferSentScreen() {
    SUMMARY ROW
 ============================================================== */
 
-function SummaryRow({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <View
-      style={styles.summaryRow}
-    >
-      <AppText
-        style={
-          styles.summaryLabel
-        }
-      >
-        {label}
-      </AppText>
+const SummaryRow =
+  memo(
+    function SummaryRow({
+      label,
+      value,
+      strong = false,
+    }: {
+      label: string;
 
-      <AppText
-        weight={
-          strong
-            ? "bold"
-            : undefined
-        }
-        numberOfLines={2}
-        style={[
-          styles.summaryValue,
-          strong &&
-            styles.summaryValueStrong,
-        ]}
-      >
-        {value}
-      </AppText>
-    </View>
+      value: string;
+
+      strong?: boolean;
+    }) {
+      return (
+        <View
+          style={
+            styles.summaryRow
+          }
+        >
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.summaryLabel
+            }
+          >
+            {label}
+          </AppText>
+
+          <AppText
+            variant={
+              strong
+                ? "bodyLarge"
+                : "caption"
+            }
+            weight={
+              strong
+                ? "bold"
+                : "medium"
+            }
+            numberOfLines={2}
+            style={[
+              styles.summaryValue,
+
+              strong
+                ? styles.summaryValueStrong
+                : null,
+            ]}
+          >
+            {value}
+          </AppText>
+        </View>
+      );
+    },
   );
-}
+
+SummaryRow.displayName =
+  "OfferSentSummaryRow";
 
 /* ==============================================================
    STYLES
@@ -557,28 +647,34 @@ function SummaryRow({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       SCREEN
-    ========================================================== */
-
     screen: {
       flex: 1,
+
       width: "100%",
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     scrollView: {
       flex: 1,
+
       width: "100%",
     },
 
     content: {
       width: "100%",
+
       flexGrow: 1,
-      paddingHorizontal: 16,
-      paddingTop: 24,
-      paddingBottom: 45,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.xl,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxxl,
     },
 
     /* ==========================================================
@@ -587,38 +683,53 @@ const styles =
 
     successWrapper: {
       width: "100%",
-      alignItems: "center",
-      marginTop: 18,
-      marginBottom: 20,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
     },
 
     successOuter: {
       width: 108,
+
       height: 108,
-      borderRadius: 54,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#DBEAFE",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.successSoft,
     },
 
     successCircle: {
-      width: 82,
-      height: 82,
-      borderRadius: 41,
+      width: 80,
+
+      height: 80,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
-      shadowColor:
-        "#2563EB",
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      shadowOffset: {
-        width: 0,
-        height: 6,
-      },
-      elevation: 5,
+        Colors.success,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ==========================================================
@@ -627,18 +738,26 @@ const styles =
 
     title: {
       width: "100%",
-      fontSize: 23,
-      lineHeight: 29,
-      color: "#0F172A",
+
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
       width: "100%",
-      marginTop: 8,
-      paddingHorizontal: 20,
-      fontSize: 11.5,
-      lineHeight: 18,
-      color: "#64748B",
+
+      maxWidth: 340,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      alignSelf:
+        "center",
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ==========================================================
@@ -647,58 +766,96 @@ const styles =
 
     statusCard: {
       width: "100%",
+
       minHeight: 82,
-      marginTop: 24,
-      padding: 12,
-      borderRadius: 18,
-      backgroundColor:
-        "#EFF6FF",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       borderWidth: 1,
+
       borderColor:
-        "#BFDBFE",
-      flexDirection: "row",
-      alignItems: "center",
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     statusIcon: {
-      width: 48,
-      height: 48,
-      borderRadius: 15,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+        Colors.surface,
     },
 
     statusContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     statusTitle: {
-      fontSize: 11,
-      color: "#2563EB",
+      color:
+        Colors.success,
     },
 
     statusText: {
-      marginTop: 3,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
     },
 
     sentBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#DBEAFE",
+        Colors.surface,
     },
 
     sentBadgeText: {
-      fontSize: 8,
-      color: "#1D4ED8",
+      color:
+        Colors.success,
     },
 
     /* ==========================================================
@@ -707,91 +864,130 @@ const styles =
 
     summaryCard: {
       width: "100%",
-      marginTop: 16,
-      padding: 14,
-      borderRadius: 19,
-      backgroundColor:
-        "#FFFFFF",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      shadowColor:
-        "#0F172A",
-      shadowOpacity: 0.035,
-      shadowRadius: 10,
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      elevation: 2,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     summaryHeader: {
       width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     summaryIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 13,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        WorkerColors.primarySoft,
     },
 
     summaryHeaderText: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     summaryTitle: {
-      fontSize: 13,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     summarySubtitle: {
-      marginTop: 2,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     divider: {
-      height: 1,
-      marginVertical: 13,
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginVertical:
+        FixxamTokens.spacing.md,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.divider,
     },
 
     summaryRow: {
       width: "100%",
-      minHeight: 34,
-      flexDirection: "row",
-      alignItems: "center",
+
+      minHeight: 36,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
     },
 
     summaryLabel: {
-      fontSize: 10.5,
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     summaryValue: {
       flex: 1,
+
       maxWidth: "65%",
-      marginLeft: 12,
-      fontSize: 10.5,
-      textAlign: "right",
-      color: "#334155",
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      textAlign:
+        "right",
+
+      color:
+        Colors.textPrimary,
     },
 
     summaryValueStrong: {
-      fontSize: 17,
-      color: "#2563EB",
+      color:
+        WorkerColors.primary,
     },
 
     /* ==========================================================
@@ -800,46 +996,77 @@ const styles =
 
     messageCard: {
       width: "100%",
-      marginTop: 12,
-      padding: 13,
-      borderRadius: 17,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
-      flexDirection: "row",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
       alignItems:
         "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     messageIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+        WorkerColors.primarySoft,
     },
 
     messageContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     messageTitle: {
-      fontSize: 8.5,
-      letterSpacing: 0.8,
-      color: "#64748B",
+      letterSpacing: 0.6,
+
+      color:
+        Colors.textSecondary,
     },
 
     messageText: {
-      marginTop: 4,
-      fontSize: 10.5,
-      lineHeight: 16,
-      color: "#334155",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 19,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ==========================================================
@@ -848,83 +1075,76 @@ const styles =
 
     infoCard: {
       width: "100%",
-      marginTop: 12,
-      paddingHorizontal: 13,
-      paddingVertical: 11,
-      borderRadius: 15,
-      backgroundColor:
-        "#F8FAFC",
-      flexDirection: "row",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
       alignItems:
         "flex-start",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    infoIcon: {
+      width: 28,
+
+      height: 28,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     infoText: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 8,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#64748B",
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ==========================================================
-       VIEW ORDER
+       ACTIONS
     ========================================================== */
 
-    viewButton: {
+    viewAction: {
       width: "100%",
-      minHeight: 53,
-      marginTop: 22,
-      borderRadius: 16,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#93C5FD",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "center",
-      gap: 8,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
     },
 
-    viewButtonText: {
-      fontSize: 11,
-      color: "#2563EB",
-    },
-
-    /* ==========================================================
-       BACK
-    ========================================================== */
-
-    backButton: {
+    backAction: {
       width: "100%",
-      minHeight: 50,
-      marginTop: 9,
-      borderRadius: 15,
-      backgroundColor:
-        "#2563EB",
-      alignItems: "center",
-      justifyContent: "center",
-    },
 
-    backButtonText: {
-      fontSize: 11,
-      color: "#FFFFFF",
-    },
-
-    /* ==========================================================
-       PRESS
-    ========================================================== */
-
-    buttonPressed: {
-      opacity: 0.85,
-      transform: [
-        {
-          scale: 0.985,
-        },
-      ],
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
@@ -933,8 +1153,11 @@ const styles =
 
     footer: {
       width: "100%",
-      marginTop: 18,
-      fontSize: 9,
-      color: "#CBD5E1",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textMuted,
     },
   });

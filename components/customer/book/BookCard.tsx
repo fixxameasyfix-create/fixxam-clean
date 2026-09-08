@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,21 +8,63 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   title: string;
+
   description: string;
+
+  /**
+   * Existing icon value from BookGrid.
+   * AppIcon supports the project's legacy
+   * icon aliases.
+   */
   icon: string;
+
   iconColor: string;
+
   iconBackground: string;
+
   onPress: () => void;
+
   compact?: boolean;
 };
 
-export default function BookCard({
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function BookCard({
   title,
   description,
   icon,
@@ -29,296 +73,354 @@ export default function BookCard({
   onPress,
   compact = false,
 }: Props) {
+  const safeTitle =
+    cleanString(title) ||
+    "Booking option";
+
+  const safeDescription =
+    cleanString(description);
+
+  const resolvedIcon =
+    (cleanString(icon) ||
+      "service") as AppIconName;
+
+  const resolvedIconColor =
+    cleanString(iconColor) ||
+    CustomerColors.primary;
+
+  const resolvedIconBackground =
+    cleanString(iconBackground) ||
+    CustomerColors.primarySoft;
+
   return (
     <Pressable
-      onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={title}
-      style={({ pressed }) => [
+      accessibilityLabel={
+        safeTitle
+      }
+      accessibilityHint={
+        safeDescription ||
+        undefined
+      }
+      onPress={onPress}
+      style={({
+        pressed,
+      }) => [
         styles.card,
-        compact && styles.compactCard,
-        pressed && styles.pressed,
+
+        compact
+          ? styles.compactCard
+          : null,
+
+        pressed
+          ? styles.pressed
+          : null,
       ]}
     >
-      {/* ICON */}
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconBox,
-          compact && styles.compactIconBox,
+
+          compact
+            ? styles.compactIconBox
+            : null,
+
           {
-            backgroundColor: iconBackground,
+            backgroundColor:
+              resolvedIconBackground,
           },
         ]}
       >
-        <Ionicons
-          name={icon as keyof typeof Ionicons.glyphMap}
-          size={compact ? 20 : 26}
-          color={iconColor}
+        <AppIcon
+          name={
+            resolvedIcon
+          }
+          role="customer"
+          size={
+            compact
+              ? "sm"
+              : "lg"
+          }
+          color={
+            resolvedIconColor
+          }
         />
       </View>
 
-      {/* CONTENT */}
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <View
         style={[
           styles.content,
-          compact && styles.compactContent,
+
+          compact
+            ? styles.compactContent
+            : null,
         ]}
       >
         <AppText
+          variant={
+            compact
+              ? "bodyMedium"
+              : "bodyLarge"
+          }
           weight="bold"
-          numberOfLines={compact ? 1 : 2}
+          numberOfLines={
+            compact
+              ? 1
+              : 2
+          }
           ellipsizeMode="tail"
-          style={[
-            styles.title,
-            compact && styles.compactTitle,
-          ]}
+          style={styles.title}
         >
-          {title}
+          {safeTitle}
         </AppText>
 
-        {!compact && (
+        {!compact &&
+        safeDescription ? (
           <AppText
-            numberOfLines={2}
+            variant="body"
+            tone="secondary"
+            numberOfLines={3}
             ellipsizeMode="tail"
-            style={styles.description}
+            style={
+              styles.description
+            }
           >
-            {description}
+            {safeDescription}
           </AppText>
-        )}
+        ) : null}
       </View>
 
-      {/* ARROW */}
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
+
       <View
         style={[
           styles.arrowBox,
-          compact && styles.compactArrowBox,
+
+          compact
+            ? styles.compactArrowBox
+            : null,
         ]}
       >
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={compact ? "#64748B" : "#2563EB"}
+        <AppIcon
+          name="next"
+          role="customer"
+          size="xs"
+          color={
+            compact
+              ? Colors.textSecondary
+              : CustomerColors.primary
+          }
         />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  /* ==========================================================
-     NORMAL CARD
-  ========================================================== */
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  card: {
-    height: 245,
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-    width: "100%",
+    card: {
+      width: "100%",
 
-    backgroundColor: "#FFFFFF",
+      minHeight: 220,
 
-    borderRadius: 20,
+      position: "relative",
 
-    padding: 18,
+      padding:
+        FixxamTokens.spacing.lg,
 
-    borderWidth: 1,
+      borderWidth: 1,
 
-    borderColor: "#E8EDF3",
+      borderColor:
+        Colors.border,
 
-    overflow: "hidden",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-    shadowColor: "#0F172A",
+      backgroundColor:
+        Colors.surface,
 
-    shadowOpacity: 0.06,
+      overflow: "hidden",
 
-    shadowRadius: 8,
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 3,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  /* ==========================================================
-     ICON
-  ========================================================== */
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-  iconBox: {
-    width: 76,
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-    height: 76,
+    iconBox: {
+      width: 72,
 
-    borderRadius: 20,
+      height: 72,
 
-    alignItems: "center",
+      flexShrink: 0,
 
-    justifyContent: "center",
+      alignItems: "center",
 
-    flexShrink: 0,
-  },
+      justifyContent: "center",
 
-  /* ==========================================================
-     CONTENT
-  ========================================================== */
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
 
-  content: {
-    minHeight: 0,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-    marginTop: 16,
+    content: {
+      flex: 1,
 
-    paddingBottom: 42,
+      minWidth: 0,
 
-    justifyContent: "flex-start",
-  },
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-  /* ==========================================================
-     TITLE
-  ========================================================== */
+      paddingRight:
+        FixxamTokens.spacing.xl,
 
-  title: {
-    height: 56,
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+    },
 
-    fontSize: 20,
+    title: {
+      color:
+        Colors.textPrimary,
+    },
 
-    lineHeight: 28,
+    description: {
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-    color: "#0F172A",
+      lineHeight: 21,
+    },
 
-    flexShrink: 0,
-  },
+    /* ========================================================
+       ARROW
+    ======================================================== */
 
-  /* ==========================================================
-     DESCRIPTION
-  ========================================================== */
+    arrowBox: {
+      position: "absolute",
 
-  description: {
-    marginTop: 8,
+      right:
+        FixxamTokens.spacing.md,
 
-    height: 42,
+      bottom:
+        FixxamTokens.spacing.md,
 
-    paddingRight: 42,
+      width: 36,
 
-    fontSize: 15,
+      height: 36,
 
-    lineHeight: 21,
+      alignItems: "center",
 
-    color: "#64748B",
+      justifyContent: "center",
 
-    flexShrink: 0,
-  },
+      borderRadius:
+        FixxamTokens.radius.md,
 
-  /* ==========================================================
-     ARROW
-  ========================================================== */
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
 
-  arrowBox: {
-    position: "absolute",
+    /* ========================================================
+       COMPACT CARD
+    ======================================================== */
 
-    right: 14,
+    compactCard: {
+      minHeight: 72,
 
-    bottom: 14,
+      flexDirection: "row",
 
-    width: 32,
+      alignItems: "center",
 
-    height: 32,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-    borderRadius: 10,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-    backgroundColor: "#F8FAFC",
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-    alignItems: "center",
+    compactIconBox: {
+      width: 44,
 
-    justifyContent: "center",
-  },
+      height: 44,
 
-  /* ==========================================================
-     COMPACT CARD
-  ========================================================== */
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
 
-  compactCard: {
-    height: 68,
+    compactContent: {
+      flex: 1,
 
-    minHeight: 68,
+      minWidth: 0,
 
-    borderRadius: 16,
+      marginTop: 0,
 
-    paddingHorizontal: 12,
+      marginLeft:
+        FixxamTokens.spacing.sm,
 
-    paddingVertical: 10,
+      paddingRight: 44,
 
-    flexDirection: "row",
+      paddingBottom: 0,
+    },
 
-    alignItems: "center",
+    compactArrowBox: {
+      right:
+        FixxamTokens.spacing.sm,
 
-    justifyContent: "flex-start",
-  },
+      bottom: undefined,
 
-  compactIconBox: {
-    width: 42,
+      top: "50%",
 
-    height: 42,
+      marginTop: -16,
 
-    borderRadius: 12,
+      width: 32,
 
-    flexShrink: 0,
-  },
+      height: 32,
 
-  compactContent: {
-    flex: 1,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-    minWidth: 0,
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+  });
 
-    marginTop: 0,
-
-    marginLeft: 11,
-
-    paddingRight: 38,
-
-    paddingBottom: 0,
-
-    justifyContent: "center",
-  },
-
-  compactTitle: {
-    fontSize: 14,
-
-    lineHeight: 19,
-
-    color: "#0F172A",
-
-    flexShrink: 1,
-  },
-
-  /* ==========================================================
-     COMPACT ARROW
-  ========================================================== */
-
-  compactArrowBox: {
-    right: 10,
-
-    bottom: 18,
-
-    width: 28,
-
-    height: 28,
-
-    borderRadius: 9,
-
-    backgroundColor: "#F8FAFC",
-  },
-
-  /* ==========================================================
-     PRESSED
-  ========================================================== */
-
-  pressed: {
-    opacity: 0.82,
-
-    transform: [
-      {
-        scale: 0.985,
-      },
-    ],
-  },
-});
+export default memo(
+  BookCard,
+);

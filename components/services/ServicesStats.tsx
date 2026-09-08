@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -11,81 +13,178 @@ import {
   AppText,
 } from "@/components/ui";
 
-interface Props {
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type Props = {
   totalServices: number;
+
   totalBookings: number;
+};
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function formatCount(
+  value: number,
+): string {
+  if (
+    !Number.isFinite(value)
+  ) {
+    return "0";
+  }
+
+  const safeValue =
+    Math.max(
+      0,
+      Math.floor(value),
+    );
+
+  return safeValue.toLocaleString(
+    "en-NG",
+  );
 }
 
-export default function ServicesStats({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ServicesStats({
   totalServices,
   totalBookings,
 }: Props) {
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
+      {/* ========================================================
+          SERVICES
+      ======================================================== */}
+
       <View
-        style={styles.stat}
+        style={
+          styles.stat
+        }
       >
         <View
           style={[
-            styles.icon,
-            styles.blueIcon,
+            styles.iconBox,
+            styles.servicesIconBox,
           ]}
         >
           <MaterialCommunityIcons
             name="tools"
-            size={18}
-            color="#2563EB"
+            size={
+              FixxamTokens.size.iconSm
+            }
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        <View>
+        <View
+          style={
+            styles.statContent
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.value}
+            numberOfLines={1}
+            style={
+              styles.value
+            }
           >
-            {totalServices}
+            {formatCount(
+              totalServices,
+            )}
           </AppText>
 
           <AppText
-            style={styles.label}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.label
+            }
           >
             Services
           </AppText>
         </View>
       </View>
 
-      <View
-        style={styles.divider}
-      />
+      {/* ========================================================
+          DIVIDER
+      ======================================================== */}
 
       <View
-        style={styles.stat}
+        style={
+          styles.divider
+        }
+      />
+
+      {/* ========================================================
+          BOOKINGS
+      ======================================================== */}
+
+      <View
+        style={
+          styles.stat
+        }
       >
         <View
           style={[
-            styles.icon,
-            styles.greenIcon,
+            styles.iconBox,
+            styles.bookingsIconBox,
           ]}
         >
           <MaterialCommunityIcons
             name="check-circle-outline"
-            size={18}
-            color="#16A34A"
+            size={
+              FixxamTokens.size.iconSm
+            }
+            color={
+              Colors.success
+            }
           />
         </View>
 
-        <View>
+        <View
+          style={
+            styles.statContent
+          }
+        >
           <AppText
+            variant="bodyLarge"
             weight="bold"
-            style={styles.value}
+            numberOfLines={1}
+            style={
+              styles.value
+            }
           >
-            {totalBookings}
+            {formatCount(
+              totalBookings,
+            )}
           </AppText>
 
           <AppText
-            style={styles.label}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.label
+            }
           >
             Bookings
           </AppText>
@@ -95,81 +194,122 @@ export default function ServicesStats({
   );
 }
 
+export default memo(
+  ServicesStats,
+);
+
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     container: {
-      marginTop: 18,
-      marginBottom: 10,
+      width: "100%",
+
       minHeight: 72,
-      paddingHorizontal: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
+
       alignItems:
         "center",
 
-      shadowColor:
-        "#0F172A",
-      shadowOpacity:
-        0.04,
-      shadowRadius: 7,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     stat: {
       flex: 1,
+
+      minWidth: 0,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
-    icon: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: "center",
+    statContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    iconBox: {
+      width:
+        FixxamTokens.size.iconBox,
+
+      height:
+        FixxamTokens.size.iconBox,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
-      marginRight: 9,
+
+      borderRadius:
+        FixxamTokens.radius.md,
     },
 
-    blueIcon: {
+    servicesIconBox: {
       backgroundColor:
-        "#EFF6FF",
+        CustomerColors.primarySoft,
     },
 
-    greenIcon: {
+    bookingsIconBox: {
       backgroundColor:
-        "#ECFDF5",
+        Colors.successSoft,
     },
 
     value: {
-      fontSize: 17,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     label: {
-      marginTop: 1,
-      fontSize: 10,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     divider: {
       width: 1,
-      height: 32,
+
+      height: 36,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
+
       backgroundColor:
-        "#E2E8F0",
-      marginHorizontal: 10,
+        Colors.border,
     },
   });

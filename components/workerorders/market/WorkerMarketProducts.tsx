@@ -1,22 +1,37 @@
 import React, {
+  memo,
+  useCallback,
   useMemo,
   useState,
 } from "react";
 
 import {
-  Image,
+  FlatList,
+  type ListRenderItemInfo,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 import WorkerMarketProductUnavailable from "./WorkerMarketProductUnavailable";
 
@@ -26,14 +41,19 @@ import WorkerMarketProductUnavailable from "./WorkerMarketProductUnavailable";
 
 export type WorkerMarketProduct = {
   productId: string;
+
   name: string;
+
   image?: string;
+
   price: number;
+
   quantity: number;
 };
 
 type Props = {
   orderId: string;
+
   products: WorkerMarketProduct[];
 
   /*
@@ -47,15 +67,77 @@ type Props = {
   disabled?: boolean;
 };
 
+type ProductItemProps = {
+  product: WorkerMarketProduct;
+
+  orderId: string;
+
+  unavailable: boolean;
+
+  disabled: boolean;
+};
+
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function formatMoney(
-  value: number,
+function getSafeText(
+  value: unknown,
+  fallback = "",
 ): string {
-  return `₦${value.toLocaleString(
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  return fallback;
+}
+
+function getSafePrice(
+  value: unknown,
+): number {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return Math.max(
+      0,
+      value,
+    );
+  }
+
+  return 0;
+}
+
+function getSafeQuantity(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(value),
+  );
+}
+
+function formatMoney(
+  value: unknown,
+): string {
+  const amount =
+    getSafePrice(value);
+
+  return `₦${amount.toLocaleString(
     "en-NG",
+    {
+      maximumFractionDigits: 2,
+    },
   )}`;
 }
 
@@ -75,13 +157,44 @@ export default function WorkerMarketProducts({
   ] = useState(false);
 
   /* ==========================================================
+     NORMALIZED ORDER ID
+  ========================================================== */
+
+  const normalizedOrderId =
+    useMemo(
+      () =>
+        orderId.trim(),
+      [orderId],
+    );
+
+  /* ==========================================================
+     UNAVAILABLE LOOKUP
+  ========================================================== */
+
+  const unavailableSet =
+    useMemo(
+      () =>
+        new Set(
+          unavailableProducts
+            .map(productId =>
+              productId.trim(),
+            )
+            .filter(Boolean),
+        ),
+      [unavailableProducts],
+    );
+
+  /* ==========================================================
      PREVIEW
   ========================================================== */
 
   const previewProducts =
     useMemo(
       () =>
-        products.slice(0, 3),
+        products.slice(
+          0,
+          3,
+        ),
       [products],
     );
 
@@ -104,8 +217,7 @@ export default function WorkerMarketProducts({
             product,
           ) =>
             total +
-            Math.max(
-              1,
+            getSafeQuantity(
               product.quantity,
             ),
           0,
@@ -114,32 +226,116 @@ export default function WorkerMarketProducts({
     );
 
   /* ==========================================================
+     MODAL
+  ========================================================== */
+
+  const openGallery =
+    useCallback(() => {
+      setGalleryVisible(
+        true,
+      );
+    }, []);
+
+  const closeGallery =
+    useCallback(() => {
+      setGalleryVisible(
+        false,
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER GALLERY ITEM
+  ========================================================== */
+
+  const renderGalleryProduct =
+    useCallback(
+      ({
+        item,
+      }: ListRenderItemInfo<WorkerMarketProduct>) => {
+        const productId =
+          getSafeText(
+            item.productId,
+          );
+
+        return (
+          <GalleryProduct
+            product={
+              item
+            }
+            orderId={
+              normalizedOrderId
+            }
+            unavailable={
+              productId
+                ? unavailableSet.has(
+                    productId,
+                  )
+                : false
+            }
+            disabled={
+              disabled ||
+              !normalizedOrderId ||
+              !productId
+            }
+          />
+        );
+      },
+      [
+        disabled,
+        normalizedOrderId,
+        unavailableSet,
+      ],
+    );
+
+  /* ==========================================================
      EMPTY
   ========================================================== */
 
-  if (!products.length) {
+  if (
+    products.length === 0
+  ) {
     return (
       <View
-        style={styles.card}
+        style={
+          styles.card
+        }
       >
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Products
         </AppText>
 
         <View
-          style={styles.empty}
+          style={
+            styles.empty
+          }
         >
-          <Ionicons
-            name="cube-outline"
-            size={28}
-            color="#94A3B8"
-          />
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              size="lg"
+              color={
+                Colors.textMuted
+              }
+            />
+          </View>
 
           <AppText
-            style={styles.emptyText}
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
           >
             No products available
           </AppText>
@@ -155,23 +351,40 @@ export default function WorkerMarketProducts({
   return (
     <>
       <View
-        style={styles.card}
+        style={
+          styles.card
+        }
       >
-        {/* HEADER */}
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
         <View
-          style={styles.sectionHeader}
+          style={
+            styles.sectionHeader
+          }
         >
-          <View>
+          <View
+            style={
+              styles.headerContent
+            }
+          >
             <AppText
+              variant="heading3"
               weight="bold"
-              style={styles.title}
+              style={
+                styles.title
+              }
             >
               Products
             </AppText>
 
             <AppText
-              style={styles.count}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.count
+              }
             >
               {itemCount}{" "}
               {itemCount === 1
@@ -180,54 +393,79 @@ export default function WorkerMarketProducts({
             </AppText>
           </View>
 
-          {products.length > 3 && (
+          {products.length > 3 ? (
             <Pressable
-              onPress={() =>
-                setGalleryVisible(
-                  true,
-                )
+              onPress={
+                openGallery
               }
-              style={({ pressed }) => [
-                styles.viewAllButton,
-                pressed &&
-                  styles.pressed,
-              ]}
               accessibilityRole="button"
               accessibilityLabel="View all products"
+              style={({
+                pressed,
+              }) => [
+                styles.viewAllButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
               <AppText
+                variant="caption"
                 weight="bold"
-                style={styles.viewAllText}
+                style={
+                  styles.viewAllText
+                }
               >
                 View All
               </AppText>
 
-              <Ionicons
-                name="chevron-forward"
-                size={14}
-                color="#2563EB"
+              <AppIcon
+                name="next"
+                role="worker"
+                size="xs"
+                color={
+                  WorkerColors.primary
+                }
               />
             </Pressable>
-          )}
+          ) : null}
         </View>
 
-        {/* PREVIEW PRODUCTS */}
+        {/* ====================================================
+            PREVIEW
+        ==================================================== */}
 
         {previewProducts.map(
           (
             product,
             index,
           ) => {
-            const unavailable =
-              unavailableProducts.includes(
+            const productId =
+              getSafeText(
                 product.productId,
               );
 
+            const unavailable =
+              productId
+                ? unavailableSet.has(
+                    productId,
+                  )
+                : false;
+
             return (
               <ProductRow
-                key={`${product.productId}-${index}`}
-                product={product}
-                orderId={orderId}
+                key={
+                  productId
+                    ? `${productId}-${index}`
+                    : `product-${index}`
+                }
+                product={
+                  product
+                }
+                orderId={
+                  normalizedOrderId
+                }
                 last={
                   index ===
                   previewProducts.length -
@@ -237,39 +475,51 @@ export default function WorkerMarketProducts({
                   unavailable
                 }
                 disabled={
-                  disabled
+                  disabled ||
+                  !normalizedOrderId ||
+                  !productId
                 }
               />
             );
           },
         )}
 
-        {/* MORE */}
+        {/* ====================================================
+            MORE
+        ==================================================== */}
 
-        {remainingCount > 0 && (
+        {remainingCount > 0 ? (
           <Pressable
-            onPress={() =>
-              setGalleryVisible(
-                true,
-              )
+            onPress={
+              openGallery
             }
-            style={({ pressed }) => [
-              styles.moreButton,
-              pressed &&
-                styles.pressed,
-            ]}
             accessibilityRole="button"
             accessibilityLabel={`View ${remainingCount} more products`}
+            style={({
+              pressed,
+            }) => [
+              styles.moreButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="images-outline"
-              size={17}
-              color="#2563EB"
+            <AppIcon
+              name="image"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.moreText}
+              style={
+                styles.moreText
+              }
             >
               +{remainingCount} more{" "}
               {remainingCount === 1
@@ -277,7 +527,7 @@ export default function WorkerMarketProducts({
                 : "products"}
             </AppText>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -285,29 +535,55 @@ export default function WorkerMarketProducts({
       ====================================================== */}
 
       <Modal
-        visible={galleryVisible}
+        visible={
+          galleryVisible
+        }
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() =>
-          setGalleryVisible(false)
+        onRequestClose={
+          closeGallery
         }
       >
-        <View
-          style={styles.modal}
+        <SafeAreaView
+          edges={[
+            "top",
+            "bottom",
+          ]}
+          style={
+            styles.modal
+          }
         >
+          {/* ==================================================
+              MODAL HEADER
+          ================================================== */}
+
           <View
-            style={styles.modalHeader}
+            style={
+              styles.modalHeader
+            }
           >
-            <View>
+            <View
+              style={
+                styles.modalHeaderContent
+              }
+            >
               <AppText
+                variant="heading2"
                 weight="bold"
-                style={styles.modalTitle}
+                numberOfLines={1}
+                style={
+                  styles.modalTitle
+                }
               >
                 Order Products
               </AppText>
 
               <AppText
-                style={styles.modalSubtitle}
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.modalSubtitle
+                }
               >
                 {itemCount}{" "}
                 {itemCount === 1
@@ -317,58 +593,67 @@ export default function WorkerMarketProducts({
             </View>
 
             <Pressable
-              onPress={() =>
-                setGalleryVisible(false)
-              }
-              style={
-                styles.closeButton
+              onPress={
+                closeGallery
               }
               accessibilityRole="button"
               accessibilityLabel="Close products"
+              hitSlop={6}
+              style={({
+                pressed,
+              }) => [
+                styles.closeButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
-              <Ionicons
+              <AppIcon
                 name="close"
-                size={22}
-                color="#0F172A"
+                size="sm"
+                color={
+                  Colors.textPrimary
+                }
               />
             </Pressable>
           </View>
 
-          <ScrollView
+          {/* ==================================================
+              PRODUCT LIST
+          ================================================== */}
+
+          <FlatList
+            data={
+              products
+            }
+            renderItem={
+              renderGalleryProduct
+            }
+            keyExtractor={(
+              product,
+              index,
+            ) => {
+              const productId =
+                getSafeText(
+                  product.productId,
+                );
+
+              return productId
+                ? `${productId}-${index}`
+                : `gallery-product-${index}`;
+            }}
             showsVerticalScrollIndicator={
               false
             }
             contentContainerStyle={
               styles.gallery
             }
-          >
-            {products.map(
-              (
-                product,
-                index,
-              ) => {
-                const unavailable =
-                  unavailableProducts.includes(
-                    product.productId,
-                  );
-
-                return (
-                  <GalleryProduct
-                    key={`${product.productId}-${index}`}
-                    product={product}
-                    orderId={orderId}
-                    unavailable={
-                      unavailable
-                    }
-                    disabled={
-                      disabled
-                    }
-                  />
-                );
-              },
-            )}
-          </ScrollView>
-        </View>
+            initialNumToRender={6}
+            maxToRenderPerBatch={8}
+            windowSize={7}
+          />
+        </SafeAreaView>
       </Modal>
     </>
   );
@@ -378,266 +663,433 @@ export default function WorkerMarketProducts({
    PRODUCT ROW
 ============================================================ */
 
-function ProductRow({
-  product,
-  orderId,
-  last,
-  unavailable,
-  disabled,
-}: {
-  product: WorkerMarketProduct;
-  orderId: string;
-  last: boolean;
-  unavailable: boolean;
-  disabled: boolean;
-}) {
-  const total =
-    product.price *
-    product.quantity;
+const ProductRow =
+  memo(
+    function ProductRow({
+      product,
+      orderId,
+      last,
+      unavailable,
+      disabled,
+    }: ProductItemProps & {
+      last: boolean;
+    }) {
+      const productId =
+        getSafeText(
+          product.productId,
+        );
 
-  return (
-    <View
-      style={[
-        styles.productContainer,
-        !last &&
-          styles.productBorder,
-      ]}
-    >
-      <View
-        style={styles.productRow}
-      >
-        {product.image ? (
-          <Image
-            source={{
-              uri: product.image,
-            }}
-            style={styles.productImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={styles.placeholder}
-          >
-            <Ionicons
-              name="cube-outline"
-              size={24}
-              color="#94A3B8"
-            />
-          </View>
-        )}
+      const productName =
+        getSafeText(
+          product.name,
+          "Product",
+        );
 
+      const productImage =
+        getSafeText(
+          product.image,
+        );
+
+      const price =
+        getSafePrice(
+          product.price,
+        );
+
+      const quantity =
+        getSafeQuantity(
+          product.quantity,
+        );
+
+      const total =
+        price *
+        quantity;
+
+      return (
         <View
-          style={styles.productInfo}
-        >
-          <AppText
-            weight="bold"
-            numberOfLines={2}
-            style={styles.productName}
-          >
-            {product.name}
-          </AppText>
+          style={[
+            styles.productContainer,
 
-          <AppText
-            style={styles.productMeta}
+            !last
+              ? styles.productBorder
+              : null,
+          ]}
+        >
+          <View
+            style={
+              styles.productRow
+            }
           >
-            {formatMoney(
-              product.price,
-            )}{" "}
-            × {product.quantity}
-          </AppText>
+            {productImage ? (
+              <Image
+                source={{
+                  uri:
+                    productImage,
+                }}
+                contentFit="cover"
+                transition={150}
+                recyclingKey={
+                  productImage
+                }
+                accessibilityLabel={`${productName} product image`}
+                style={
+                  styles.productImage
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.placeholder
+                }
+              >
+                <AppIcon
+                  name="package"
+                  size="md"
+                  color={
+                    Colors.textMuted
+                  }
+                />
+              </View>
+            )}
+
+            <View
+              style={
+                styles.productInfo
+              }
+            >
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                numberOfLines={2}
+                style={
+                  styles.productName
+                }
+              >
+                {productName}
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.productMeta
+                }
+              >
+                {formatMoney(
+                  price,
+                )}{" "}
+                × {quantity}
+              </AppText>
+            </View>
+
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={1}
+              style={
+                styles.productTotal
+              }
+            >
+              {formatMoney(
+                total,
+              )}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              UNAVAILABLE ACTION
+          ================================================== */}
+
+          <View
+            style={
+              styles.unavailableContainer
+            }
+          >
+            <WorkerMarketProductUnavailable
+              orderId={
+                orderId
+              }
+              productId={
+                productId
+              }
+              productName={
+                productName
+              }
+              disabled={
+                disabled ||
+                unavailable
+              }
+            />
+
+            {unavailable ? (
+              <ReportedBadge />
+            ) : null}
+          </View>
         </View>
-
-        <AppText
-          weight="bold"
-          style={styles.productTotal}
-        >
-          {formatMoney(total)}
-        </AppText>
-      </View>
-
-      <View
-        style={styles.unavailableContainer}
-      >
-        <WorkerMarketProductUnavailable
-          orderId={orderId}
-          productId={
-            product.productId
-          }
-          productName={product.name}
-          disabled={
-            disabled ||
-            unavailable
-          }
-        />
-
-        {unavailable && (
-          <ReportedBadge />
-        )}
-      </View>
-    </View>
+      );
+    },
   );
-}
+
+ProductRow.displayName =
+  "WorkerMarketProductRow";
 
 /* ============================================================
    GALLERY PRODUCT
 ============================================================ */
 
-function GalleryProduct({
-  product,
-  orderId,
-  unavailable,
-  disabled,
-}: {
-  product: WorkerMarketProduct;
-  orderId: string;
-  unavailable: boolean;
-  disabled: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.galleryItem,
-        unavailable &&
-          styles.galleryUnavailable,
-      ]}
-    >
-      <View
-        style={styles.galleryTop}
-      >
-        {product.image ? (
-          <Image
-            source={{
-              uri: product.image,
-            }}
-            style={styles.galleryImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.galleryImage,
-              styles.galleryPlaceholder,
-            ]}
-          >
-            <Ionicons
-              name="cube-outline"
-              size={35}
-              color="#94A3B8"
-            />
-          </View>
-        )}
+const GalleryProduct =
+  memo(
+    function GalleryProduct({
+      product,
+      orderId,
+      unavailable,
+      disabled,
+    }: ProductItemProps) {
+      const productId =
+        getSafeText(
+          product.productId,
+        );
 
-        {unavailable && (
+      const productName =
+        getSafeText(
+          product.name,
+          "Product",
+        );
+
+      const productImage =
+        getSafeText(
+          product.image,
+        );
+
+      const price =
+        getSafePrice(
+          product.price,
+        );
+
+      const quantity =
+        getSafeQuantity(
+          product.quantity,
+        );
+
+      const total =
+        price *
+        quantity;
+
+      return (
+        <View
+          style={[
+            styles.galleryItem,
+
+            unavailable
+              ? styles.galleryUnavailable
+              : null,
+          ]}
+        >
+          {/* ==================================================
+              IMAGE
+          ================================================== */}
+
           <View
-            style={styles.unavailableOverlay}
+            style={
+              styles.galleryTop
+            }
           >
-            <Ionicons
-              name="close-circle"
-              size={18}
-              color="#FFFFFF"
-            />
+            {productImage ? (
+              <Image
+                source={{
+                  uri:
+                    productImage,
+                }}
+                contentFit="cover"
+                transition={150}
+                recyclingKey={
+                  productImage
+                }
+                accessibilityLabel={`${productName} product image`}
+                style={
+                  styles.galleryImage
+                }
+              />
+            ) : (
+              <View
+                style={[
+                  styles.galleryImage,
+                  styles.galleryPlaceholder,
+                ]}
+              >
+                <AppIcon
+                  name="package"
+                  size="xl"
+                  color={
+                    Colors.textMuted
+                  }
+                />
+              </View>
+            )}
+
+            {unavailable ? (
+              <View
+                style={
+                  styles.unavailableOverlay
+                }
+              >
+                <AppIcon
+                  name="error"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.overlayText
+                  }
+                >
+                  UNAVAILABLE
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ==================================================
+              INFO
+          ================================================== */}
+
+          <View
+            style={
+              styles.galleryInfo
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={2}
+              style={
+                styles.galleryName
+              }
+            >
+              {productName}
+            </AppText>
 
             <AppText
-              weight="bold"
-              style={styles.overlayText}
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.galleryQuantity
+              }
             >
-              UNAVAILABLE
+              Quantity: {quantity}
             </AppText>
+
+            <View
+              style={
+                styles.galleryBottom
+              }
+            >
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.galleryUnitPrice
+                }
+              >
+                {formatMoney(
+                  price,
+                )}{" "}
+                each
+              </AppText>
+
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                numberOfLines={1}
+                style={
+                  styles.galleryTotal
+                }
+              >
+                {formatMoney(
+                  total,
+                )}
+              </AppText>
+            </View>
+
+            {/* ==================================================
+                ACTION
+            ================================================== */}
+
+            <View
+              style={
+                styles.galleryAction
+              }
+            >
+              <WorkerMarketProductUnavailable
+                orderId={
+                  orderId
+                }
+                productId={
+                  productId
+                }
+                productName={
+                  productName
+                }
+                disabled={
+                  disabled ||
+                  unavailable
+                }
+              />
+
+              {unavailable ? (
+                <ReportedBadge />
+              ) : null}
+            </View>
           </View>
-        )}
-      </View>
-
-      <View
-        style={styles.galleryInfo}
-      >
-        <AppText
-          weight="bold"
-          numberOfLines={2}
-          style={styles.galleryName}
-        >
-          {product.name}
-        </AppText>
-
-        <AppText
-          style={styles.galleryQuantity}
-        >
-          Quantity:{" "}
-          {product.quantity}
-        </AppText>
-
-        <View
-          style={styles.galleryBottom}
-        >
-          <AppText
-            style={
-              styles.galleryUnitPrice
-            }
-          >
-            {formatMoney(
-              product.price,
-            )}{" "}
-            each
-          </AppText>
-
-          <AppText
-            weight="bold"
-            style={styles.galleryTotal}
-          >
-            {formatMoney(
-              product.price *
-                product.quantity,
-            )}
-          </AppText>
         </View>
-
-        <View
-          style={styles.galleryAction}
-        >
-          <WorkerMarketProductUnavailable
-            orderId={orderId}
-            productId={
-              product.productId
-            }
-            productName={product.name}
-            disabled={
-              disabled ||
-              unavailable
-            }
-          />
-
-          {unavailable && (
-            <ReportedBadge />
-          )}
-        </View>
-      </View>
-    </View>
+      );
+    },
   );
-}
+
+GalleryProduct.displayName =
+  "WorkerMarketGalleryProduct";
 
 /* ============================================================
    REPORTED BADGE
 ============================================================ */
 
-function ReportedBadge() {
-  return (
-    <View
-      style={styles.reportedBadge}
-    >
-      <Ionicons
-        name="checkmark-circle"
-        size={13}
-        color="#15803D"
-      />
+const ReportedBadge =
+  memo(
+    function ReportedBadge() {
+      return (
+        <View
+          style={
+            styles.reportedBadge
+          }
+        >
+          <AppIcon
+            name="success"
+            size="xs"
+            color={
+              Colors.success
+            }
+          />
 
-      <AppText
-        weight="bold"
-        style={styles.reportedText}
-      >
-        Reported unavailable
-      </AppText>
-    </View>
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.reportedText
+            }
+          >
+            Reported unavailable
+          </AppText>
+        </View>
+      );
+    },
   );
-}
+
+ReportedBadge.displayName =
+  "WorkerMarketReportedBadge";
 
 /* ============================================================
    STYLES
@@ -645,254 +1097,460 @@ function ReportedBadge() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 20,
-      padding: 17,
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     sectionHeader: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 10,
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    headerContent: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     title: {
-      fontSize: 16,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     count: {
-      marginTop: 2,
-      fontSize: 9,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     viewAllButton: {
-      minHeight: 34,
-      paddingHorizontal: 9,
-      borderRadius: 10,
-      backgroundColor:
-        "#EFF6FF",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 2,
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     viewAllText: {
-      fontSize: 9,
-      color: "#2563EB",
+      color:
+        WorkerColors.primary,
     },
 
+    /* ========================================================
+       PRODUCT ROW
+    ======================================================== */
+
     productContainer: {
-      paddingVertical: 2,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
     },
 
     productRow: {
+      minHeight: 84,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      paddingVertical: 11,
     },
 
     productBorder: {
       borderBottomWidth: 1,
+
       borderBottomColor:
-        "#E2E8F0",
+        Colors.divider,
     },
 
     productImage: {
       width: 64,
+
       height: 64,
-      borderRadius: 13,
+
+      flexShrink: 0,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     placeholder: {
       width: 64,
+
       height: 64,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     productInfo: {
       flex: 1,
+
       minWidth: 0,
-      marginHorizontal: 11,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     productName: {
-      fontSize: 12.5,
-      lineHeight: 18,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     productMeta: {
-      marginTop: 5,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textSecondary,
     },
 
     productTotal: {
-      fontSize: 12,
-      color: "#0F172A",
+      flexShrink: 1,
+
+      maxWidth: 110,
+
+      textAlign: "right",
+
+      color:
+        WorkerColors.primary,
     },
 
+    /* ========================================================
+       UNAVAILABLE
+    ======================================================== */
+
     unavailableContainer: {
+      paddingBottom:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
+      flexWrap:
+        "wrap",
+
       alignItems:
         "center",
+
       justifyContent:
         "flex-end",
-      gap: 7,
-      paddingBottom: 9,
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     reportedBadge: {
-      minHeight: 34,
-      paddingHorizontal: 8,
-      borderRadius: 10,
-      backgroundColor:
-        "#ECFDF5",
-      borderWidth: 1,
-      borderColor:
-        "#BBF7D0",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
-      gap: 4,
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.success,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     reportedText: {
-      fontSize: 8,
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
+    /* ========================================================
+       MORE
+    ======================================================== */
+
     moreButton: {
-      minHeight: 40,
-      marginTop: 7,
-      borderRadius: 12,
-      backgroundColor:
-        "#F8FAFC",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 6,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     moreText: {
-      fontSize: 10,
-      color: "#2563EB",
+      color:
+        WorkerColors.primary,
     },
 
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
     empty: {
-      minHeight: 100,
+      minHeight: 140,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+    },
+
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyText: {
-      marginTop: 7,
-      fontSize: 11,
-      color: "#94A3B8",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textMuted,
     },
 
-    pressed: {
-      opacity: 0.8,
-    },
+    /* ========================================================
+       MODAL
+    ======================================================== */
 
     modal: {
       flex: 1,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     modalHeader: {
-      minHeight: 70,
-      paddingHorizontal: 17,
-      backgroundColor:
-        "#FFFFFF",
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "#E2E8F0",
+      minHeight:
+        FixxamTokens.size.headerHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+
+      borderBottomWidth: 1,
+
+      borderBottomColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalHeaderContent: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     modalTitle: {
-      fontSize: 18,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     modalSubtitle: {
-      marginTop: 2,
-      fontSize: 9,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     closeButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor:
-        "#F1F5F9",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     gallery: {
-      padding: 14,
-      paddingBottom: 35,
+      padding:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
+    /* ========================================================
+       GALLERY ITEM
+    ======================================================== */
+
     galleryItem: {
-      backgroundColor:
-        "#FFFFFF",
-      borderRadius: 18,
-      marginBottom: 11,
-      padding: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     galleryUnavailable: {
       borderColor:
-        "#FECACA",
+        Colors.error,
     },
 
     galleryTop: {
@@ -901,87 +1559,153 @@ const styles =
 
     galleryImage: {
       width: "100%",
+
       height: 180,
-      borderRadius: 14,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
     },
 
     galleryPlaceholder: {
       alignItems:
         "center",
+
       justifyContent:
         "center",
     },
 
     unavailableOverlay: {
       position: "absolute",
-      left: 8,
-      right: 8,
-      bottom: 8,
-      minHeight: 34,
-      borderRadius: 10,
-      backgroundColor:
-        "rgba(185,28,28,0.92)",
+
+      left:
+        FixxamTokens.spacing.sm,
+
+      right:
+        FixxamTokens.spacing.sm,
+
+      bottom:
+        FixxamTokens.spacing.sm,
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 5,
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.error,
     },
 
     overlayText: {
-      fontSize: 9,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     galleryInfo: {
-      paddingTop: 2,
+      paddingTop:
+        FixxamTokens.spacing.xs,
     },
 
     galleryName: {
-      marginTop: 8,
-      fontSize: 13,
-      lineHeight: 18,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
     galleryQuantity: {
-      marginTop: 7,
-      fontSize: 10,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textSecondary,
     },
 
     galleryBottom: {
-      marginTop: 7,
+      marginTop:
+        FixxamTokens.spacing.sm,
+
       flexDirection:
         "row",
+
       alignItems:
         "flex-end",
+
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     galleryUnitPrice: {
-      fontSize: 9,
-      color: "#64748B",
+      flex: 1,
+
+      color:
+        Colors.textSecondary,
     },
 
     galleryTotal: {
-      fontSize: 13,
-      color: "#2563EB",
+      flexShrink: 1,
+
+      color:
+        WorkerColors.primary,
     },
 
     galleryAction: {
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
+      flexWrap:
+        "wrap",
+
       alignItems:
         "center",
+
       justifyContent:
         "flex-end",
-      gap: 7,
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

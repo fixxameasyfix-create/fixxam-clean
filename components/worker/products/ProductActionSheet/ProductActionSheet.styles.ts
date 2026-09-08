@@ -1,61 +1,135 @@
-import { StyleSheet } from "react-native";
+import {
+  StyleSheet,
+} from "react-native";
+
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
 
 export default StyleSheet.create({
+  /* ==========================================================
+     CONTENT
+  ========================================================== */
+
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 8,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.lg,
+
+    paddingTop:
+      FixxamTokens.spacing.sm,
   },
+
+  /* ==========================================================
+     HANDLE
+  ========================================================== */
 
   handle: {
-    alignSelf: "center",
     width: 42,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "#CBD5E1",
-    marginBottom: 18,
+
+    height: 4,
+
+    alignSelf:
+      "center",
+
+    marginBottom:
+      FixxamTokens.spacing.lg,
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      Colors.disabled,
   },
+
+  /* ==========================================================
+     TITLE
+  ========================================================== */
 
   title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 20,
+    marginBottom:
+      FixxamTokens.spacing.lg,
+
+    color:
+      Colors.textPrimary,
   },
 
+  /* ==========================================================
+     ACTION
+  ========================================================== */
+
   action: {
-    flexDirection: "row",
-    alignItems: "center",
-    height: 56,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    marginBottom: 8,
+    minHeight:
+      FixxamTokens.size.buttonHeight,
+
+    marginBottom:
+      FixxamTokens.spacing.sm,
+
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
+
+    flexDirection:
+      "row",
+
+    alignItems:
+      "center",
+
+    borderRadius:
+      FixxamTokens.radius.md,
   },
 
   actionText: {
     flex: 1,
-    marginLeft: 14,
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#0F172A",
+
+    marginLeft:
+      FixxamTokens.spacing.md,
+
+    color:
+      Colors.textPrimary,
   },
+
+  /* ==========================================================
+     DELETE
+  ========================================================== */
 
   deleteText: {
-    color: "#DC2626",
+    color:
+      Colors.error,
   },
 
+  /* ==========================================================
+     CANCEL
+  ========================================================== */
+
   cancel: {
-    marginTop: 10,
-    height: 54,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
+    minHeight:
+      FixxamTokens.size.buttonHeight,
+
+    marginTop:
+      FixxamTokens.spacing.sm,
+
+    alignItems:
+      "center",
+
+    justifyContent:
+      "center",
+
+    borderWidth: 1,
+
+    borderColor:
+      Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.md,
+
+    backgroundColor:
+      Colors.background,
   },
 
   cancelText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#334155",
+    color:
+      Colors.textSecondary,
   },
 });

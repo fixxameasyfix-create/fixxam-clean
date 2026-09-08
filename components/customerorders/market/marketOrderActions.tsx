@@ -2,6 +2,7 @@ import React, {
   memo,
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -14,24 +15,37 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
   doc,
+  runTransaction,
   serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
+import Toast from "react-native-toast-message";
+
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
 import {
   auth,
   db,
 } from "@/firebase/config";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import MarketOrderChat from "./marketOrderChat";
 
@@ -39,9 +53,13 @@ import type {
   MarketStatus,
 } from "./marketOrder.utils";
 
-/* ==============================================================
+import {
+  normalizeMarketStatus,
+} from "./marketOrder.utils";
+
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
 type Props = {
   orderId: string;
@@ -57,9 +75,57 @@ type Props = {
   note?: string;
 };
 
-/* ==============================================================
+type ActionVariant =
+  | "primary"
+  | "secondary"
+  | "danger";
+
+/* ============================================================
+   TOAST
+============================================================ */
+
+function showErrorToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfoToast(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showSuccessToast(
+  title: string,
+  message?: string,
+) {
+  Toast.show({
+    type: "success",
+
+    text1: title,
+
+    ...(message
+      ? {
+          text2: message,
+        }
+      : {}),
+  });
+}
+
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
 function MarketOrderActions({
   orderId,
@@ -72,111 +138,104 @@ function MarketOrderActions({
   const [
     cancelling,
     setCancelling,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  /* ============================================================
+  const cancellationInFlight =
+    useRef(false);
+
+  /* ==========================================================
      NORMALIZE
-  ============================================================ */
+  ========================================================== */
 
   const cleanOrderId =
-    useMemo(() => {
-      if (
-        typeof orderId !==
+    useMemo(
+      () =>
+        typeof orderId ===
         "string"
-      ) {
-        return "";
-      }
-
-      return orderId.trim();
-    }, [orderId]);
+          ? orderId.trim()
+          : "",
+      [
+        orderId,
+      ],
+    );
 
   const cleanPhone =
-    useMemo(() => {
-      if (
-        typeof storePhone !==
+    useMemo(
+      () =>
+        typeof storePhone ===
         "string"
-      ) {
-        return "";
-      }
-
-      return storePhone.trim();
-    }, [storePhone]);
+          ? storePhone.trim()
+          : "",
+      [
+        storePhone,
+      ],
+    );
 
   const cleanNote =
-    useMemo(() => {
-      if (
-        typeof note !==
+    useMemo(
+      () =>
+        typeof note ===
         "string"
-      ) {
-        return "";
-      }
+          ? note.trim()
+          : "",
+      [
+        note,
+      ],
+    );
 
-      return note.trim();
-    }, [note]);
-
-  /* ============================================================
+  /* ==========================================================
      ACTION AVAILABILITY
-  ============================================================ */
+  ========================================================== */
 
-  /*
-   * Customer can cancel only while
-   * the seller has not accepted yet.
-   */
   const canCancel =
     status === "pending";
 
-  /*
-   * Tracking becomes available after
-   * seller accepts the order.
-   */
   const canTrack =
     status === "accepted" ||
-    status === "in-progress";
+    status ===
+      "in-progress";
 
-  /*
-   * Customer can contact the store
-   * for all non-terminal orders.
-   */
   const canContactStore =
     status !== "cancelled" &&
     status !== "expired";
 
-  /* ============================================================
+  /* ==========================================================
      TRACK ORDER
-  ============================================================ */
+  ========================================================== */
 
- const handleTrack =
-  useCallback(() => {
-    const cleanOrderId =
-      orderId.trim();
+  const handleTrack =
+    useCallback(() => {
+      if (!cleanOrderId) {
+        showErrorToast(
+          "Unable to track",
+          "Order ID is missing.",
+        );
 
-    if (!cleanOrderId) {
-      Alert.alert(
-        "Unable to track",
-        "Order ID is missing.",
-      );
+        return;
+      }
 
-      return;
-    }
+      router.push({
+        pathname:
+          "/orders/market/track",
 
-    router.push({
-      pathname:
-        "/orders/market/track",
-      params: {
-        orderId:
-          cleanOrderId,
-      },
-    });
-  }, [orderId]);
+        params: {
+          orderId:
+            cleanOrderId,
+        },
+      });
+    }, [
+      cleanOrderId,
+    ]);
 
-  /* ============================================================
+  /* ==========================================================
      CALL STORE
-  ============================================================ */
+  ========================================================== */
 
   const handleCallStore =
     useCallback(async () => {
       if (!cleanPhone) {
-        Alert.alert(
+        showInfoToast(
           "Phone unavailable",
           "The store phone number is not available for this order.",
         );
@@ -184,8 +243,23 @@ function MarketOrderActions({
         return;
       }
 
+      const safePhone =
+        cleanPhone.replace(
+          /[^+\d]/g,
+          "",
+        );
+
+      if (!safePhone) {
+        showErrorToast(
+          "Invalid phone number",
+          "The store phone number is not valid.",
+        );
+
+        return;
+      }
+
       const phoneUrl =
-        `tel:${cleanPhone}`;
+        `tel:${safePhone}`;
 
       try {
         const supported =
@@ -194,7 +268,7 @@ function MarketOrderActions({
           );
 
         if (!supported) {
-          Alert.alert(
+          showErrorToast(
             "Unable to call",
             "Your device cannot make phone calls.",
           );
@@ -205,13 +279,15 @@ function MarketOrderActions({
         await Linking.openURL(
           phoneUrl,
         );
-      } catch (error) {
+      } catch (
+        callError
+      ) {
         console.error(
           "MARKET_ORDER_CALL_STORE_ERROR:",
-          error,
+          callError,
         );
 
-        Alert.alert(
+        showErrorToast(
           "Unable to call",
           "Something went wrong while trying to call the store.",
         );
@@ -220,17 +296,24 @@ function MarketOrderActions({
       cleanPhone,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
      CANCEL ORDER
-  ============================================================ */
+  ========================================================== */
 
   const confirmCancel =
     useCallback(async () => {
+      if (
+        cancellationInFlight.current ||
+        cancelling
+      ) {
+        return;
+      }
+
       const user =
         auth.currentUser;
 
       if (!user) {
-        Alert.alert(
+        showErrorToast(
           "Sign in required",
           "Please sign in again to cancel this order.",
         );
@@ -239,7 +322,7 @@ function MarketOrderActions({
       }
 
       if (!cleanOrderId) {
-        Alert.alert(
+        showErrorToast(
           "Unable to cancel",
           "Order ID is missing.",
         );
@@ -248,7 +331,7 @@ function MarketOrderActions({
       }
 
       if (!canCancel) {
-        Alert.alert(
+        showInfoToast(
           "Order cannot be cancelled",
           "This order can no longer be cancelled.",
         );
@@ -256,11 +339,12 @@ function MarketOrderActions({
         return;
       }
 
-      if (cancelling) {
-        return;
-      }
+      cancellationInFlight.current =
+        true;
 
-      setCancelling(true);
+      setCancelling(
+        true,
+      );
 
       try {
         const orderRef =
@@ -270,49 +354,119 @@ function MarketOrderActions({
             cleanOrderId,
           );
 
-        /*
-         * IMPORTANT:
-         *
-         * Firestore Security Rules must also
-         * enforce customer ownership and
-         * pending status.
-         */
+        await runTransaction(
+          db,
 
-        await updateDoc(
-          orderRef,
-          {
-            status:
-              "cancelled",
+          async (
+            transaction,
+          ) => {
+            const snapshot =
+              await transaction.get(
+                orderRef,
+              );
 
-            cancelledAt:
-              serverTimestamp(),
+            if (
+              !snapshot.exists()
+            ) {
+              throw new Error(
+                "ORDER_NOT_FOUND",
+              );
+            }
 
-            cancelledBy:
-              user.uid,
+            const data =
+              snapshot.data();
 
-            updatedAt:
-              serverTimestamp(),
+            /* ================================================
+               OWNERSHIP
+
+               Firestore Security Rules must independently
+               enforce this check server-side.
+            ================================================ */
+
+            if (
+              data.customerId !==
+              user.uid
+            ) {
+              throw new Error(
+                "ORDER_ACCESS_DENIED",
+              );
+            }
+
+            const currentStatus =
+              normalizeMarketStatus(
+                data.status,
+              );
+
+            if (
+              currentStatus ===
+              "cancelled"
+            ) {
+              throw new Error(
+                "ORDER_ALREADY_CANCELLED",
+              );
+            }
+
+            /*
+             * Customer cancellation is only
+             * allowed while order is pending.
+             */
+            if (
+              currentStatus !==
+              "pending"
+            ) {
+              throw new Error(
+                "ORDER_NOT_CANCELLABLE",
+              );
+            }
+
+            transaction.update(
+              orderRef,
+              {
+                status:
+                  "cancelled",
+
+                cancelledAt:
+                  serverTimestamp(),
+
+                /*
+                 * Preserve existing schema:
+                 * cancelledBy contains user UID.
+                 */
+                cancelledBy:
+                  user.uid,
+
+                updatedAt:
+                  serverTimestamp(),
+              },
+            );
           },
         );
 
-        Alert.alert(
-          "Order Cancelled",
+        showSuccessToast(
+          "Order cancelled",
           "Your market order has been cancelled successfully.",
         );
-      } catch (error) {
+      } catch (
+        cancelError
+      ) {
         console.error(
           "MARKET_ORDER_CANCEL_ERROR:",
-          error,
+          cancelError,
         );
 
-        Alert.alert(
+        showErrorToast(
           "Unable to cancel",
           getCancelErrorMessage(
-            error,
+            cancelError,
           ),
         );
       } finally {
-        setCancelling(false);
+        cancellationInFlight.current =
+          false;
+
+        setCancelling(
+          false,
+        );
       }
     }, [
       cancelling,
@@ -320,16 +474,25 @@ function MarketOrderActions({
       cleanOrderId,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
      CANCEL CONFIRMATION
-  ============================================================ */
+  ========================================================== */
 
   const handleCancel =
     useCallback(() => {
       if (
         cancelling ||
-        !canCancel
+        cancellationInFlight.current
       ) {
+        return;
+      }
+
+      if (!canCancel) {
+        showInfoToast(
+          "Order cannot be cancelled",
+          "This order can no longer be cancelled.",
+        );
+
         return;
       }
 
@@ -338,14 +501,23 @@ function MarketOrderActions({
         "Are you sure you want to cancel this market order?",
         [
           {
-            text: "Keep Order",
-            style: "cancel",
+            text:
+              "Keep Order",
+
+            style:
+              "cancel",
           },
+
           {
-            text: "Cancel Order",
-            style: "destructive",
-            onPress:
-              confirmCancel,
+            text:
+              "Cancel Order",
+
+            style:
+              "destructive",
+
+            onPress: () => {
+              void confirmCancel();
+            },
           },
         ],
       );
@@ -355,9 +527,9 @@ function MarketOrderActions({
       confirmCancel,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
      TERMINAL ORDER
-  ============================================================ */
+  ========================================================== */
 
   if (
     status === "cancelled" ||
@@ -369,43 +541,47 @@ function MarketOrderActions({
 
     return (
       <OrderNote
-        note={cleanNote}
+        note={
+          cleanNote
+        }
       />
     );
   }
 
-  /* ============================================================
+  /* ==========================================================
      RENDER
-  ============================================================ */
+  ========================================================== */
 
   return (
     <>
-      {/* ========================================================
+      {/* ======================================================
           ORDER NOTE
-      ======================================================== */}
+      ====================================================== */}
 
       {cleanNote ? (
         <OrderNote
-          note={cleanNote}
+          note={
+            cleanNote
+          }
         />
       ) : null}
 
-      {/* ========================================================
+      {/* ======================================================
           ACTIONS
-      ======================================================== */}
+      ====================================================== */}
 
       <View
         style={
           styles.actionsCard
         }
       >
-        {/* ======================================================
-            CANCEL ORDER
-        ====================================================== */}
+        {/* ====================================================
+            CANCEL
+        ==================================================== */}
 
         {canCancel ? (
           <ActionButton
-            icon="close-circle-outline"
+            icon="close"
             label={
               cancelling
                 ? "CANCELLING..."
@@ -424,28 +600,28 @@ function MarketOrderActions({
           />
         ) : null}
 
-        {/* ======================================================
-            TRACK ORDER
-        ====================================================== */}
+        {/* ====================================================
+            TRACK
+        ==================================================== */}
 
         {canTrack ? (
           <ActionButton
-            icon="navigate-outline"
+            icon="navigation"
             label="TRACK ORDER"
-            variant="success"
+            variant="primary"
             onPress={
               handleTrack
             }
           />
         ) : null}
 
-        {/* ======================================================
+        {/* ====================================================
             CALL STORE
-        ====================================================== */}
+        ==================================================== */}
 
         {canContactStore ? (
           <ActionButton
-            icon="call-outline"
+            icon="phone"
             label="CALL STORE"
             variant="secondary"
             onPress={
@@ -457,9 +633,9 @@ function MarketOrderActions({
           />
         ) : null}
 
-        {/* ======================================================
+        {/* ====================================================
             CHAT STORE
-        ====================================================== */}
+        ==================================================== */}
 
         {canContactStore ? (
           <MarketOrderChat
@@ -479,184 +655,215 @@ function MarketOrderActions({
   );
 }
 
-export default memo(
-  MarketOrderActions,
-);
+/* ============================================================
+   MEMO
+============================================================ */
 
-/* ==============================================================
+const MemoizedMarketOrderActions =
+  memo(
+    MarketOrderActions,
+  );
+
+MemoizedMarketOrderActions.displayName =
+  "MarketOrderActions";
+
+export default MemoizedMarketOrderActions;
+
+/* ============================================================
    ORDER NOTE
-============================================================== */
+============================================================ */
 
-const OrderNote = memo(
-  ({
-    note,
-  }: {
-    note: string;
-  }) => {
-    return (
-      <View
-        style={
-          styles.noteCard
-        }
-      >
-        <AppText
-          weight="bold"
-          style={
-            styles.noteTitle
-          }
-        >
-          Order Note
-        </AppText>
-
+const OrderNote =
+  memo(
+    function OrderNote({
+      note,
+    }: {
+      note: string;
+    }) {
+      return (
         <View
           style={
-            styles.noteBox
+            styles.noteCard
           }
         >
-          <Ionicons
-            name="document-text-outline"
-            size={18}
-            color="#64748B"
-          />
-
           <AppText
+            variant="body"
+            weight="bold"
             style={
-              styles.noteText
+              styles.noteTitle
             }
           >
-            {note}
+            Order Note
           </AppText>
+
+          <View
+            style={
+              styles.noteBox
+            }
+          >
+            <AppIcon
+              name="file"
+              size="sm"
+              color={
+                Colors.textSecondary
+              }
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.noteText
+              }
+            >
+              {note}
+            </AppText>
+          </View>
         </View>
-      </View>
-    );
-  },
-);
+      );
+    },
+  );
 
 OrderNote.displayName =
   "OrderNote";
 
-/* ==============================================================
+/* ============================================================
    ACTION BUTTON
-============================================================== */
+============================================================ */
 
-const ActionButton = memo(
-  ({
-    icon,
-    label,
-    variant,
-    onPress,
-    disabled = false,
-    loading = false,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
+const ActionButton =
+  memo(
+    function ActionButton({
+      icon,
+      label,
+      variant,
+      onPress,
+      disabled = false,
+      loading = false,
+    }: {
+      icon: AppIconName;
 
-    label: string;
+      label: string;
 
-    variant:
-      | "success"
-      | "secondary"
-      | "danger";
+      variant:
+        ActionVariant;
 
-    onPress: () => void;
+      onPress:
+        () => void;
 
-    disabled?: boolean;
+      disabled?: boolean;
 
-    loading?: boolean;
-  }) => {
-    const config =
-      getButtonConfig(
-        variant,
-      );
+      loading?: boolean;
+    }) {
+      const config =
+        getButtonConfig(
+          variant,
+        );
 
-    return (
-      <Pressable
-        onPress={onPress}
-        disabled={disabled}
-        accessibilityRole="button"
-        accessibilityLabel={
-          label
-        }
-        accessibilityState={{
-          disabled,
-          busy: loading,
-        }}
-        style={({ pressed }) => [
-          styles.actionButton,
+      return (
+        <Pressable
+          onPress={
+            onPress
+          }
+          disabled={
+            disabled
+          }
+          accessibilityRole="button"
+          accessibilityLabel={
+            label
+          }
+          accessibilityState={{
+            disabled,
+            busy:
+              loading,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.actionButton,
 
-          config.button,
+            config.button,
 
-          disabled &&
-            styles.disabled,
+            disabled
+              ? styles.disabled
+              : null,
 
-          pressed &&
-            !disabled &&
-            styles.pressed,
-        ]}
-      >
-        {loading ? (
-          <ActivityIndicator
-            size="small"
-            color={
-              config.icon
-            }
-          />
-        ) : (
-          <Ionicons
-            name={icon}
-            size={19}
-            color={
-              config.icon
-            }
-          />
-        )}
-
-        <AppText
-          weight="bold"
-          style={[
-            styles.actionText,
-            {
-              color:
-                config.text,
-            },
+            pressed &&
+            !disabled
+              ? styles.pressed
+              : null,
           ]}
         >
-          {label}
-        </AppText>
-      </Pressable>
-    );
-  },
-);
+          {loading ? (
+            <ActivityIndicator
+              size="small"
+              color={
+                config.icon
+              }
+            />
+          ) : (
+            <AppIcon
+              name={icon}
+              role="customer"
+              size="sm"
+              color={
+                config.icon
+              }
+            />
+          )}
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={[
+              styles.actionText,
+
+              {
+                color:
+                  config.text,
+              },
+            ]}
+          >
+            {label}
+          </AppText>
+        </Pressable>
+      );
+    },
+  );
 
 ActionButton.displayName =
   "ActionButton";
 
-/* ==============================================================
+/* ============================================================
    BUTTON CONFIG
-============================================================== */
+============================================================ */
 
 function getButtonConfig(
-  variant:
-    | "success"
-    | "secondary"
-    | "danger",
+  variant: ActionVariant,
 ) {
-  switch (
-    variant
-  ) {
-    case "success":
+  switch (variant) {
+    case "primary":
       return {
         button:
-          styles.successButton,
-        icon: "#FFFFFF",
-        text: "#FFFFFF",
+          styles.primaryButton,
+
+        icon:
+          Colors.textInverse,
+
+        text:
+          Colors.textInverse,
       };
 
     case "danger":
       return {
         button:
           styles.dangerButton,
-        icon: "#DC2626",
-        text: "#DC2626",
+
+        icon:
+          Colors.error,
+
+        text:
+          Colors.error,
       };
 
     case "secondary":
@@ -664,19 +871,46 @@ function getButtonConfig(
       return {
         button:
           styles.secondaryButton,
-        icon: "#2563EB",
-        text: "#2563EB",
+
+        icon:
+          CustomerColors.primary,
+
+        text:
+          CustomerColors.primary,
       };
   }
 }
 
-/* ==============================================================
+/* ============================================================
    FIRESTORE ERROR
-============================================================== */
+============================================================ */
 
 function getCancelErrorMessage(
   error: unknown,
 ): string {
+  if (
+    error instanceof Error
+  ) {
+    switch (
+      error.message
+    ) {
+      case "ORDER_NOT_FOUND":
+        return "This order no longer exists.";
+
+      case "ORDER_ACCESS_DENIED":
+        return "You are not allowed to cancel this order.";
+
+      case "ORDER_ALREADY_CANCELLED":
+        return "This order has already been cancelled.";
+
+      case "ORDER_NOT_CANCELLABLE":
+        return "This order has already changed and can no longer be cancelled.";
+
+      default:
+        break;
+    }
+  }
+
   if (
     typeof error ===
       "object" &&
@@ -716,9 +950,9 @@ function getCancelErrorMessage(
   return "Something went wrong. Please try again.";
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
@@ -727,39 +961,61 @@ const styles =
     ======================================================== */
 
     noteCard: {
-      marginTop: 10,
-      padding: 14,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     noteTitle: {
-      fontSize: 14,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     noteBox: {
-      marginTop: 10,
-      padding: 11,
-      borderRadius: 12,
-      backgroundColor:
-        "#F8FAFC",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "flex-start",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     noteText: {
       flex: 1,
-      fontSize: 9.5,
-      lineHeight: 15,
-      color: "#475569",
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -767,44 +1023,68 @@ const styles =
     ======================================================== */
 
     actionsCard: {
-      marginTop: 10,
-      padding: 12,
-      borderRadius: 18,
-      backgroundColor:
-        "#FFFFFF",
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
       borderWidth: 1,
+
       borderColor:
-        "#E2E8F0",
-      gap: 8,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
-       BUTTON
+       ACTION BUTTON
     ======================================================== */
 
     actionButton: {
-      minHeight: 48,
-      paddingHorizontal: 14,
-      borderRadius: 14,
-      borderWidth: 1,
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
-      gap: 8,
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderRadius:
+        FixxamTokens.radius.button,
     },
 
     /* ========================================================
-       SUCCESS
+       PRIMARY
     ======================================================== */
 
-    successButton: {
-      backgroundColor:
-        "#16A34A",
+    primaryButton: {
       borderColor:
-        "#16A34A",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     /* ========================================================
@@ -812,10 +1092,11 @@ const styles =
     ======================================================== */
 
     secondaryButton: {
-      backgroundColor:
-        "#EFF6FF",
       borderColor:
-        "#DBEAFE",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     /* ========================================================
@@ -823,10 +1104,11 @@ const styles =
     ======================================================== */
 
     dangerButton: {
-      backgroundColor:
-        "#FEF2F2",
       borderColor:
-        "#FECACA",
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     /* ========================================================
@@ -834,7 +1116,8 @@ const styles =
     ======================================================== */
 
     actionText: {
-      fontSize: 10,
+      textAlign:
+        "center",
     },
 
     /* ========================================================
@@ -842,14 +1125,21 @@ const styles =
     ======================================================== */
 
     disabled: {
-      opacity: 0.45,
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     pressed: {
-      opacity: 0.75,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

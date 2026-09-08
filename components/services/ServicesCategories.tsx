@@ -1,9 +1,12 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   FlatList,
+  Pressable,
   StyleSheet,
-  TouchableOpacity,
 } from "react-native";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -16,134 +19,345 @@ import type {
   ServiceCategory,
 } from "@/firebase/queries/services/listenCategories";
 
-interface Props {
-  categories: ServiceCategory[];
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  keyof typeof MaterialCommunityIcons.glyphMap;
+
+type Props = {
+  categories:
+    ServiceCategory[];
+
   selected: string;
+
   onSelect: (
     id: string,
   ) => void;
+};
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const DEFAULT_ICON: MaterialIconName =
+  "apps";
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function safeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
 }
 
-export default function ServicesCategories({
+function resolveIcon(
+  value: unknown,
+): MaterialIconName {
+  const icon =
+    safeString(
+      value,
+    );
+
+  if (
+    icon &&
+    icon in
+      MaterialCommunityIcons.glyphMap
+  ) {
+    return icon as MaterialIconName;
+  }
+
+  return DEFAULT_ICON;
+}
+
+/* ==============================================================
+   CATEGORY CHIP
+============================================================== */
+
+const CategoryChip =
+  memo(
+    function CategoryChip({
+      item,
+      active,
+      onPress,
+    }: {
+      item:
+        ServiceCategory;
+
+      active: boolean;
+
+      onPress: (
+        id: string,
+      ) => void;
+    }) {
+      const id =
+        safeString(
+          item.id,
+        );
+
+      const name =
+        safeString(
+          item.name,
+        ) ||
+        "Category";
+
+      const icon =
+        resolveIcon(
+          item.icon,
+        );
+
+      return (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Filter services by ${name}`}
+          accessibilityState={{
+            selected:
+              active,
+          }}
+          disabled={
+            !id
+          }
+          onPress={() =>
+            onPress(
+              id,
+            )
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.chip,
+
+            active
+              ? styles.activeChip
+              : null,
+
+            !id
+              ? styles.disabledChip
+              : null,
+
+            pressed &&
+            id
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <MaterialCommunityIcons
+            name={
+              icon
+            }
+            size={
+              FixxamTokens.size.iconSm
+            }
+            color={
+              active
+                ? Colors.textInverse
+                : CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="medium"
+            numberOfLines={1}
+            style={[
+              styles.label,
+
+              active
+                ? styles.activeLabel
+                : null,
+            ]}
+          >
+            {name}
+          </AppText>
+        </Pressable>
+      );
+    },
+  );
+
+CategoryChip.displayName =
+  "ServicesCategoryChip";
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ServicesCategories({
   categories,
   selected,
   onSelect,
 }: Props) {
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ServiceCategory;
+      }) => (
+        <CategoryChip
+          item={
+            item
+          }
+          active={
+            item.id ===
+            selected
+          }
+          onPress={
+            onSelect
+          }
+        />
+      ),
+      [
+        onSelect,
+        selected,
+      ],
+    );
+
+  const keyExtractor =
+    useCallback(
+      (
+        item:
+          ServiceCategory,
+        index: number,
+      ) => {
+        const id =
+          safeString(
+            item.id,
+          );
+
+        return (
+          id ||
+          `service-category-${index}`
+        );
+      },
+      [],
+    );
+
+  if (
+    categories.length ===
+    0
+  ) {
+    return null;
+  }
+
   return (
     <FlatList
       horizontal
-      data={categories}
-      keyExtractor={(
-        item,
-      ) => item.id}
+      data={
+        categories
+      }
+      renderItem={
+        renderItem
+      }
+      keyExtractor={
+        keyExtractor
+      }
       showsHorizontalScrollIndicator={
         false
       }
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={
         styles.list
       }
-      renderItem={({
-        item,
-      }) => {
-        const active =
-          item.id === selected;
-
-        return (
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={() =>
-              onSelect(
-                item.id,
-              )
-            }
-            style={[
-              styles.chip,
-              active &&
-                styles.activeChip,
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={
-                (item.icon ||
-                  "apps") as any
-              }
-              size={17}
-              color={
-                active
-                  ? "#FFFFFF"
-                  : "#2563EB"
-              }
-            />
-
-            <AppText
-              weight="bold"
-              style={[
-                styles.label,
-                active &&
-                  styles.activeLabel,
-              ]}
-            >
-              {item.name}
-            </AppText>
-          </TouchableOpacity>
-        );
-      }}
     />
   );
 }
 
+export default memo(
+  ServicesCategories,
+);
+
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
     list: {
-      paddingRight: 12,
+      paddingRight:
+        FixxamTokens.spacing.md,
     },
 
     chip: {
-      height: 42,
-      paddingHorizontal: 15,
-      marginRight: 8,
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
-      alignItems: "center",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "center",
 
-      borderRadius: 21,
-
-      backgroundColor:
-        "#FFFFFF",
+      gap:
+        FixxamTokens.spacing.xs,
 
       borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
 
-      shadowColor:
-        "#0F172A",
-      shadowOpacity:
-        0.04,
-      shadowRadius: 6,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-      elevation: 2,
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     activeChip: {
-      backgroundColor:
-        "#2563EB",
       borderColor:
-        "#2563EB",
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    disabledChip: {
+      opacity:
+        FixxamTokens.motion.disabledOpacity,
     },
 
     label: {
-      marginLeft: 6,
-      fontSize: 13,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     activeLabel: {
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
     },
   });

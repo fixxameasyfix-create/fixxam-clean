@@ -1,12 +1,28 @@
-import React from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   FlatList,
+  type ListRenderItemInfo,
   Pressable,
   StyleSheet,
 } from "react-native";
 
-import { AppText } from "@/components/ui";
+import {
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   CATEGORIES
+============================================================ */
 
 const CATEGORIES = [
   "all",
@@ -16,81 +32,228 @@ const CATEGORIES = [
   "painting",
   "carpentry",
   "others",
-];
+] as const;
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   selected: string;
-  onSelect: (category: string) => void;
+
+  onSelect: (
+    category: string,
+  ) => void;
 };
 
-export default function AllProductsCategories({
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function formatCategoryLabel(
+  value: string,
+): string {
+  if (!value) {
+    return "";
+  }
+
+  return (
+    value.charAt(0).toUpperCase() +
+    value.slice(1)
+  );
+}
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function AllProductsCategories({
   selected,
   onSelect,
 }: Props) {
+  const renderItem =
+    useCallback(
+      ({
+        item,
+      }: ListRenderItemInfo<
+        (typeof CATEGORIES)[number]
+      >) => {
+        const active =
+          selected === item;
+
+        return (
+          <Pressable
+            onPress={() => {
+              if (!active) {
+                onSelect(item);
+              }
+            }}
+            accessibilityRole="tab"
+            accessibilityLabel={`${formatCategoryLabel(
+              item,
+            )} category`}
+            accessibilityState={{
+              selected:
+                active,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.chip,
+
+              active
+                ? styles.activeChip
+                : null,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppText
+              variant="bodyMedium"
+              weight={
+                active
+                  ? "bold"
+                  : "medium"
+              }
+              numberOfLines={1}
+              style={[
+                styles.label,
+
+                active
+                  ? styles.activeLabel
+                  : null,
+              ]}
+            >
+              {formatCategoryLabel(
+                item,
+              )}
+            </AppText>
+          </Pressable>
+        );
+      },
+      [
+        onSelect,
+        selected,
+      ],
+    );
+
   return (
     <FlatList
       horizontal
       data={CATEGORIES}
-      keyExtractor={(item) => item}
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.content}
-      renderItem={({ item }) => {
-        const active = selected === item;
-
-        return (
-          <Pressable
-            onPress={() => onSelect(item)}
-            style={[
-              styles.chip,
-              active && styles.activeChip,
-            ]}
-          >
-            <AppText
-              weight={active ? "bold" : "medium"}
-              style={[
-                styles.label,
-                active && styles.activeLabel,
-              ]}
-            >
-              {item.charAt(0).toUpperCase() +
-                item.slice(1)}
-            </AppText>
-          </Pressable>
-        );
-      }}
+      renderItem={
+        renderItem
+      }
+      keyExtractor={
+        item => item
+      }
+      showsHorizontalScrollIndicator={
+        false
+      }
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={
+        styles.content
+      }
     />
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 10,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  chip: {
-    height: 42,
-    paddingHorizontal: 18,
-    borderRadius: 21,
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FED7AA",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+AllProductsCategories.displayName =
+  "AllProductsCategories";
 
-  activeChip: {
-    backgroundColor: "#F97316",
-    borderColor: "#F97316",
-  },
+export default memo(
+  AllProductsCategories,
+);
 
-  label: {
-    fontSize: 14,
-    color: "#EA580C",
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  activeLabel: {
-    color: "#FFFFFF",
-  },
-});
+const styles =
+  StyleSheet.create({
+    content: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       CHIP
+    ======================================================== */
+
+    chip: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    activeChip: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    label: {
+      color:
+        Colors.textSecondary,
+    },
+
+    activeLabel: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       INTERACTION
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

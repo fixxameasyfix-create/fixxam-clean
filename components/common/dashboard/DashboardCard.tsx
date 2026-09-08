@@ -1,24 +1,59 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
+
 import {
   Pressable,
   StyleSheet,
   View,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   title: string;
+
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
+
+  /**
+   * Official Fixxam icon name
+   * or supported legacy alias.
+   */
+  icon:
+    | AppIconName
+    | (string & {});
+
   iconColor: string;
+
   iconBackground: string;
+
   onPress: () => void;
+
   badge?: string;
 };
 
-export default function DashboardCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function DashboardCard({
   title,
   description,
   icon,
@@ -27,121 +62,270 @@ export default function DashboardCard({
   onPress,
   badge,
 }: Props) {
+  const safeBadge =
+    typeof badge === "string"
+      ? badge.trim()
+      : "";
+
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={
+        description || undefined
+      }
       onPress={onPress}
-      style={styles.card}
+      style={({ pressed }) => [
+        styles.card,
+
+        pressed
+          ? styles.pressed
+          : null,
+      ]}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
         style={[
           styles.iconContainer,
+
           {
             backgroundColor:
               iconBackground,
           },
         ]}
       >
-        <Ionicons
-          name={icon}
-          size={28}
+        <AppIcon
+          name={
+            icon as AppIconName
+          }
+          role="customer"
+          size="lg"
           color={iconColor}
         />
       </View>
 
-     {badge && (
-  <View style={styles.badge}>
-    <AppText style={styles.badgeText}>
-      {badge}
-    </AppText>
-  </View>
-)}
+      {/* ======================================================
+          BADGE
+      ====================================================== */}
+
+      {safeBadge ? (
+        <View
+          style={styles.badge}
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.badgeText
+            }
+          >
+            {safeBadge}
+          </AppText>
+        </View>
+      ) : null}
+
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
       <AppText
+        variant="bodyLarge"
         weight="bold"
+        numberOfLines={2}
+        ellipsizeMode="tail"
         style={styles.title}
       >
         {title}
       </AppText>
 
-      <AppText style={styles.description}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        numberOfLines={3}
+        ellipsizeMode="tail"
+        style={
+          styles.description
+        }
+      >
         {description}
       </AppText>
 
-      <View style={styles.arrow}>
-        <Ionicons
-          name="chevron-forward"
-          size={24}
-          color="#2563EB"
+      {/* ======================================================
+          NEXT
+      ====================================================== */}
+
+      <View
+        style={styles.arrow}
+      >
+        <AppIcon
+          name="next"
+          role="customer"
+          size="sm"
+          color={
+            CustomerColors.primary
+          }
         />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    flex: 1,
-    minHeight: 190,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 20,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 5,
+const styles =
+  StyleSheet.create({
+    card: {
+      flex: 1,
+
+      minHeight: 190,
+
+      position: "relative",
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    elevation: 4,
-  },
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
-  iconContainer: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
-    justifyContent: "center",
-    alignItems: "center",
-  },
+    /* ========================================================
+       ICON
+    ======================================================== */
 
-  title: {
-    marginTop: 18,
-    fontSize: 24,
-    color: "#0F172A",
-  },
+    iconContainer: {
+      width: 62,
 
-  description: {
-    marginTop: 10,
-    fontSize: 15,
-    lineHeight: 22,
-    color: "#64748B",
-  },
+      height: 62,
 
-  arrow: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-  },
+      flexShrink: 0,
 
-  badge: {
-  position: "absolute",
-  top: 16,
-  left: 60,
+      alignItems: "center",
 
-  backgroundColor: "#EF4444",
+      justifyContent: "center",
 
-  borderRadius: 20,
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
 
-  paddingHorizontal: 8,
-  paddingVertical: 3,
-},
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-badgeText: {
-  color: "#FFFFFF",
-  fontSize: 11,
-  fontWeight: "700",
-},
+    title: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
-});
+      paddingRight:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingRight:
+        FixxamTokens.spacing.xl,
+
+      paddingBottom:
+        FixxamTokens.spacing.xl,
+
+      lineHeight: 22,
+    },
+
+    /* ========================================================
+       ARROW
+    ======================================================== */
+
+    arrow: {
+      position: "absolute",
+
+      right:
+        FixxamTokens.spacing.md,
+
+      bottom:
+        FixxamTokens.spacing.md,
+
+      width: 36,
+
+      height: 36,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ========================================================
+       BADGE
+    ======================================================== */
+
+    badge: {
+      position: "absolute",
+
+      top:
+        FixxamTokens.spacing.md,
+
+      left: 60,
+
+      minHeight: 24,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    badgeText: {
+      color:
+        Colors.textInverse,
+    },
+  });
+
+export default memo(
+  DashboardCard,
+);

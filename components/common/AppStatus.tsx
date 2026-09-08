@@ -1,112 +1,121 @@
-import React from "react";
-import {
-  View,
-  StyleSheet,
-} from "react-native";
+import React, { memo } from "react";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import AppBadge from "./AppBadge";
 
-import { AppText } from "@/components/ui";
+import type { AppIconName } from "@/components/ui/AppIcon";
+import type { FixxamRole } from "@/theme";
 
-type Props = {
-  status:
-    | "online"
-    | "offline"
-    | "busy"
-    | "verified"
-    | "pending";
+export type AppStatusValue =
+  | "online"
+  | "offline"
+  | "busy"
+  | "verified"
+  | "pending"
+  | "accepted"
+  | "inProgress"
+  | "completed"
+  | "cancelled";
+
+type BadgeVariant =
+  | "primary"
+  | "neutral"
+  | "success"
+  | "warning"
+  | "error"
+  | "info";
+
+type StatusConfig = {
+  label: string;
+  variant: BadgeVariant;
+  icon: AppIconName;
 };
 
-const STATUS = {
+const STATUS_CONFIG: Record<
+  AppStatusValue,
+  StatusConfig
+> = {
   online: {
     label: "Online",
-    color: "#16A34A",
-    backgroundColor: "#DCFCE7",
-    icon: "check-circle",
+    variant: "success",
+    icon: "success",
   },
 
   offline: {
     label: "Offline",
-    color: "#64748B",
-    backgroundColor: "#F1F5F9",
-    icon: "close-circle",
+    variant: "neutral",
+    icon: "close",
   },
 
   busy: {
     label: "Busy",
-    color: "#EA580C",
-    backgroundColor: "#FFEDD5",
-    icon: "clock-outline",
+    variant: "warning",
+    icon: "clock",
   },
 
   verified: {
     label: "Verified",
-    color: "#2563EB",
-    backgroundColor: "#DBEAFE",
-    icon: "shield-check",
+    variant: "info",
+    icon: "verified",
   },
 
   pending: {
     label: "Pending",
-    color: "#D97706",
-    backgroundColor: "#FEF3C7",
-    icon: "progress-clock",
+    variant: "warning",
+    icon: "clock",
+  },
+
+  accepted: {
+    label: "Accepted",
+    variant: "info",
+    icon: "check",
+  },
+
+  inProgress: {
+    label: "In Progress",
+    variant: "primary",
+    icon: "clock",
+  },
+
+  completed: {
+    label: "Completed",
+    variant: "success",
+    icon: "success",
+  },
+
+  cancelled: {
+    label: "Cancelled",
+    variant: "error",
+    icon: "error",
   },
 };
 
-export default function AppStatus({
+export interface AppStatusProps {
+  status: AppStatusValue;
+
+  role?: FixxamRole;
+
+  /*
+   * Optional override when backend/UI
+   * needs a custom display label.
+   */
+  label?: string;
+}
+
+function AppStatus({
   status,
-}: Props) {
-  const item = STATUS[status];
+  role = "customer",
+  label,
+}: AppStatusProps) {
+  const config = STATUS_CONFIG[status];
 
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            item.backgroundColor,
-        },
-      ]}
-    >
-      <MaterialCommunityIcons
-        name={item.icon as any}
-        size={16}
-        color={item.color}
-      />
-
-      <AppText
-        weight="bold"
-        style={[
-          styles.text,
-          {
-            color: item.color,
-          },
-        ]}
-      >
-        {item.label}
-      </AppText>
-    </View>
+    <AppBadge
+      label={label ?? config.label}
+      role={role}
+      variant={config.variant}
+      icon={config.icon}
+    />
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignSelf: "flex-start",
-
-    flexDirection: "row",
-
-    alignItems: "center",
-
-    paddingHorizontal: 12,
-
-    paddingVertical: 6,
-
-    borderRadius: 999,
-  },
-
-  text: {
-    marginLeft: 6,
-    fontSize: 12,
-  },
-});
+export default memo(AppStatus);

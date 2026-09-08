@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useState,
+} from "react";
 
 import {
   StyleSheet,
@@ -6,7 +9,20 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+  Typography,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   value: string;
@@ -16,70 +32,139 @@ type Props = {
   ) => void;
 };
 
-export default function SearchBar({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function SearchBar({
   value,
   onChangeText,
 }: Props) {
+  const [
+    focused,
+    setFocused,
+  ] = useState(false);
+
   return (
-    <View style={styles.container}>
-      <View style={styles.searchBox}>
-        <Ionicons
-          name="search-outline"
-          size={22}
-          color="#9CA3AF"
+    <View
+      style={
+        styles.container
+      }
+    >
+      <View
+        style={[
+          styles.searchBox,
+
+          focused
+            ? styles.searchBoxFocused
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="search"
+          role="customer"
+          size="sm"
+          color={
+            focused
+              ? CustomerColors.primary
+              : Colors.textMuted
+          }
         />
 
         <TextInput
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={
+            onChangeText
+          }
+          onFocus={() =>
+            setFocused(true)
+          }
+          onBlur={() =>
+            setFocused(false)
+          }
           placeholder="Search materials, tools and more..."
-          placeholderTextColor="#9CA3AF"
-          style={styles.input}
+          placeholderTextColor={
+            Colors.textMuted
+          }
+          style={
+            styles.input
+          }
           returnKeyType="search"
           autoCapitalize="none"
           autoCorrect={false}
+          clearButtonMode="while-editing"
+          accessibilityLabel="Search market products"
         />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  searchBox: {
-    width: "100%",
-    height: 42,
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-
-    flexDirection: "row",
-    alignItems: "center",
-
-    paddingHorizontal: 18,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
-    elevation: 3,
-  },
+    searchBox: {
+      width: "100%",
 
-  input: {
-    flex: 1,
-    marginLeft: 10,
+      height:
+        FixxamTokens.size
+          .inputHeight,
 
-    fontSize: 14,
-    color: "#111827",
+      flexDirection:
+        "row",
 
-    paddingVertical: 0,
-  },
-});
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.search,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    searchBoxFocused: {
+      borderColor:
+        CustomerColors.primary,
+    },
+
+    input: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical: 0,
+
+      fontSize:
+        Typography.fontSize.md,
+
+      color:
+        Colors.textPrimary,
+    },
+  });
+
+export default memo(
+  SearchBar,
+);

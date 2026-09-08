@@ -1,6 +1,11 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
+import {
+  CustomerColors,
+} from "@/theme";
+
 import type {
+  FilterType,
   MarketOrder,
   MarketOrderProduct,
   MarketPaymentMethod,
@@ -34,7 +39,10 @@ export const FILTERS = [
     key: "cancelled",
     label: "Cancelled",
   },
-] as const;
+] as const satisfies ReadonlyArray<{
+  key: FilterType;
+  label: string;
+}>;
 
 /* ==============================================================
    STATUS CONFIG
@@ -72,6 +80,86 @@ export const STATUS_CONFIG: Record<
 };
 
 /* ==============================================================
+   GENERIC HELPERS
+============================================================== */
+
+function isRecord(
+  value: unknown,
+): value is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function getString(
+  value: unknown,
+  fallback = "",
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    const trimmed =
+      value.trim();
+
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return fallback;
+}
+
+function getNumber(
+  value: unknown,
+  fallback = 0,
+): number {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value === "string"
+  ) {
+    const trimmed =
+      value.trim();
+
+    if (trimmed) {
+      const parsed =
+        Number(trimmed);
+
+      if (
+        Number.isFinite(parsed)
+      ) {
+        return parsed;
+      }
+    }
+  }
+
+  return fallback;
+}
+
+function getOptionalAmount(
+  value: unknown,
+): number | null {
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+/* ==============================================================
    STATUS NORMALIZER
 ============================================================== */
 
@@ -80,7 +168,9 @@ export function normalizeStatus(
 ): OrderStatus {
   const status =
     typeof value === "string"
-      ? value.trim().toLowerCase()
+      ? value
+          .trim()
+          .toLowerCase()
       : "";
 
   switch (status) {
@@ -92,6 +182,7 @@ export function normalizeStatus(
     case "in progress":
     case "on-the-way":
     case "on_the_way":
+    case "on the way":
       return "in-progress";
 
     case "completed":
@@ -113,6 +204,10 @@ export function normalizeStatus(
 
 /* ==============================================================
    SERVICE ICON
+
+   IMPORTANT:
+   MaterialCommunityIcons stays here.
+   Existing Firestore/service icon names continue to work.
 ============================================================== */
 
 export function resolveServiceIcon(
@@ -145,24 +240,23 @@ export function resolveServiceIcon(
 export function getDateValue(
   value: unknown,
 ): Date | null {
-  if (!value) {
+  if (value == null) {
     return null;
   }
 
   try {
     if (value instanceof Date) {
-      return value;
+      return Number.isNaN(
+        value.getTime(),
+      )
+        ? null
+        : value;
     }
 
     if (
-      typeof value === "object" &&
-      value !== null &&
-      "toDate" in value &&
-      typeof (
-        value as {
-          toDate?: unknown;
-        }
-      ).toDate === "function"
+      isRecord(value) &&
+      typeof value.toDate ===
+        "function"
     ) {
       const date = (
         value as {
@@ -170,12 +264,16 @@ export function getDateValue(
         }
       ).toDate();
 
-      return date instanceof Date &&
+      if (
+        date instanceof Date &&
         !Number.isNaN(
           date.getTime(),
         )
-        ? date
-        : null;
+      ) {
+        return date;
+      }
+
+      return null;
     }
 
     if (
@@ -185,13 +283,11 @@ export function getDateValue(
       const date =
         new Date(value);
 
-      if (
-        !Number.isNaN(
-          date.getTime(),
-        )
-      ) {
-        return date;
-      }
+      return Number.isNaN(
+        date.getTime(),
+      )
+        ? null
+        : date;
     }
   } catch {
     return null;
@@ -207,73 +303,49 @@ export function getDateValue(
 export function getTimestampMillis(
   value: unknown,
 ): number {
-  if (!value) {
+  if (value == null) {
     return 0;
   }
 
   try {
     if (value instanceof Date) {
-      return value.getTime();
-    }
+      const milliseconds =
+        value.getTime();
 
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      "toMillis" in value &&
-      typeof (
-        value as {
-          toMillis?: unknown;
-        }
-      ).toMillis === "function"
-    ) {
-      return (
-        value as {
-          toMillis: () => number;
-        }
-      ).toMillis();
-    }
-
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      "toDate" in value &&
-      typeof (
-        value as {
-          toDate?: unknown;
-        }
-      ).toDate === "function"
-    ) {
-      const date = (
-        value as {
-          toDate: () => Date;
-        }
-      ).toDate();
-
-      return date instanceof Date
-        ? date.getTime()
+      return Number.isFinite(
+        milliseconds,
+      )
+        ? milliseconds
         : 0;
     }
 
     if (
-      typeof value === "string" ||
-      typeof value === "number"
+      isRecord(value) &&
+      typeof value.toMillis ===
+        "function"
     ) {
-      const date =
-        new Date(value);
+      const milliseconds = (
+        value as {
+          toMillis: () => number;
+        }
+      ).toMillis();
 
-      if (
-        !Number.isNaN(
-          date.getTime(),
-        )
-      ) {
-        return date.getTime();
-      }
+      return Number.isFinite(
+        milliseconds,
+      )
+        ? milliseconds
+        : 0;
     }
+
+    const date =
+      getDateValue(value);
+
+    return date
+      ? date.getTime()
+      : 0;
   } catch {
     return 0;
   }
-
-  return 0;
 }
 
 /* ==============================================================
@@ -307,17 +379,16 @@ export function formatDate(
 export function formatOrderNumber(
   id: string,
 ): string {
-  if (!id) {
+  const clean = id
+    .replace(
+      /[^a-zA-Z0-9]/g,
+      "",
+    )
+    .toUpperCase();
+
+  if (!clean) {
     return "#FX-ORDER";
   }
-
-  const clean =
-    id
-      .replace(
-        /[^a-zA-Z0-9]/g,
-        "",
-      )
-      .toUpperCase();
 
   const shortId =
     clean.length > 6
@@ -332,103 +403,54 @@ export function formatOrderNumber(
 ============================================================== */
 
 export function resolveLocation(
-  data: Record<string, unknown>,
+  data: Record<
+    string,
+    unknown
+  >,
 ): string {
-  if (
-    typeof data.address ===
-      "string" &&
-    data.address.trim()
-  ) {
-    return data.address.trim();
+  const directAddress =
+    getString(
+      data.address,
+    );
+
+  if (directAddress) {
+    return directAddress;
+  }
+
+  const directLocation =
+    getString(
+      data.location,
+    );
+
+  if (directLocation) {
+    return directLocation;
   }
 
   if (
-    typeof data.location ===
-      "string" &&
-    data.location.trim()
+    isRecord(
+      data.location,
+    )
   ) {
-    return data.location.trim();
-  }
+    const nestedAddress =
+      getString(
+        data.location.address,
+      );
 
-  if (
-    typeof data.location ===
-      "object" &&
-    data.location !== null
-  ) {
-    const location =
-      data.location as {
-        address?: unknown;
-        city?: unknown;
-      };
-
-    if (
-      typeof location.address ===
-        "string" &&
-      location.address.trim()
-    ) {
-      return location.address.trim();
+    if (nestedAddress) {
+      return nestedAddress;
     }
 
-    if (
-      typeof location.city ===
-        "string" &&
-      location.city.trim()
-    ) {
-      return location.city.trim();
+    const nestedCity =
+      getString(
+        data.location.city,
+      );
+
+    if (nestedCity) {
+      return nestedCity;
     }
   }
 
   return "Location unavailable";
-}
-
-/* ==============================================================
-   NUMBER HELPER
-============================================================== */
-
-function getNumber(
-  value: unknown,
-  fallback = 0,
-): number {
-  if (
-    typeof value === "number" &&
-    Number.isFinite(value)
-  ) {
-    return value;
-  }
-
-  if (
-    typeof value === "string" &&
-    value.trim()
-  ) {
-    const parsed =
-      Number(value);
-
-    if (
-      Number.isFinite(parsed)
-    ) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-}
-
-/* ==============================================================
-   STRING HELPER
-============================================================== */
-
-function getString(
-  value: unknown,
-  fallback = "",
-): string {
-  if (
-    typeof value === "string" &&
-    value.trim()
-  ) {
-    return value.trim();
-  }
-
-  return fallback;
 }
 
 /* ==============================================================
@@ -438,11 +460,14 @@ function getString(
 function resolvePaymentMethod(
   value: unknown,
 ): MarketPaymentMethod {
-  switch (
+  const method =
     typeof value === "string"
-      ? value.trim().toLowerCase()
-      : ""
-  ) {
+      ? value
+          .trim()
+          .toLowerCase()
+      : "";
+
+  switch (method) {
     case "card":
       return "card";
 
@@ -467,84 +492,71 @@ function mapMarketProducts(
   }
 
   return value
-    .filter(
-      (
-        product,
-      ): product is Record<
-        string,
-        unknown
-      > =>
-        typeof product ===
-          "object" &&
-        product !== null,
-    )
-    .map(
-      (product) => {
-        const productId =
+    .filter(isRecord)
+    .map((product) => {
+      const productId =
+        getString(
+          product.productId,
           getString(
-            product.productId,
-            getString(
-              product.id,
-            ),
-          );
+            product.id,
+          ),
+        );
 
-        /*
-         * IMPORTANT:
-         * Support image, imageUrl and photoUrl.
-         */
-        const image =
+      /*
+       * Support all currently-used
+       * product image fields.
+       */
+      const image =
+        getString(
+          product.image,
           getString(
-            product.image,
+            product.imageUrl,
             getString(
-              product.imageUrl,
-              getString(
-                product.photoUrl,
-              ),
+              product.photoUrl,
             ),
-          );
+          ),
+        );
 
-        const name =
+      const name =
+        getString(
+          product.name,
           getString(
-            product.name,
-            getString(
-              product.productName,
-              "Product",
-            ),
-          );
+            product.productName,
+            "Product",
+          ),
+        );
 
-        const price =
-          Math.max(
-            0,
+      const price =
+        Math.max(
+          0,
+          getNumber(
+            product.price,
+          ),
+        );
+
+      const quantity =
+        Math.max(
+          1,
+          Math.floor(
             getNumber(
-              product.price,
+              product.quantity,
+              1,
             ),
-          );
+          ),
+        );
 
-        const quantity =
-          Math.max(
-            1,
-            Math.floor(
-              getNumber(
-                product.quantity,
-                1,
-              ),
-            ),
-          );
+      return {
+        productId,
+        name,
 
-        return {
-          productId,
+        image:
+          image ||
+          undefined,
 
-          name,
-
-          image:
-            image || undefined,
-
-          price,
-
-          quantity,
-        };
-      },
-    )
+        price,
+        quantity,
+      };
+    })
     .filter(
       (product) =>
         product.productId.length >
@@ -558,7 +570,10 @@ function mapMarketProducts(
 
 export function mapFirestoreOrder(
   id: string,
-  data: Record<string, unknown>,
+  data: Record<
+    string,
+    unknown
+  >,
 ): Order {
   const workerName =
     getString(
@@ -592,31 +607,19 @@ export function mapFirestoreOrder(
     ) || undefined;
 
   const offerAmount =
-    typeof data.offerAmount ===
-      "number" &&
-    Number.isFinite(
+    getOptionalAmount(
       data.offerAmount,
-    )
-      ? data.offerAmount
-      : null;
+    );
 
   const counterOfferAmount =
-    typeof data.counterOfferAmount ===
-      "number" &&
-    Number.isFinite(
+    getOptionalAmount(
       data.counterOfferAmount,
-    )
-      ? data.counterOfferAmount
-      : null;
+    );
 
   const agreedPrice =
-    typeof data.agreedPrice ===
-      "number" &&
-    Number.isFinite(
+    getOptionalAmount(
       data.agreedPrice,
-    )
-      ? data.agreedPrice
-      : null;
+    );
 
   const counterOfferBy =
     data.counterOfferBy ===
@@ -640,40 +643,50 @@ export function mapFirestoreOrder(
 
     serviceName,
 
+    /*
+     * MaterialCommunityIcons service
+     * icon architecture stays intact.
+     */
     serviceIcon:
       resolveServiceIcon(
         data.serviceIcon,
       ),
 
+    /*
+     * Existing Firestore colors still
+     * override these defaults.
+     *
+     * Defaults now come from Fixxam
+     * customer theme instead of raw hex.
+     */
     serviceColor:
       getString(
         data.serviceColor,
-        "#2563EB",
+        CustomerColors.primary,
       ),
 
     serviceBackgroundColor:
       getString(
         data.serviceBackgroundColor,
-        "#EFF6FF",
+        CustomerColors.primarySoft,
       ),
 
     workerName,
-
     workerCategory,
-
     workerPhoto,
 
     location:
       resolveLocation(data),
 
     address:
-      typeof data.address ===
-        "string"
-        ? data.address
-        : undefined,
+      getString(
+        data.address,
+      ) || undefined,
 
     date:
-      formatDate(dateValue),
+      formatDate(
+        dateValue,
+      ),
 
     time,
 
@@ -706,15 +719,14 @@ export function mapFirestoreOrder(
 
 export function mapMarketOrder(
   id: string,
-  data: Record<string, unknown>,
+  data: Record<
+    string,
+    unknown
+  >,
 ): MarketOrder {
   const dateValue =
     data.createdAt ??
     data.date;
-
-  /* ============================================================
-     PRODUCTS
-  ============================================================ */
 
   const products =
     mapMarketProducts(
@@ -722,11 +734,7 @@ export function mapMarketOrder(
     );
 
   /* ============================================================
-     FIRST PRODUCT
-     
-     WorkerMarketOrderCard needs:
-       productImage
-       productName
+     PRODUCT PREVIEW
   ============================================================ */
 
   const firstProduct =
@@ -736,7 +744,7 @@ export function mapMarketOrder(
     firstProduct?.image;
 
   const productName =
-    firstProduct?.name ||
+    firstProduct?.name ??
     "Market Order";
 
   /* ============================================================
@@ -770,14 +778,6 @@ export function mapMarketOrder(
         data.total,
       ),
     );
-
-  /* ============================================================
-     AMOUNT
-     
-     WorkerMarketOrderCard checks:
-       amount
-       offerAmount
-  ============================================================ */
 
   const amount =
     Math.max(
@@ -837,7 +837,7 @@ export function mapMarketOrder(
     resolveLocation(data);
 
   /* ============================================================
-     MARKET ORDER
+     RESULT
   ============================================================ */
 
   return {
@@ -848,24 +848,17 @@ export function mapMarketOrder(
         data.status,
       ),
 
-    /*
-     * Full products array.
-     */
     products,
 
     /*
-     * IMPORTANT:
-     * These fields are consumed directly
-     * by WorkerMarketOrderCard.
+     * WorkerMarketOrderCard
+     * compatibility fields.
      */
     productImage,
-
     productName,
 
     customerId,
-
     customerName,
-
     customerPhoto,
 
     itemCount,
@@ -911,7 +904,9 @@ export function mapMarketOrder(
     total,
 
     date:
-      formatDate(dateValue),
+      formatDate(
+        dateValue,
+      ),
 
     createdAt:
       data.createdAt,
@@ -962,6 +957,9 @@ export function getOrdersErrorMessage(
 
       case "deadline-exceeded":
         return "The request took too long. Please try again.";
+
+      case "resource-exhausted":
+        return "The service is currently busy. Please try again shortly.";
 
       default:
         break;

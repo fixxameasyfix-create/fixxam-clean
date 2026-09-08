@@ -1,6 +1,8 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -9,7 +11,6 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   StyleSheet,
   View,
 } from "react-native";
@@ -19,19 +20,27 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import Toast from "react-native-toast-message";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppScreen,
+  AppText,
+} from "@/components/ui";
 
 import ProductCard from "@/components/customer/market/ProductCard";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import {
   getWorkerProducts,
 } from "@/firebase/queries/products";
 
-import {
+import type {
   Product,
 } from "@/types/product";
 
@@ -43,42 +52,111 @@ import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
-type ProductWithDeal = Product & {
-  activeDeal:
-    | ActiveProductDeal
-    | null;
+type ProductWithDeal =
+  Product & {
+    activeDeal:
+      | ActiveProductDeal
+      | null;
+  };
+
+type WorkerStoreParams = {
+  workerId?:
+    | string
+    | string[];
 };
 
-/* ==============================================================
+type LoadProductsOptions = {
+  preserveExisting?: boolean;
+};
+
+/* ============================================================
    HELPERS
-============================================================== */
+============================================================ */
+
+function getParamString(
+  value:
+    | string
+    | string[]
+    | undefined,
+): string {
+  if (
+    Array.isArray(value)
+  ) {
+    return (
+      value[0] ??
+      ""
+    ).trim();
+  }
+
+  return (
+    value ??
+    ""
+  ).trim();
+}
+
+function normalizeString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
 
 function getOriginalPrice(
   product: Product,
 ): number {
   const price =
-    Number(product.price);
+    Number(
+      product.price,
+    );
 
-  return Number.isFinite(price) &&
+  return Number.isFinite(
+    price,
+  ) &&
     price > 0
     ? price
     : 0;
 }
 
+function getStock(
+  value: unknown,
+): number {
+  const stock =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      stock,
+    ) ||
+    stock <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    stock,
+  );
+}
+
 function getValidDeal(
   product: Product,
-  deal: ActiveProductDeal | null,
+  deal:
+    | ActiveProductDeal
+    | null,
 ): ActiveProductDeal | null {
   if (!deal) {
     return null;
   }
 
   const originalPrice =
-    getOriginalPrice(product);
+    getOriginalPrice(
+      product,
+    );
 
   const discountedPrice =
     Number(
@@ -117,10 +195,14 @@ function getValidDeal(
 
 function getUnitPrice(
   product: Product,
-  deal: ActiveProductDeal | null,
+  deal:
+    | ActiveProductDeal
+    | null,
 ): number {
   const originalPrice =
-    getOriginalPrice(product);
+    getOriginalPrice(
+      product,
+    );
 
   const validDeal =
     getValidDeal(
@@ -147,25 +229,32 @@ function getUnitPrice(
     : originalPrice;
 }
 
-/* ==============================================================
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function WorkerStoreScreen() {
-  const {
-    workerId,
-  } =
-    useLocalSearchParams<{
-      workerId: string;
-    }>();
+  const params =
+    useLocalSearchParams<WorkerStoreParams>();
+
+  const normalizedWorkerId =
+    useMemo(
+      () =>
+        getParamString(
+          params.workerId,
+        ),
+      [
+        params.workerId,
+      ],
+    );
 
   const [
     products,
     setProducts,
   ] =
-    useState<
-      ProductWithDeal[]
-    >([]);
+    useState<ProductWithDeal[]>(
+      [],
+    );
 
   const [
     loading,
@@ -179,28 +268,48 @@ export default function WorkerStoreScreen() {
   ] =
     useState(false);
 
+  const loadRequestId =
+    useRef(0);
+
   const {
     addToCart,
-  } = useCart();
+  } =
+    useCart();
 
-  /* ============================================================
+  /* ==========================================================
      LOAD PRODUCTS + DEALS
-  ============================================================ */
+  ========================================================== */
 
   const loadProducts =
     useCallback(
-      async () => {
-        const normalizedWorkerId =
-          String(
-            workerId ?? "",
-          ).trim();
+      async (
+        options:
+          LoadProductsOptions = {},
+      ) => {
+        const {
+          preserveExisting =
+            false,
+        } =
+          options;
+
+        const requestId =
+          ++loadRequestId.current;
 
         if (
           !normalizedWorkerId
         ) {
-          setProducts([]);
-          setLoading(false);
-          setRefreshing(false);
+          setProducts(
+            [],
+          );
+
+          setLoading(
+            false,
+          );
+
+          setRefreshing(
+            false,
+          );
+
           return;
         }
 
@@ -210,76 +319,119 @@ export default function WorkerStoreScreen() {
               normalizedWorkerId,
             );
 
-          /* ==================================================
-             ACTIVE PRODUCTS
-          ================================================== */
+          if (
+            requestId !==
+            loadRequestId.current
+          ) {
+            return;
+          }
 
-          const activeProducts: Product[] =
+          /* ================================================
+             ACTIVE PRODUCTS
+          ================================================ */
+
+          const activeProducts:
+            Product[] =
             snapshot.docs
               .map(
-                (item) =>
+                item =>
                   ({
-                    id: item.id,
+                    /*
+                     * Firestore document ID
+                     * remains authoritative.
+                     */
                     ...item.data(),
-                  } as Product),
+
+                    id:
+                      item.id,
+                  }) as Product,
               )
               .filter(
-                (product) =>
+                product =>
                   product.status ===
                     "active" &&
-                  Number(
+                  getStock(
                     product.stock,
                   ) > 0,
               );
-
-          /* ==================================================
-             NO PRODUCTS
-          ================================================== */
 
           if (
             activeProducts.length ===
             0
           ) {
-            setProducts([]);
+            setProducts(
+              [],
+            );
+
             return;
           }
 
-          /* ==================================================
+          /* ================================================
              PRODUCT IDS
-          ================================================== */
+          ================================================ */
 
           const productIds =
             activeProducts
               .map(
-                (product) =>
-                  String(
-                    product.id ?? "",
-                  ).trim(),
+                product =>
+                  normalizeString(
+                    product.id,
+                  ),
               )
               .filter(Boolean);
 
-          /* ==================================================
-             ACTIVE DEALS
-          ================================================== */
+          /* ================================================
+             DEALS
 
-          const dealsByProductId =
-            await getActiveProductDeals(
-              productIds,
+             Deal lookup is optional presentation data.
+             A temporary deal-query failure must not make
+             the entire store disappear.
+          ================================================ */
+
+          let dealsByProductId =
+            new Map<
+              string,
+              ActiveProductDeal
+            >();
+
+          try {
+            dealsByProductId =
+              await getActiveProductDeals(
+                productIds,
+              );
+          } catch (
+            error
+          ) {
+            console.warn(
+              "LOAD_WORKER_STORE_DEALS_ERROR:",
+              error,
             );
+          }
 
-          /* ==================================================
-             MERGE DEALS
-          ================================================== */
+          if (
+            requestId !==
+            loadRequestId.current
+          ) {
+            return;
+          }
+
+          /* ================================================
+             MERGE
+          ================================================ */
 
           const productsWithDeals =
             activeProducts.map(
-              (product) => {
+              product => {
+                const productId =
+                  normalizeString(
+                    product.id,
+                  );
+
                 const deal =
                   dealsByProductId.get(
-                    String(
-                      product.id,
-                    ).trim(),
-                  ) ?? null;
+                    productId,
+                  ) ??
+                  null;
 
                 return {
                   ...product,
@@ -296,62 +448,118 @@ export default function WorkerStoreScreen() {
           setProducts(
             productsWithDeals,
           );
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
-            "LOAD WORKER STORE ERROR:",
+            "LOAD_WORKER_STORE_ERROR:",
             error,
           );
 
-          setProducts([]);
+          if (
+            requestId !==
+            loadRequestId.current
+          ) {
+            return;
+          }
+
+          if (
+            !preserveExisting
+          ) {
+            setProducts(
+              [],
+            );
+          }
 
           Toast.show({
             type: "error",
+
             text1:
               "Unable to load store",
+
             text2:
               "Please try again.",
           });
         } finally {
-          setLoading(false);
-          setRefreshing(false);
+          if (
+            requestId ===
+            loadRequestId.current
+          ) {
+            setLoading(
+              false,
+            );
+
+            setRefreshing(
+              false,
+            );
+          }
         }
       },
-      [workerId],
+      [
+        normalizedWorkerId,
+      ],
     );
 
-  /* ============================================================
+  /* ==========================================================
      INITIAL LOAD
-  ============================================================ */
+  ========================================================== */
 
   useEffect(() => {
-    void loadProducts();
-  }, [loadProducts]);
-
-  /* ============================================================
-     REFRESH
-  ============================================================ */
-
-  const handleRefresh =
-    useCallback(
-      async () => {
-        setRefreshing(true);
-
-        await loadProducts();
-      },
-      [loadProducts],
+    setLoading(
+      true,
     );
 
-  /* ============================================================
+    void loadProducts();
+
+    return () => {
+      /*
+       * Invalidates any in-flight request.
+       */
+      loadRequestId.current +=
+        1;
+    };
+  }, [
+    loadProducts,
+  ]);
+
+  /* ==========================================================
+     REFRESH
+  ========================================================== */
+
+  const handleRefresh =
+    useCallback(() => {
+      if (
+        refreshing
+      ) {
+        return;
+      }
+
+      setRefreshing(
+        true,
+      );
+
+      void loadProducts({
+        preserveExisting:
+          true,
+      });
+    }, [
+      loadProducts,
+      refreshing,
+    ]);
+
+  /* ==========================================================
      PRODUCT DETAILS
-  ============================================================ */
+  ========================================================== */
 
   const handleProductPress =
     useCallback(
-      (productId: string) => {
+      (
+        productId: string,
+      ) => {
         const normalizedProductId =
-          String(
-            productId ?? "",
-          ).trim();
+          normalizeString(
+            productId,
+          );
 
         if (
           !normalizedProductId
@@ -362,42 +570,42 @@ export default function WorkerStoreScreen() {
         router.push({
           pathname:
             "/(customer)/product/[id]",
+
           params: {
-            id: normalizedProductId,
+            id:
+              normalizedProductId,
           },
         });
       },
       [],
     );
 
-  /* ============================================================
+  /* ==========================================================
      ADD TO CART
-  ============================================================ */
+  ========================================================== */
 
   const handleAddToCart =
     useCallback(
       (
-        product: ProductWithDeal,
+        product:
+          ProductWithDeal,
       ) => {
-        const normalizedWorkerId =
-          String(
-            workerId ?? "",
-          ).trim();
-
-        /* ==================================================
-           PRODUCT ID
-        ================================================== */
+        /* ================================================
+           PRODUCT
+        ================================================ */
 
         const productId =
-          String(
-            product.id ?? "",
-          ).trim();
+          normalizeString(
+            product.id,
+          );
 
         if (!productId) {
           Toast.show({
             type: "error",
+
             text1:
               "Product unavailable",
+
             text2:
               "This product could not be added to cart.",
           });
@@ -405,25 +613,43 @@ export default function WorkerStoreScreen() {
           return;
         }
 
-        /* ==================================================
+        const productName =
+          normalizeString(
+            product.name,
+          );
+
+        if (!productName) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Invalid product",
+
+            text2:
+              "This product has no valid name.",
+          });
+
+          return;
+        }
+
+        /* ================================================
            STOCK
-        ================================================== */
+        ================================================ */
 
         const stock =
-          Number(
+          getStock(
             product.stock,
           );
 
         if (
-          !Number.isInteger(
-            stock,
-          ) ||
           stock <= 0
         ) {
           Toast.show({
             type: "error",
+
             text1:
               "Out of Stock",
+
             text2:
               "This product is currently unavailable.",
           });
@@ -431,17 +657,19 @@ export default function WorkerStoreScreen() {
           return;
         }
 
-        /* ==================================================
+        /* ================================================
            WORKER
-        ================================================== */
+        ================================================ */
 
         if (
           !normalizedWorkerId
         ) {
           Toast.show({
             type: "error",
+
             text1:
               "Worker unavailable",
+
             text2:
               "This product is not linked to a worker.",
           });
@@ -449,9 +677,9 @@ export default function WorkerStoreScreen() {
           return;
         }
 
-        /* ==================================================
-           ORIGINAL PRICE
-        ================================================== */
+        /* ================================================
+           PRICE
+        ================================================ */
 
         const originalPrice =
           getOriginalPrice(
@@ -463,8 +691,10 @@ export default function WorkerStoreScreen() {
         ) {
           Toast.show({
             type: "error",
+
             text1:
               "Invalid product price",
+
             text2:
               "This product cannot be added to cart.",
           });
@@ -472,19 +702,11 @@ export default function WorkerStoreScreen() {
           return;
         }
 
-        /* ==================================================
-           VALID DEAL
-        ================================================== */
-
         const validDeal =
           getValidDeal(
             product,
             product.activeDeal,
           );
-
-        /* ==================================================
-           CURRENT PRICE
-        ================================================== */
 
         const unitPrice =
           getUnitPrice(
@@ -502,8 +724,10 @@ export default function WorkerStoreScreen() {
         ) {
           Toast.show({
             type: "error",
+
             text1:
               "Invalid product price",
+
             text2:
               "The product price could not be verified.",
           });
@@ -511,101 +735,78 @@ export default function WorkerStoreScreen() {
           return;
         }
 
-        /* ==================================================
-           PRODUCT NAME
-        ================================================== */
+        /* ================================================
+           DEAL METADATA
+        ================================================ */
 
-        const productName =
-          String(
-            product.name ?? "",
-          ).trim();
+        const discountData =
+          validDeal
+            ? {
+                discountPercentage:
+                  Number(
+                    validDeal
+                      .discountPercentage,
+                  ),
 
-        if (!productName) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Invalid product",
-            text2:
-              "This product has no valid name.",
-          });
+                discountedPrice:
+                  unitPrice,
 
-          return;
-        }
+                ...(normalizeString(
+                  validDeal.id,
+                )
+                  ? {
+                      dealId:
+                        normalizeString(
+                          validDeal.id,
+                        ),
+                    }
+                  : {}),
+              }
+            : {};
 
-        /* ==================================================
-           DEAL INFORMATION
-        ================================================== */
-
-        const hasDiscount =
-          Boolean(validDeal);
-
-        const discountPercentage =
-          hasDiscount
-            ? Number(
-                validDeal
-                  ?.discountPercentage,
-              )
-            : undefined;
-
-        const discountedPrice =
-          hasDiscount
-            ? unitPrice
-            : undefined;
-
-        const dealId =
-          hasDiscount
-            ? String(
-                validDeal?.id ??
-                  "",
-              ).trim()
-            : undefined;
-
-        /* ==================================================
-           ADD TO CART
-        ================================================== */
+        /* ================================================
+           CART
+        ================================================ */
 
         try {
           const result =
             addToCart({
-              id: productId,
+              id:
+                productId,
 
-              name: productName,
+              name:
+                productName,
 
               /*
-               * Original price.
+               * Original market price.
                */
               price:
                 originalPrice,
 
               /*
-               * Actual customer price.
+               * Customer's current display price.
                */
               unitPrice,
 
               image:
-                String(
-                  product.thumbnail ??
-                    "",
-                ).trim(),
+                normalizeString(
+                  product.thumbnail,
+                ),
 
-              quantity: 1,
+              quantity:
+                1,
 
-              ...(hasDiscount
-                ? {
-                    discountPercentage,
-
-                    discountedPrice,
-
-                    dealId,
-                  }
-                : {}),
+              ...discountData,
 
               storeId:
-                String(
-                  product.storeId ??
-                    "",
-                ).trim(),
+                normalizeString(
+                  product.storeId,
+                ),
 
+              /*
+               * Existing Fixxam market
+               * ownership behavior preserved.
+               */
               sellerId:
                 normalizedWorkerId,
 
@@ -613,18 +814,19 @@ export default function WorkerStoreScreen() {
                 normalizedWorkerId,
             });
 
-          /* ==================================================
-             RESULT
-          ================================================== */
-
-          switch (result) {
+          switch (
+            result
+          ) {
             case "added":
               Toast.show({
-                type: "success",
+                type:
+                  "success",
+
                 text1:
                   "Added to Cart",
+
                 text2:
-                  hasDiscount
+                  validDeal
                     ? `${productName} added at the discounted price.`
                     : `${productName} added successfully.`,
               });
@@ -632,9 +834,12 @@ export default function WorkerStoreScreen() {
 
             case "updated":
               Toast.show({
-                type: "success",
+                type:
+                  "success",
+
                 text1:
                   "Cart Updated",
+
                 text2:
                   `${productName} quantity has been increased.`,
               });
@@ -642,9 +847,12 @@ export default function WorkerStoreScreen() {
 
             case "worker-conflict":
               Toast.show({
-                type: "error",
+                type:
+                  "error",
+
                 text1:
                   "Different Worker",
+
                 text2:
                   "Your cart can only contain products from one worker.",
               });
@@ -652,9 +860,12 @@ export default function WorkerStoreScreen() {
 
             case "invalid":
               Toast.show({
-                type: "error",
+                type:
+                  "error",
+
                 text1:
                   "Unable to add product",
+
                 text2:
                   "This product contains invalid information.",
               });
@@ -663,16 +874,20 @@ export default function WorkerStoreScreen() {
             default:
               break;
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
-            "ADD PRODUCT TO CART ERROR:",
+            "ADD_PRODUCT_TO_CART_ERROR:",
             error,
           );
 
           Toast.show({
             type: "error",
+
             text1:
               "Unable to add to cart",
+
             text2:
               "Please try again.",
           });
@@ -680,103 +895,145 @@ export default function WorkerStoreScreen() {
       },
       [
         addToCart,
-        workerId,
+        normalizedWorkerId,
       ],
     );
 
-  /* ============================================================
-     LOADING
-  ============================================================ */
+  /* ==========================================================
+     ITEM RENDERER
+  ========================================================== */
 
-  if (loading) {
-    return (
-      <SafeAreaView
-        style={
-          styles.container
-        }
-      >
-        <View
-          style={
-            styles.header
-          }
-        >
-          <Pressable
-            onPress={() =>
-              router.back()
-            }
-            style={
-              styles.backButton
-            }
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Ionicons
-              name="arrow-back"
-              size={23}
-              color="#0F172A"
-            />
-          </Pressable>
+  const renderProduct =
+    useCallback(
+      ({
+        item,
+      }: {
+        item:
+          ProductWithDeal;
+      }) => {
+        const originalPrice =
+          getOriginalPrice(
+            item,
+          );
 
+        const validDeal =
+          getValidDeal(
+            item,
+            item.activeDeal,
+          );
+
+        const discountPercentage =
+          validDeal
+            ? Number(
+                validDeal
+                  .discountPercentage,
+              )
+            : undefined;
+
+        const discountedPrice =
+          validDeal
+            ? Number(
+                validDeal
+                  .discountedPrice,
+              )
+            : undefined;
+
+        const productId =
+          normalizeString(
+            item.id,
+          );
+
+        return (
           <View
             style={
-              styles.headerText
+              styles.productWrapper
             }
           >
-            <AppText
-              weight="bold"
-              style={
-                styles.title
+            <ProductCard
+              id={
+                productId
               }
-            >
-              Worker Store
-            </AppText>
-
-            <AppText
-              style={
-                styles.subtitle
+              name={
+                normalizeString(
+                  item.name,
+                ) ||
+                "Unnamed product"
               }
-            >
-              Available products
-            </AppText>
+              price={
+                originalPrice
+              }
+              image={
+                normalizeString(
+                  item.thumbnail,
+                )
+              }
+              category={
+                normalizeString(
+                  item.category,
+                )
+              }
+              stock={
+                getStock(
+                  item.stock,
+                )
+              }
+              featured={
+                Boolean(
+                  item.featured,
+                )
+              }
+              discountPercentage={
+                discountPercentage
+              }
+              discountedPrice={
+                discountedPrice
+              }
+              onPress={() => {
+                handleProductPress(
+                  productId,
+                );
+              }}
+              onBuyPress={() => {
+                handleAddToCart(
+                  item,
+                );
+              }}
+            />
           </View>
-        </View>
-
-        <View
-          style={
-            styles.loadingContainer
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color="#2563EB"
-          />
-
-          <AppText
-            style={
-              styles.loadingText
-            }
-          >
-            Loading store...
-          </AppText>
-        </View>
-      </SafeAreaView>
+        );
+      },
+      [
+        handleAddToCart,
+        handleProductPress,
+      ],
     );
-  }
 
-  /* ============================================================
-     SCREEN
-  ============================================================ */
+  const keyExtractor =
+    useCallback(
+      (
+        item:
+          ProductWithDeal,
+      ) =>
+        normalizeString(
+          item.id,
+        ),
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
-    <SafeAreaView
-      style={
-        styles.container
+    <AppScreen
+      role="customer"
+      contentContainerStyle={
+        styles.screen
       }
     >
-      {/* ========================================================
+      {/* ======================================================
           HEADER
-      ======================================================== */}
+      ====================================================== */}
 
       <View
         style={
@@ -784,20 +1041,28 @@ export default function WorkerStoreScreen() {
         }
       >
         <Pressable
-          onPress={() =>
-            router.back()
-          }
-          style={
-            styles.backButton
-          }
+          onPress={() => {
+            router.back();
+          }}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          style={({
+            pressed,
+          }) => [
+            styles.backButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="arrow-back"
-            size={23}
-            color="#0F172A"
+          <AppIcon
+            name="back"
+            size="md"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
 
@@ -807,6 +1072,7 @@ export default function WorkerStoreScreen() {
           }
         >
           <AppText
+            variant="heading2"
             weight="bold"
             style={
               styles.title
@@ -816,227 +1082,215 @@ export default function WorkerStoreScreen() {
           </AppText>
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.subtitle
             }
           >
-            {products.length}{" "}
-            {products.length === 1
-              ? "product"
-              : "products"}{" "}
-            available
+            {loading
+              ? "Available products"
+              : `${products.length} ${
+                  products.length ===
+                  1
+                    ? "product"
+                    : "products"
+                } available`}
           </AppText>
         </View>
       </View>
 
-      {/* ========================================================
-          PRODUCT LIST
-      ======================================================== */}
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
 
-      <FlatList
-        data={products}
-        keyExtractor={(item) =>
-          String(item.id)
-        }
-        numColumns={2}
-        showsVerticalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.list
-        }
-        columnWrapperStyle={
-          styles.row
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={
-              refreshing
-            }
-            onRefresh={
-              handleRefresh
+      {loading ? (
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <ActivityIndicator
+            size="large"
+            color={
+              CustomerColors.primary
             }
           />
-        }
-        renderItem={({
-          item,
-        }) => {
-          const activeDeal =
-            item.activeDeal;
 
-          const originalPrice =
-            getOriginalPrice(
-              item,
-            );
-
-          const hasDeal =
-            Boolean(
-              getValidDeal(
-                item,
-                activeDeal,
-              ),
-            );
-
-          const discountPercentage =
-            hasDeal
-              ? Number(
-                  activeDeal
-                    ?.discountPercentage,
-                )
-              : undefined;
-
-          const discountedPrice =
-            hasDeal
-              ? Number(
-                  activeDeal
-                    ?.discountedPrice,
-                )
-              : undefined;
-
-          return (
-            <View
-              style={
-                styles.productWrapper
-              }
-            >
-              <ProductCard
-                id={String(
-                  item.id,
-                )}
-                name={String(
-                  item.name ??
-                    "Unnamed product",
-                )}
-                price={
-                  originalPrice
-                }
-                image={
-                  String(
-                    item.thumbnail ??
-                      "",
-                  )
-                }
-                category={
-                  String(
-                    item.category ??
-                      "",
-                  )
-                }
-                stock={Number(
-                  item.stock,
-                )}
-                featured={Boolean(
-                  item.featured,
-                )}
-                discountPercentage={
-                  discountPercentage
-                }
-                discountedPrice={
-                  discountedPrice
-                }
-                onPress={() =>
-                  handleProductPress(
-                    String(
-                      item.id,
-                    ),
-                  )
-                }
-                onBuyPress={() =>
-                  handleAddToCart(
-                    item,
-                  )
-                }
-              />
-            </View>
-          );
-        }}
-        ListEmptyComponent={
-          <View
+          <AppText
+            variant="body"
+            tone="secondary"
             style={
-              styles.empty
+              styles.loadingText
             }
           >
-            <View
-              style={
-                styles.emptyIcon
-              }
-            >
-              <Ionicons
-                name="storefront-outline"
-                size={42}
-                color="#94A3B8"
-              />
-            </View>
+            Loading store...
+          </AppText>
+        </View>
+      ) : (
+        <FlatList
+          data={
+            products
+          }
+          keyExtractor={
+            keyExtractor
+          }
+          renderItem={
+            renderProduct
+          }
+          numColumns={2}
+          showsVerticalScrollIndicator={
+            false
+          }
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.list,
 
-            <AppText
-              weight="bold"
-              style={
-                styles.emptyTitle
+            products.length ===
+            0
+              ? styles.emptyList
+              : null,
+          ]}
+          columnWrapperStyle={
+            products.length >
+            0
+              ? styles.row
+              : undefined
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={
+                refreshing
               }
-            >
-              Store is Empty
-            </AppText>
-
-            <AppText
-              center
-              style={
-                styles.emptyText
+              onRefresh={
+                handleRefresh
               }
-            >
-              This worker has no
-              available products at
-              the moment.
-            </AppText>
-          </View>
-        }
-      />
-    </SafeAreaView>
+              tintColor={
+                CustomerColors.primary
+              }
+              colors={[
+                CustomerColors.primary,
+              ]}
+              progressBackgroundColor={
+                Colors.surface
+              }
+            />
+          }
+          ListEmptyComponent={
+            <StoreEmptyState />
+          }
+        />
+      )}
+    </AppScreen>
   );
 }
 
-/* ==============================================================
+/* ============================================================
+   EMPTY STATE
+============================================================ */
+
+function StoreEmptyState() {
+  return (
+    <View
+      style={
+        styles.empty
+      }
+    >
+      <View
+        style={
+          styles.emptyIcon
+        }
+      >
+        <AppIcon
+          name="package"
+          role="customer"
+          size="xl"
+          color={
+            CustomerColors.primary
+          }
+        />
+      </View>
+
+      <AppText
+        variant="heading3"
+        weight="bold"
+        center
+        style={
+          styles.emptyTitle
+        }
+      >
+        Store is Empty
+      </AppText>
+
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.emptyText
+        }
+      >
+        This worker has no available products at the moment.
+      </AppText>
+    </View>
+  );
+}
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    container: {
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
+    screen: {
       flex: 1,
 
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
-    /* ==========================================================
+    /* ========================================================
        HEADER
-    ========================================================== */
+    ======================================================== */
 
     header: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      paddingHorizontal: 16,
-
-      paddingTop: 12,
-
-      paddingBottom: 16,
-
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     backButton: {
-      width: 44,
+      width:
+        FixxamTokens.size.minimumTouchTarget,
 
-      height: 44,
+      height:
+        FixxamTokens.size.minimumTouchTarget,
 
-      borderRadius: 22,
-
-      backgroundColor:
-        "#FFFFFF",
+      flexShrink: 0,
 
       alignItems:
         "center",
@@ -1047,62 +1301,70 @@ const styles =
       borderWidth: 1,
 
       borderColor:
-        "#E2E8F0",
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
 
-      marginLeft: 12,
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 23,
-
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 3,
-
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xxs,
 
       color:
-        "#64748B",
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        LIST
-    ========================================================== */
+    ======================================================== */
 
     list: {
-      paddingHorizontal: 16,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingBottom: 30,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
+
+    emptyList: {
+      flexGrow: 1,
     },
 
     row: {
       justifyContent:
         "space-between",
 
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
-
-    /* ==========================================================
-       PRODUCT WRAPPER
-       
-       ProductCard owns the complete
-       card design.
-    ========================================================== */
 
     productWrapper: {
       width: "48.2%",
     },
 
-    /* ==========================================================
+    /* ========================================================
        LOADING
-    ========================================================== */
+    ======================================================== */
 
     loadingContainer: {
       flex: 1,
@@ -1112,41 +1374,30 @@ const styles =
 
       justifyContent:
         "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
     },
 
     loadingText: {
-      marginTop: 12,
-
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
-        "#64748B",
+        Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        EMPTY
-    ========================================================== */
+    ======================================================== */
 
     empty: {
       flex: 1,
 
-      alignItems:
-        "center",
+      minHeight: 360,
 
-      paddingHorizontal: 35,
-
-      paddingTop: 100,
-    },
-
-    emptyIcon: {
-      width: 88,
-
-      height: 88,
-
-      borderRadius: 28,
-
-      backgroundColor:
-        "#E2E8F0",
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
       alignItems:
         "center",
@@ -1155,23 +1406,61 @@ const styles =
         "center",
     },
 
-    emptyTitle: {
-      marginTop: 16,
+    emptyIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
 
-      fontSize: 20,
+      height:
+        FixxamTokens.size.avatarXl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    emptyTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
 
       color:
-        "#0F172A",
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 7,
+      maxWidth: 310,
 
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 21,
 
       color:
-        "#64748B",
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

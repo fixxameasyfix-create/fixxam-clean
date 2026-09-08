@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useState,
+} from "react";
 
 import {
   Pressable,
@@ -6,144 +10,289 @@ import {
   StyleSheet,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import type {
+  AppIconName,
+} from "@/components/ui/AppIcon";
 
-const categories = [
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type CategoryId =
+  | "all"
+  | "building"
+  | "electrical"
+  | "plumbing"
+  | "painting"
+  | "more";
+
+type CategoryItem = {
+  id: CategoryId;
+
+  label: string;
+
+  icon: AppIconName;
+};
+
+/* ============================================================
+   CATEGORIES
+============================================================ */
+
+const CATEGORIES: readonly CategoryItem[] = [
   {
     id: "all",
     label: "All",
-    icon: "grid-outline",
+    icon: "grid",
   },
   {
     id: "building",
     label: "Building",
-    icon: "business-outline",
+    icon: "service",
   },
   {
     id: "electrical",
     label: "Electrical",
-    icon: "flash-outline",
+    icon: "electrician",
   },
   {
     id: "plumbing",
     label: "Plumbing",
-    icon: "water-outline",
+    icon: "plumbing",
   },
   {
     id: "painting",
     label: "Paint",
-    icon: "color-palette-outline",
+    icon: "painting",
   },
   {
     id: "more",
     label: "More",
-    icon: "ellipsis-horizontal",
+    icon: "more",
   },
-] as const;
+];
 
-export default function CategoryChips() {
-  const [selected, setSelected] =
-    useState("all");
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function CategoryChips() {
+  const [
+    selected,
+    setSelected,
+  ] =
+    useState<CategoryId>(
+      "all",
+    );
+
+  /* ==========================================================
+     SELECT
+  ========================================================== */
+
+  const handleSelect =
+    useCallback(
+      (
+        id: CategoryId,
+      ) => {
+        setSelected(
+          id,
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <ScrollView
       horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.container}
+      showsHorizontalScrollIndicator={
+        false
+      }
+      contentContainerStyle={
+        styles.container
+      }
+      keyboardShouldPersistTaps="handled"
     >
-      {categories.map((category) => {
-        const active =
-          selected === category.id;
+      {CATEGORIES.map(
+        category => {
+          const active =
+            selected ===
+            category.id;
 
-        return (
-          <Pressable
-            key={category.id}
-            onPress={() =>
-              setSelected(category.id)
-            }
-            style={[
-              styles.chip,
-              active &&
-                styles.activeChip,
-            ]}
-          >
-            <Ionicons
-              name={category.icon}
-              size={22}
-              color={
-                active
-                  ? "#FFFFFF"
-                  : "#F97316"
+          return (
+            <Pressable
+              key={
+                category.id
               }
-            />
+              onPress={() => {
+                handleSelect(
+                  category.id,
+                );
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`${category.label} category`}
+              accessibilityState={{
+                selected:
+                  active,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.chip,
 
-            <AppText
-              weight="bold"
-              numberOfLines={1}
-              style={[
-                styles.label,
-                active &&
-                  styles.activeLabel,
+                active
+                  ? styles.activeChip
+                  : null,
+
+                pressed
+                  ? styles.pressed
+                  : null,
               ]}
             >
-              {category.label}
-            </AppText>
-          </Pressable>
-        );
-      })}
+              <AppIcon
+                name={
+                  category.icon
+                }
+                role="worker"
+                size="sm"
+                color={
+                  active
+                    ? Colors.textInverse
+                    : WorkerColors.primary
+                }
+              />
+
+              <AppText
+                variant="caption"
+                weight="bold"
+                numberOfLines={1}
+                style={[
+                  styles.label,
+
+                  active
+                    ? styles.activeLabel
+                    : null,
+                ]}
+              >
+                {category.label}
+              </AppText>
+            </Pressable>
+          );
+        },
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 0,
-    paddingBottom: 10,
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  chip: {
-    width: 60,
-    height: 60,
+const MemoizedCategoryChips =
+  memo(
+    CategoryChips,
+  );
 
-    marginRight: 5,
+MemoizedCategoryChips.displayName =
+  "CategoryChips";
 
-    borderRadius: 18,
+export default MemoizedCategoryChips;
 
-    backgroundColor: "#FFFFFF",
+/* ============================================================
+   STYLES
+============================================================ */
 
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+const styles =
+  StyleSheet.create({
+    container: {
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
-    alignItems: "center",
-
-    paddingTop: 14,
-    paddingBottom: 10,
-
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      gap:
+        FixxamTokens.spacing.sm,
     },
-    elevation: 3,
-  },
 
-  activeChip: {
-    backgroundColor: "#FF6B00",
-    borderColor: "#FF6B00",
-  },
+    chip: {
+      width: 68,
 
-  label: {
-    marginTop: "auto",
-    fontSize: 10,
-    textAlign: "center",
-    color: "#475569",
-  },
+      minHeight: 64,
 
-  activeLabel: {
-    color: "#FFFFFF",
-  },
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    activeChip: {
+      borderColor:
+        WorkerColors.primary,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    label: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      textAlign:
+        "center",
+
+      color:
+        Colors.textSecondary,
+    },
+
+    activeLabel: {
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

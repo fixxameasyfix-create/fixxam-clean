@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -6,12 +7,11 @@ import React, {
 
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
-
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 import {
   router,
@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 
 import {
+  AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
@@ -34,6 +35,12 @@ import {
 } from "@/firebase/config";
 
 import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+import {
   mapMarketOrder,
 } from "@/components/customerorders/orders.utils";
 
@@ -42,26 +49,36 @@ import type {
 } from "@/components/customerorders/orders.types";
 
 import MarketOrderHeader from "@/components/customerorders/market/marketOrderHeader";
-
 import MarketOrderStatus from "@/components/customerorders/market/marketOrderStatus";
-
 import MarketOrderItems from "@/components/customerorders/market/marketOrderItems";
-
 import MarketOrderDelivery from "@/components/customerorders/market/marketOrderDelivery";
-
 import MarketOrderPayment from "@/components/customerorders/market/marketOrderPayment";
-
 import MarketOrderPrice from "@/components/customerorders/market/marketOrderPrice";
-
 import MarketOrderActions from "@/components/customerorders/market/marketOrderActions";
 
 import type {
   MarketStatus,
 } from "@/components/customerorders/market/marketOrder.utils";
 
-/* ==============================================================
+/* ============================================================
+   TYPES
+============================================================ */
+
+type NormalizedProduct = {
+  productId: string;
+
+  name: string;
+
+  image?: string;
+
+  price: number;
+
+  quantity: number;
+};
+
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function MarketOrderDetailsScreen() {
   const {
@@ -73,9 +90,9 @@ export default function MarketOrderDetailsScreen() {
         | string[];
     }>();
 
-  /* ============================================================
+  /* ==========================================================
      STATE
-  ============================================================ */
+  ========================================================== */
 
   const [
     order,
@@ -99,9 +116,9 @@ export default function MarketOrderDetailsScreen() {
       null,
     );
 
-  /* ============================================================
-     NORMALIZE ORDER ID
-  ============================================================ */
+  /* ==========================================================
+     ORDER ID
+  ========================================================== */
 
   const normalizedOrderId =
     useMemo(() => {
@@ -123,9 +140,18 @@ export default function MarketOrderDetailsScreen() {
       orderId,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
+     BACK
+  ========================================================== */
+
+  const handleBack =
+    useCallback(() => {
+      router.back();
+    }, []);
+
+  /* ==========================================================
      FIRESTORE LISTENER
-  ============================================================ */
+  ========================================================== */
 
   useEffect(() => {
     const user =
@@ -133,7 +159,9 @@ export default function MarketOrderDetailsScreen() {
 
     if (!user) {
       setOrder(null);
+
       setLoading(false);
+
       setError(
         "Please sign in to view this order.",
       );
@@ -141,9 +169,13 @@ export default function MarketOrderDetailsScreen() {
       return;
     }
 
-    if (!normalizedOrderId) {
+    if (
+      !normalizedOrderId
+    ) {
       setOrder(null);
+
       setLoading(false);
+
       setError(
         "Order ID is missing.",
       );
@@ -152,6 +184,7 @@ export default function MarketOrderDetailsScreen() {
     }
 
     setLoading(true);
+
     setError(null);
 
     const orderRef =
@@ -164,10 +197,17 @@ export default function MarketOrderDetailsScreen() {
     const unsubscribe =
       onSnapshot(
         orderRef,
-        (snapshot) => {
-          if (!snapshot.exists()) {
+
+        (
+          snapshot,
+        ) => {
+          if (
+            !snapshot.exists()
+          ) {
             setOrder(null);
+
             setLoading(false);
+
             setError(
               "This order could not be found.",
             );
@@ -178,15 +218,16 @@ export default function MarketOrderDetailsScreen() {
           const data =
             snapshot.data();
 
-          /* ====================================================
-             CUSTOMER OWNERSHIP CHECK
-          ==================================================== */
+          /* ==================================================
+             CUSTOMER OWNERSHIP
+          ================================================== */
 
           if (
             data.customerId !==
             user.uid
           ) {
             setOrder(null);
+
             setLoading(false);
 
             setError(
@@ -196,9 +237,9 @@ export default function MarketOrderDetailsScreen() {
             return;
           }
 
-          /* ====================================================
+          /* ==================================================
              MAP ORDER
-          ==================================================== */
+          ================================================== */
 
           try {
             const mappedOrder =
@@ -212,14 +253,18 @@ export default function MarketOrderDetailsScreen() {
             );
 
             setLoading(false);
+
             setError(null);
-          } catch (mappingError) {
+          } catch (
+            mappingError
+          ) {
             console.error(
               "MARKET_ORDER_MAPPING_ERROR:",
               mappingError,
             );
 
             setOrder(null);
+
             setLoading(false);
 
             setError(
@@ -227,13 +272,17 @@ export default function MarketOrderDetailsScreen() {
             );
           }
         },
-        (snapshotError) => {
+
+        (
+          snapshotError,
+        ) => {
           console.error(
             "MARKET_ORDER_DETAILS_ERROR:",
             snapshotError,
           );
 
           setOrder(null);
+
           setLoading(false);
 
           setError(
@@ -242,20 +291,19 @@ export default function MarketOrderDetailsScreen() {
         },
       );
 
-    return () => {
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [
     normalizedOrderId,
   ]);
 
-  /* ============================================================
+  /* ==========================================================
      LOADING
-  ============================================================ */
+  ========================================================== */
 
   if (loading) {
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
           styles.screen
         }
@@ -267,10 +315,14 @@ export default function MarketOrderDetailsScreen() {
         >
           <ActivityIndicator
             size="small"
-            color="#2563EB"
+            color={
+              CustomerColors.primary
+            }
           />
 
           <AppText
+            variant="caption"
+            tone="secondary"
             style={
               styles.stateText
             }
@@ -282,9 +334,9 @@ export default function MarketOrderDetailsScreen() {
     );
   }
 
-  /* ============================================================
+  /* ==========================================================
      ERROR
-  ============================================================ */
+  ========================================================== */
 
   if (
     error ||
@@ -292,6 +344,7 @@ export default function MarketOrderDetailsScreen() {
   ) {
     return (
       <AppScreen
+        role="customer"
         contentContainerStyle={
           styles.screen
         }
@@ -306,15 +359,19 @@ export default function MarketOrderDetailsScreen() {
               styles.errorIcon
             }
           >
-            <Ionicons
-              name="alert-circle-outline"
-              size={28}
-              color="#DC2626"
+            <AppIcon
+              name="error"
+              size="lg"
+              color={
+                Colors.error
+              }
             />
           </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
               styles.stateTitle
             }
@@ -323,6 +380,8 @@ export default function MarketOrderDetailsScreen() {
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
             style={
               styles.stateText
@@ -332,31 +391,48 @@ export default function MarketOrderDetailsScreen() {
               "Order not found."}
           </AppText>
 
-          <View
-            style={
-              styles.backButton
+          <Pressable
+            onPress={
+              handleBack
             }
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
+            <AppIcon
+              name="back"
+              size="xs"
+              color={
+                Colors.textInverse
+              }
+            />
+
             <AppText
+              variant="caption"
               weight="bold"
               style={
                 styles.backButtonText
               }
-              onPress={() =>
-                router.back()
-              }
             >
               GO BACK
             </AppText>
-          </View>
+          </Pressable>
         </View>
       </AppScreen>
     );
   }
 
-  /* ============================================================
+  /* ==========================================================
      RAW ORDER
-  ============================================================ */
+  ========================================================== */
 
   const rawOrder =
     order as MarketOrder &
@@ -365,27 +441,27 @@ export default function MarketOrderDetailsScreen() {
         unknown
       >;
 
-  /* ============================================================
+  /* ==========================================================
      STATUS
-  ============================================================ */
+  ========================================================== */
 
   const status =
     normalizeMarketStatus(
       rawOrder.status,
     );
 
-  /* ============================================================
+  /* ==========================================================
      PRODUCTS
-  ============================================================ */
+  ========================================================== */
 
   const products =
     normalizeProducts(
       rawOrder.products,
     );
 
-  /* ============================================================
+  /* ==========================================================
      STORE
-  ============================================================ */
+  ========================================================== */
 
   const storeName =
     getString(
@@ -400,7 +476,6 @@ export default function MarketOrderDetailsScreen() {
       rawOrder.storeId,
       rawOrder.sellerStoreId,
       rawOrder.storeID,
-      "",
     );
 
   const sellerId =
@@ -409,7 +484,6 @@ export default function MarketOrderDetailsScreen() {
       rawOrder.sellerID,
       rawOrder.providerId,
       rawOrder.workerId,
-      "",
     );
 
   const storePhone =
@@ -418,19 +492,17 @@ export default function MarketOrderDetailsScreen() {
       rawOrder.sellerPhone,
       rawOrder.phoneNumber,
       rawOrder.phone,
-      "",
     );
 
-  /* ============================================================
+  /* ==========================================================
      DELIVERY
-  ============================================================ */
+  ========================================================== */
 
   const receiverName =
     getString(
       rawOrder.receiverName,
       rawOrder.customerName,
       rawOrder.deliveryName,
-      "",
     );
 
   const receiverPhone =
@@ -438,7 +510,6 @@ export default function MarketOrderDetailsScreen() {
       rawOrder.receiverPhone,
       rawOrder.customerPhone,
       rawOrder.deliveryPhone,
-      "",
     );
 
   const address =
@@ -450,9 +521,9 @@ export default function MarketOrderDetailsScreen() {
       "Delivery address unavailable",
     );
 
-  /* ============================================================
+  /* ==========================================================
      PAYMENT
-  ============================================================ */
+  ========================================================== */
 
   const paymentMethod =
     getString(
@@ -466,9 +537,9 @@ export default function MarketOrderDetailsScreen() {
       "pending",
     );
 
-  /* ============================================================
+  /* ==========================================================
      PRICE
-  ============================================================ */
+  ========================================================== */
 
   const calculatedSubtotal =
     products.reduce(
@@ -501,36 +572,26 @@ export default function MarketOrderDetailsScreen() {
         deliveryFee,
     );
 
-  /* ============================================================
+  /* ==========================================================
      OTHER
-  ============================================================ */
+  ========================================================== */
 
   const note =
     getString(
       rawOrder.note,
       rawOrder.orderNote,
-      "",
     );
 
   const createdAt =
     rawOrder.createdAt;
 
-  /* ============================================================
-     TRACKING
-  ============================================================ */
-
-  const canTrack =
-    status ===
-      "accepted" ||
-    status ===
-      "in-progress";
-
-  /* ============================================================
+  /* ==========================================================
      RENDER
-  ============================================================ */
+  ========================================================== */
 
   return (
     <AppScreen
+      role="customer"
       contentContainerStyle={
         styles.screen
       }
@@ -539,12 +600,14 @@ export default function MarketOrderDetailsScreen() {
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={
           styles.content
         }
       >
         {/* ====================================================
-            HEADER
+            TOP HEADER
         ==================================================== */}
 
         <View
@@ -552,20 +615,31 @@ export default function MarketOrderDetailsScreen() {
             styles.topHeader
           }
         >
-          <View
-            style={
-              styles.topHeaderButton
+          <Pressable
+            onPress={
+              handleBack
             }
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({
+              pressed,
+            }) => [
+              styles.topHeaderButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <Ionicons
-              name="chevron-back"
-              size={21}
-              color="#0F172A"
-              onPress={() =>
-                router.back()
+            <AppIcon
+              name="back"
+              size="md"
+              color={
+                Colors.textPrimary
               }
             />
-          </View>
+          </Pressable>
 
           <View
             style={
@@ -573,6 +647,7 @@ export default function MarketOrderDetailsScreen() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
               style={
                 styles.topTitle
@@ -582,6 +657,8 @@ export default function MarketOrderDetailsScreen() {
             </AppText>
 
             <AppText
+              variant="caption"
+              tone="secondary"
               style={
                 styles.topSubtitle
               }
@@ -590,15 +667,26 @@ export default function MarketOrderDetailsScreen() {
             </AppText>
           </View>
 
+          {/*
+           * Existing visual retained.
+           *
+           * No action is attached because
+           * the original screen did not have
+           * a menu handler.
+           */}
           <View
             style={
               styles.topHeaderButton
             }
+            accessibilityElementsHidden
+            importantForAccessibility="no"
           >
-            <Ionicons
-              name="ellipsis-vertical"
-              size={19}
-              color="#0F172A"
+            <AppIcon
+              name="more"
+              size="md"
+              color={
+                Colors.textMuted
+              }
             />
           </View>
         </View>
@@ -639,7 +727,7 @@ export default function MarketOrderDetailsScreen() {
         />
 
         {/* ====================================================
-            ORDER ITEMS + GALLERY
+            ITEMS
         ==================================================== */}
 
         <MarketOrderItems
@@ -649,7 +737,7 @@ export default function MarketOrderDetailsScreen() {
         />
 
         {/* ====================================================
-            DELIVERY ADDRESS
+            DELIVERY
         ==================================================== */}
 
         <MarketOrderDelivery
@@ -722,10 +810,6 @@ export default function MarketOrderDetailsScreen() {
           }
         />
 
-        {/* ====================================================
-            BOTTOM
-        ==================================================== */}
-
         <View
           style={
             styles.bottomSpace
@@ -736,98 +820,114 @@ export default function MarketOrderDetailsScreen() {
   );
 }
 
-/* ==============================================================
+/* ============================================================
    PRODUCT NORMALIZER
-============================================================== */
+============================================================ */
 
 function normalizeProducts(
   value: unknown,
-): Array<{
-  productId: string;
-  name: string;
-  image?: string;
-  price: number;
-  quantity: number;
-}> {
+): NormalizedProduct[] {
   if (
-    !Array.isArray(
-      value,
-    )
+    !Array.isArray(value)
   ) {
     return [];
   }
 
-  return value.map(
-    (
-      item,
-      index,
-    ) => {
-      const product =
-        item as Record<
-          string,
-          unknown
-        >;
+  return value
+    .map(
+      (
+        item,
+        index,
+      ): NormalizedProduct | null => {
+        if (
+          typeof item !==
+            "object" ||
+          item === null
+        ) {
+          return null;
+        }
 
-      const productId =
-        getString(
-          product.productId,
-          product.id,
-          `product-${index}`,
-        );
+        const product =
+          item as Record<
+            string,
+            unknown
+          >;
 
-      const name =
-        getString(
-          product.name,
-          product.productName,
-          "Product",
-        );
+        const productId =
+          getString(
+            product.productId,
+            product.id,
+            `product-${index}`,
+          );
 
-      const image =
-        getString(
-          product.image,
-          product.imageUrl,
-          product.photo,
-          "",
-        );
+        const name =
+          getString(
+            product.name,
+            product.productName,
+            "Product",
+          );
 
-      const price =
-        getNumber(
-          product.price,
-          getNumber(
-            product.unitPrice,
+        const image =
+          getString(
+            product.image,
+            product.imageUrl,
+            product.photo,
+          );
+
+        const price =
+          Math.max(
             0,
-          ),
-        );
+            getNumber(
+              product.price,
+              getNumber(
+                product.unitPrice,
+                0,
+              ),
+            ),
+          );
 
-      const quantityValue =
-        getNumber(
-          product.quantity,
-          1,
-        );
+        const rawQuantity =
+          getNumber(
+            product.quantity,
+            1,
+          );
 
-      const quantity =
-        quantityValue > 0
-          ? quantityValue
-          : 1;
+        const quantity =
+          Math.max(
+            1,
+            Math.floor(
+              rawQuantity,
+            ),
+          );
 
-      return {
-        productId,
-        name,
-        ...(image
-          ? {
-              image,
-            }
-          : {}),
-        price,
-        quantity,
-      };
-    },
-  );
+        return {
+          productId,
+
+          name,
+
+          ...(image
+            ? {
+                image,
+              }
+            : {}),
+
+          price,
+
+          quantity,
+        };
+      },
+    )
+    .filter(
+      (
+        product,
+      ): product is NormalizedProduct =>
+        product !== null,
+    );
 }
 
-/* ==============================================================
+/* ============================================================
    STATUS NORMALIZER
-============================================================== */
+============================================================ */
 
 function normalizeMarketStatus(
   value: unknown,
@@ -840,9 +940,7 @@ function normalizeMarketStatus(
           .toLowerCase()
       : "pending";
 
-  switch (
-    status
-  ) {
+  switch (status) {
     case "accepted":
       return "accepted";
 
@@ -870,28 +968,32 @@ function normalizeMarketStatus(
   }
 }
 
-/* ==============================================================
-   STRING HELPER
-============================================================== */
+/* ============================================================
+   STRING
+============================================================ */
 
 function getString(
   ...values: unknown[]
 ): string {
-  for (const value of values) {
+  for (
+    const value of values
+  ) {
     if (
       typeof value ===
-        "string" &&
-      value.trim()
+        "string"
     ) {
-      return value.trim();
+      const normalized =
+        value.trim();
+
+      if (normalized) {
+        return normalized;
+      }
     }
 
     if (
       typeof value ===
         "number" &&
-      Number.isFinite(
-        value,
-      )
+      Number.isFinite(value)
     ) {
       return String(
         value,
@@ -902,9 +1004,9 @@ function getString(
   return "";
 }
 
-/* ==============================================================
-   NUMBER HELPER
-============================================================== */
+/* ============================================================
+   NUMBER
+============================================================ */
 
 function getNumber(
   value: unknown,
@@ -913,95 +1015,137 @@ function getNumber(
   if (
     typeof value ===
       "number" &&
-    Number.isFinite(
-      value,
-    )
+    Number.isFinite(value)
   ) {
     return value;
   }
 
   if (
     typeof value ===
-      "string"
+    "string"
   ) {
-    const parsed =
-      Number(
-        value,
-      );
+    const normalized =
+      value.trim();
 
-    if (
-      Number.isFinite(
-        parsed,
-      )
-    ) {
-      return parsed;
+    if (normalized) {
+      const parsed =
+        Number(
+          normalized,
+        );
+
+      if (
+        Number.isFinite(
+          parsed,
+        )
+      ) {
+        return parsed;
+      }
     }
   }
 
   return fallback;
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       SCREEN
+    ======================================================== */
+
     screen: {
       flex: 1,
+
       width: "100%",
+
+      paddingHorizontal: 0,
+
+      paddingTop: 0,
+
+      paddingBottom: 0,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     content: {
-      paddingHorizontal: 14,
-      paddingTop: 7,
-      paddingBottom: 30,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
 
     /* ========================================================
-       TOP HEADER
+       HEADER
     ======================================================== */
 
     topHeader: {
-      minHeight: 52,
+      minHeight:
+        FixxamTokens.size.headerHeight,
+
       flexDirection:
         "row",
+
       alignItems:
         "center",
     },
 
     topHeaderButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
-      backgroundColor:
-        "#FFFFFF",
-      borderWidth: 1,
-      borderColor:
-        "#E2E8F0",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     topHeaderText: {
       flex: 1,
+
       minWidth: 0,
-      marginHorizontal: 10,
+
+      marginHorizontal:
+        FixxamTokens.spacing.md,
     },
 
     topTitle: {
-      fontSize: 19,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     topSubtitle: {
-      marginTop: 1,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -1010,58 +1154,107 @@ const styles =
 
     centerState: {
       flex: 1,
+
       minHeight: 500,
-      paddingHorizontal: 30,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
     },
 
     errorIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 19,
-      backgroundColor:
-        "#FEF2F2",
+      width: 64,
+
+      height: 64,
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     stateTitle: {
-      marginTop: 13,
-      fontSize: 15,
-      color: "#0F172A",
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
     },
 
     stateText: {
-      marginTop: 6,
-      fontSize: 10,
-      lineHeight: 16,
-      color: "#64748B",
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
     },
 
     backButton: {
-      marginTop: 16,
-      minHeight: 42,
-      paddingHorizontal: 18,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
       alignItems:
         "center",
+
       justifyContent:
         "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     backButtonText: {
-      fontSize: 10,
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     bottomSpace: {
-      height: 25,
+      height:
+        FixxamTokens.spacing.xl,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

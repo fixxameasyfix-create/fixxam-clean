@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -8,19 +9,20 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
-  Image,
-  Linking,
+  FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
 
-import { router } from "expo-router";
+import {
+  router,
+} from "expo-router";
 
 import {
   getAuth,
@@ -38,8 +40,15 @@ import * as Location from "expo-location";
 
 import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
 
 import AuthRequiredModal from "@/components/auth/AuthRequiredModal";
 
@@ -82,9 +91,9 @@ type Worker = {
 
   online: boolean;
 
-  image: string;
+  imageSource: string;
 
-  phoneNumber: string;
+  image: string;
 };
 
 type UserLocation = {
@@ -93,24 +102,34 @@ type UserLocation = {
   longitude: number;
 };
 
+type LoadWorkerOptions = {
+  silent?: boolean;
+
+  refreshLocation?: boolean;
+};
+
 /* ============================================================
    CONSTANTS
 ============================================================ */
 
-const MAX_DISTANCE_KM = 50;
+const MAX_DISTANCE_KM =
+  50;
 
-const HOME_WORKER_LIMIT = 5;
+const HOME_WORKER_LIMIT =
+  5;
 
-const WORKER_CARD_WIDTH = 170;
+const WORKER_CARD_WIDTH =
+  170;
 
-const WORKER_CARD_GAP = 12;
+const WORKER_CARD_GAP =
+  FixxamTokens.spacing.md;
 
 const WORKER_SNAP_INTERVAL =
   WORKER_CARD_WIDTH +
   WORKER_CARD_GAP;
 
 const WORKER_REFRESH_INTERVAL =
-  10_000;
+  30_000;
 
 /* ============================================================
    HELPERS
@@ -119,7 +138,8 @@ const WORKER_REFRESH_INTERVAL =
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
@@ -166,46 +186,44 @@ function isGsUrl(
    RESOLVE WORKER IMAGE
 ============================================================ */
 
-/**
- * Converts Firebase Storage references into
- * an Image-compatible HTTPS URL.
- *
- * IMPORTANT:
- *
- * file:// and content:// are NEVER returned.
- *
- * Those paths belong to the worker's local
- * device and cannot be displayed reliably
- * on the customer's device.
- */
 async function resolveWorkerImage(
   source: unknown,
 ): Promise<string> {
   const value =
-    cleanString(source);
+    cleanString(
+      source,
+    );
 
-  if (!value) {
+  if (
+    !value
+  ) {
     return "";
   }
 
   /* ==========================================================
-     HTTPS / HTTP
+     HTTP / HTTPS
   ========================================================== */
 
   if (
-    isHttpUrl(value)
+    isHttpUrl(
+      value,
+    )
   ) {
     return value;
   }
 
   /* ==========================================================
-     LOCAL EXPO IMAGE
+     LOCAL DEVICE IMAGE
   ========================================================== */
 
   if (
-    isLocalImageUri(value)
+    isLocalImageUri(
+      value,
+    )
   ) {
-    if (__DEV__) {
+    if (
+      __DEV__
+    ) {
       console.warn(
         "WORKER_LOCAL_IMAGE_REJECTED:",
         value,
@@ -216,57 +234,8 @@ async function resolveWorkerImage(
   }
 
   /* ==========================================================
-     GS:// FIREBASE STORAGE URL
+     FIREBASE STORAGE
   ========================================================== */
-
-  if (
-    isGsUrl(value)
-  ) {
-    try {
-      const storage =
-        getStorage();
-
-      const storageRef =
-        ref(
-          storage,
-          value,
-        );
-
-      const downloadUrl =
-        await getDownloadURL(
-          storageRef,
-        );
-
-      if (
-        isHttpUrl(
-          downloadUrl,
-        )
-      ) {
-        return downloadUrl;
-      }
-
-      return "";
-    } catch (error) {
-      console.warn(
-        "WORKER_GS_IMAGE_RESOLVE_ERROR:",
-        {
-          source: value,
-          error,
-        },
-      );
-
-      return "";
-    }
-  }
-
-  /*
-   * Firebase Storage path without
-   * gs:// prefix.
-   *
-   * Example:
-   *
-   * workerProfiles/UID/profile.jpg
-   */
 
   try {
     const storage =
@@ -283,22 +252,33 @@ async function resolveWorkerImage(
         storageRef,
       );
 
+    return isHttpUrl(
+      downloadUrl,
+    )
+      ? downloadUrl
+      : "";
+  } catch (
+    error
+  ) {
     if (
-      isHttpUrl(
-        downloadUrl,
+      __DEV__ &&
+      isGsUrl(
+        value,
       )
     ) {
-      return downloadUrl;
-    }
-  } catch {
-    /*
-     * Unknown value.
-     *
-     * Do not allow it into Image.
-     */
-  }
+      console.warn(
+        "WORKER_IMAGE_RESOLVE_ERROR:",
+        {
+          source:
+            value,
 
-  return "";
+          error,
+        },
+      );
+    }
+
+    return "";
+  }
 }
 
 /* ============================================================
@@ -313,7 +293,9 @@ function getWorkerName(
       worker.fullName,
     );
 
-  if (fullName) {
+  if (
+    fullName
+  ) {
     return fullName;
   }
 
@@ -332,8 +314,12 @@ function getWorkerName(
       firstName,
       surname,
     ]
-      .filter(Boolean)
-      .join(" ")
+      .filter(
+        Boolean,
+      )
+      .join(
+        " ",
+      )
       .trim() ||
     "Worker"
   );
@@ -351,7 +337,9 @@ function getWorkerService(
       worker.subcategory,
     );
 
-  if (subcategory) {
+  if (
+    subcategory
+  ) {
     return subcategory;
   }
 
@@ -360,34 +348,21 @@ function getWorkerService(
       worker.category,
     );
 
-  if (category) {
+  if (
+    category
+  ) {
     return category;
   }
 
   const firstService =
-    worker.services?.[0]?.name;
+    cleanString(
+      worker.services?.[0]
+        ?.name,
+    );
 
-  if (
-    typeof firstService ===
-      "string" &&
-    firstService.trim()
-  ) {
-    return firstService.trim();
-  }
-
-  return "Service Provider";
-}
-
-/* ============================================================
-   WORKER PHONE
-============================================================ */
-
-function getWorkerPhone(
-  worker: WorkerCardData,
-): string {
-  return cleanString(
-    worker.workerProfile
-      ?.phoneNumber,
+  return (
+    firstService ||
+    "Service Provider"
   );
 }
 
@@ -400,9 +375,11 @@ function getWorkerArrivalTime(
 ): string {
   if (
     distance === null ||
-    !Number.isFinite(distance)
+    !Number.isFinite(
+      distance,
+    )
   ) {
-    return "Nearby";
+    return "Distance unavailable";
   }
 
   return calculateArrivalTime(
@@ -411,150 +388,441 @@ function getWorkerArrivalTime(
 }
 
 /* ============================================================
-   CALL WORKER MODAL
+   CALL MODAL
 ============================================================ */
 
-function CallWorkerModal({
-  visible,
-  worker,
-  onCancel,
-  onConfirm,
-}: {
+type CallWorkerModalProps = {
   visible: boolean;
 
-  worker: Worker | null;
+  worker:
+    | Worker
+    | null;
 
   onCancel: () => void;
 
   onConfirm: () => void;
-}) {
-  if (!worker) {
-    return null;
-  }
+};
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={
-        onCancel
+const CallWorkerModal =
+  memo(
+    function CallWorkerModal({
+      visible,
+      worker,
+      onCancel,
+      onConfirm,
+    }: CallWorkerModalProps) {
+      if (
+        !worker
+      ) {
+        return null;
       }
-    >
-      <View
-        style={
-          styles.callModalOverlay
-        }
-      >
-        <View
-          style={
-            styles.callModal
+
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={
+            onCancel
           }
         >
           <View
             style={
-              styles.callModalIcon
+              styles.callModalOverlay
             }
           >
-            <Ionicons
-              name="call-outline"
-              size={34}
-              color="#2563EB"
-            />
+            <View
+              accessibilityViewIsModal
+              style={
+                styles.callModal
+              }
+            >
+              {/* ==================================================
+                  ICON
+              ================================================== */}
+
+              <View
+                style={
+                  styles.callModalIcon
+                }
+              >
+                <AppIcon
+                  name="phone"
+                  role="customer"
+                  size="xl"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+
+              {/* ==================================================
+                  TITLE
+              ================================================== */}
+
+              <AppText
+                variant="heading2"
+                weight="bold"
+                center
+                style={
+                  styles.callModalTitle
+                }
+              >
+                Call {worker.name}?
+              </AppText>
+
+              {/* ==================================================
+                  DESCRIPTION
+              ================================================== */}
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.callModalDescription
+                }
+              >
+                Start an in-app voice call with {worker.name}.
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.callModalQuestion
+                }
+              >
+                You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
+              </AppText>
+
+              {/* ==================================================
+                  ACTIONS
+              ================================================== */}
+
+              <View
+                style={
+                  styles.callModalActions
+                }
+              >
+                <Pressable
+                  onPress={
+                    onCancel
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel call"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.callModalCancel,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppText
+                    variant="body"
+                    weight="bold"
+                    style={
+                      styles.callModalCancelText
+                    }
+                  >
+                    Cancel
+                  </AppText>
+                </Pressable>
+
+                <Pressable
+                  onPress={
+                    onConfirm
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={`Call ${worker.name}`}
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.callModalConfirm,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppIcon
+                    name="phone"
+                    role="customer"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+
+                  <AppText
+                    variant="body"
+                    weight="bold"
+                    style={
+                      styles.callModalConfirmText
+                    }
+                  >
+                    Call Worker
+                  </AppText>
+                </Pressable>
+              </View>
+            </View>
           </View>
+        </Modal>
+      );
+    },
+  );
 
-          <AppText
-            weight="bold"
-            style={
-              styles.callModalTitle
-            }
-          >
-            Call {worker.name}?
-          </AppText>
+/* ============================================================
+   WORKER CARD
+============================================================ */
 
-          <AppText
-            style={
-              styles.callModalDescription
-            }
-          >
-            {worker.name} is
-            available for contact.
-          </AppText>
+type WorkerHomeCardProps = {
+  worker: Worker;
 
-          <AppText
-            style={
-              styles.callModalQuestion
-            }
-          >
-            Do you want to call this
-            worker?
-          </AppText>
+  onPress: (
+    worker: Worker,
+  ) => void;
+
+  onImageError: (
+    worker: Worker,
+  ) => void;
+};
+
+const WorkerHomeCard =
+  memo(
+    function WorkerHomeCard({
+      worker,
+      onPress,
+      onImageError,
+    }: WorkerHomeCardProps) {
+      const handlePress =
+        useCallback(() => {
+          onPress(
+            worker,
+          );
+        }, [
+          onPress,
+          worker,
+        ]);
+
+      const handleImageError =
+        useCallback(() => {
+          onImageError(
+            worker,
+          );
+        }, [
+          onImageError,
+          worker,
+        ]);
+
+      return (
+        <AppCard
+          role="customer"
+          style={
+            styles.card
+          }
+        >
+          {/* ==================================================
+              IMAGE
+          ================================================== */}
 
           <View
             style={
-              styles.callModalActions
+              styles.imageContainer
             }
           >
-            <Pressable
-              onPress={
-                onCancel
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.callModalCancel,
-
-                pressed &&
-                  styles.callModalPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel call"
-            >
-              <AppText
-                weight="bold"
+            {worker.image ? (
+              <Image
+                source={{
+                  uri:
+                    worker.image,
+                }}
                 style={
-                  styles.callModalCancelText
+                  styles.image
                 }
-              >
-                Cancel
-              </AppText>
-            </Pressable>
-
-            <Pressable
-              onPress={
-                onConfirm
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.callModalConfirm,
-
-                pressed &&
-                  styles.callModalConfirmPressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel={`Call ${worker.name}`}
-            >
-              <Ionicons
-                name="call-outline"
-                size={18}
-                color="#FFFFFF"
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={150}
+                accessibilityLabel={`${worker.name} profile photo`}
+                onError={
+                  handleImageError
+                }
               />
-
-              <AppText
-                weight="bold"
+            ) : (
+              <View
                 style={
-                  styles.callModalConfirmText
+                  styles.imagePlaceholder
                 }
               >
-                Call Worker
-              </AppText>
-            </Pressable>
+                <AppIcon
+                  name="profile"
+                  role="customer"
+                  size="lg"
+                  state="muted"
+                />
+              </View>
+            )}
+
+            <View
+              accessible
+              accessibilityLabel={
+                worker.online
+                  ? "Worker online"
+                  : "Worker offline"
+              }
+              style={[
+                styles.online,
+
+                worker.online
+                  ? styles.onlineActive
+                  : styles.onlineOffline,
+              ]}
+            />
           </View>
-        </View>
-      </View>
-    </Modal>
+
+          {/* ==================================================
+              NAME
+          ================================================== */}
+
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={1}
+            center
+            style={
+              styles.name
+            }
+          >
+            {worker.name}
+          </AppText>
+
+          {/* ==================================================
+              SERVICE
+          ================================================== */}
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            center
+            style={
+              styles.service
+            }
+          >
+            {worker.service}
+          </AppText>
+
+          {/* ==================================================
+              RATING
+          ================================================== */}
+
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="xs"
+              color={
+                Colors.warning
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.rating
+              }
+            >
+              {worker.rating >
+              0
+                ? worker.rating.toFixed(
+                    1,
+                  )
+                : "New"}
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              ARRIVAL
+          ================================================== */}
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            center
+            numberOfLines={1}
+            style={
+              styles.arrivalTime
+            }
+          >
+            {worker.arrivalTime}
+          </AppText>
+
+          {/* ==================================================
+              CONTACT
+          ================================================== */}
+
+          <Pressable
+            onPress={
+              handlePress
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Contact ${worker.name}`}
+            style={({
+              pressed,
+            }) => [
+              styles.callButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="phone"
+              role="customer"
+              size="xs"
+              color={
+                Colors.textInverse
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.callText
+              }
+            >
+              Contact
+            </AppText>
+          </Pressable>
+        </AppCard>
+      );
+    },
+  );
+
+/* ============================================================
+   SEPARATOR
+============================================================ */
+
+function WorkerSeparator() {
+  return (
+    <View
+      style={
+        styles.workerSeparator
+      }
+    />
   );
 }
 
@@ -563,30 +831,33 @@ function CallWorkerModal({
 ============================================================ */
 
 export default function ContactWorkers() {
-  /* ==========================================================
-     WORKERS
-  ========================================================== */
-
   const [
     workers,
     setWorkers,
-  ] = useState<Worker[]>([]);
-
-  /* ==========================================================
-     LOADING
-  ========================================================== */
+  ] =
+    useState<
+      Worker[]
+    >(
+      [],
+    );
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      true,
+    );
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
 
   /* ==========================================================
      AUTH
@@ -595,9 +866,13 @@ export default function ContactWorkers() {
   const [
     currentUser,
     setCurrentUser,
-  ] = useState<User | null>(
-    getAuth().currentUser,
-  );
+  ] =
+    useState<
+      User | null
+    >(
+      getAuth()
+        .currentUser,
+    );
 
   /* ==========================================================
      PENDING WORKER
@@ -606,9 +881,19 @@ export default function ContactWorkers() {
   const [
     pendingWorker,
     setPendingWorker,
-  ] = useState<Worker | null>(
-    null,
-  );
+  ] =
+    useState<
+      Worker | null
+    >(
+      null,
+    );
+
+  const pendingWorkerRef =
+    useRef<
+      Worker | null
+    >(
+      null,
+    );
 
   /* ==========================================================
      SELECTED WORKER
@@ -617,18 +902,44 @@ export default function ContactWorkers() {
   const [
     selectedWorker,
     setSelectedWorker,
-  ] = useState<Worker | null>(
-    null,
-  );
-
-  /* ==========================================================
-     AUTH REF
-  ========================================================== */
-
-  const pendingWorkerRef =
-    useRef<Worker | null>(
+  ] =
+    useState<
+      Worker | null
+    >(
       null,
     );
+
+  /* ==========================================================
+     LOCATION CACHE
+  ========================================================== */
+
+  const customerLocationRef =
+    useRef<
+      UserLocation | null
+    >(
+      null,
+    );
+
+  const locationCheckedRef =
+    useRef(
+      false,
+    );
+
+  /* ==========================================================
+     IMAGE CACHE
+  ========================================================== */
+
+  const imageCacheRef =
+    useRef(
+      new Map<
+        string,
+        string
+      >(),
+    );
+
+  /* ==========================================================
+     PENDING REF
+  ========================================================== */
 
   useEffect(() => {
     pendingWorkerRef.current =
@@ -643,9 +954,22 @@ export default function ContactWorkers() {
 
   const loadCustomerLocation =
     useCallback(
-      async (): Promise<
+      async (
+        force =
+          false,
+      ): Promise<
         UserLocation | null
       > => {
+        if (
+          !force &&
+          locationCheckedRef.current
+        ) {
+          return customerLocationRef.current;
+        }
+
+        locationCheckedRef.current =
+          true;
+
         try {
           const {
             status,
@@ -656,6 +980,9 @@ export default function ContactWorkers() {
             status !==
             Location.PermissionStatus.GRANTED
           ) {
+            customerLocationRef.current =
+              null;
+
             return null;
           }
 
@@ -673,26 +1000,51 @@ export default function ContactWorkers() {
           } =
             location.coords;
 
-          if (
-            !Number.isFinite(
+          const validCoordinates =
+            Number.isFinite(
               latitude,
-            ) ||
-            !Number.isFinite(
+            ) &&
+            latitude >=
+              -90 &&
+            latitude <=
+              90 &&
+            Number.isFinite(
               longitude,
-            )
+            ) &&
+            longitude >=
+              -180 &&
+            longitude <=
+              180;
+
+          if (
+            !validCoordinates
           ) {
+            customerLocationRef.current =
+              null;
+
             return null;
           }
 
-          return {
-            latitude,
-            longitude,
-          };
-        } catch (locationError) {
+          const nextLocation: UserLocation =
+            {
+              latitude,
+              longitude,
+            };
+
+          customerLocationRef.current =
+            nextLocation;
+
+          return nextLocation;
+        } catch (
+          locationError
+        ) {
           console.error(
             "HOME_WORKER_LOCATION_ERROR:",
             locationError,
           );
+
+          customerLocationRef.current =
+            null;
 
           return null;
         }
@@ -710,6 +1062,7 @@ export default function ContactWorkers() {
         document: Parameters<
           typeof workerMapper
         >[0],
+
         customerLocation:
           | UserLocation
           | null,
@@ -719,10 +1072,6 @@ export default function ContactWorkers() {
             workerMapper(
               document,
             );
-
-          /* ==================================================
-             LOCATION
-          ================================================== */
 
           const latitude =
             mapped.workerProfile
@@ -734,20 +1083,32 @@ export default function ContactWorkers() {
 
           let distance:
             | number
-            | null = null;
+            | null =
+            null;
 
-          if (
-            customerLocation &&
+          const validWorkerLocation =
             typeof latitude ===
-              "number" &&
-            typeof longitude ===
               "number" &&
             Number.isFinite(
               latitude,
             ) &&
+            latitude >=
+              -90 &&
+            latitude <=
+              90 &&
+            typeof longitude ===
+              "number" &&
             Number.isFinite(
               longitude,
-            )
+            ) &&
+            longitude >=
+              -180 &&
+            longitude <=
+              180;
+
+          if (
+            customerLocation &&
+            validWorkerLocation
           ) {
             distance =
               calculateDistance(
@@ -760,27 +1121,23 @@ export default function ContactWorkers() {
             if (
               !Number.isFinite(
                 distance,
-              )
+              ) ||
+              distance <
+                0
             ) {
-              distance = null;
+              distance =
+                null;
             }
           }
 
-          /* ==================================================
-             DISTANCE FILTER
-          ================================================== */
-
           if (
-            distance !== null &&
+            distance !==
+              null &&
             distance >
               MAX_DISTANCE_KM
           ) {
             return null;
           }
-
-          /* ==================================================
-             IMAGE SOURCE
-          ================================================== */
 
           const imageSource =
             cleanString(
@@ -788,28 +1145,14 @@ export default function ContactWorkers() {
                 ?.photoUrl,
             );
 
-          /*
-           * Do NOT put the source directly
-           * into Image.
-           *
-           * resolveWorkerImage() will make
-           * sure it is a usable URL.
-           */
-
-          if (__DEV__) {
-            console.log(
-              "HOME_WORKER_IMAGE_SOURCE:",
-              {
-                workerId:
-                  mapped.id,
-
-                workerName:
-                  mapped.fullName,
-
-                imageSource,
-              },
-            );
-          }
+          const ratingValue =
+            typeof mapped.rating ===
+              "number" &&
+            Number.isFinite(
+              mapped.rating,
+            )
+              ? mapped.rating
+              : 0;
 
           return {
             id:
@@ -830,11 +1173,7 @@ export default function ContactWorkers() {
                 5,
                 Math.max(
                   0,
-                  Number.isFinite(
-                    mapped.rating,
-                  )
-                    ? mapped.rating
-                    : 0,
+                  ratingValue,
                 ),
               ),
 
@@ -849,21 +1188,14 @@ export default function ContactWorkers() {
               mapped.online ===
               true,
 
-            /*
-             * Temporary source.
-             *
-             * It will be resolved in
-             * loadWorkers().
-             */
-            image:
-              imageSource,
+            imageSource,
 
-            phoneNumber:
-              getWorkerPhone(
-                mapped,
-              ),
+            image:
+              "",
           };
-        } catch (mappingError) {
+        } catch (
+          mappingError
+        ) {
           console.error(
             "HOME_WORKER_MAPPING_ERROR:",
             mappingError,
@@ -876,23 +1208,75 @@ export default function ContactWorkers() {
     );
 
   /* ==========================================================
+     RESOLVE CACHED IMAGE
+  ========================================================== */
+
+  const resolveCachedWorkerImage =
+    useCallback(
+      async (
+        source: string,
+      ): Promise<string> => {
+        if (
+          !source
+        ) {
+          return "";
+        }
+
+        const cached =
+          imageCacheRef.current.get(
+            source,
+          );
+
+        if (
+          cached
+        ) {
+          return cached;
+        }
+
+        const image =
+          await resolveWorkerImage(
+            source,
+          );
+
+        if (
+          image
+        ) {
+          imageCacheRef.current.set(
+            source,
+            image,
+          );
+        }
+
+        return image;
+      },
+      [],
+    );
+
+  /* ==========================================================
      LOAD WORKERS
   ========================================================== */
 
   const loadWorkers =
     useCallback(
       async (
-        options?: {
-          silent?: boolean;
-        },
+        options?:
+          LoadWorkerOptions,
       ) => {
         const silent =
-          options?.silent === true;
+          options?.silent ===
+          true;
 
         try {
-          if (!silent) {
-            setLoading(true);
-            setError(null);
+          if (
+            !silent
+          ) {
+            setLoading(
+              true,
+            );
+
+            setError(
+              null,
+            );
           }
 
           const [
@@ -901,19 +1285,21 @@ export default function ContactWorkers() {
           ] =
             await Promise.all([
               getPublicWorkers(),
-              loadCustomerLocation(),
+
+              loadCustomerLocation(
+                options
+                  ?.refreshLocation ===
+                  true,
+              ),
             ]);
 
-          /* ==================================================
-             MAP
-          ================================================== */
-
-          const rawWorkers: Worker[] =
+          const rawWorkers:
+            Worker[] =
             [];
 
           for (
             const document of
-              workerSnapshot.docs
+            workerSnapshot.docs
           ) {
             const worker =
               mapWorker(
@@ -921,18 +1307,14 @@ export default function ContactWorkers() {
                 customerLocation,
               );
 
-            if (!worker) {
-              continue;
+            if (
+              worker
+            ) {
+              rawWorkers.push(
+                worker,
+              );
             }
-
-            rawWorkers.push(
-              worker,
-            );
           }
-
-          /* ==================================================
-             RESOLVE IMAGES
-          ================================================== */
 
           const resolvedWorkers =
             await Promise.all(
@@ -941,8 +1323,8 @@ export default function ContactWorkers() {
                   worker,
                 ) => {
                   const image =
-                    await resolveWorkerImage(
-                      worker.image,
+                    await resolveCachedWorkerImage(
+                      worker.imageSource,
                     );
 
                   return {
@@ -953,16 +1335,11 @@ export default function ContactWorkers() {
               ),
             );
 
-          /* ==================================================
-             SORT
-          ================================================== */
-
           resolvedWorkers.sort(
-            (a, b) => {
-              /*
-               * Online workers first.
-               */
-
+            (
+              a,
+              b,
+            ) => {
               if (
                 a.online !==
                 b.online
@@ -971,10 +1348,6 @@ export default function ContactWorkers() {
                   ? -1
                   : 1;
               }
-
-              /*
-               * Nearest workers next.
-               */
 
               if (
                 a.distance !==
@@ -1002,75 +1375,78 @@ export default function ContactWorkers() {
                 return 1;
               }
 
-              /*
-               * Finally name.
-               */
-
               return a.name.localeCompare(
                 b.name,
               );
             },
           );
 
-          /* ==================================================
-             SAVE
-          ================================================== */
-
           setWorkers(
             resolvedWorkers,
           );
 
-          /* ==================================================
-             DEBUG
-          ================================================== */
-
-          if (__DEV__) {
+          if (
+            __DEV__
+          ) {
             console.log(
               "HOME_WORKERS_LOADED:",
               resolvedWorkers.map(
-                (worker) => ({
+                (
+                  worker,
+                ) => ({
                   id:
                     worker.id,
 
                   name:
                     worker.name,
 
-                  image:
-                    worker.image,
+                  online:
+                    worker.online,
+
+                  distance:
+                    worker.distance,
 
                   hasImage:
                     Boolean(
                       worker.image,
                     ),
-
-                  online:
-                    worker.online,
                 }),
               ),
             );
           }
-        } catch (loadError) {
+        } catch (
+          loadError
+        ) {
           console.error(
             "LOAD_HOME_PUBLIC_WORKERS_ERROR:",
             loadError,
           );
 
-          if (!silent) {
-            setWorkers([]);
+          if (
+            !silent
+          ) {
+            setWorkers(
+              [],
+            );
 
             setError(
               "Unable to load workers. Please try again.",
             );
           }
         } finally {
-          if (!silent) {
-            setLoading(false);
+          if (
+            !silent
+          ) {
+            setLoading(
+              false,
+            );
           }
         }
       },
       [
         loadCustomerLocation,
         mapWorker,
+        resolveCachedWorkerImage,
       ],
     );
 
@@ -1090,11 +1466,15 @@ export default function ContactWorkers() {
 
   useEffect(() => {
     const interval =
-      setInterval(() => {
-        void loadWorkers({
-          silent: true,
-        });
-      }, WORKER_REFRESH_INTERVAL);
+      setInterval(
+        () => {
+          void loadWorkers({
+            silent:
+              true,
+          });
+        },
+        WORKER_REFRESH_INTERVAL,
+      );
 
     return () => {
       clearInterval(
@@ -1116,13 +1496,12 @@ export default function ContactWorkers() {
     const unsubscribe =
       onAuthStateChanged(
         auth,
-        (user) => {
-          setCurrentUser(user);
-
-          /*
-           * If login completed while a worker
-           * was waiting, open that worker.
-           */
+        (
+          user,
+        ) => {
+          setCurrentUser(
+            user,
+          );
 
           const pending =
             pendingWorkerRef.current;
@@ -1142,6 +1521,14 @@ export default function ContactWorkers() {
             pendingWorkerRef.current =
               null;
           }
+
+          if (
+            !user
+          ) {
+            setSelectedWorker(
+              null,
+            );
+          }
         },
       );
 
@@ -1149,7 +1536,7 @@ export default function ContactWorkers() {
   }, []);
 
   /* ==========================================================
-     FIRST FIVE
+     HOME WORKERS
   ========================================================== */
 
   const homeWorkers =
@@ -1159,20 +1546,26 @@ export default function ContactWorkers() {
           0,
           HOME_WORKER_LIMIT,
         ),
-      [workers],
+      [
+        workers,
+      ],
     );
 
   /* ==========================================================
-     CONTACT WORKER
+     WORKER PRESS
   ========================================================== */
 
   const handleWorkerPress =
     useCallback(
-      (worker: Worker) => {
+      (
+        worker: Worker,
+      ) => {
         const auth =
           getAuth();
 
-        if (!auth.currentUser) {
+        if (
+          !auth.currentUser
+        ) {
           pendingWorkerRef.current =
             worker;
 
@@ -1191,7 +1584,62 @@ export default function ContactWorkers() {
     );
 
   /* ==========================================================
-     CLOSE LOGIN
+     IMAGE ERROR
+  ========================================================== */
+
+  const handleImageError =
+    useCallback(
+      (
+        worker: Worker,
+      ) => {
+        if (
+          __DEV__
+        ) {
+          console.warn(
+            "HOME_WORKER_IMAGE_LOAD_FAILED:",
+            {
+              workerId:
+                worker.id,
+
+              image:
+                worker.image,
+            },
+          );
+        }
+
+        if (
+          worker.imageSource
+        ) {
+          imageCacheRef.current.delete(
+            worker.imageSource,
+          );
+        }
+
+        setWorkers(
+          (
+            current,
+          ) =>
+            current.map(
+              (
+                item,
+              ) =>
+                item.id ===
+                worker.id
+                  ? {
+                      ...item,
+
+                      image:
+                        "",
+                    }
+                  : item,
+            ),
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
+     LOGIN MODAL
   ========================================================== */
 
   const handleCloseLogin =
@@ -1205,7 +1653,7 @@ export default function ContactWorkers() {
     }, []);
 
   /* ==========================================================
-     CLOSE CALL
+     CALL MODAL
   ========================================================== */
 
   const handleCloseCall =
@@ -1216,19 +1664,23 @@ export default function ContactWorkers() {
     }, []);
 
   /* ==========================================================
-     CONFIRM CALL
+     CONFIRM IN-APP CALL
   ========================================================== */
 
   const handleConfirmCall =
-    useCallback(async () => {
-      if (!selectedWorker) {
+    useCallback(() => {
+      if (
+        !selectedWorker
+      ) {
         return;
       }
 
       const auth =
         getAuth();
 
-      if (!auth.currentUser) {
+      if (
+        !auth.currentUser
+      ) {
         pendingWorkerRef.current =
           selectedWorker;
 
@@ -1243,63 +1695,107 @@ export default function ContactWorkers() {
         return;
       }
 
-      const phone =
-        selectedWorker.phoneNumber.trim();
+      const worker =
+        selectedWorker;
 
-      if (!phone) {
-        Alert.alert(
-          "Phone unavailable",
-          "This worker does not have a contact number available yet.",
-        );
+      setSelectedWorker(
+        null,
+      );
 
-        return;
-      }
+      /*
+       * No phone number is sent.
+       *
+       * The call screen identifies
+       * the worker using workerId.
+       */
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
 
-      try {
-        const phoneUrl =
-          `tel:${phone}`;
+        params: {
+          workerId:
+            worker.id,
 
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
+          name:
+            worker.name,
 
-        if (!supported) {
-          Alert.alert(
-            "Unable to call",
-            "Your device cannot make phone calls.",
-          );
+          service:
+            worker.service,
 
-          return;
-        }
+          image:
+            worker.image,
 
-        setSelectedWorker(
-          null,
-        );
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (callError) {
-        console.error(
-          "HOME_WORKER_CALL_ERROR:",
-          callError,
-        );
-
-        Alert.alert(
-          "Unable to call",
-          "We couldn't start the call. Please try again.",
-        );
-      }
+          rating:
+            String(
+              worker.rating,
+            ),
+        },
+      });
     }, [
       selectedWorker,
     ]);
 
   /* ==========================================================
+     RETRY
+  ========================================================== */
+
+  const handleRetry =
+    useCallback(() => {
+      void loadWorkers({
+        refreshLocation:
+          true,
+      });
+    }, [
+      loadWorkers,
+    ]);
+
+  /* ==========================================================
+     SEE ALL
+  ========================================================== */
+
+  const handleSeeAll =
+    useCallback(() => {
+      router.push(
+        "/(customer)/contact-worker/contact",
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER WORKER
+  ========================================================== */
+
+  const renderWorker =
+    useCallback(
+      ({
+        item,
+      }: {
+        item: Worker;
+      }) => (
+        <WorkerHomeCard
+          worker={
+            item
+          }
+          onPress={
+            handleWorkerPress
+          }
+          onImageError={
+            handleImageError
+          }
+        />
+      ),
+      [
+        handleImageError,
+        handleWorkerPress,
+      ],
+    );
+
+  /* ==========================================================
      LOADING
   ========================================================== */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <View
         style={
@@ -1308,10 +1804,14 @@ export default function ContactWorkers() {
       >
         <ActivityIndicator
           size="small"
-          color="#2563EB"
+          color={
+            CustomerColors.primary
+          }
         />
 
         <AppText
+          variant="caption"
+          tone="secondary"
           style={
             styles.loadingText
           }
@@ -1326,7 +1826,9 @@ export default function ContactWorkers() {
      ERROR
   ========================================================== */
 
-  if (error) {
+  if (
+    error
+  ) {
     return (
       <View
         style={
@@ -1338,14 +1840,18 @@ export default function ContactWorkers() {
             styles.errorIcon
           }
         >
-          <Ionicons
-            name="alert-circle-outline"
-            size={28}
-            color="#EF4444"
+          <AppIcon
+            name="error"
+            role="customer"
+            size="lg"
+            color={
+              Colors.error
+            }
           />
         </View>
 
         <AppText
+          variant="bodyLarge"
           weight="bold"
           style={
             styles.errorTitle
@@ -1355,6 +1861,8 @@ export default function ContactWorkers() {
         </AppText>
 
         <AppText
+          variant="body"
+          tone="secondary"
           center
           style={
             styles.errorText
@@ -1364,25 +1872,32 @@ export default function ContactWorkers() {
         </AppText>
 
         <Pressable
-          onPress={() =>
-            void loadWorkers()
+          onPress={
+            handleRetry
           }
-          style={({ pressed }) => [
-            styles.retryButton,
-
-            pressed &&
-              styles.retryPressed,
-          ]}
           accessibilityRole="button"
           accessibilityLabel="Retry loading workers"
+          style={({
+            pressed,
+          }) => [
+            styles.retryButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="refresh-outline"
-            size={18}
-            color="#FFFFFF"
+          <AppIcon
+            name="refresh"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
           />
 
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.retryText
@@ -1415,25 +1930,35 @@ export default function ContactWorkers() {
         }
       >
         <AppText
+          variant="heading3"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.title
           }
         >
-          Contact Worker Nearby You
+          Contact Workers Near You
         </AppText>
 
         <Pressable
-          onPress={() =>
-            router.push(
-              "/(customer)/contact-worker/contact",
-            )
+          onPress={
+            handleSeeAll
           }
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="View all contact workers"
+          style={({
+            pressed,
+          }) => [
+            styles.seeAllButton,
+
+            pressed
+              ? styles.seeAllPressed
+              : null,
+          ]}
         >
           <AppText
+            variant="caption"
             weight="bold"
             style={
               styles.seeAll
@@ -1441,11 +1966,20 @@ export default function ContactWorkers() {
           >
             See All
           </AppText>
+
+          <AppIcon
+            name="next"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
         </Pressable>
       </View>
 
       {/* ======================================================
-          EMPTY
+          EMPTY / LIST
       ====================================================== */}
 
       {homeWorkers.length ===
@@ -1460,14 +1994,16 @@ export default function ContactWorkers() {
               styles.emptyIcon
             }
           >
-            <Ionicons
-              name="people-outline"
-              size={30}
-              color="#94A3B8"
+            <AppIcon
+              name="users"
+              role="customer"
+              size="lg"
+              state="muted"
             />
           </View>
 
           <AppText
+            variant="bodyLarge"
             weight="bold"
             style={
               styles.emptyTitle
@@ -1477,253 +2013,65 @@ export default function ContactWorkers() {
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
             center
             style={
               styles.emptyText
             }
           >
-            There are currently no
-            workers available near
-            you.
+            There are currently no workers available near you.
           </AppText>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           horizontal
+          data={
+            homeWorkers
+          }
+          keyExtractor={(
+            item,
+          ) =>
+            item.id
+          }
+          renderItem={
+            renderWorker
+          }
+          ItemSeparatorComponent={
+            WorkerSeparator
+          }
           showsHorizontalScrollIndicator={
             false
           }
           contentContainerStyle={
-            styles.workerScrollContent
+            styles.workerListContent
           }
-          decelerationRate="fast"
+          initialNumToRender={
+            HOME_WORKER_LIMIT
+          }
+          maxToRenderPerBatch={
+            HOME_WORKER_LIMIT
+          }
           snapToInterval={
             WORKER_SNAP_INTERVAL
           }
           snapToAlignment="start"
+          decelerationRate="fast"
           directionalLockEnabled
-          bounces
-        >
-          {homeWorkers.map(
-            (
-              worker,
+          getItemLayout={(
+            _,
+            index,
+          ) => ({
+            length:
+              WORKER_SNAP_INTERVAL,
+
+            offset:
+              WORKER_SNAP_INTERVAL *
               index,
-            ) => (
-              <AppCard
-                key={
-                  worker.id
-                }
-                style={[
-                  styles.card,
 
-                  index ===
-                    homeWorkers.length -
-                      1 &&
-                    styles.cardLast,
-                ]}
-              >
-                {/* ==================================================
-                    IMAGE
-                ================================================== */}
-
-                <View
-                  style={
-                    styles.imageContainer
-                  }
-                >
-                  {worker.image ? (
-                    <Image
-                      source={{
-                        uri: worker.image,
-                      }}
-                      style={
-                        styles.image
-                      }
-                      resizeMode="cover"
-                      onError={(event) => {
-                        /*
-                         * Do not throw an error.
-                         *
-                         * The worker card will remain
-                         * visible and the image can fall
-                         * back to the placeholder.
-                         */
-
-                        console.warn(
-                          "HOME_WORKER_IMAGE_LOAD_FAILED:",
-                          {
-                            workerId:
-                              worker.id,
-
-                            workerName:
-                              worker.name,
-
-                            image:
-                              worker.image,
-
-                            error:
-                              event
-                                .nativeEvent
-                                .error,
-                          },
-                        );
-
-                        setWorkers(
-                          (
-                            current,
-                          ) =>
-                            current.map(
-                              (
-                                item,
-                              ) =>
-                                item.id ===
-                                worker.id
-                                  ? {
-                                      ...item,
-
-                                      image:
-                                        "",
-                                    }
-                                  : item,
-                            ),
-                        );
-                      }}
-                    />
-                  ) : (
-                    <View
-                      style={
-                        styles.imagePlaceholder
-                      }
-                    >
-                      <Ionicons
-                        name="person"
-                        size={34}
-                        color="#94A3B8"
-                      />
-                    </View>
-                  )}
-
-                  <View
-                    style={[
-                      styles.online,
-                      {
-                        backgroundColor:
-                          worker.online
-                            ? "#22C55E"
-                            : "#9CA3AF",
-                      },
-                    ]}
-                  />
-                </View>
-
-                {/* ==================================================
-                    NAME
-                ================================================== */}
-
-                <AppText
-                  weight="bold"
-                  numberOfLines={1}
-                  style={
-                    styles.name
-                  }
-                >
-                  {worker.name}
-                </AppText>
-
-                {/* ==================================================
-                    SERVICE
-                ================================================== */}
-
-                <AppText
-                  numberOfLines={1}
-                  style={
-                    styles.service
-                  }
-                >
-                  {worker.service}
-                </AppText>
-
-                {/* ==================================================
-                    RATING
-                ================================================== */}
-
-                <View
-                  style={
-                    styles.ratingRow
-                  }
-                >
-                  <Ionicons
-                    name="star"
-                    size={13}
-                    color="#F59E0B"
-                  />
-
-                  <AppText
-                    style={
-                      styles.rating
-                    }
-                  >
-                    {worker.rating >
-                    0
-                      ? worker.rating.toFixed(
-                          1,
-                        )
-                      : "New"}
-                  </AppText>
-                </View>
-
-                {/* ==================================================
-                    ARRIVAL
-                ================================================== */}
-
-                <AppText
-                  style={
-                    styles.arrivalTime
-                  }
-                >
-                  {worker.arrivalTime}
-                </AppText>
-
-                {/* ==================================================
-                    CONTACT
-                ================================================== */}
-
-                <Pressable
-                  onPress={() =>
-                    handleWorkerPress(
-                      worker,
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.callButton,
-
-                    pressed &&
-                      styles.callButtonPressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Contact ${worker.name}`}
-                >
-                  <Ionicons
-                    name="call-outline"
-                    size={17}
-                    color="#FFFFFF"
-                  />
-
-                  <AppText
-                    weight="bold"
-                    style={
-                      styles.callText
-                    }
-                  >
-                    Contact
-                  </AppText>
-                </Pressable>
-              </AppCard>
-            ),
-          )}
-        </ScrollView>
+            index,
+          })}
+        />
       )}
 
       {/* ======================================================
@@ -1732,7 +2080,9 @@ export default function ContactWorkers() {
 
       <AuthRequiredModal
         visible={
-          !!pendingWorker &&
+          Boolean(
+            pendingWorker,
+          ) &&
           !currentUser
         }
         title="Login required"
@@ -1743,13 +2093,17 @@ export default function ContactWorkers() {
       />
 
       {/* ======================================================
-          CALL CONFIRMATION
+          IN-APP CALL CONFIRMATION
       ====================================================== */}
 
       <CallWorkerModal
         visible={
-          !!selectedWorker &&
-          !!currentUser
+          Boolean(
+            selectedWorker,
+          ) &&
+          Boolean(
+            currentUser,
+          )
         }
         worker={
           selectedWorker
@@ -1772,218 +2126,247 @@ export default function ContactWorkers() {
 const styles =
   StyleSheet.create({
     container: {
-      marginBottom: 24,
+      marginBottom:
+        FixxamTokens.spacing.xl,
     },
-
-    /* ========================================================
-       LOADING
-    ======================================================== */
 
     loadingContainer: {
       minHeight: 140,
 
-      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-      justifyContent: "center",
+      alignItems:
+        "center",
 
-      marginBottom: 24,
+      justifyContent:
+        "center",
     },
 
     loadingText: {
-      marginTop: 8,
-
-      fontSize: 13,
-
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    /* ========================================================
-       ERROR
-    ======================================================== */
-
     errorContainer: {
-      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.xl,
 
-      justifyContent: "center",
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
-      paddingVertical: 30,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      paddingHorizontal: 20,
+      alignItems:
+        "center",
 
-      marginBottom: 24,
+      justifyContent:
+        "center",
     },
 
     errorIcon: {
-      width: 56,
+      width:
+        FixxamTokens.size
+          .avatarLg,
 
-      height: 56,
+      height:
+        FixxamTokens.size
+          .avatarLg,
 
-      borderRadius: 18,
+      alignItems:
+        "center",
 
-      backgroundColor: "#FEF2F2",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      justifyContent: "center",
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorTitle: {
-      marginTop: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      fontSize: 16,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     errorText: {
-      marginTop: 5,
+      maxWidth: 300,
 
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       lineHeight: 20,
-
-      color: "#64748B",
-
-      textAlign: "center",
     },
 
     retryButton: {
-      marginTop: 16,
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-      height: 44,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      paddingHorizontal: 18,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      borderRadius: 13,
+      flexDirection:
+        "row",
 
-      backgroundColor: "#2563EB",
+      alignItems:
+        "center",
 
-      flexDirection: "row",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
+      gap:
+        FixxamTokens.spacing.xs,
 
-      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.button,
 
-      gap: 7,
-    },
-
-    retryPressed: {
-      opacity: 0.8,
-
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     retryText: {
-      fontSize: 13,
-
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
-    /* ========================================================
-       HEADER
-    ======================================================== */
-
     header: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      justifyContent: "space-between",
+      justifyContent:
+        "space-between",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     title: {
       flex: 1,
 
-      marginRight: 12,
+      minWidth: 0,
 
-      fontSize: 18,
+      marginRight:
+        FixxamTokens.spacing.sm,
 
-      color: "#111827",
+      color:
+        Colors.textPrimary,
+    },
+
+    seeAllButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+    },
+
+    seeAllPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     seeAll: {
-      color: "#2563EB",
-
-      fontSize: 13,
+      color:
+        CustomerColors.primary,
     },
 
-    /* ========================================================
-       WORKER SCROLL
-    ======================================================== */
-
-    workerScrollContent: {
-      paddingRight: 20,
+    workerListContent: {
+      paddingRight:
+        FixxamTokens.spacing.lg,
     },
 
-    /* ========================================================
-       CARD
-    ======================================================== */
+    workerSeparator: {
+      width:
+        WORKER_CARD_GAP,
+    },
 
     card: {
-      width: WORKER_CARD_WIDTH,
+      width:
+        WORKER_CARD_WIDTH,
 
-      marginRight:
-        WORKER_CARD_GAP,
+      padding:
+        FixxamTokens.spacing.md,
 
-      padding: 14,
+      alignItems:
+        "center",
 
-      alignItems: "center",
-
-      borderRadius: 20,
+      borderRadius:
+        FixxamTokens.radius.lg,
     },
-
-    cardLast: {
-      marginRight: 0,
-    },
-
-    /* ========================================================
-       IMAGE
-    ======================================================== */
 
     imageContainer: {
-      width: 72,
+      width:
+        FixxamTokens.size
+          .avatarXl,
 
-      height: 72,
+      height:
+        FixxamTokens.size
+          .avatarXl,
 
-      position: "relative",
+      position:
+        "relative",
     },
 
     image: {
-      width: 72,
+      width: "100%",
 
-      height: 72,
+      height: "100%",
 
-      borderRadius: 36,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-      backgroundColor: "#E2E8F0",
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     imagePlaceholder: {
-      width: 72,
+      width: "100%",
 
-      height: 72,
+      height: "100%",
 
-      borderRadius: 36,
+      alignItems:
+        "center",
 
-      backgroundColor: "#E2E8F0",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
 
-      justifyContent: "center",
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    /* ========================================================
-       ONLINE
-    ======================================================== */
-
     online: {
-      position: "absolute",
+      position:
+        "absolute",
 
       right: 1,
 
@@ -1993,129 +2376,114 @@ const styles =
 
       height: 15,
 
-      borderRadius: 8,
-
       borderWidth: 2,
 
-      borderColor: "#FFFFFF",
+      borderColor:
+        Colors.surface,
+
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
-    /* ========================================================
-       NAME
-    ======================================================== */
+    onlineActive: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    onlineOffline: {
+      backgroundColor:
+        Colors.textMuted,
+    },
 
     name: {
       width: "100%",
 
-      marginTop: 10,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      fontSize: 15,
-
-      color: "#111827",
-
-      textAlign: "center",
+      color:
+        Colors.textPrimary,
     },
-
-    /* ========================================================
-       SERVICE
-    ======================================================== */
 
     service: {
       width: "100%",
 
-      marginTop: 3,
-
-      fontSize: 12,
-
-      color: "#64748B",
-
-      textAlign: "center",
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    /* ========================================================
-       RATING
-    ======================================================== */
-
     ratingRow: {
-      flexDirection: "row",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
 
-      marginTop: 8,
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
     },
 
     rating: {
-      marginLeft: 4,
-
-      fontSize: 12,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
-
-    /* ========================================================
-       ARRIVAL
-    ======================================================== */
 
     arrivalTime: {
-      marginTop: 3,
-
-      fontSize: 12,
-
-      color: "#94A3B8",
-
-      textAlign: "center",
-    },
-
-    /* ========================================================
-       CONTACT
-    ======================================================== */
-
-    callButton: {
-      marginTop: 12,
-
       width: "100%",
 
-      height: 40,
-
-      borderRadius: 12,
-
-      backgroundColor: "#F97316",
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      gap: 6,
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
-    callButtonPressed: {
-      opacity: 0.82,
+    callButton: {
+      width: "100%",
 
-      transform: [
-        {
-          scale: 0.98,
-        },
-      ],
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     callText: {
-      color: "#FFFFFF",
-
-      fontSize: 13,
+      color:
+        Colors.textInverse,
     },
 
-    /* ========================================================
-       EMPTY
-    ======================================================== */
-
     emptyContainer: {
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      paddingVertical: 28,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
-      paddingHorizontal: 24,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
     },
 
     emptyIcon: {
@@ -2123,48 +2491,50 @@ const styles =
 
       height: 62,
 
-      borderRadius: 20,
+      alignItems:
+        "center",
 
-      backgroundColor: "#F1F5F9",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      justifyContent: "center",
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     emptyTitle: {
-      marginTop: 12,
+      marginTop:
+        FixxamTokens.spacing.md,
 
-      fontSize: 16,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     emptyText: {
-      marginTop: 5,
+      maxWidth: 300,
 
-      fontSize: 13,
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       lineHeight: 19,
-
-      color: "#64748B",
     },
-
-    /* ========================================================
-       CALL MODAL
-    ======================================================== */
 
     callModalOverlay: {
       flex: 1,
 
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       backgroundColor:
-        "rgba(15, 23, 42, 0.52)",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      paddingHorizontal: 24,
+        Colors.overlayMedium,
     },
 
     callModal: {
@@ -2172,149 +2542,156 @@ const styles =
 
       maxWidth: 430,
 
-      backgroundColor: "#FFFFFF",
+      paddingTop:
+        FixxamTokens.spacing.xl,
 
-      borderRadius: 28,
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-      paddingTop: 28,
+      paddingBottom:
+        FixxamTokens.spacing.lg,
 
-      paddingHorizontal: 26,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-      paddingBottom: 24,
+      backgroundColor:
+        Colors.surface,
 
-      shadowColor: "#000000",
-
-      shadowOffset: {
-        width: 0,
-
-        height: 12,
-      },
-
-      shadowOpacity: 0.22,
-
-      shadowRadius: 24,
-
-      elevation: 12,
+      ...FixxamTokens.shadow.card,
     },
 
     callModalIcon: {
-      width: 76,
+      width:
+        FixxamTokens.size
+          .avatarXl,
 
-      height: 76,
+      height:
+        FixxamTokens.size
+          .avatarXl,
 
-      borderRadius: 22,
+      alignSelf:
+        "center",
 
-      backgroundColor: "#EFF6FF",
+      alignItems:
+        "center",
 
-      alignItems: "center",
+      justifyContent:
+        "center",
 
-      justifyContent: "center",
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-      alignSelf: "center",
+      borderRadius:
+        FixxamTokens.radius.lg,
 
-      marginBottom: 22,
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     callModalTitle: {
-      fontSize: 23,
-
-      lineHeight: 29,
-
-      color: "#111827",
-
-      textAlign: "center",
+      color:
+        Colors.textPrimary,
     },
 
     callModalDescription: {
-      marginTop: 12,
-
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.md,
 
       lineHeight: 22,
-
-      color: "#64748B",
-
-      textAlign: "center",
     },
 
     callModalQuestion: {
-      marginTop: 8,
-
-      fontSize: 15,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       lineHeight: 22,
-
-      color: "#64748B",
-
-      textAlign: "center",
     },
 
     callModalActions: {
-      marginTop: 26,
+      marginTop:
+        FixxamTokens.spacing.xl,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "space-between",
-
-      gap: 12,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     callModalCancel: {
       flex: 1,
 
-      height: 52,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-      borderRadius: 14,
+      alignItems:
+        "center",
 
-      alignItems: "center",
+      justifyContent:
+        "center",
 
-      justifyContent: "center",
+      borderWidth: 1,
 
-      backgroundColor: "#F8FAFC",
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     callModalCancelText: {
-      fontSize: 14,
-
-      color: "#64748B",
+      color:
+        Colors.textSecondary,
     },
 
     callModalConfirm: {
       flex: 1.35,
 
-      height: 52,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-      borderRadius: 14,
+      flexDirection:
+        "row",
 
-      backgroundColor: "#2563EB",
+      alignItems:
+        "center",
 
-      flexDirection: "row",
+      justifyContent:
+        "center",
 
-      alignItems: "center",
+      gap:
+        FixxamTokens.spacing.xs,
 
-      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.button,
 
-      gap: 8,
+      backgroundColor:
+        CustomerColors.primary,
     },
 
     callModalConfirmText: {
-      fontSize: 14,
-
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
-    callModalPressed: {
-      opacity: 0.7,
-    },
-
-    callModalConfirmPressed: {
-      opacity: 0.85,
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.98,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

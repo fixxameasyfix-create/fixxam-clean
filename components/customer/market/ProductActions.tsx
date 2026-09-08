@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   Pressable,
@@ -6,111 +8,225 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
-import { AppText } from "@/components/ui";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   quantity: number;
+
   onIncrease: () => void;
+
   onDecrease: () => void;
+
   onAddToCart: () => void;
+
   onBuyNow: () => void;
 };
 
-export default function ProductActions({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ProductActions({
   quantity,
   onIncrease,
   onDecrease,
   onAddToCart,
   onBuyNow,
 }: Props) {
-  return (
-    <View style={styles.container}>
-      {/* QUANTITY */}
+  const insets =
+    useSafeAreaInsets();
 
-      <View style={styles.quantityBox}>
+  const safeQuantity =
+    Number.isFinite(quantity)
+      ? Math.max(
+          1,
+          Math.floor(quantity),
+        )
+      : 1;
+
+  const canDecrease =
+    safeQuantity > 1;
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          paddingBottom:
+            Math.max(
+              insets.bottom,
+              FixxamTokens.spacing.sm,
+            ),
+        },
+      ]}
+    >
+      {/* ======================================================
+          QUANTITY
+      ====================================================== */}
+
+      <View
+        style={
+          styles.quantityBox
+        }
+      >
         <Pressable
-          onPress={onDecrease}
-          style={({ pressed }) => [
-            styles.qtyButton,
-            pressed && styles.pressed,
-          ]}
           accessibilityRole="button"
           accessibilityLabel="Decrease quantity"
+          accessibilityState={{
+            disabled:
+              !canDecrease,
+          }}
+          disabled={
+            !canDecrease
+          }
+          onPress={
+            onDecrease
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.qtyButton,
+
+            !canDecrease
+              ? styles.qtyButtonDisabled
+              : null,
+
+            pressed &&
+            canDecrease
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
-            name="remove"
-            size={15}
-            color="#111827"
-          />
+          <AppText
+            weight="bold"
+            style={
+              styles.minus
+            }
+          >
+            −
+          </AppText>
         </Pressable>
 
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.quantity}
+          style={
+            styles.quantity
+          }
         >
-          {quantity}
+          {safeQuantity}
         </AppText>
 
         <Pressable
-          onPress={onIncrease}
-          style={({ pressed }) => [
-            styles.qtyButton,
-            pressed && styles.pressed,
-          ]}
           accessibilityRole="button"
           accessibilityLabel="Increase quantity"
+          onPress={
+            onIncrease
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.qtyButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
         >
-          <Ionicons
+          <AppIcon
             name="add"
-            size={15}
-            color="#111827"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textPrimary
+            }
           />
         </Pressable>
       </View>
 
-      {/* ADD TO CART */}
+      {/* ======================================================
+          ADD TO CART
+      ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.cartButton,
-          pressed && styles.pressed,
-        ]}
-        onPress={onAddToCart}
         accessibilityRole="button"
         accessibilityLabel="Add product to cart"
+        onPress={
+          onAddToCart
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.cartButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
-        <Ionicons
-          name="cart-outline"
-          size={16}
-          color="#2563EB"
+        <AppIcon
+          name="package"
+          role="customer"
+          size="xs"
+          state="active"
         />
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.cartText}
           numberOfLines={1}
+          style={
+            styles.cartText
+          }
         >
           Add Cart
         </AppText>
       </Pressable>
 
-      {/* BUY NOW */}
+      {/* ======================================================
+          BUY NOW
+      ====================================================== */}
 
       <Pressable
-        style={({ pressed }) => [
-          styles.buyButton,
-          pressed && styles.pressed,
-        ]}
-        onPress={onBuyNow}
         accessibilityRole="button"
         accessibilityLabel="Buy product now"
+        onPress={
+          onBuyNow
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.buyButton,
+
+          pressed
+            ? styles.pressed
+            : null,
+        ]}
       >
         <AppText
+          variant="caption"
           weight="bold"
-          style={styles.buyText}
           numberOfLines={1}
+          style={
+            styles.buyText
+          }
         >
           Buy Now
         </AppText>
@@ -119,124 +235,212 @@ export default function ProductActions({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    minHeight: 60,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+/* ==============================================================
+   STYLES
+============================================================== */
 
-    backgroundColor: "#FFFFFF",
+const styles =
+  StyleSheet.create({
+    container: {
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-    flexDirection: "row",
-    alignItems: "center",
+      flexDirection:
+        "row",
 
-    gap: 6,
+      alignItems:
+        "center",
 
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+      gap:
+        FixxamTokens.spacing.xs,
 
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.06,
-    shadowRadius: 7,
-    shadowOffset: {
-      width: 0,
-      height: -2,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth: 1,
+
+      borderTopColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    elevation: 7,
-  },
+    /* ========================================================
+       QUANTITY
+    ======================================================== */
 
-  quantityBox: {
-    width: 78,
-    height: 38,
+    quantityBox: {
+      width: 92,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+      height:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-    backgroundColor: "#F8FAFC",
+      flexDirection:
+        "row",
 
-    borderRadius: 11,
-  },
+      alignItems:
+        "center",
 
-  qtyButton: {
-    width: 27,
-    height: 38,
+      justifyContent:
+        "space-between",
 
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      borderWidth: 1,
 
-  quantity: {
-    width: 22,
+      borderColor:
+        Colors.border,
 
-    textAlign: "center",
+      borderRadius:
+        FixxamTokens.radius.button,
 
-    fontSize: 13,
-    lineHeight: 17,
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
-    color: "#111827",
-  },
+    qtyButton: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-  cartButton: {
-    flex: 1,
-    minWidth: 0,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    height: 38,
+      alignItems:
+        "center",
 
-    borderRadius: 11,
+      justifyContent:
+        "center",
+    },
 
-    borderWidth: 1,
-    borderColor: "#2563EB",
+    qtyButtonDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
 
-    backgroundColor: "#FFFFFF",
+    quantity: {
+      minWidth: 20,
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+      textAlign:
+        "center",
 
-    paddingHorizontal: 5,
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  cartText: {
-    marginLeft: 4,
+    minus: {
+      fontSize: 20,
 
-    fontSize: 10.5,
-    lineHeight: 14,
+      lineHeight: 22,
 
-    color: "#2563EB",
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  buyButton: {
-    flex: 1,
-    minWidth: 0,
+    /* ========================================================
+       ADD TO CART
+    ======================================================== */
 
-    height: 38,
+    cartButton: {
+      flex: 1,
 
-    borderRadius: 11,
+      minWidth: 0,
 
-    backgroundColor: "#2563EB",
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
 
-    alignItems: "center",
-    justifyContent: "center",
+      flexDirection:
+        "row",
 
-    paddingHorizontal: 5,
-  },
+      alignItems:
+        "center",
 
-  buyText: {
-    fontSize: 10.5,
-    lineHeight: 14,
+      justifyContent:
+        "center",
 
-    color: "#FFFFFF",
-  },
+      gap:
+        FixxamTokens.spacing.xs,
 
-  pressed: {
-    opacity: 0.75,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-    transform: [
-      {
-        scale: 0.97,
-      },
-    ],
-  },
-});
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    cartText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    /* ========================================================
+       BUY NOW
+    ======================================================== */
+
+    buyButton: {
+      flex: 1,
+
+      minWidth: 0,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    buyText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       PRESSED
+    ======================================================== */
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
+  });
+
+export default memo(
+  ProductActions,
+);

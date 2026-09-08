@@ -1,19 +1,41 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
-  Image,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
+  Image,
+} from "expo-image";
+
+import {
   AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
 import PasswordField from "@/components/auth/PasswordField";
 import TermsCheckbox from "@/components/auth/TermsCheckbox";
+
+import {
+  getServices,
+  ServiceItem,
+} from "@/constants/serviceLoader";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
 
 type Props = {
   photo: string | null;
@@ -46,13 +68,76 @@ type Props = {
 
   acceptedTerms: boolean;
 
-  setPassword: (value: string) => void;
-  setConfirmPassword: (value: string) => void;
+  setPassword: (
+    value: string,
+  ) => void;
+
+  setConfirmPassword: (
+    value: string,
+  ) => void;
 
   onToggleTerms: () => void;
 };
 
-export default function WorkerReview({
+type ReviewItemProps = {
+  label: string;
+  value?: string | null;
+};
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_GALLERY_IMAGES = 6;
+
+/* ============================================================
+   REVIEW ITEM
+============================================================ */
+
+const ReviewItem =
+  memo(function ReviewItem({
+    label,
+    value,
+  }: ReviewItemProps) {
+    const displayValue =
+      typeof value === "string" &&
+      value.trim().length > 0
+        ? value.trim()
+        : "-";
+
+    return (
+      <View
+        style={
+          styles.item
+        }
+      >
+        <AppText
+          variant="caption"
+          weight="medium"
+          style={
+            styles.label
+          }
+        >
+          {label}
+        </AppText>
+
+        <AppText
+          variant="body"
+          style={
+            styles.value
+          }
+        >
+          {displayValue}
+        </AppText>
+      </View>
+    );
+  });
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerReview({
   photo,
 
   firstName,
@@ -88,46 +173,118 @@ export default function WorkerReview({
 
   onToggleTerms,
 }: Props) {
-  /* ============================================================
-     ITEM
-  ============================================================ */
+  const hasPhoto =
+    typeof photo === "string" &&
+    photo.trim().length > 0;
 
-  const Item = ({
-    label,
-    value,
-  }: {
-    label: string;
-    value: string;
-  }) => (
-    <View style={styles.item}>
-      <AppText
-        weight="bold"
-        style={styles.label}
-      >
-        {label}
-      </AppText>
+  const availableServices =
+    useMemo<ServiceItem[]>(() => {
+      if (!subcategory) {
+        return [];
+      }
 
-      <AppText style={styles.value}>
-        {value || "-"}
-      </AppText>
-    </View>
-  );
+      try {
+        return getServices(
+          subcategory,
+        );
+      } catch {
+        return [];
+      }
+    }, [subcategory]);
 
-  /* ============================================================
-     UI
-  ============================================================ */
+  const selectedServiceItems =
+    useMemo(
+      () =>
+        selectedServices
+          .map(
+            (serviceId) =>
+              availableServices.find(
+                (service) =>
+                  service.id ===
+                  serviceId,
+              ),
+          )
+          .filter(
+            (
+              service,
+            ): service is ServiceItem =>
+              Boolean(service),
+          ),
+      [
+        availableServices,
+        selectedServices,
+      ],
+    );
+
+  const safeGallery =
+    useMemo(
+      () =>
+        workGallery
+          .filter(
+            (uri): uri is string =>
+              typeof uri ===
+                "string" &&
+              uri.trim().length >
+                0,
+          )
+          .slice(
+            0,
+            MAX_GALLERY_IMAGES,
+          ),
+      [workGallery],
+    );
+
+  const experienceLabel =
+    useMemo(() => {
+      const normalized =
+        experience.trim();
+
+      if (!normalized) {
+        return "-";
+      }
+
+      const numericValue =
+        Number(normalized);
+
+      if (
+        !Number.isFinite(
+          numericValue,
+        )
+      ) {
+        return "-";
+      }
+
+      return `${normalized} ${
+        numericValue === 1
+          ? "Year"
+          : "Years"
+      }`;
+    }, [experience]);
+
+  const aboutText =
+    about.trim() || "-";
 
   return (
-    <AppCard style={styles.card}>
+    <AppCard
+      role="worker"
+      variant="outlined"
+      style={
+        styles.card
+      }
+    >
       {/* ======================================================
           REVIEW MESSAGE
       ====================================================== */}
 
       <AppText
-        style={styles.reviewMessage}
+        variant="body"
+        tone="secondary"
+        center
+        style={
+          styles.reviewMessage
+        }
       >
-        Please review your details before
-        completing your registration.
+        Please review your details before completing your registration.
       </AppText>
 
       {/* ======================================================
@@ -135,14 +292,22 @@ export default function WorkerReview({
       ====================================================== */}
 
       <View
-        style={styles.photoContainer}
+        style={
+          styles.photoContainer
+        }
       >
-        {photo ? (
+        {hasPhoto ? (
           <Image
             source={{
-              uri: photo,
+              uri:
+                photo!.trim(),
             }}
-            style={styles.photo}
+            contentFit="cover"
+            transition={150}
+            accessibilityLabel="Worker profile photo"
+            style={
+              styles.photo
+            }
           />
         ) : (
           <View
@@ -150,7 +315,20 @@ export default function WorkerReview({
               styles.photoPlaceholder
             }
           >
-            <AppText>
+            <AppIcon
+              name="profile"
+              role="worker"
+              size="lg"
+              state="muted"
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.photoPlaceholderText
+              }
+            >
               No Photo
             </AppText>
           </View>
@@ -161,94 +339,132 @@ export default function WorkerReview({
           PERSONAL INFORMATION
       ====================================================== */}
 
-      {!isLoggedIn && (
+      {!isLoggedIn ? (
         <>
-          <Item
+          <ReviewItem
             label="First Name"
-            value={firstName}
+            value={
+              firstName
+            }
           />
 
-          <Item
+          <ReviewItem
             label="Surname"
-            value={surname}
+            value={
+              surname
+            }
           />
 
-          <Item
+          <ReviewItem
             label="Other Name"
-            value={otherName}
+            value={
+              otherName
+            }
           />
 
-          <Item
+          <ReviewItem
             label="Email"
-            value={email}
+            value={
+              email
+            }
           />
 
-          <Item
+          <ReviewItem
             label="Phone"
-            value={phone}
+            value={
+              phone
+            }
           />
         </>
-      )}
+      ) : null}
 
       {/* ======================================================
           PROFESSIONAL INFORMATION
       ====================================================== */}
 
-      <Item
+      <ReviewItem
         label="Category"
-        value={category}
+        value={
+          category
+        }
       />
 
-      <Item
+      <ReviewItem
         label="Subcategory"
-        value={subcategory}
+        value={
+          subcategory
+        }
       />
 
       {/* ======================================================
           SELECTED SERVICES
       ====================================================== */}
 
-      <View style={styles.section}>
+      <View
+        style={
+          styles.section
+        }
+      >
         <AppText
-          weight="bold"
-          style={styles.label}
+          variant="caption"
+          weight="medium"
+          style={
+            styles.label
+          }
         >
           Selected Services
         </AppText>
 
-        <View
-          style={
-            styles.servicesContainer
-          }
-        >
-          {selectedServices.length >
-          0 ? (
-            selectedServices.map(
+        {selectedServiceItems.length >
+        0 ? (
+          <View
+            style={
+              styles.servicesContainer
+            }
+          >
+            {selectedServiceItems.map(
               (service) => (
                 <View
-                  key={service}
+                  key={
+                    service.id
+                  }
                   style={
                     styles.serviceChip
                   }
                 >
+                  <AppIcon
+                    name="check"
+                    role="worker"
+                    size="xs"
+                    state="active"
+                  />
+
                   <AppText
+                    variant="caption"
+                    weight="medium"
+                    numberOfLines={1}
                     style={
                       styles.serviceText
                     }
                   >
-                    {service}
+                    {
+                      service.name
+                    }
                   </AppText>
                 </View>
               ),
-            )
-          ) : (
-            <AppText
-              style={styles.value}
-            >
-              -
-            </AppText>
-          )}
-        </View>
+            )}
+          </View>
+        ) : (
+          <AppText
+            variant="body"
+            style={
+              styles.value
+            }
+          >
+            -
+          </AppText>
+        )}
       </View>
 
       {/* ======================================================
@@ -261,19 +477,27 @@ export default function WorkerReview({
         }
       >
         <AppText
-          weight="bold"
-          style={styles.label}
+          variant="caption"
+          weight="medium"
+          style={
+            styles.label
+          }
         >
           About You & Your Skills
         </AppText>
 
         <View
-          style={styles.aboutBox}
+          style={
+            styles.aboutBox
+          }
         >
           <AppText
-            style={styles.aboutText}
+            variant="body"
+            style={
+              styles.aboutText
+            }
           >
-            {about || "-"}
+            {aboutText}
           </AppText>
         </View>
       </View>
@@ -292,42 +516,45 @@ export default function WorkerReview({
             styles.galleryHeader
           }
         >
-          <View
+          <AppText
+            variant="caption"
+            weight="medium"
             style={
-              styles.galleryTitleContainer
+              styles.label
             }
           >
-            <AppText
-              weight="bold"
-              style={styles.label}
-            >
-              Work Gallery
-            </AppText>
+            Work Gallery
+          </AppText>
 
-            <AppText
-              style={
-                styles.gallerySubtitle
-              }
-            >
-              {workGallery.length}/6
-              {" "}
-              photos
-            </AppText>
-          </View>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.gallerySubtitle
+            }
+          >
+            {safeGallery.length}/
+            {MAX_GALLERY_IMAGES} photos
+          </AppText>
         </View>
 
-        {workGallery.length > 0 ? (
+        {safeGallery.length >
+        0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={
               false
             }
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={
               styles.galleryScrollContent
             }
           >
-            {workGallery.map(
-              (uri, index) => (
+            {safeGallery.map(
+              (
+                uri,
+                index,
+              ) => (
                 <View
                   key={`${uri}-${index}`}
                   style={
@@ -338,6 +565,11 @@ export default function WorkerReview({
                     source={{
                       uri,
                     }}
+                    contentFit="cover"
+                    transition={150}
+                    accessibilityLabel={`Work gallery photo ${
+                      index + 1
+                    }`}
                     style={
                       styles.galleryImage
                     }
@@ -349,11 +581,15 @@ export default function WorkerReview({
                     }
                   >
                     <AppText
+                      variant="caption"
+                      weight="bold"
                       style={
                         styles.galleryNumberText
                       }
                     >
-                      {index + 1}
+                      {
+                        index + 1
+                      }
                     </AppText>
                   </View>
                 </View>
@@ -366,7 +602,17 @@ export default function WorkerReview({
               styles.emptyGallery
             }
           >
+            <AppIcon
+              name="image"
+              role="worker"
+              size="md"
+              state="muted"
+            />
+
             <AppText
+              variant="body"
+              weight="medium"
+              tone="secondary"
               style={
                 styles.emptyGalleryText
               }
@@ -375,9 +621,8 @@ export default function WorkerReview({
             </AppText>
 
             <AppText
-              style={
-                styles.emptyGalleryHint
-              }
+              variant="caption"
+              tone="secondary"
             >
               Work photos are optional.
             </AppText>
@@ -389,12 +634,10 @@ export default function WorkerReview({
           EXPERIENCE
       ====================================================== */}
 
-      <Item
+      <ReviewItem
         label="Experience"
         value={
-          experience
-            ? `${experience} Years`
-            : "-"
+          experienceLabel
         }
       />
 
@@ -402,25 +645,32 @@ export default function WorkerReview({
           LOCATION
       ====================================================== */}
 
-      <Item
+      <ReviewItem
         label="State"
-        value={state}
+        value={
+          state
+        }
       />
 
-      <Item
+      <ReviewItem
         label="Local Government"
-        value={lga}
+        value={
+          lga
+        }
       />
 
       {/* ======================================================
           SECURITY
       ====================================================== */}
 
-      {!isLoggedIn && (
+      {!isLoggedIn ? (
         <View
-          style={styles.security}
+          style={
+            styles.security
+          }
         >
           <AppText
+            variant="heading3"
             weight="bold"
             style={
               styles.securityTitle
@@ -431,7 +681,9 @@ export default function WorkerReview({
 
           <PasswordField
             placeholder="Create Password"
-            value={password}
+            value={
+              password
+            }
             onChangeText={
               setPassword
             }
@@ -439,7 +691,9 @@ export default function WorkerReview({
           />
 
           <View
-            style={styles.space}
+            style={
+              styles.space
+            }
           />
 
           <PasswordField
@@ -469,53 +723,44 @@ export default function WorkerReview({
             variant="worker"
           />
         </View>
-      )}
+      ) : null}
     </AppCard>
   );
 }
 
-/* ==============================================================
+export default memo(
+  WorkerReview,
+);
+
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
     card: {
-      marginHorizontal: 12,
-      marginBottom: 10,
+      marginHorizontal:
+        FixxamTokens.spacing.md,
 
-      borderRadius: 16,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      paddingHorizontal: 12,
-      paddingVertical: 12,
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
 
       backgroundColor:
-        "#FFFFFF",
-
-      shadowColor: "#000",
-
-      shadowOpacity: 0.04,
-
-      shadowRadius: 8,
-
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-
-      elevation: 2,
+        Colors.surface,
     },
 
     reviewMessage: {
-      textAlign: "center",
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-      color: "#64748B",
-
-      fontSize: 12,
-
-      lineHeight: 18,
-
-      marginBottom: 12,
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -523,32 +768,49 @@ const styles =
     ======================================================== */
 
     photoContainer: {
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      marginBottom: 14,
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     photo: {
       width: 88,
+
       height: 88,
 
-      borderRadius: 44,
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     photoPlaceholder: {
       width: 88,
+
       height: 88,
 
-      borderRadius: 44,
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "#F3F4F6",
+        Colors.disabledBackground,
 
       justifyContent:
         "center",
 
       alignItems:
         "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+    },
+
+    photoPlaceholderText: {
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -556,32 +818,29 @@ const styles =
     ======================================================== */
 
     item: {
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.sm,
 
-      paddingBottom: 8,
+      paddingBottom:
+        FixxamTokens.spacing.sm,
 
       borderBottomWidth: 1,
 
       borderBottomColor:
-        "#F1F5F9",
+        Colors.divider,
     },
 
     label: {
-      fontSize: 11,
+      marginBottom:
+        FixxamTokens.spacing.xs,
 
-      fontWeight: "700",
-
-      color: "#64748B",
-
-      marginBottom: 4,
+      color:
+        Colors.textSecondary,
     },
 
     value: {
-      fontSize: 14,
-
-      color: "#111827",
-
-      lineHeight: 20,
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -589,7 +848,8 @@ const styles =
     ======================================================== */
 
     section: {
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     servicesContainer: {
@@ -599,33 +859,49 @@ const styles =
       flexWrap:
         "wrap",
 
-      gap: 6,
+      gap:
+        FixxamTokens.spacing.xs,
 
-      marginTop: 4,
+      marginTop:
+        FixxamTokens.spacing.xxs,
     },
 
     serviceChip: {
+      maxWidth:
+        "100%",
+
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
       backgroundColor:
-        "#FFF7ED",
+        WorkerColors.primarySoft,
 
       borderWidth: 1,
 
       borderColor:
-        "#FF6B00",
+        WorkerColors.primary,
 
-      borderRadius: 999,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-      paddingHorizontal: 10,
-
-      paddingVertical: 4,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
     },
 
     serviceText: {
-      color: "#FF6B00",
+      flexShrink: 1,
 
-      fontWeight: "700",
-
-      fontSize: 11,
+      color:
+        WorkerColors.primary,
     },
 
     /* ========================================================
@@ -633,33 +909,34 @@ const styles =
     ======================================================== */
 
     aboutSection: {
-      marginBottom: 10,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     aboutBox: {
+      minHeight: 55,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
 
       borderWidth: 1,
 
       borderColor:
-        "#E5E7EB",
+        Colors.border,
 
-      borderRadius: 12,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-      paddingHorizontal: 10,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      paddingVertical: 9,
-
-      minHeight: 55,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     aboutText: {
-      fontSize: 13,
-
-      lineHeight: 19,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
@@ -667,16 +944,11 @@ const styles =
     ======================================================== */
 
     gallerySection: {
-      marginBottom: 12,
-
-      paddingTop: 2,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     galleryHeader: {
-      marginBottom: 8,
-    },
-
-    galleryTitleContainer: {
       flexDirection:
         "row",
 
@@ -685,24 +957,28 @@ const styles =
 
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
     },
 
     gallerySubtitle: {
-      fontSize: 11,
-
-      color: "#94A3B8",
+      color:
+        Colors.textMuted,
     },
 
     galleryScrollContent: {
-      flexDirection:
-        "row",
-
       alignItems:
         "center",
 
-      gap: 10,
+      gap:
+        FixxamTokens.spacing.sm,
 
-      paddingRight: 4,
+      paddingRight:
+        FixxamTokens.spacing.xs,
     },
 
     galleryItem: {
@@ -710,37 +986,46 @@ const styles =
 
       height: 115,
 
-      borderRadius: 12,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-      overflow: "hidden",
+      overflow:
+        "hidden",
 
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
 
-      position: "relative",
+      position:
+        "relative",
     },
 
     galleryImage: {
-      width: "100%",
+      width:
+        "100%",
 
-      height: "100%",
+      height:
+        "100%",
     },
 
     galleryNumber: {
-      position: "absolute",
+      position:
+        "absolute",
 
-      top: 6,
+      top:
+        FixxamTokens.spacing.xs,
 
-      left: 6,
+      left:
+        FixxamTokens.spacing.xs,
 
       width: 22,
 
       height: 22,
 
-      borderRadius: 11,
+      borderRadius:
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "rgba(0,0,0,0.65)",
+        "rgba(15, 23, 42, 0.72)",
 
       justifyContent:
         "center",
@@ -750,11 +1035,8 @@ const styles =
     },
 
     galleryNumberText: {
-      color: "#FFFFFF",
-
-      fontSize: 10,
-
-      fontWeight: "700",
+      color:
+        Colors.textInverse,
     },
 
     emptyGallery: {
@@ -764,33 +1046,30 @@ const styles =
         "dashed",
 
       borderColor:
-        "#CBD5E1",
+        Colors.disabled,
 
-      borderRadius: 12,
+      borderRadius:
+        FixxamTokens.radius.md,
 
-      paddingVertical: 18,
+      paddingVertical:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
       alignItems:
         "center",
 
+      gap:
+        FixxamTokens.spacing.xs,
+
       backgroundColor:
-        "#F8FAFC",
+        Colors.background,
     },
 
     emptyGalleryText: {
-      fontSize: 12,
-
-      fontWeight: "600",
-
-      color: "#64748B",
-    },
-
-    emptyGalleryHint: {
-      fontSize: 10,
-
-      color: "#94A3B8",
-
-      marginTop: 3,
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -798,22 +1077,25 @@ const styles =
     ======================================================== */
 
     security: {
-      marginTop: 20,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     securityTitle: {
-      marginBottom: 12,
+      marginBottom:
+        FixxamTokens.spacing.md,
 
-      fontSize: 15,
-
-      color: "#111827",
+      color:
+        Colors.textPrimary,
     },
 
     space: {
-      height: 12,
+      height:
+        FixxamTokens.spacing.md,
     },
 
     termsSpace: {
-      height: 18,
+      height:
+        FixxamTokens.spacing.lg,
     },
   });

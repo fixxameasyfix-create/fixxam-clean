@@ -1,38 +1,69 @@
-import React, { useEffect } from "react";
+import React, {
+  useCallback,
+  useEffect,
+} from "react";
+
 import {
-  View,
-  StyleSheet,
   BackHandler,
+  StyleSheet,
+  View,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+
 import {
   Stack,
   router,
 } from "expo-router";
 
 import {
-  AppScreen,
-  AppCard,
-  AppText,
   AppButton,
+  AppCard,
+  AppIcon,
+  AppScreen,
+  AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   SCREEN
+============================================================ */
+
 export default function WorkerSetupComplete() {
+  /* ==========================================================
+     BLOCK BACK
+  ========================================================== */
+
   useEffect(() => {
-    const backHandler =
+    const subscription =
       BackHandler.addEventListener(
         "hardwareBackPress",
-        () => true
+        () => true,
       );
 
-    return () =>
-      backHandler.remove();
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
-  const handleContinue = () => {
-    router.dismissAll();
-    router.replace("/(worker)/(tabs)/home");
-  };
+  /* ==========================================================
+     CONTINUE
+  ========================================================== */
+
+  const handleContinue =
+    useCallback(() => {
+      router.dismissAll();
+
+      router.replace(
+        "/(worker)/(tabs)/home",
+      );
+    }, []);
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <>
@@ -43,49 +74,97 @@ export default function WorkerSetupComplete() {
         }}
       />
 
-      <AppScreen>
-        <View style={styles.container}>
-          <AppCard style={styles.card}>
-            <Ionicons
-              name="checkmark-circle"
-              size={70}
-              color="#22C55E"
-            />
+      <AppScreen
+        role="worker"
+        contentContainerStyle={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.container
+          }
+        >
+          <AppCard
+            style={
+              styles.card
+            }
+          >
+            {/* ==================================================
+                SUCCESS ICON
+            ================================================== */}
+
+            <View
+              style={
+                styles.successIcon
+              }
+            >
+              <AppIcon
+                name="success"
+                size="xl"
+                color={
+                  Colors.success
+                }
+              />
+            </View>
+
+            {/* ==================================================
+                TITLE
+            ================================================== */}
 
             <AppText
-              size="xl"
+              variant="heading2"
               weight="bold"
               center
-              style={styles.title}
+              style={
+                styles.title
+              }
             >
               Setup Complete
             </AppText>
 
+            {/* ==================================================
+                DESCRIPTION
+            ================================================== */}
+
             <AppText
+              variant="body"
+              tone="secondary"
               center
-              style={styles.description}
+              style={
+                styles.description
+              }
             >
-              Your worker profile has been created
-              {"\n"}
-              successfully.
+              Your worker profile has been created successfully.
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               center
-              style={styles.subtitle}
+              style={
+                styles.subtitle
+              }
             >
-              You can now start receiving job requests
-              {"\n"}
-              from customers.
+              You can now start receiving job requests from customers.
             </AppText>
+
+            {/* ==================================================
+                ACTION
+            ================================================== */}
 
             <View
-              style={styles.buttonContainer}
+              style={
+                styles.buttonContainer
+              }
             >
               <AppButton
                 title="Go to Home"
-                variant="worker"
-                onPress={handleContinue}
+                role="worker"
+                variant="primary"
+                onPress={
+                  handleContinue
+                }
               />
             </View>
           </AppCard>
@@ -95,57 +174,113 @@ export default function WorkerSetupComplete() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  card: {
-    alignItems: "center",
+const styles =
+  StyleSheet.create({
+    screen: {
+      flex: 1,
 
-    paddingHorizontal: 18,
-    paddingVertical: 24,
+      backgroundColor:
+        Colors.background,
+    },
 
-    borderRadius: 18,
-  },
+    container: {
+      flex: 1,
 
-  title: {
-    marginTop: 12,
-    marginBottom: 8,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-    fontSize: 22,
-  },
+      justifyContent:
+        "center",
+    },
 
-  description: {
-    textAlign: "center",
+    card: {
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
 
-    fontSize: 14,
-    lineHeight: 22,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
 
-    color: "#6B7280",
+      alignItems:
+        "center",
 
-    marginBottom: 8,
+      borderRadius:
+        FixxamTokens.radius.xl,
 
-    paddingHorizontal: 8,
-  },
+      ...FixxamTokens.shadow.card,
+    },
 
-  subtitle: {
-    textAlign: "center",
+    /* ========================================================
+       SUCCESS
+    ======================================================== */
 
-    fontSize: 13,
-    lineHeight: 20,
+    successIcon: {
+      width:
+        FixxamTokens.size.avatarXl,
 
-    color: "#6B7280",
+      height:
+        FixxamTokens.size.avatarXl,
 
-    marginBottom: 20,
+      alignItems:
+        "center",
 
-    paddingHorizontal: 10,
-  },
+      justifyContent:
+        "center",
 
-  buttonContainer: {
-    width: "100%",
-    marginTop: 4,
-  },
-});
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    /* ========================================================
+       TEXT
+    ======================================================== */
+
+    title: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    description: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    subtitle: {
+      maxWidth: 320,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       BUTTON
+    ======================================================== */
+
+    buttonContainer: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+    },
+  });

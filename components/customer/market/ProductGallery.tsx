@@ -1,127 +1,246 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
 import {
   FlatList,
-  Image,
-  ListRenderItem,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
+  type ListRenderItem,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   StyleSheet,
   View,
   useWindowDimensions,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  Image,
+} from "expo-image";
+
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
+
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   images: string[];
-  onIndexChange?: (index: number) => void;
+
+  onIndexChange?: (
+    index: number,
+  ) => void;
 };
 
 type GalleryImageProps = {
   uri: string;
+
+  index: number;
 };
 
-const GalleryImage = memo(
-  function GalleryImage({
-    uri,
-  }: GalleryImageProps) {
-    const [failed, setFailed] =
-      useState(false);
+/* ==============================================================
+   HELPERS
+============================================================== */
 
-    if (failed) {
-      return (
-        <View style={styles.imageFallback}>
-          <Ionicons
-            name="image-outline"
-            size={34}
-            color="#94A3B8"
-          />
+function cleanImageUrl(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
 
-          <View style={styles.fallbackText}>
-            <View style={styles.fallbackLine} />
-            <View style={styles.fallbackShortLine} />
+  return value.trim();
+}
+
+/* ==============================================================
+   GALLERY IMAGE
+============================================================== */
+
+const GalleryImage =
+  memo(
+    function GalleryImage({
+      uri,
+      index,
+    }: GalleryImageProps) {
+      const [
+        failed,
+        setFailed,
+      ] =
+        useState(false);
+
+      useEffect(() => {
+        setFailed(false);
+      }, [
+        uri,
+      ]);
+
+      if (failed) {
+        return (
+          <View
+            style={
+              styles.imageFallback
+            }
+          >
+            <View
+              style={
+                styles.fallbackIcon
+              }
+            >
+              <AppIcon
+                name="image"
+                role="customer"
+                size="xl"
+                state="muted"
+              />
+            </View>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              center
+              style={
+                styles.fallbackText
+              }
+            >
+              Image unavailable
+            </AppText>
           </View>
-        </View>
+        );
+      }
+
+      return (
+        <Image
+          source={{
+            uri,
+          }}
+          style={
+            styles.image
+          }
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          accessibilityLabel={`Product image ${
+            index + 1
+          }`}
+          onError={() =>
+            setFailed(true)
+          }
+        />
       );
-    }
+    },
+  );
 
-    return (
-      <Image
-        source={{ uri }}
-        style={styles.image}
-        resizeMode="cover"
-        onError={() =>
-          setFailed(true)
-        }
-      />
-    );
-  },
-);
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
-export default function ProductGallery({
+function ProductGallery({
   images,
   onIndexChange,
 }: Props) {
-  const { width } =
+  const {
+    width,
+  } =
     useWindowDimensions();
+
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] =
+    useState(0);
+
+  /* ============================================================
+     NORMALIZE IMAGES
+  ============================================================ */
 
   const validImages =
     useMemo(() => {
       const seen =
         new Set<string>();
 
-      return images.filter(
-        (image): image is string => {
-          if (
-            typeof image !==
-              "string" ||
-            !image.trim()
-          ) {
-            return false;
-          }
+      return images
+        .map(
+          cleanImageUrl,
+        )
+        .filter(
+          (uri) => {
+            if (
+              !uri ||
+              seen.has(uri)
+            ) {
+              return false;
+            }
 
-          const uri =
-            image.trim();
+            seen.add(uri);
 
-          if (
-            seen.has(uri)
-          ) {
-            return false;
-          }
+            return true;
+          },
+        );
+    }, [
+      images,
+    ]);
 
-          seen.add(uri);
+  /* ============================================================
+     KEEP INDEX VALID
+  ============================================================ */
 
-          return true;
-        },
-      );
-    }, [images]);
+  useEffect(() => {
+    if (
+      validImages.length ===
+      0
+    ) {
+      setActiveIndex(0);
+      return;
+    }
 
-  const [activeIndex, setActiveIndex] =
-    useState(0);
+    setActiveIndex(
+      (previous) =>
+        Math.min(
+          previous,
+          validImages.length -
+            1,
+        ),
+    );
+  }, [
+    validImages.length,
+  ]);
 
   const safeActiveIndex =
     Math.min(
       activeIndex,
       Math.max(
-        validImages.length - 1,
+        validImages.length -
+          1,
         0,
       ),
     );
 
+  /* ============================================================
+     SCROLL
+  ============================================================ */
+
   const handleScrollEnd =
     useCallback(
       (
-        event: NativeSyntheticEvent<NativeScrollEvent>,
+        event:
+          NativeSyntheticEvent<NativeScrollEvent>,
       ) => {
         if (
           validImages.length ===
-          0
+            0 ||
+          width <= 0
         ) {
           return;
         }
@@ -130,34 +249,45 @@ export default function ProductGallery({
           event.nativeEvent
             .contentOffset.x;
 
-        const index = Math.max(
-          0,
-          Math.min(
-            validImages.length - 1,
-            Math.round(
-              offsetX / width,
+        const nextIndex =
+          Math.max(
+            0,
+            Math.min(
+              validImages.length -
+                1,
+              Math.round(
+                offsetX / width,
+              ),
             ),
-          ),
+          );
+
+        setActiveIndex(
+          nextIndex,
         );
 
-        setActiveIndex(index);
-
         onIndexChange?.(
-          index,
+          nextIndex,
         );
       },
       [
+        onIndexChange,
         validImages.length,
         width,
-        onIndexChange,
       ],
     );
+
+  /* ============================================================
+     RENDER IMAGE
+  ============================================================ */
 
   const renderItem =
     useCallback<
       ListRenderItem<string>
     >(
-      ({ item }) => (
+      ({
+        item,
+        index,
+      }) => (
         <View
           style={[
             styles.slide,
@@ -166,37 +296,88 @@ export default function ProductGallery({
             },
           ]}
         >
-          <GalleryImage uri={item} />
+          <GalleryImage
+            uri={item}
+            index={index}
+          />
         </View>
       ),
-      [width],
+      [
+        width,
+      ],
     );
 
   const keyExtractor =
     useCallback(
-      (item: string) =>
-        item,
+      (
+        item: string,
+      ) => item,
       [],
     );
+
+  /* ============================================================
+     EMPTY
+  ============================================================ */
 
   if (
     validImages.length ===
     0
   ) {
-    return null;
+    return (
+      <View
+        style={
+          styles.emptyGallery
+        }
+      >
+        <View
+          style={
+            styles.fallbackIcon
+          }
+        >
+          <AppIcon
+            name="image"
+            role="customer"
+            size="xl"
+            state="muted"
+          />
+        </View>
+
+        <AppText
+          variant="caption"
+          tone="secondary"
+          center
+          style={
+            styles.fallbackText
+          }
+        >
+          No product images available
+        </AppText>
+      </View>
+    );
   }
 
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <FlatList
-        data={validImages}
+        data={
+          validImages
+        }
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={
           false
         }
         bounces={
-          validImages.length > 1
+          validImages.length >
+          1
         }
         decelerationRate="fast"
         disableIntervalMomentum
@@ -213,113 +394,192 @@ export default function ProductGallery({
           _data,
           index,
         ) => ({
-          length: width,
+          length:
+            width,
+
           offset:
-            width * index,
+            width *
+            index,
+
           index,
         })}
         initialNumToRender={1}
         maxToRenderPerBatch={2}
         windowSize={3}
-        removeClippedSubviews
       />
 
+      {/* ======================================================
+          PAGINATION
+      ====================================================== */}
+
       {validImages.length >
-        1 && (
+      1 ? (
         <View
           style={
-            styles.dots
+            styles.pagination
           }
         >
           {validImages.map(
-            (image, index) => (
+            (
+              image,
+              index,
+            ) => (
               <View
-                key={`${image}-${index}`}
+                key={
+                  image
+                }
                 style={[
                   styles.dot,
+
                   safeActiveIndex ===
-                    index &&
-                    styles.activeDot,
+                  index
+                    ? styles.activeDot
+                    : null,
                 ]}
               />
             ),
           )}
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
     container: {
       width: "100%",
-      overflow: "hidden",
+
+      overflow:
+        "hidden",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
+
+    /* ========================================================
+       IMAGE
+    ======================================================== */
 
     slide: {
       height: 340,
+
       backgroundColor:
-        "#F3F4F6",
+        Colors.disabledBackground,
     },
 
     image: {
       width: "100%",
+
       height: "100%",
+
       backgroundColor:
-        "#F3F4F6",
+        Colors.disabledBackground,
     },
+
+    /* ========================================================
+       FALLBACK
+    ======================================================== */
 
     imageFallback: {
       flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
       backgroundColor:
-        "#F1F5F9",
+        Colors.disabledBackground,
+    },
+
+    emptyGallery: {
+      width: "100%",
+
+      height: 280,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    fallbackIcon: {
+      width: 64,
+
+      height: 64,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     fallbackText: {
-      marginTop: 9,
-      alignItems: "center",
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
-    fallbackLine: {
-      width: 75,
-      height: 5,
-      borderRadius: 3,
+    /* ========================================================
+       PAGINATION
+    ======================================================== */
+
+    pagination: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
       backgroundColor:
-        "#CBD5E1",
-    },
-
-    fallbackShortLine: {
-      width: 45,
-      height: 4,
-      marginTop: 5,
-      borderRadius: 3,
-      backgroundColor:
-        "#E2E8F0",
-    },
-
-    dots: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 10,
-      marginBottom: 2,
+        Colors.surface,
     },
 
     dot: {
       width: 7,
+
       height: 7,
-      marginHorizontal: 3,
-      borderRadius: 4,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#D1D5DB",
+        Colors.disabled,
     },
 
     activeDot: {
-      width: 20,
+      width: 22,
+
       backgroundColor:
-        "#2563EB",
+        CustomerColors.primary,
     },
   });
+
+export default memo(
+  ProductGallery,
+);

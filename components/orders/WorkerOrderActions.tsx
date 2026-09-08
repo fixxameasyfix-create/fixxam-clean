@@ -1,4 +1,7 @@
-import React, { memo, useCallback } from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
 
 import {
   ActivityIndicator,
@@ -7,9 +10,16 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  AppIcon,
+  AppText,
+} from "@/components/ui";
 
-import { AppText } from "@/components/ui";
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -24,11 +34,15 @@ type Props = {
   status: WorkerOrderStatus;
 
   onCall: () => void;
+
   onStartService: () => void;
+
   onCompleteService: () => void;
 
   callDisabled?: boolean;
+
   actionDisabled?: boolean;
+
   actionLoading?: boolean;
 };
 
@@ -54,17 +68,18 @@ function WorkerOrderActions({
   const isCompleted =
     status === "completed";
 
+  const serviceDisabled =
+    isCompleted ||
+    actionDisabled ||
+    actionLoading;
+
   /* ==========================================================
      SERVICE ACTION
   ========================================================== */
 
   const handleServiceAction =
     useCallback(() => {
-      if (
-        actionDisabled ||
-        actionLoading ||
-        isCompleted
-      ) {
+      if (serviceDisabled) {
         return;
       }
 
@@ -77,17 +92,15 @@ function WorkerOrderActions({
         onCompleteService();
       }
     }, [
-      actionDisabled,
-      actionLoading,
-      isCompleted,
       isAccepted,
       isInProgress,
-      onStartService,
       onCompleteService,
+      onStartService,
+      serviceDisabled,
     ]);
 
   /* ==========================================================
-     LABEL
+     STATE CONTENT
   ========================================================== */
 
   const actionLabel =
@@ -97,16 +110,12 @@ function WorkerOrderActions({
         ? "START SERVICE"
         : "COMPLETE SERVICE";
 
-  /* ==========================================================
-     ICON
-  ========================================================== */
-
-  const actionIcon: keyof typeof Ionicons.glyphMap =
+  const actionIcon =
     isCompleted
-      ? "checkmark-circle-outline"
+      ? "success"
       : isAccepted
-        ? "play-outline"
-        : "checkmark-outline";
+        ? "service"
+        : "success";
 
   /* ==========================================================
      RENDER
@@ -114,12 +123,10 @@ function WorkerOrderActions({
 
   return (
     <View
-      style={
-        styles.container
-      }
+      style={styles.container}
     >
       {/* ====================================================
-          CALL BUTTON
+          CALL CUSTOMER
       ==================================================== */}
 
       <Pressable
@@ -133,31 +140,48 @@ function WorkerOrderActions({
         style={({ pressed }) => [
           styles.callButton,
 
-          callDisabled &&
-            styles.callDisabled,
+          callDisabled
+            ? styles.callDisabled
+            : null,
 
           pressed &&
-            !callDisabled &&
-            styles.pressed,
+          !callDisabled
+            ? styles.pressed
+            : null,
         ]}
       >
         <View
-          style={
-            styles.callIcon
-          }
+          style={[
+            styles.callIcon,
+
+            callDisabled
+              ? styles.callIconDisabled
+              : null,
+          ]}
         >
-          <Ionicons
-            name="call-outline"
-            size={20}
-            color="#FFFFFF"
+          <AppIcon
+            name="phone"
+            role="worker"
+            size="sm"
+            color={
+              callDisabled
+                ? Colors.textMuted
+                : WorkerColors.primary
+            }
           />
         </View>
 
         <AppText
+          variant="caption"
           weight="bold"
-          style={
-            styles.callText
-          }
+          numberOfLines={1}
+          style={[
+            styles.callText,
+
+            callDisabled
+              ? styles.callTextDisabled
+              : null,
+          ]}
         >
           CALL
         </AppText>
@@ -172,9 +196,7 @@ function WorkerOrderActions({
           handleServiceAction
         }
         disabled={
-          isCompleted ||
-          actionDisabled ||
-          actionLoading
+          serviceDisabled
         }
         accessibilityRole="button"
         accessibilityLabel={
@@ -182,52 +204,67 @@ function WorkerOrderActions({
         }
         accessibilityState={{
           disabled:
-            isCompleted ||
-            actionDisabled ||
+            serviceDisabled,
+
+          busy:
             actionLoading,
-          busy: actionLoading,
         }}
         style={({ pressed }) => [
           styles.actionButton,
 
-          isCompleted &&
-            styles.completedButton,
+          isCompleted
+            ? styles.completedButton
+            : null,
 
           !isCompleted &&
-            (actionDisabled ||
-              actionLoading) &&
-            styles.actionDisabled,
+          (actionDisabled ||
+            actionLoading)
+            ? styles.actionDisabled
+            : null,
 
           pressed &&
-            !isCompleted &&
-            !actionDisabled &&
-            !actionLoading &&
-            styles.pressed,
+          !serviceDisabled
+            ? styles.pressed
+            : null,
         ]}
       >
         {actionLoading ? (
           <ActivityIndicator
             size="small"
-            color="#FFFFFF"
+            color={
+              Colors.textInverse
+            }
           />
         ) : (
           <>
             <View
               style={[
                 styles.actionIcon,
-                isCompleted &&
-                  styles.completedIcon,
+
+                isCompleted
+                  ? styles.completedIcon
+                  : null,
+
+                !isCompleted &&
+                actionDisabled
+                  ? styles.actionIconDisabled
+                  : null,
               ]}
             >
-              <Ionicons
+              <AppIcon
                 name={actionIcon}
-                size={20}
-                color="#FFFFFF"
+                role="worker"
+                size="sm"
+                color={
+                  Colors.textInverse
+                }
               />
             </View>
 
             <AppText
+              variant="caption"
               weight="bold"
+              numberOfLines={1}
               style={
                 styles.actionText
               }
@@ -257,13 +294,16 @@ const styles =
 
     container: {
       width: "100%",
-      marginTop: 20,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
 
       flexDirection: "row",
 
       alignItems: "stretch",
 
-      gap: 12,
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
@@ -273,12 +313,12 @@ const styles =
     callButton: {
       flex: 1,
 
-      minHeight: 58,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-      borderRadius: 16,
-
-      backgroundColor:
-        "#F97316",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
 
@@ -287,32 +327,67 @@ const styles =
       justifyContent:
         "center",
 
-      paddingHorizontal: 10,
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     callIcon: {
-      width: 40,
-      height: 40,
+      width: 38,
 
-      borderRadius: 13,
+      height: 38,
 
-      backgroundColor:
-        "#FB923C",
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      flexShrink: 0,
 
       alignItems: "center",
 
       justifyContent:
         "center",
 
-      marginRight: 8,
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     callText: {
-      fontSize: 10.5,
-
       letterSpacing: 0.3,
 
-      color: "#FFFFFF",
+      color:
+        WorkerColors.primary,
+    },
+
+    callDisabled: {
+      borderColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    callIconDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    callTextDisabled: {
+      color:
+        Colors.textMuted,
     },
 
     /* ========================================================
@@ -322,12 +397,12 @@ const styles =
     actionButton: {
       flex: 1.35,
 
-      minHeight: 58,
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
 
-      borderRadius: 16,
-
-      backgroundColor:
-        "#2563EB",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
 
@@ -336,32 +411,42 @@ const styles =
       justifyContent:
         "center",
 
-      paddingHorizontal: 10,
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primary,
     },
 
     actionIcon: {
-      width: 40,
-      height: 40,
+      width: 38,
 
-      borderRadius: 13,
+      height: 38,
 
-      backgroundColor:
-        "#3B82F6",
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      flexShrink: 0,
 
       alignItems: "center",
 
       justifyContent:
         "center",
 
-      marginRight: 8,
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        "rgba(255,255,255,0.18)",
     },
 
     actionText: {
-      fontSize: 10,
+      flexShrink: 1,
 
       letterSpacing: 0.2,
 
-      color: "#FFFFFF",
+      color:
+        Colors.textInverse,
     },
 
     /* ========================================================
@@ -370,26 +455,30 @@ const styles =
 
     completedButton: {
       backgroundColor:
-        "#16A34A",
+        Colors.success,
     },
 
     completedIcon: {
       backgroundColor:
-        "#22C55E",
+        "rgba(255,255,255,0.18)",
     },
 
     /* ========================================================
        DISABLED
     ======================================================== */
 
-    callDisabled: {
-      backgroundColor:
-        "#CBD5E1",
-    },
-
     actionDisabled: {
       backgroundColor:
-        "#94A3B8",
+        Colors.textMuted,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    actionIconDisabled: {
+      backgroundColor:
+        "rgba(255,255,255,0.14)",
     },
 
     /* ========================================================
@@ -397,11 +486,15 @@ const styles =
     ======================================================== */
 
     pressed: {
-      opacity: 0.82,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
 
       transform: [
         {
-          scale: 0.985,
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
         },
       ],
     },

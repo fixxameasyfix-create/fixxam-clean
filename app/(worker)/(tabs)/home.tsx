@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   ScrollView,
@@ -7,76 +9,146 @@ import {
 } from "react-native";
 
 import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
+
+import {
   Header,
-  WorkerStats,
   MyProducts,
+  WorkerStats,
 } from "@/components/worker/home";
 
 import WorkerQuickActions from "@/components/worker/home/WorkerQuickActions";
 
-export default function WorkerHome() {
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ============================================================
+   COMPONENT
+============================================================ */
+
+function WorkerHome() {
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      showsHorizontalScrollIndicator={false}
-      bounces
-      alwaysBounceVertical
-      keyboardShouldPersistTaps="handled"
+    <SafeAreaView
+      edges={[
+        "top",
+      ]}
+      style={
+        styles.safeArea
+      }
     >
-      {/* ==========================================
-          HEADER
-      ========================================== */}
+      <ScrollView
+        style={
+          styles.container
+        }
+        contentContainerStyle={
+          styles.content
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
+        showsHorizontalScrollIndicator={
+          false
+        }
+        bounces
+        alwaysBounceVertical
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
-      <Header
-        notificationCount={3}
-        onAvatarPress={() => {}}
-        onNotifications={() => {}}
-      />
+        <Header />
 
-      {/* ==========================================
-          WORKER STATS
-      ========================================== */}
+        {/* ====================================================
+            WORKER STATS
+        ==================================================== */}
 
-      <WorkerStats />
+        <View
+          style={
+            styles.section
+          }
+        >
+          <WorkerStats />
+        </View>
 
-      {/* ==========================================
-          QUICK ACTIONS
-      ========================================== */}
+        {/* ====================================================
+            QUICK ACTIONS
+        ==================================================== */}
 
-      <View style={styles.quickActionsWrapper}>
-        <WorkerQuickActions />
-      </View>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <WorkerQuickActions />
+        </View>
 
-      {/* ==========================================
-          MY PRODUCTS
-      ========================================== */}
+        {/* ====================================================
+            MY PRODUCTS
+        ==================================================== */}
 
-      <View style={styles.myProductsWrapper}>
-        <MyProducts />
-      </View>
-    </ScrollView>
+        <View
+          style={
+            styles.section
+          }
+        >
+          <MyProducts />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
+/* ============================================================
+   MEMO
+============================================================ */
 
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 31,
-    paddingBottom: 150,
-  },
+WorkerHome.displayName =
+  "WorkerHome";
 
-  quickActionsWrapper: {
-    marginTop: -25,
-  },
+export default memo(
+  WorkerHome,
+);
 
-  myProductsWrapper: {
-    marginTop: -25,
-  },
-});
+/* ============================================================
+   STYLES
+============================================================ */
+
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    container: {
+      flex: 1,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    content: {
+      flexGrow: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.size.tabBarHeight +
+        FixxamTokens.spacing.xxl,
+    },
+
+    section: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+    },
+  });

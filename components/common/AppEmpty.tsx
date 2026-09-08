@@ -1,73 +1,121 @@
-import React from "react";
+import React, { memo } from "react";
 import {
-  View,
+  StyleProp,
   StyleSheet,
+  View,
+  ViewStyle,
 } from "react-native";
 
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-
 import AppButton from "@/components/ui/AppButton";
-import { AppText } from "@/components/ui";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-type Props = {
-  icon?: keyof typeof MaterialCommunityIcons.glyphMap;
+import {
+  CustomerColors,
+  FixxamTokens,
+  WorkerColors,
+  type FixxamRole,
+} from "@/theme";
+
+export interface AppEmptyProps {
   title: string;
+
   message: string;
 
+  icon?: string;
+
+  role?: FixxamRole;
+
   buttonText?: string;
+
   onPress?: () => void;
 
   iconColor?: string;
-  iconBackgroundColor?: string;
-};
 
-export default function AppEmpty({
-  icon = "package-variant-closed",
+  iconBackgroundColor?: string;
+
+  style?: StyleProp<ViewStyle>;
+}
+
+function AppEmpty({
+  icon = "package",
 
   title,
   message,
 
+  role = "customer",
+
   buttonText,
   onPress,
 
-  iconColor = "#2563EB",
-  iconBackgroundColor = "#EFF6FF",
-}: Props) {
+  iconColor,
+  iconBackgroundColor,
+
+  style,
+}: AppEmptyProps) {
+  const colors =
+    role === "worker"
+      ? WorkerColors
+      : CustomerColors;
+
+  const showAction =
+    Boolean(buttonText) &&
+    typeof onPress === "function";
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        style,
+      ]}
+    >
       <View
         style={[
           styles.iconBox,
           {
             backgroundColor:
-              iconBackgroundColor,
+              iconBackgroundColor ??
+              colors.primarySoft,
           },
         ]}
       >
-        <MaterialCommunityIcons
+        <AppIcon
           name={icon}
-          size={56}
-          color={iconColor}
+          role={role}
+          size="xl"
+          color={
+            iconColor ??
+            colors.primary
+          }
+          strokeWidth="regular"
         />
       </View>
 
       <AppText
-        weight="bold"
+        variant="heading3"
+        center
         style={styles.title}
       >
         {title}
       </AppText>
 
-      <AppText style={styles.message}>
+      <AppText
+        variant="body"
+        tone="secondary"
+        center
+        style={styles.message}
+      >
         {message}
       </AppText>
 
-      {buttonText && onPress && (
+      {showAction ? (
         <AppButton
-          title={buttonText}
-          onPress={onPress}
+          title={buttonText!}
+          role={role}
+          onPress={onPress!}
+          style={styles.button}
         />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -76,45 +124,48 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
 
+    alignItems: "center",
     justifyContent: "center",
 
-    alignItems: "center",
+    paddingHorizontal:
+      FixxamTokens.spacing.xxl,
 
-    paddingHorizontal: 24,
+    paddingVertical:
+      FixxamTokens.spacing.xxxl,
   },
 
   iconBox: {
-    width: 120,
-    height: 120,
-
-    borderRadius: 32,
-
-    justifyContent: "center",
+    width: 72,
+    height: 72,
 
     alignItems: "center",
+    justifyContent: "center",
 
-    marginBottom: 24,
+    borderRadius:
+      FixxamTokens.radius.lg,
   },
 
   title: {
-    fontSize: 22,
+    marginTop:
+      FixxamTokens.spacing.lg,
 
-    color: "#0F172A",
-
-    textAlign: "center",
+    maxWidth: 320,
   },
 
   message: {
-    marginTop: 10,
+    marginTop:
+      FixxamTokens.spacing.sm,
 
-    fontSize: 15,
+    maxWidth: 340,
+  },
 
-    color: "#64748B",
+  button: {
+    width: "100%",
+    maxWidth: 280,
 
-    textAlign: "center",
-
-    lineHeight: 24,
-
-    marginBottom: 28,
+    marginTop:
+      FixxamTokens.spacing.xxl,
   },
 });
+
+export default memo(AppEmpty);

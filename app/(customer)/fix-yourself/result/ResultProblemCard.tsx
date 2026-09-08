@@ -1,4 +1,7 @@
-import React from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
   StyleSheet,
@@ -15,30 +18,73 @@ import {
 } from "@/components/ui";
 
 import {
+  Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface Props {
   problem: string;
 }
 
-export default function ResultProblemCard({
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
+function ResultProblemCard({
   problem,
 }: Props) {
+  const problemText =
+    useMemo(() => {
+      if (
+        typeof problem !==
+        "string"
+      ) {
+        return "Problem description unavailable.";
+      }
+
+      const value =
+        problem.trim();
+
+      return (
+        value ||
+        "Problem description unavailable."
+      );
+    }, [
+      problem,
+    ]);
+
   return (
-    <AppCard style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.iconContainer}>
+    <AppCard
+      style={styles.card}
+    >
+      {/* ========================================================
+          HEADER
+      ======================================================== */}
+
+      <View
+        style={styles.header}
+      >
+        <View
+          style={
+            styles.iconContainer
+          }
+        >
           <MaterialCommunityIcons
             name="text-box-search-outline"
             size={18}
-            color={CustomerColors.primary}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
         <AppText
-          size="lg"
+          variant="bodyLarge"
           weight="bold"
           style={styles.title}
         >
@@ -46,14 +92,27 @@ export default function ResultProblemCard({
         </AppText>
       </View>
 
-      <View style={styles.content}>
-        <AppText style={styles.problem}>
-          {problem}
+      {/* ========================================================
+          PROBLEM
+      ======================================================== */}
+
+      <View
+        style={styles.content}
+      >
+        <AppText
+          variant="body"
+          style={styles.problem}
+        >
+          {problemText}
         </AppText>
       </View>
     </AppCard>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
@@ -69,8 +128,6 @@ const styles =
       flexDirection: "row",
 
       alignItems: "center",
-
-      marginBottom: 2,
     },
 
     iconContainer: {
@@ -78,40 +135,51 @@ const styles =
 
       height: 34,
 
-      borderRadius: 17,
-
       alignItems: "center",
 
       justifyContent: "center",
 
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        CustomerColors.diagnosisBackground,
+        CustomerColors.primarySoft,
     },
 
     title: {
-      marginLeft: 10,
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      color:
+        Colors.textPrimary,
     },
 
     content: {
-      padding: 12,
-
-      borderRadius: 12,
-
-      backgroundColor:
-        CustomerColors.diagnosisBackground,
+      padding:
+        FixxamTokens.spacing.md,
 
       borderWidth: 1,
 
       borderColor:
-        CustomerColors.border,
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     problem: {
-      fontSize: 14,
+      color:
+        Colors.textPrimary,
 
       lineHeight: 22,
-
-      color:
-        CustomerColors.primaryText,
     },
   });
+
+export default memo(
+  ResultProblemCard,
+);

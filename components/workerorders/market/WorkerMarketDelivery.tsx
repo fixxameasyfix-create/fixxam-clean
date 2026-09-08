@@ -1,4 +1,8 @@
-import React, { memo, useCallback } from "react";
+import React, {
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   Linking,
@@ -7,13 +11,19 @@ import {
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import Toast from "react-native-toast-message";
 
 import {
+  AppButton,
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -21,9 +31,13 @@ import {
 
 type Props = {
   receiverName?: string | null;
+
   receiverPhone?: string | null;
+
   address?: string | null;
+
   latitude?: number | null;
+
   longitude?: number | null;
 };
 
@@ -34,17 +48,67 @@ type Props = {
 function normalizeString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
 
-function isValidCoordinate(
+function normalizePhoneForCall(
+  value: string,
+): string {
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const hasLeadingPlus =
+    trimmed.startsWith(
+      "+",
+    );
+
+  const digits =
+    trimmed.replace(
+      /\D/g,
+      "",
+    );
+
+  if (!digits) {
+    return "";
+  }
+
+  return hasLeadingPlus
+    ? `+${digits}`
+    : digits;
+}
+
+function isValidLatitude(
   value: unknown,
 ): value is number {
   return (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
+    value >= -90 &&
+    value <= 90
+  );
+}
+
+function isValidLongitude(
+  value: unknown,
+): value is number {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
+    value >= -180 &&
+    value <= 180
   );
 }
 
@@ -59,24 +123,63 @@ function WorkerMarketDelivery({
   latitude,
   longitude,
 }: Props) {
-  const name =
-    normalizeString(
-      receiverName,
-    ) || "Customer";
+  /* ==========================================================
+     DISPLAY VALUES
+  ========================================================== */
 
-  const phone =
-    normalizeString(
-      receiverPhone,
+  const name =
+    useMemo(
+      () =>
+        normalizeString(
+          receiverName,
+        ) ||
+        "Customer",
+      [
+        receiverName,
+      ],
+    );
+
+  const displayPhone =
+    useMemo(
+      () =>
+        normalizeString(
+          receiverPhone,
+        ),
+      [
+        receiverPhone,
+      ],
+    );
+
+  const callablePhone =
+    useMemo(
+      () =>
+        normalizePhoneForCall(
+          displayPhone,
+        ),
+      [
+        displayPhone,
+      ],
     );
 
   const deliveryAddress =
-    normalizeString(
-      address,
-    ) || "Delivery address unavailable";
+    useMemo(
+      () =>
+        normalizeString(
+          address,
+        ) ||
+        "Delivery address unavailable",
+      [
+        address,
+      ],
+    );
 
   const hasCoordinates =
-    isValidCoordinate(latitude) &&
-    isValidCoordinate(longitude);
+    isValidLatitude(
+      latitude,
+    ) &&
+    isValidLongitude(
+      longitude,
+    );
 
   /* ==========================================================
      OPEN MAP
@@ -85,12 +188,17 @@ function WorkerMarketDelivery({
   const handleOpenMap =
     useCallback(
       async () => {
-        if (!hasCoordinates) {
+        if (
+          !hasCoordinates
+        ) {
           Toast.show({
             type: "info",
-            text1: "GPS unavailable",
+
+            text1:
+              "GPS unavailable",
+
             text2:
-              "This order does not have GPS coordinates.",
+              "This order does not have valid GPS coordinates.",
           });
 
           return;
@@ -108,7 +216,10 @@ function WorkerMarketDelivery({
           if (!supported) {
             Toast.show({
               type: "error",
-              text1: "Unable to open Maps",
+
+              text1:
+                "Unable to open Maps",
+
               text2:
                 "Please check your Maps application.",
             });
@@ -127,7 +238,10 @@ function WorkerMarketDelivery({
 
           Toast.show({
             type: "error",
-            text1: "Unable to open Maps",
+
+            text1:
+              "Unable to open Maps",
+
             text2:
               "Please try again.",
           });
@@ -140,51 +254,142 @@ function WorkerMarketDelivery({
       ],
     );
 
+  /* ==========================================================
+     CALL RECEIVER
+  ========================================================== */
+
+  const handleCall =
+    useCallback(
+      async () => {
+        if (
+          !callablePhone
+        ) {
+          Toast.show({
+            type: "info",
+
+            text1:
+              "Phone unavailable",
+
+            text2:
+              "The delivery recipient does not have a valid phone number.",
+          });
+
+          return;
+        }
+
+        const phoneUrl =
+          `tel:${callablePhone}`;
+
+        try {
+          const supported =
+            await Linking.canOpenURL(
+              phoneUrl,
+            );
+
+          if (!supported) {
+            Toast.show({
+              type: "error",
+
+              text1:
+                "Calling unavailable",
+
+              text2:
+                "Your device cannot make phone calls.",
+            });
+
+            return;
+          }
+
+          await Linking.openURL(
+            phoneUrl,
+          );
+        } catch (error) {
+          console.error(
+            "WORKER_MARKET_DELIVERY_CALL_ERROR:",
+            error,
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to call recipient",
+
+            text2:
+              "Please try again.",
+          });
+        }
+      },
+      [
+        callablePhone,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
+
   return (
     <View
-      style={styles.card}
+      style={
+        styles.card
+      }
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <AppText
+          variant="heading3"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Delivery
         </AppText>
 
-        {hasCoordinates && (
+        {hasCoordinates ? (
           <Pressable
             onPress={
               handleOpenMap
             }
             accessibilityRole="button"
             accessibilityLabel="Open delivery location in Maps"
-            style={({ pressed }) => [
+            style={({
+              pressed,
+            }) => [
               styles.gpsButton,
-              pressed &&
-                styles.pressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
+            <AppIcon
               name="location"
-              size={14}
-              color="#16A34A"
+              size="xs"
+              color={
+                Colors.success
+              }
             />
 
             <AppText
+              variant="caption"
               weight="bold"
-              style={styles.gpsText}
+              style={
+                styles.gpsText
+              }
             >
               GPS
             </AppText>
           </Pressable>
-        )}
+        ) : null}
       </View>
 
       {/* ======================================================
@@ -192,57 +397,90 @@ function WorkerMarketDelivery({
       ====================================================== */}
 
       <View
-        style={styles.receiverRow}
+        style={
+          styles.receiverRow
+        }
       >
         <View
-          style={styles.receiverIcon}
+          style={
+            styles.receiverIcon
+          }
         >
-          <Ionicons
-            name="person-outline"
-            size={19}
-            color="#2563EB"
+          <AppIcon
+            name="profile"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
         <View
-          style={styles.receiverContent}
+          style={
+            styles.receiverContent
+          }
         >
           <AppText
+            variant="bodyMedium"
             weight="bold"
             numberOfLines={1}
-            style={styles.receiverName}
+            style={
+              styles.receiverName
+            }
           >
             {name}
           </AppText>
 
           <AppText
-            style={styles.receiverLabel}
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.receiverLabel
+            }
           >
             Delivery recipient
           </AppText>
+
+          {displayPhone ? (
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.receiverPhone
+              }
+            >
+              {displayPhone}
+            </AppText>
+          ) : null}
         </View>
 
-        {phone ? (
+        {callablePhone ? (
           <Pressable
-            onPress={() => {
-              Toast.show({
-                type: "info",
-                text1: "Customer phone",
-                text2: phone,
-              });
-            }}
+            onPress={
+              handleCall
+            }
             accessibilityRole="button"
-            accessibilityLabel="View customer phone"
-            style={({ pressed }) => [
+            accessibilityLabel={`Call ${name}`}
+            style={({
+              pressed,
+            }) => [
               styles.callButton,
-              pressed &&
-                styles.pressed,
+
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
-            <Ionicons
-              name="call-outline"
-              size={17}
-              color="#2563EB"
+            <AppIcon
+              name="phone"
+              role="worker"
+              size="sm"
+              color={
+                WorkerColors.primary
+              }
             />
           </Pressable>
         ) : null}
@@ -253,20 +491,31 @@ function WorkerMarketDelivery({
       ====================================================== */}
 
       <View
-        style={styles.addressRow}
+        style={
+          styles.addressRow
+        }
       >
         <View
-          style={styles.addressIcon}
+          style={
+            styles.addressIcon
+          }
         >
-          <Ionicons
-            name="location-outline"
-            size={21}
-            color="#2563EB"
+          <AppIcon
+            name="location"
+            role="worker"
+            size="sm"
+            color={
+              WorkerColors.primary
+            }
           />
         </View>
 
         <AppText
-          style={styles.addressText}
+          variant="body"
+          tone="secondary"
+          style={
+            styles.addressText
+          }
         >
           {deliveryAddress}
         </AppText>
@@ -276,42 +525,36 @@ function WorkerMarketDelivery({
           OPEN MAP
       ====================================================== */}
 
-      {hasCoordinates && (
-        <Pressable
-          onPress={
-            handleOpenMap
+      {hasCoordinates ? (
+        <View
+          style={
+            styles.mapAction
           }
-          accessibilityRole="button"
-          accessibilityLabel="Open delivery location"
-          style={({ pressed }) => [
-            styles.mapButton,
-            pressed &&
-              styles.mapButtonPressed,
-          ]}
         >
-          <Ionicons
-            name="navigate-outline"
-            size={17}
-            color="#2563EB"
+          <AppButton
+            title="OPEN LOCATION"
+            role="worker"
+            variant="outline"
+            leftIconName="navigation"
+            onPress={
+              handleOpenMap
+            }
+            style={
+              styles.mapButton
+            }
           />
-
-          <AppText
-            weight="bold"
-            style={styles.mapButtonText}
-          >
-            OPEN LOCATION
-          </AppText>
-
-          <Ionicons
-            name="arrow-forward"
-            size={16}
-            color="#2563EB"
-          />
-        </Pressable>
-      )}
+        </View>
+      ) : null}
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerMarketDelivery.displayName =
+  "WorkerMarketDelivery";
 
 export default memo(
   WorkerMarketDelivery,
@@ -324,129 +567,261 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      backgroundColor: "#FFFFFF",
-      borderRadius: 20,
-      padding: 17,
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
       borderWidth: 1,
-      borderColor: "#E2E8F0",
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
     header: {
-      flexDirection: "row",
-      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
       justifyContent:
         "space-between",
-      marginBottom: 14,
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     title: {
-      fontSize: 16,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     gpsButton: {
-      minHeight: 30,
-      paddingHorizontal: 9,
-      borderRadius: 9,
-      backgroundColor: "#ECFDF5",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.successSoft,
     },
 
     gpsText: {
-      fontSize: 8,
-      color: "#15803D",
+      color:
+        Colors.success,
     },
 
+    /* ========================================================
+       RECEIVER
+    ======================================================== */
+
     receiverRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 14,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     receiverIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     receiverContent: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     receiverName: {
-      fontSize: 13,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     receiverLabel: {
-      marginTop: 3,
-      fontSize: 9.5,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    receiverPhone: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textSecondary,
     },
 
     callButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth: 1,
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
+    /* ========================================================
+       ADDRESS
+    ======================================================== */
+
     addressRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
     },
 
     addressIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: "#EFF6FF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     addressText: {
       flex: 1,
-      marginLeft: 10,
-      paddingTop: 2,
-      fontSize: 13,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
       lineHeight: 20,
-      color: "#475569",
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       MAP
+    ======================================================== */
+
+    mapAction: {
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     mapButton: {
-      height: 42,
-      marginTop: 14,
-      borderRadius: 12,
-      backgroundColor: "#EFF6FF",
-      borderWidth: 1,
-      borderColor: "#BFDBFE",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
+      width: "100%",
     },
 
-    mapButtonPressed: {
-      opacity: 0.75,
-    },
-
-    mapButtonText: {
-      fontSize: 9,
-      color: "#2563EB",
-    },
+    /* ========================================================
+       STATE
+    ======================================================== */
 
     pressed: {
-      opacity: 0.7,
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

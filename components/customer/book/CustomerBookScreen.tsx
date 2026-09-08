@@ -10,25 +10,55 @@ import {
   AppText,
 } from "@/components/ui";
 
+import {
+  Colors,
+  FixxamTokens,
+} from "@/theme";
+
 import BookGrid from "./BookGrid";
+
+/* ==============================================================
+   SCREEN
+============================================================== */
 
 export default function CustomerBookScreen() {
   return (
-    <AppScreen>
+    <AppScreen
+      role="customer"
+      padded={false}
+    >
       <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={
+          false
+        }
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={
+          styles.container
+        }
       >
+        {/* ======================================================
+            HEADER
+        ====================================================== */}
+
         <AppText
+          variant="heading1"
           weight="bold"
           style={styles.title}
         >
           Book
         </AppText>
 
-        <AppText style={styles.subtitle}>
+        <AppText
+          variant="bodyLarge"
+          tone="secondary"
+          style={styles.subtitle}
+        >
           What would you like to do today?
         </AppText>
+
+        {/* ======================================================
+            BOOK OPTIONS
+        ====================================================== */}
 
         <BookGrid />
       </ScrollView>
@@ -36,21 +66,38 @@ export default function CustomerBookScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    paddingBottom: 40,
-    backgroundColor: "#F8FAFC",
-  },
+/* ==============================================================
+   STYLES
+============================================================== */
 
-  title: {
-    fontSize: 30,
-    marginBottom: 6,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
 
-  subtitle: {
-    fontSize: 16,
-    color: "#64748B",
-    marginBottom: 20,
-  },
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginBottom:
+        FixxamTokens.spacing.xl,
+    },
+  });

@@ -1,15 +1,22 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import Ionicons from "@expo/vector-icons/Ionicons";
-
 import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  Colors,
+  FixxamTokens,
+  WorkerColors,
+} from "@/theme";
 
 /* ============================================================
    TYPES
@@ -37,30 +44,55 @@ function WorkerMarketNote({
 
   return (
     <View
-      style={styles.card}
+      style={
+        styles.card
+      }
+      accessibilityLabel={`Customer note: ${normalizedNote}`}
     >
+      {/* ======================================================
+          ICON
+      ====================================================== */}
+
       <View
-        style={styles.iconBox}
+        style={
+          styles.iconBox
+        }
       >
-        <Ionicons
-          name="chatbubble-outline"
-          size={18}
-          color="#2563EB"
+        <AppIcon
+          name="messages"
+          role="worker"
+          size="sm"
+          color={
+            WorkerColors.primary
+          }
         />
       </View>
 
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
       <View
-        style={styles.content}
+        style={
+          styles.content
+        }
       >
         <AppText
+          variant="bodyMedium"
           weight="bold"
-          style={styles.title}
+          style={
+            styles.title
+          }
         >
           Customer Note
         </AppText>
 
         <AppText
-          style={styles.text}
+          variant="body"
+          tone="secondary"
+          style={
+            styles.text
+          }
         >
           {normalizedNote}
         </AppText>
@@ -68,6 +100,13 @@ function WorkerMarketNote({
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerMarketNote.displayName =
+  "WorkerMarketNote";
 
 export default memo(
   WorkerMarketNote,
@@ -80,39 +119,75 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      flexDirection: "row",
-      backgroundColor: "#EFF6FF",
-      borderRadius: 17,
-      padding: 14,
-      marginBottom: 12,
+      width: "100%",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.md,
+
       borderWidth: 1,
-      borderColor: "#BFDBFE",
+
+      borderColor:
+        WorkerColors.primarySoft,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
     },
 
     iconBox: {
-      width: 36,
-      height: 36,
-      borderRadius: 11,
-      backgroundColor: "#FFFFFF",
-      alignItems: "center",
-      justifyContent: "center",
+      width:
+        FixxamTokens.size.minimumTouchTarget,
+
+      height:
+        FixxamTokens.size.minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     content: {
       flex: 1,
+
       minWidth: 0,
-      marginLeft: 10,
     },
 
     title: {
-      fontSize: 12,
-      color: "#1D4ED8",
+      color:
+        WorkerColors.primary,
     },
 
     text: {
-      marginTop: 4,
-      fontSize: 11,
-      lineHeight: 17,
-      color: "#475569",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
     },
   });

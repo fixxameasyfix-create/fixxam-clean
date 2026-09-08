@@ -1,5 +1,8 @@
 import React, {
   useCallback,
+  useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -9,13 +12,19 @@ import {
   Pressable,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
-import { SafeAreaView } from "react-native-safe-area-context";
-
-import { router } from "expo-router";
+import {
+  SafeAreaView,
+} from "react-native-safe-area-context";
 
 import {
+  router,
+} from "expo-router";
+
+import {
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -28,206 +37,533 @@ import {
   type DiscountedProduct,
 } from "@/firebase/queries/discountedProducts";
 
+import {
+  Colors,
+  CustomerColors,
+  FixxamTokens,
+} from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
 const MAX_DISCOUNTED_PRODUCTS = 20;
 
+const LOCATION_WAIT_TIMEOUT_MS = 12_000;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function isValidCoordinate(
+  value: unknown,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  );
+}
+
+function isValidDiscountedProduct(
+  item: DiscountedProduct,
+): boolean {
+  const originalPrice =
+    Number(
+      item.product.price,
+    );
+
+  const discountedPrice =
+    Number(
+      item.deal
+        ?.discountedPrice,
+    );
+
+  const discountPercentage =
+    Number(
+      item.deal
+        ?.discountPercentage,
+    );
+
+  return (
+    Number.isFinite(
+      originalPrice,
+    ) &&
+    originalPrice > 0 &&
+    Number.isFinite(
+      discountedPrice,
+    ) &&
+    discountedPrice > 0 &&
+    discountedPrice <
+      originalPrice &&
+    Number.isFinite(
+      discountPercentage,
+    ) &&
+    discountPercentage > 0 &&
+    discountPercentage < 100
+  );
+}
+
+function formatDistance(
+  value: unknown,
+): string {
+  const distance =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      distance,
+    ) ||
+    distance < 0
+  ) {
+    return "";
+  }
+
+  if (distance < 1) {
+    return `${Math.round(
+      distance * 1000,
+    )} m away`;
+  }
+
+  return `${distance.toFixed(
+    1,
+  )} km away`;
+}
+
+/* ==============================================================
+   SCREEN
+============================================================== */
+
 export default function DiscountedProductsScreen() {
-  const [products, setProducts] = useState<
-    DiscountedProduct[]
-  >([]);
+  const [
+    products,
+    setProducts,
+  ] =
+    useState<
+      DiscountedProduct[]
+    >([]);
 
-  const [claimed, setClaimed] =
+  const [
+    claimed,
+    setClaimed,
+  ] =
     useState(false);
 
-  const [claiming, setClaiming] =
+  const [
+    claiming,
+    setClaiming,
+  ] =
     useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    waitingForLocation,
+    setWaitingForLocation,
+  ] =
+    useState(false);
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const requestIdRef =
+    useRef(0);
 
   const {
     location,
-    loading: locationLoading,
-    error: locationError,
+    loading:
+      locationLoading,
+    error:
+      locationError,
     refresh,
-  } = useCurrentLocation();
+  } =
+    useCurrentLocation();
 
-  /*
-   * ==========================================================
-   * CLAIM DISCOUNT
-   * ==========================================================
-   */
+  /* ============================================================
+     LOAD NEARBY DEALS
+  ============================================================ */
 
-  const handleClaimDiscount =
-    useCallback(async () => {
-      if (claiming) {
-        return;
-      }
-
-      setError(null);
-      setClaiming(true);
-
-      try {
-        let customerLocation =
-          location;
-
-        /*
-         * ------------------------------------------------------
-         * LOCATION
-         * ------------------------------------------------------
-         */
-
-        if (!customerLocation) {
-          await refresh();
+  const loadNearbyDeals =
+    useCallback(
+      async (
+        latitude: number,
+        longitude: number,
+      ) => {
+        if (
+          !isValidCoordinate(
+            latitude,
+          ) ||
+          !isValidCoordinate(
+            longitude,
+          )
+        ) {
+          setClaiming(false);
 
           setError(
-            locationError ??
-              "Unable to get your current location. Please enable location and try again.",
+            "Your current location is invalid. Please refresh your location and try again.",
           );
 
           return;
         }
 
-        /*
-         * ------------------------------------------------------
-         * GET DISCOUNTED PRODUCTS
-         * ------------------------------------------------------
-         */
+        const requestId =
+          ++requestIdRef.current;
 
-        const nearbyDeals =
-          await getNearbyDiscountedProducts({
-            latitude:
-              customerLocation.latitude,
+        setError(null);
 
-            longitude:
-              customerLocation.longitude,
-          });
+        setClaiming(true);
 
-        /*
-         * ------------------------------------------------------
-         * ONLY DISCOUNTED PRODUCTS
-         *
-         * Extra client-side protection:
-         * do not allow products without a valid
-         * discounted price into this screen.
-         * ------------------------------------------------------
-         */
+        try {
+          const nearbyDeals =
+            await getNearbyDiscountedProducts(
+              {
+                latitude,
+                longitude,
+              },
+            );
 
-        const validDiscountedProducts =
-          nearbyDeals.filter(
-            (item) => {
-              const originalPrice =
-                Number(
-                  item.product.price,
-                );
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
 
-              const discountedPrice =
-                Number(
-                  item.deal
-                    ?.discountedPrice,
-                );
-
-              const discountPercentage =
-                Number(
-                  item.deal
-                    ?.discountPercentage,
-                );
-
-              return (
-                Number.isFinite(
-                  originalPrice,
-                ) &&
-                originalPrice > 0 &&
-                Number.isFinite(
-                  discountedPrice,
-                ) &&
-                discountedPrice > 0 &&
-                discountedPrice <
-                  originalPrice &&
-                Number.isFinite(
-                  discountPercentage,
-                ) &&
-                discountPercentage > 0 &&
-                discountPercentage < 100
+          const validProducts =
+            nearbyDeals
+              .filter(
+                isValidDiscountedProduct,
+              )
+              .slice(
+                0,
+                MAX_DISCOUNTED_PRODUCTS,
               );
-            },
+
+          setProducts(
+            validProducts,
           );
 
-        /*
-         * ------------------------------------------------------
-         * MAXIMUM 20
-         * ------------------------------------------------------
-         */
+          setClaimed(
+            true,
+          );
+        } catch (err) {
+          console.error(
+            "DISCOUNTED_PRODUCTS_LOAD_ERROR:",
+            err,
+          );
 
-        setProducts(
-          validDiscountedProducts.slice(
-            0,
-            MAX_DISCOUNTED_PRODUCTS,
-          ),
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          setProducts([]);
+
+          setClaimed(
+            true,
+          );
+
+          setError(
+            "Unable to find discounted products near you. Please try again.",
+          );
+        } finally {
+          if (
+            requestId ===
+            requestIdRef.current
+          ) {
+            setClaiming(
+              false,
+            );
+          }
+        }
+      },
+      [],
+    );
+
+  /* ============================================================
+     WAIT FOR LOCATION
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !waitingForLocation
+    ) {
+      return;
+    }
+
+    if (
+      location &&
+      isValidCoordinate(
+        location.latitude,
+      ) &&
+      isValidCoordinate(
+        location.longitude,
+      )
+    ) {
+      setWaitingForLocation(
+        false,
+      );
+
+      void loadNearbyDeals(
+        location.latitude,
+        location.longitude,
+      );
+    }
+  }, [
+    loadNearbyDeals,
+    location,
+    waitingForLocation,
+  ]);
+
+  /* ============================================================
+     LOCATION ERROR
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !waitingForLocation ||
+      locationLoading ||
+      !locationError
+    ) {
+      return;
+    }
+
+    /*
+     * If location arrives at the same time,
+     * the location effect above gets priority.
+     */
+    if (
+      location &&
+      isValidCoordinate(
+        location.latitude,
+      ) &&
+      isValidCoordinate(
+        location.longitude,
+      )
+    ) {
+      return;
+    }
+
+    setWaitingForLocation(
+      false,
+    );
+
+    setClaiming(
+      false,
+    );
+
+    setError(
+      locationError ||
+        "Unable to get your current location. Please enable location and try again.",
+    );
+  }, [
+    location,
+    locationError,
+    locationLoading,
+    waitingForLocation,
+  ]);
+
+  /* ============================================================
+     LOCATION TIMEOUT
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !waitingForLocation
+    ) {
+      return;
+    }
+
+    const timeout =
+      setTimeout(() => {
+        setWaitingForLocation(
+          false,
         );
 
-        setClaimed(true);
-      } catch (err) {
-        console.error(
-          "Failed to claim discounted products:",
-          err,
+        setClaiming(
+          false,
         );
-
-        setProducts([]);
 
         setError(
-          "Unable to find discounted products near you. Please try again.",
+          "Unable to get your current location. Please check your location settings and try again.",
         );
-      } finally {
-        setClaiming(false);
+      }, LOCATION_WAIT_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(
+        timeout,
+      );
+    };
+  }, [
+    waitingForLocation,
+  ]);
+
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
+
+  useEffect(() => {
+    return () => {
+      requestIdRef.current +=
+        1;
+    };
+  }, []);
+
+  /* ============================================================
+     CLAIM DISCOUNT
+  ============================================================ */
+
+  const handleClaimDiscount =
+    useCallback(() => {
+      if (
+        claiming ||
+        waitingForLocation
+      ) {
+        return;
       }
+
+      setError(null);
+
+      if (
+        location &&
+        isValidCoordinate(
+          location.latitude,
+        ) &&
+        isValidCoordinate(
+          location.longitude,
+        )
+      ) {
+        void loadNearbyDeals(
+          location.latitude,
+          location.longitude,
+        );
+
+        return;
+      }
+
+      /*
+       * refresh() triggers the location hook.
+       * We wait for the updated location state
+       * instead of reading the old state
+       * immediately after refresh().
+       */
+      setClaiming(
+        true,
+      );
+
+      setWaitingForLocation(
+        true,
+      );
+
+      void Promise.resolve(
+        refresh(),
+      ).catch(
+        (err) => {
+          console.error(
+            "DISCOUNT_LOCATION_REFRESH_ERROR:",
+            err,
+          );
+
+          setWaitingForLocation(
+            false,
+          );
+
+          setClaiming(
+            false,
+          );
+
+          setError(
+            "Unable to get your current location. Please enable location and try again.",
+          );
+        },
+      );
     }, [
       claiming,
+      loadNearbyDeals,
       location,
-      locationError,
       refresh,
+      waitingForLocation,
     ]);
 
-  /*
-   * ==========================================================
-   * RETRY
-   * ==========================================================
-   */
+  /* ============================================================
+     RETRY
+  ============================================================ */
 
   const handleRetry =
     useCallback(() => {
-      void handleClaimDiscount();
+      handleClaimDiscount();
     }, [
       handleClaimDiscount,
     ]);
 
-  /*
-   * ==========================================================
-   * HEADER
-   * ==========================================================
-   */
+  /* ============================================================
+     HEADER SUBTITLE
+  ============================================================ */
+
+  const headerSubtitle =
+    useMemo(() => {
+      if (!claimed) {
+        return "Find discounted products from workers near you.";
+      }
+
+      const count =
+        products.length;
+
+      if (count === 0) {
+        return "Discounted products closest to your location.";
+      }
+
+      return `${count} discounted ${
+        count === 1
+          ? "product"
+          : "products"
+      } closest to you.`;
+    }, [
+      claimed,
+      products.length,
+    ]);
+
+  /* ============================================================
+     HEADER
+  ============================================================ */
 
   const renderHeader =
     useCallback(
       () => (
-        <View style={styles.header}>
+        <View
+          style={
+            styles.header
+          }
+        >
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            hitSlop={6}
             onPress={() =>
               router.back()
             }
-            hitSlop={10}
-            style={
-              styles.backButton
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
+            style={({
+              pressed,
+            }) => [
+              styles.backButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
-            <AppText
-              style={
-                styles.backIcon
+            <AppIcon
+              name="back"
+              role="customer"
+              size="sm"
+              color={
+                Colors.textPrimary
               }
-            >
-              ‹
-            </AppText>
+            />
           </Pressable>
 
           <View
@@ -236,133 +572,166 @@ export default function DiscountedProductsScreen() {
             }
           >
             <AppText
+              variant="heading2"
               weight="bold"
-              style={styles.title}
+              numberOfLines={2}
+              style={
+                styles.title
+              }
             >
               Discounted Products
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
               style={
                 styles.subtitle
               }
             >
-              {claimed
-                ? `${products.length} discounted products closest to you.`
-                : "Find discounted products from workers near you."}
+              {headerSubtitle}
             </AppText>
           </View>
         </View>
       ),
       [
-        claimed,
-        products.length,
+        headerSubtitle,
       ],
     );
 
-  /*
-   * ==========================================================
-   * CLAIM STATE
-   * ==========================================================
-   */
+  /* ============================================================
+     CLAIM STATE
+  ============================================================ */
 
   const renderClaimState =
     useCallback(
       () => (
         <View
           style={
-            styles.claimContainer
+            styles.stateContainer
           }
         >
           <View
             style={
-              styles.tagCircle
+              styles.claimIconBox
             }
           >
-            <AppText
-              style={
-                styles.tagIcon
-              }
-            >
-              %
-            </AppText>
+            <AppIcon
+              name="payment"
+              role="customer"
+              size="xl"
+              state="active"
+            />
           </View>
 
           <AppText
+            variant="heading2"
             weight="bold"
+            center
             style={
-              styles.claimTitle
+              styles.stateTitle
             }
           >
             Claim Your Discount
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
-              styles.claimDescription
+              styles.stateDescription
             }
           >
-            Get access to discounted
-            products available from
-            workers near your current
-            location.
+            Get access to discounted products available from workers near your current location.
           </AppText>
 
           {error ? (
-            <AppText
+            <View
               style={
-                styles.errorText
+                styles.inlineError
               }
             >
-              {error}
-            </AppText>
+              <AppIcon
+                name="error"
+                role="customer"
+                size="xs"
+                state="error"
+              />
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.errorText
+                }
+              >
+                {error}
+              </AppText>
+            </View>
           ) : null}
 
           <Pressable
-            onPress={
-              handleClaimDiscount
-            }
+            accessibilityRole="button"
+            accessibilityLabel="Claim discount"
+            accessibilityState={{
+              disabled:
+                claiming ||
+                locationLoading,
+              busy:
+                claiming ||
+                waitingForLocation,
+            }}
             disabled={
               claiming ||
               locationLoading
             }
+            onPress={
+              handleClaimDiscount
+            }
             style={({
               pressed,
             }) => [
-              styles.claimButton,
+              styles.primaryButton,
 
               pressed &&
-                !claiming &&
-                styles.claimButtonPressed,
+              !claiming
+                ? styles.pressed
+                : null,
 
-              (claiming ||
-                locationLoading) &&
-                styles.claimButtonDisabled,
+              claiming ||
+              locationLoading
+                ? styles.buttonDisabled
+                : null,
             ]}
-            accessibilityRole="button"
-            accessibilityLabel="Claim discount"
           >
-            {claiming ? (
+            {claiming ||
+            waitingForLocation ? (
               <>
                 <ActivityIndicator
                   size="small"
-                  color="#FFFFFF"
+                  color={
+                    Colors.textInverse
+                  }
                 />
 
                 <AppText
+                  variant="bodyMedium"
                   weight="bold"
                   style={
-                    styles.claimButtonText
+                    styles.primaryButtonText
                   }
                 >
-                  Finding Deals...
+                  {waitingForLocation
+                    ? "Getting Location..."
+                    : "Finding Deals..."}
                 </AppText>
               </>
             ) : (
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
-                  styles.claimButtonText
+                  styles.primaryButtonText
                 }
               >
                 Claim Discount
@@ -376,43 +745,41 @@ export default function DiscountedProductsScreen() {
         error,
         handleClaimDiscount,
         locationLoading,
+        waitingForLocation,
       ],
     );
 
-  /*
-   * ==========================================================
-   * EMPTY STATE
-   * ==========================================================
-   */
+  /* ============================================================
+     EMPTY / LOADING / ERROR
+  ============================================================ */
 
   const renderEmpty =
     useCallback(() => {
-      /*
-       * Before claiming.
-       */
-
       if (!claimed) {
         return renderClaimState();
       }
 
-      /*
-       * Loading.
-       */
-
-      if (claiming) {
+      if (
+        claiming ||
+        waitingForLocation
+      ) {
         return (
           <View
             style={
-              styles.center
+              styles.stateContainer
             }
           >
             <ActivityIndicator
               size="large"
-              color="#2563EB"
+              color={
+                CustomerColors.primary
+              }
             />
 
             <AppText
-              weight="semibold"
+              variant="bodyLarge"
+              weight="bold"
+              center
               style={
                 styles.loadingTitle
               }
@@ -421,59 +788,82 @@ export default function DiscountedProductsScreen() {
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
-                styles.loadingText
+                styles.stateDescription
               }
             >
-              We're checking products
-              closest to your location.
+              We're checking products closest to your location.
             </AppText>
           </View>
         );
       }
 
-      /*
-       * Error.
-       */
-
       if (error) {
         return (
           <View
             style={
-              styles.center
+              styles.stateContainer
             }
           >
-            <AppText
-              weight="bold"
+            <View
               style={
-                styles.emptyTitle
+                styles.errorIconBox
+              }
+            >
+              <AppIcon
+                name="error"
+                role="customer"
+                size="xl"
+                state="error"
+              />
+            </View>
+
+            <AppText
+              variant="heading3"
+              weight="bold"
+              center
+              style={
+                styles.stateTitle
               }
             >
               Something went wrong
             </AppText>
 
             <AppText
+              variant="body"
+              tone="secondary"
+              center
               style={
-                styles.emptyText
+                styles.stateDescription
               }
             >
               {error}
             </AppText>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
               onPress={
                 handleRetry
               }
-              style={
-                styles.retryButton
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Try again"
+              style={({
+                pressed,
+              }) => [
+                styles.retryButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
             >
               <AppText
+                variant="bodyMedium"
                 weight="bold"
                 style={
-                  styles.retryText
+                  styles.primaryButtonText
                 }
               >
                 Try Again
@@ -483,58 +873,77 @@ export default function DiscountedProductsScreen() {
         );
       }
 
-      /*
-       * No discounted products.
-       */
-
       return (
         <View
           style={
-            styles.center
+            styles.stateContainer
           }
         >
-          <AppText
+          <View
             style={
-              styles.emptyIcon
+              styles.emptyIconBox
             }
           >
-            🏷️
-          </AppText>
+            <AppIcon
+              name="package"
+              role="customer"
+              size="xl"
+              state="muted"
+            />
+          </View>
 
           <AppText
+            variant="heading3"
             weight="bold"
+            center
             style={
-              styles.emptyTitle
+              styles.stateTitle
             }
           >
             No discounted products nearby
           </AppText>
 
           <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
-              styles.emptyText
+              styles.stateDescription
             }
           >
-            There are currently no
-            discounted products
-            available near your
-            location.
+            There are currently no discounted products available near your location.
           </AppText>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Refresh discounted products"
             onPress={
               handleRetry
             }
-            style={
-              styles.retryButton
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Refresh discounted products"
+            style={({
+              pressed,
+            }) => [
+              styles.retryButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
+            <AppIcon
+              name="refresh"
+              role="customer"
+              size="xs"
+              color={
+                Colors.textInverse
+              }
+            />
+
             <AppText
+              variant="bodyMedium"
               weight="bold"
               style={
-                styles.retryText
+                styles.primaryButtonText
               }
             >
               Refresh
@@ -548,32 +957,29 @@ export default function DiscountedProductsScreen() {
       error,
       handleRetry,
       renderClaimState,
+      waitingForLocation,
     ]);
 
-  /*
-   * ==========================================================
-   * PRODUCT
-   * ==========================================================
-   */
+  /* ============================================================
+     PRODUCT
+  ============================================================ */
+
+ /* ============================================================
+     PRODUCT
+  ============================================================ */
 
   const renderProduct =
-    useCallback(
-      ({
-        item,
-      }: {
-        item: DiscountedProduct;
-      }) => {
+    useCallback<
+      ListRenderItem<DiscountedProduct>
+    >(
+      ({ item }) => {
         const product =
           item.product;
 
-        /*
-         * IMPORTANT:
-         *
-         * We pass the actual deal to
-         * ProductGridCard.
-         *
-         * This is what was missing before.
-         */
+        const distanceLabel =
+          formatDistance(
+            item.distance,
+          );
 
         return (
           <View
@@ -585,30 +991,21 @@ export default function DiscountedProductsScreen() {
               id={product.id}
               name={product.name}
               price={product.price}
-              image={
-                product.thumbnail
-              }
-
-              activeDeal={
-                item.deal
-              }
-
+              image={product.thumbnail}
+              activeDeal={item.deal}
               onPress={() =>
                 router.push({
                   pathname:
                     "/(customer)/product/[id]",
-
                   params: {
                     id: product.id,
                   },
                 })
               }
-
               onBuy={() =>
                 router.push({
                   pathname:
                     "/(customer)/product/[id]",
-
                   params: {
                     id: product.id,
                   },
@@ -616,31 +1013,49 @@ export default function DiscountedProductsScreen() {
               }
             />
 
-            <AppText
-              style={
-                styles.distance
-              }
-            >
-              {item.distance < 1
-                ? `${Math.round(
-                    item.distance *
-                      1000,
-                  )} m away`
-                : `${item.distance.toFixed(
-                    1,
-                  )} km away`}
-            </AppText>
+            {distanceLabel ? (
+              <View
+                style={
+                  styles.distanceRow
+                }
+              >
+                <AppIcon
+                  name="location"
+                  role="customer"
+                  size="xs"
+                  state="muted"
+                />
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={1}
+                >
+                  {distanceLabel}
+                </AppText>
+              </View>
+            ) : null}
           </View>
         );
       },
       [],
     );
 
-  /*
-   * ==========================================================
-   * MAIN
-   * ==========================================================
-   */
+  /* ============================================================
+     KEY EXTRACTOR
+  ============================================================ */
+
+  const keyExtractor =
+    useCallback(
+      (
+        item: DiscountedProduct,
+      ) => item.product.id,
+      [],
+    );
+
+  /* ============================================================
+     MAIN
+  ============================================================ */
 
   return (
     <SafeAreaView
@@ -657,18 +1072,23 @@ export default function DiscountedProductsScreen() {
             ? products
             : []
         }
-        keyExtractor={(item) =>
-          item.product.id
+        keyExtractor={
+          keyExtractor
+        }
+        renderItem={
+          renderProduct
         }
         numColumns={2}
         showsVerticalScrollIndicator={
           false
         }
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.list,
 
-          products.length === 0 &&
-            styles.emptyList,
+          products.length === 0
+            ? styles.emptyList
+            : null,
         ]}
         columnWrapperStyle={
           claimed &&
@@ -676,273 +1096,324 @@ export default function DiscountedProductsScreen() {
             ? styles.row
             : undefined
         }
-        renderItem={
-          renderProduct
-        }
         ListHeaderComponent={
           renderHeader
         }
         ListEmptyComponent={
           renderEmpty
         }
-        keyboardShouldPersistTaps="handled"
-        removeClippedSubviews
         initialNumToRender={6}
-        maxToRenderPerBatch={6}
+        maxToRenderPerBatch={8}
         windowSize={5}
       />
     </SafeAreaView>
   );
 }
 
-/*
- * ============================================================
- * STYLES
- * ============================================================
- */
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
     screen: {
       flex: 1,
       backgroundColor:
-        "#FFFFFF",
+        Colors.background,
     },
 
     header: {
-      flexDirection:
-        "row",
-      alignItems:
-        "flex-start",
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 20,
+      flexDirection: "row",
+      alignItems: "flex-start",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
     },
 
     backButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor:
-        "#FFFFFF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginRight: 12,
-      elevation: 2,
-      shadowColor:
-        "#000000",
-      shadowOpacity: 0.08,
-      shadowRadius: 5,
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
-    },
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-    backIcon: {
-      fontSize: 38,
-      lineHeight: 40,
-      color: "#0F172A",
-      marginTop: -4,
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
       flex: 1,
-      paddingTop: 2,
+      minWidth: 0,
     },
 
     title: {
-      fontSize: 27,
-      color: "#0F172A",
+      color:
+        Colors.textPrimary,
     },
 
     subtitle: {
-      marginTop: 6,
-      fontSize: 15,
-      lineHeight: 22,
-      color: "#64748B",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 21,
     },
 
-    /*
-     * CLAIM
-     */
+    stateContainer: {
+      minHeight: 420,
 
-    claimContainer: {
-      minHeight: 620,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 32,
-      paddingBottom: 80,
+      alignItems: "center",
+      justifyContent: "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxl,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
     },
 
-    tagCircle: {
-      width: 82,
-      height: 82,
-      borderRadius: 41,
+    claimIconBox: {
+      width: 80,
+      height: 80,
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
       backgroundColor:
-        "#EFF6FF",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      marginBottom: 22,
+        CustomerColors.primarySoft,
     },
 
-    tagIcon: {
-      fontSize: 38,
-      color: "#2563EB",
+    errorIconBox: {
+      width: 80,
+      height: 80,
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
-    claimTitle: {
-      fontSize: 24,
-      color: "#0F172A",
-      textAlign: "center",
+    emptyIconBox: {
+      width: 80,
+      height: 80,
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
-    claimDescription: {
-      marginTop: 10,
+    stateTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    stateDescription: {
       maxWidth: 330,
-      fontSize: 15,
-      lineHeight: 23,
-      color: "#64748B",
-      textAlign: "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight: 22,
+    },
+
+    loadingTitle: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    inlineError: {
+      maxWidth: 340,
+
+      flexDirection: "row",
+
+      alignItems: "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
     },
 
     errorText: {
-      marginTop: 16,
-      color: "#DC2626",
-      fontSize: 13,
-      lineHeight: 20,
-      textAlign: "center",
+      flex: 1,
+
+      color:
+        Colors.error,
+
+      lineHeight: 18,
     },
 
-    claimButton: {
+    primaryButton: {
       minWidth: 210,
-      height: 52,
-      borderRadius: 14,
+
+      minHeight:
+        FixxamTokens.size
+          .buttonHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "#2563EB",
-      flexDirection:
-        "row",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 24,
-      marginTop: 26,
-      gap: 10,
+        CustomerColors.primary,
     },
 
-    claimButtonPressed: {
-      opacity: 0.85,
+    retryButton: {
+      minHeight:
+        FixxamTokens.size
+          .buttonSmallHeight,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+      justifyContent: "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
     },
 
-    claimButtonDisabled: {
-      opacity: 0.65,
+    primaryButtonText: {
+      color:
+        Colors.textInverse,
     },
 
-    claimButtonText: {
-      color: "#FFFFFF",
-      fontSize: 16,
+    buttonDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
-    /*
-     * LIST
-     */
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
+    },
 
     list: {
-      paddingHorizontal: 16,
-      paddingBottom: 32,
-    },
+      flexGrow: 1,
 
-    row: {
-      justifyContent:
-        "space-between",
-      marginBottom: 16,
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
     },
-
-    productItem: {
-      width: "48%",
-    },
-
-    distance: {
-      marginTop: 6,
-      fontSize: 12,
-      color: "#64748B",
-      textAlign: "center",
-    },
-
-    /*
-     * EMPTY
-     */
 
     emptyList: {
       flexGrow: 1,
     },
 
-    center: {
-      minHeight: 500,
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 32,
-      paddingBottom: 80,
+    row: {
+      gap:
+        FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
-    loadingTitle: {
-      marginTop: 18,
-      fontSize: 17,
-      color: "#0F172A",
-      textAlign: "center",
+    productItem: {
+      flex: 1,
+      minWidth: 0,
     },
 
-    loadingText: {
-      marginTop: 8,
-      fontSize: 14,
-      lineHeight: 21,
-      color: "#64748B",
-      textAlign: "center",
-    },
+    distanceRow: {
+      minHeight: 24,
 
-    emptyIcon: {
-      fontSize: 48,
-      marginBottom: 18,
-    },
+      flexDirection: "row",
 
-    emptyTitle: {
-      fontSize: 20,
-      color: "#0F172A",
-      textAlign: "center",
-    },
+      alignItems: "center",
+      justifyContent: "center",
 
-    emptyText: {
-      marginTop: 8,
-      fontSize: 14,
-      lineHeight: 22,
-      color: "#64748B",
-      textAlign: "center",
-    },
+      gap:
+        FixxamTokens.spacing.xs,
 
-    retryButton: {
-      marginTop: 20,
-      paddingHorizontal: 24,
-      height: 46,
-      borderRadius: 12,
-      backgroundColor:
-        "#2563EB",
-      alignItems:
-        "center",
-      justifyContent:
-        "center",
-    },
-
-    retryText: {
-      color: "#FFFFFF",
-      fontSize: 14,
+      marginTop:
+        FixxamTokens.spacing.xs,
     },
   });
