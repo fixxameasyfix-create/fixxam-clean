@@ -14,15 +14,11 @@ buildscript {
 }
 
 allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://www.jitpack.io' }
-    }
-}
-
-ext {
-    ndkVersion = "27.1.12297006"
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
 }
 
 apply plugin: "expo-root-project"
