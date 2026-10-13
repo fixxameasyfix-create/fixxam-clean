@@ -4,11 +4,12 @@ import React, {
 } from "react";
 
 import {
+  FlatList,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
+  type ListRenderItem,
 } from "react-native";
 
 import {
@@ -77,6 +78,94 @@ function CategoryPicker({
       [
         onClose,
         onSelect,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER CATEGORY
+  ========================================================== */
+
+  const renderItem =
+    useCallback<
+      ListRenderItem<string>
+    >(
+      ({
+        item: category,
+      }) => {
+        const active =
+          value ===
+          category;
+
+        return (
+          <Pressable
+            onPress={() => {
+              handleSelect(
+                category,
+              );
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`${category} category`}
+            accessibilityState={{
+              selected:
+                active,
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.item,
+
+              active
+                ? styles.activeItem
+                : null,
+
+              pressed
+                ? styles.itemPressed
+                : null,
+            ]}
+          >
+            <AppText
+              variant="body"
+              weight={
+                active
+                  ? "bold"
+                  : undefined
+              }
+              numberOfLines={
+                2
+              }
+              style={[
+                styles.text,
+
+                active
+                  ? styles.activeText
+                  : null,
+              ]}
+            >
+              {category}
+            </AppText>
+
+            {active ? (
+              <View
+                style={
+                  styles.checkContainer
+                }
+              >
+                <AppIcon
+                  name="check"
+                  role="worker"
+                  size="xs"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      },
+      [
+        handleSelect,
+        value,
       ],
     );
 
@@ -183,7 +272,9 @@ function CategoryPicker({
               onPress={
                 onClose
               }
-              hitSlop={8}
+              hitSlop={
+                8
+              }
               accessibilityRole="button"
               accessibilityLabel="Close category picker"
               style={({
@@ -210,88 +301,38 @@ function CategoryPicker({
               CATEGORIES
           ================================================== */}
 
-          <ScrollView
+          <FlatList
+            data={[
+              ...PRODUCT_CATEGORIES,
+            ]}
+            keyExtractor={(
+              category,
+            ) =>
+              category
+            }
+            renderItem={
+              renderItem
+            }
+            extraData={
+              value
+            }
             showsVerticalScrollIndicator={
               false
             }
             keyboardShouldPersistTaps="handled"
-          >
-            {PRODUCT_CATEGORIES.map(
-              category => {
-                const active =
-                  value ===
-                  category;
-
-                return (
-                  <Pressable
-                    key={
-                      category
-                    }
-                    onPress={() => {
-                      handleSelect(
-                        category,
-                      );
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${category} category`}
-                    accessibilityState={{
-                      selected:
-                        active,
-                    }}
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.item,
-
-                      active
-                        ? styles.activeItem
-                        : null,
-
-                      pressed
-                        ? styles.itemPressed
-                        : null,
-                    ]}
-                  >
-                    <AppText
-                      variant="body"
-                      weight={
-                        active
-                          ? "bold"
-                          : undefined
-                      }
-                      numberOfLines={1}
-                      style={[
-                        styles.text,
-
-                        active
-                          ? styles.activeText
-                          : null,
-                      ]}
-                    >
-                      {category}
-                    </AppText>
-
-                    {active ? (
-                      <View
-                        style={
-                          styles.checkContainer
-                        }
-                      >
-                        <AppIcon
-                          name="check"
-                          role="worker"
-                          size="xs"
-                          color={
-                            WorkerColors.primary
-                          }
-                        />
-                      </View>
-                    ) : null}
-                  </Pressable>
-                );
-              },
-            )}
-          </ScrollView>
+            initialNumToRender={
+              16
+            }
+            maxToRenderPerBatch={
+              16
+            }
+            windowSize={
+              7
+            }
+            contentContainerStyle={
+              styles.listContent
+            }
+          />
         </View>
       </View>
     </Modal>
@@ -318,12 +359,9 @@ export default MemoizedCategoryPicker;
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       OVERLAY
-    ======================================================== */
-
     overlay: {
-      flex: 1,
+      flex:
+        1,
 
       justifyContent:
         "flex-end",
@@ -331,10 +369,6 @@ const styles =
       backgroundColor:
         Colors.overlayMedium,
     },
-
-    /* ========================================================
-       SHEET
-    ======================================================== */
 
     sheet: {
       maxHeight:
@@ -359,9 +393,11 @@ const styles =
     },
 
     handle: {
-      width: 40,
+      width:
+        40,
 
-      height: 4,
+      height:
+        4,
 
       alignSelf:
         "center",
@@ -375,10 +411,6 @@ const styles =
       backgroundColor:
         Colors.border,
     },
-
-    /* ========================================================
-       HEADER
-    ======================================================== */
 
     header: {
       marginBottom:
@@ -395,9 +427,11 @@ const styles =
     },
 
     headerContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     title: {
@@ -409,7 +443,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
 
       color:
         Colors.textSecondary,
@@ -422,7 +457,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -437,15 +473,20 @@ const styles =
         Colors.disabledBackground,
     },
 
-    /* ========================================================
-       ITEM
-    ======================================================== */
+    listContent: {
+      paddingBottom:
+        FixxamTokens.spacing.sm,
+    },
 
     item: {
-      minHeight: 56,
+      minHeight:
+        56,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -459,7 +500,8 @@ const styles =
       gap:
         FixxamTokens.spacing.md,
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        1,
 
       borderBottomColor:
         Colors.divider,
@@ -477,7 +519,8 @@ const styles =
     },
 
     text: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         Colors.textPrimary,
@@ -489,11 +532,14 @@ const styles =
     },
 
     checkContainer: {
-      width: 32,
+      width:
+        32,
 
-      height: 32,
+      height:
+        32,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -508,19 +554,13 @@ const styles =
         Colors.surface,
     },
 
-    /* ========================================================
-       STATES
-    ======================================================== */
-
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
     },
 
     itemPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
     },
   });

@@ -52,11 +52,8 @@ import {
 } from "@/theme";
 
 import MakeOfferHeader from "@/components/orders/make-offer/MakeOfferHeader";
-
 import MakeOfferOrderCard from "@/components/orders/make-offer/MakeOfferOrderCard";
-
 import MakeOfferFormSections from "@/components/orders/make-offer/MakeOfferFormSections";
-
 import MakeOfferSummarySection from "@/components/orders/make-offer/MakeOfferSummarySection";
 
 import {
@@ -104,6 +101,18 @@ type CounterOfferStatus =
 type BookingData = {
   serviceName: string;
 
+  serviceIcon:
+    | string
+    | null;
+
+  serviceIconColor:
+    | string
+    | null;
+
+  serviceIconBackground:
+    | string
+    | null;
+
   customerName: string;
 
   workerId: string;
@@ -114,33 +123,60 @@ type BookingData = {
 
   offerRound: number;
 
-  offerAmount?: number | null;
+  offerAmount?:
+    | number
+    | null;
 
-  offerMessage?: string | null;
+  offerMessage?:
+    | string
+    | null;
 
-  counterOfferAmount?: number | null;
+  counterOfferAmount?:
+    | number
+    | null;
 
-  counterOfferMessage?: string | null;
+  counterOfferMessage?:
+    | string
+    | null;
 
-  counterOfferBy: CounterOfferBy;
+  counterOfferBy:
+    CounterOfferBy;
 
-  counterOfferStatus: CounterOfferStatus;
+  counterOfferStatus:
+    CounterOfferStatus;
 
-  negotiationStatus?: string | null;
+  negotiationStatus?:
+    | string
+    | null;
+};
+
+type UnavailableState = {
+  icon: AppIconName;
+
+  iconColor: string;
+
+  iconBackground: string;
+
+  title: string;
+
+  description: string;
 };
 
 /* ==============================================================
    CONSTANTS
 ============================================================== */
 
+const MIN_AMOUNT =
+  1;
+
+const MAX_AMOUNT =
+  100_000_000;
+
 const MAX_MESSAGE_LENGTH =
   300;
 
 const MIN_MESSAGE_LENGTH =
   3;
-
-const MAX_AMOUNT =
-  999_999_999;
 
 const INITIAL_OFFER_ROUND =
   0;
@@ -164,6 +200,18 @@ function cleanString(
     : "";
 }
 
+function formatCurrency(
+  value: number,
+): string {
+  return `₦${value.toLocaleString(
+    "en-NG",
+  )}`;
+}
+
+/* ==============================================================
+   STATUS
+============================================================== */
+
 function normalizeStatus(
   value: unknown,
 ): BookingStatus {
@@ -172,12 +220,14 @@ function normalizeStatus(
       return "accepted";
 
     case "in-progress":
+    case "in_progress":
       return "in-progress";
 
     case "completed":
       return "completed";
 
     case "cancelled":
+    case "canceled":
       return "cancelled";
 
     case "expired":
@@ -188,6 +238,10 @@ function normalizeStatus(
       return "pending";
   }
 }
+
+/* ==============================================================
+   OFFER STATUS
+============================================================== */
 
 function normalizeOfferStatus(
   value: unknown,
@@ -210,6 +264,10 @@ function normalizeOfferStatus(
       return "none";
   }
 }
+
+/* ==============================================================
+   COUNTER OFFER
+============================================================== */
 
 function normalizeCounterOfferBy(
   value: unknown,
@@ -245,6 +303,10 @@ function normalizeCounterOfferStatus(
   }
 }
 
+/* ==============================================================
+   OFFER ROUND
+============================================================== */
+
 function normalizeRound(
   value: unknown,
 ): number {
@@ -266,6 +328,10 @@ function normalizeRound(
   );
 }
 
+/* ==============================================================
+   AMOUNT
+============================================================== */
+
 function normalizeOptionalAmount(
   value: unknown,
 ): number | null {
@@ -283,6 +349,41 @@ function normalizeOptionalAmount(
   return value;
 }
 
+function getAmountError(
+  value: number,
+): string | null {
+  if (
+    !Number.isFinite(
+      value,
+    ) ||
+    value < MIN_AMOUNT
+  ) {
+    return "Enter a valid offer amount.";
+  }
+
+  if (
+    !Number.isInteger(
+      value,
+    )
+  ) {
+    return "Offer amount must be a whole number.";
+  }
+
+  if (
+    value > MAX_AMOUNT
+  ) {
+    return `Maximum offer is ${formatCurrency(
+      MAX_AMOUNT,
+    )}.`;
+  }
+
+  return null;
+}
+
+/* ==============================================================
+   BOOKING MAPPER
+============================================================== */
+
 function mapBooking(
   data: Record<
     string,
@@ -290,12 +391,54 @@ function mapBooking(
   >,
   workerId: string,
 ): BookingData {
+  const serviceIcon =
+    cleanString(
+      data.serviceIcon,
+    ) ||
+    cleanString(
+      data.icon,
+    ) ||
+    cleanString(
+      data.categoryIcon,
+    ) ||
+    null;
+
+  const serviceIconColor =
+    cleanString(
+      data.serviceIconColor,
+    ) ||
+    cleanString(
+      data.iconColor,
+    ) ||
+    cleanString(
+      data.categoryIconColor,
+    ) ||
+    null;
+
+  const serviceIconBackground =
+    cleanString(
+      data.serviceIconBackground,
+    ) ||
+    cleanString(
+      data.backgroundColor,
+    ) ||
+    cleanString(
+      data.categoryBackgroundColor,
+    ) ||
+    null;
+
   return {
     serviceName:
       cleanString(
         data.serviceName,
       ) ||
       "Service request",
+
+    serviceIcon,
+
+    serviceIconColor,
+
+    serviceIconBackground,
 
     customerName:
       cleanString(
@@ -361,7 +504,7 @@ function mapBooking(
 }
 
 /* ==============================================================
-   OFFER ERROR
+   FRIENDLY APP ERROR
 ============================================================== */
 
 function showOfferError(
@@ -373,31 +516,16 @@ function showOfferError(
     };
 
   if (
-    firebaseError?.code ===
-    "permission-denied"
-  ) {
-    Toast.show({
-      type: "error",
-
-      text1:
-        "Permission denied",
-
-      text2:
-        "You are not allowed to send this offer.",
-    });
-
-    return;
-  }
-
-  if (
-    error instanceof Error
+    error instanceof
+    Error
   ) {
     switch (
       error.message
     ) {
       case "ORDER_NOT_FOUND":
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
             "Order not found",
@@ -410,10 +538,11 @@ function showOfferError(
 
       case "ACCESS_DENIED":
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
-            "Access denied",
+            "Offer not available",
 
           text2:
             "You cannot send an offer for this order.",
@@ -423,7 +552,8 @@ function showOfferError(
 
       case "ORDER_NOT_PENDING":
         Toast.show({
-          type: "info",
+          type:
+            "info",
 
           text1:
             "Order unavailable",
@@ -436,10 +566,11 @@ function showOfferError(
 
       case "OFFER_NOT_AVAILABLE":
         Toast.show({
-          type: "info",
+          type:
+            "info",
 
           text1:
-            "Offer unavailable",
+            "Offer already updated",
 
           text2:
             "This order already has an offer or negotiation in progress.",
@@ -449,13 +580,32 @@ function showOfferError(
 
       case "INVALID_OFFER_ROUND":
         Toast.show({
-          type: "info",
+          type:
+            "info",
 
           text1:
             "Negotiation already started",
 
           text2:
-            "This order is already in a negotiation round.",
+            "Open the order to continue the negotiation.",
+        });
+
+        return;
+
+      case "INVALID_AMOUNT":
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Invalid price",
+
+          text2:
+            `Offer must be between ${formatCurrency(
+              MIN_AMOUNT,
+            )} and ${formatCurrency(
+              MAX_AMOUNT,
+            )}.`,
         });
 
         return;
@@ -465,15 +615,154 @@ function showOfferError(
     }
   }
 
+  if (
+    firebaseError?.code ===
+      "permission-denied" ||
+    firebaseError?.code ===
+      "firestore/permission-denied"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Offer not sent",
+
+      text2:
+        "The order changed or this offer is no longer available. Refresh and try again.",
+    });
+
+    return;
+  }
+
+  if (
+    firebaseError?.code ===
+      "unavailable" ||
+    firebaseError?.code ===
+      "firestore/unavailable"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Connection problem",
+
+      text2:
+        "Check your internet connection and try again.",
+    });
+
+    return;
+  }
+
   Toast.show({
-    type: "error",
+    type:
+      "error",
 
     text1:
-      "Unable to send offer",
+      "Offer not sent",
 
     text2:
       "Something went wrong. Please try again.",
   });
+}
+
+/* ==============================================================
+   UNAVAILABLE STATE
+============================================================== */
+
+function getUnavailableState(
+  booking: BookingData,
+): UnavailableState | null {
+  if (
+    booking.status !==
+    "pending"
+  ) {
+    return {
+      icon:
+        "warning",
+
+      iconColor:
+        Colors.warning,
+
+      iconBackground:
+        Colors.warningSoft,
+
+      title:
+        "Order unavailable",
+
+      description:
+        "This order is no longer accepting offers.",
+    };
+  }
+
+  if (
+    booking.offerStatus ===
+    "sent"
+  ) {
+    return {
+      icon:
+        "success",
+
+      iconColor:
+        Colors.success,
+
+      iconBackground:
+        Colors.successSoft,
+
+      title:
+        "Offer already sent",
+
+      description:
+        "Your offer is already waiting for the customer.",
+    };
+  }
+
+  if (
+    booking.offerStatus !==
+    "none"
+  ) {
+    return {
+      icon:
+        "info",
+
+      iconColor:
+        Colors.info,
+
+      iconBackground:
+        Colors.infoSoft,
+
+      title:
+        "Offer unavailable",
+
+      description:
+        "This order already has an active offer or negotiation.",
+    };
+  }
+
+  if (
+    booking.offerRound !==
+    INITIAL_OFFER_ROUND
+  ) {
+    return {
+      icon:
+        "messages",
+
+      iconColor:
+        Colors.warning,
+
+      iconBackground:
+        Colors.warningSoft,
+
+      title:
+        "Negotiation started",
+
+      description:
+        "Open the order to continue the negotiation.",
+    };
+  }
+
+  return null;
 }
 
 /* ==============================================================
@@ -529,9 +818,7 @@ export default function MakeOfferScreen() {
   ] =
     useState<
       string | null
-    >(
-      null,
-    );
+    >(null);
 
   /* ============================================================
      BOOKING
@@ -557,9 +844,7 @@ export default function MakeOfferScreen() {
   ] =
     useState<
       string | null
-    >(
-      null,
-    );
+    >(null);
 
   /* ============================================================
      FORM
@@ -614,7 +899,7 @@ export default function MakeOfferScreen() {
   }, []);
 
   /* ============================================================
-     REALTIME BOOKING
+     BOOKING LISTENER
   ============================================================ */
 
   useEffect(() => {
@@ -697,10 +982,13 @@ export default function MakeOfferScreen() {
           const data =
             snapshot.data();
 
-          if (
+          const bookingWorkerId =
             cleanString(
               data.workerId,
-            ) !==
+            );
+
+          if (
+            bookingWorkerId !==
             workerId
           ) {
             setBooking(
@@ -735,10 +1023,12 @@ export default function MakeOfferScreen() {
         },
 
         snapshotError => {
-          console.error(
-            "MAKE_OFFER_BOOKING_LISTENER_ERROR:",
-            snapshotError,
-          );
+          if (__DEV__) {
+            console.error(
+              "MAKE_OFFER_BOOKING_LISTENER_ERROR:",
+              snapshotError,
+            );
+          }
 
           setBooking(
             null,
@@ -782,7 +1072,7 @@ export default function MakeOfferScreen() {
           cleaned,
         );
 
-      return Number.isFinite(
+      return Number.isSafeInteger(
         value,
       )
         ? value
@@ -792,20 +1082,18 @@ export default function MakeOfferScreen() {
     ]);
 
   const formattedAmount =
-    useMemo(() => {
-      if (
-        numericAmount <=
+    useMemo(
+      () =>
+        numericAmount >
         0
-      ) {
-        return "₦0";
-      }
-
-      return `₦${numericAmount.toLocaleString(
-        "en-NG",
-      )}`;
-    }, [
-      numericAmount,
-    ]);
+          ? formatCurrency(
+              numericAmount,
+            )
+          : "₦0",
+      [
+        numericAmount,
+      ],
+    );
 
   /* ============================================================
      VALIDATION
@@ -814,11 +1102,30 @@ export default function MakeOfferScreen() {
   const cleanMessage =
     message.trim();
 
+  const amountError =
+    useMemo(
+      () => {
+        if (!amount) {
+          return null;
+        }
+
+        return getAmountError(
+          numericAmount,
+        );
+      },
+      [
+        amount,
+        numericAmount,
+      ],
+    );
+
   const amountValid =
-    numericAmount >
-      0 &&
+    numericAmount >=
+      MIN_AMOUNT &&
     numericAmount <=
-      MAX_AMOUNT;
+      MAX_AMOUNT &&
+    amountError ===
+      null;
 
   const messageValid =
     cleanMessage.length >=
@@ -828,19 +1135,17 @@ export default function MakeOfferScreen() {
 
   const orderValid =
     Boolean(
-      booking,
-    ) &&
-    Boolean(
-      workerId,
-    ) &&
-    booking?.workerId ===
+      booking &&
       workerId &&
-    booking?.status ===
-      "pending" &&
-    booking?.offerStatus ===
-      "none" &&
-    booking?.offerRound ===
-      INITIAL_OFFER_ROUND;
+      booking.workerId ===
+        workerId &&
+      booking.status ===
+        "pending" &&
+      booking.offerStatus ===
+        "none" &&
+      booking.offerRound ===
+        INITIAL_OFFER_ROUND,
+    );
 
   const canSubmit =
     authReady &&
@@ -850,6 +1155,46 @@ export default function MakeOfferScreen() {
     amountValid &&
     messageValid &&
     !submitting;
+
+  /* ============================================================
+     SUBMIT HINT
+  ============================================================ */
+
+  const submitHint =
+    useMemo(() => {
+      if (
+        !amount
+      ) {
+        return "Enter your price to continue";
+      }
+
+      if (
+        amountError
+      ) {
+        return amountError;
+      }
+
+      if (
+        cleanMessage.length <
+        MIN_MESSAGE_LENGTH
+      ) {
+        return "Add a short note about what your price includes";
+      }
+
+      if (
+        cleanMessage.length >
+        MAX_MESSAGE_LENGTH
+      ) {
+        return `Keep your note within ${MAX_MESSAGE_LENGTH} characters`;
+      }
+
+      return `Ready to send ${formattedAmount}`;
+    }, [
+      amount,
+      amountError,
+      cleanMessage.length,
+      formattedAmount,
+    ]);
 
   /* ============================================================
      AMOUNT CHANGE
@@ -868,7 +1213,7 @@ export default function MakeOfferScreen() {
 
         if (
           cleaned.length >
-          9
+          12
         ) {
           return;
         }
@@ -914,7 +1259,8 @@ export default function MakeOfferScreen() {
 
         if (!workerId) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Sign in required",
@@ -930,7 +1276,8 @@ export default function MakeOfferScreen() {
           !resolvedOrderId
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Invalid order",
@@ -944,7 +1291,8 @@ export default function MakeOfferScreen() {
 
         if (!booking) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Order unavailable",
@@ -961,10 +1309,11 @@ export default function MakeOfferScreen() {
           workerId
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Access denied",
+              "Offer unavailable",
 
             text2:
               "You cannot send an offer for this order.",
@@ -978,7 +1327,8 @@ export default function MakeOfferScreen() {
           "pending"
         ) {
           Toast.show({
-            type: "info",
+            type:
+              "info",
 
             text1:
               "Order unavailable",
@@ -995,7 +1345,8 @@ export default function MakeOfferScreen() {
           "none"
         ) {
           Toast.show({
-            type: "info",
+            type:
+              "info",
 
             text1:
               "Offer unavailable",
@@ -1012,31 +1363,36 @@ export default function MakeOfferScreen() {
           INITIAL_OFFER_ROUND
         ) {
           Toast.show({
-            type: "info",
+            type:
+              "info",
 
             text1:
               "Negotiation already started",
 
             text2:
-              "This order is already in a negotiation round.",
+              "Open the order to continue the negotiation.",
           });
 
           return;
         }
 
+        const currentAmountError =
+          getAmountError(
+            numericAmount,
+          );
+
         if (
-          !amountValid
+          currentAmountError
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Invalid offer amount",
+              "Invalid price",
 
             text2:
-              `Enter an amount between ₦1 and ₦${MAX_AMOUNT.toLocaleString(
-                "en-NG",
-              )}.`,
+              currentAmountError,
           });
 
           return;
@@ -1047,13 +1403,14 @@ export default function MakeOfferScreen() {
           MIN_MESSAGE_LENGTH
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Message required",
+              "Short note required",
 
             text2:
-              "Please explain what your offer includes.",
+              `Write at least ${MIN_MESSAGE_LENGTH} characters about what your price includes.`,
           });
 
           return;
@@ -1064,13 +1421,14 @@ export default function MakeOfferScreen() {
           MAX_MESSAGE_LENGTH
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Message too long",
+              "Note too long",
 
             text2:
-              `Keep your message within ${MAX_MESSAGE_LENGTH} characters.`,
+              `Keep your note within ${MAX_MESSAGE_LENGTH} characters.`,
           });
 
           return;
@@ -1117,7 +1475,8 @@ export default function MakeOfferScreen() {
               if (
                 cleanString(
                   latestData.workerId,
-                ) !== workerId
+                ) !==
+                workerId
               ) {
                 throw new Error(
                   "ACCESS_DENIED",
@@ -1129,7 +1488,9 @@ export default function MakeOfferScreen() {
               ================================================= */
 
               if (
-                latestData.status !==
+                normalizeStatus(
+                  latestData.status,
+                ) !==
                 "pending"
               ) {
                 throw new Error(
@@ -1142,7 +1503,9 @@ export default function MakeOfferScreen() {
               ================================================= */
 
               if (
-                latestData.offerStatus !==
+                normalizeOfferStatus(
+                  latestData.offerStatus,
+                ) !==
                 "none"
               ) {
                 throw new Error(
@@ -1169,6 +1532,23 @@ export default function MakeOfferScreen() {
               }
 
               /* ================================================
+                 AMOUNT
+              ================================================= */
+
+              const latestAmountError =
+                getAmountError(
+                  numericAmount,
+                );
+
+              if (
+                latestAmountError
+              ) {
+                throw new Error(
+                  "INVALID_AMOUNT",
+                );
+              }
+
+              /* ================================================
                  EXPIRY
               ================================================= */
 
@@ -1182,7 +1562,7 @@ export default function MakeOfferScreen() {
                 );
 
               /* ================================================
-                 UPDATE
+                 FIRESTORE UPDATE
               ================================================= */
 
               transaction.update(
@@ -1240,13 +1620,14 @@ export default function MakeOfferScreen() {
           );
 
           Toast.show({
-            type: "success",
+            type:
+              "success",
 
             text1:
               "Offer sent",
 
             text2:
-              `Your offer of ${formattedAmount} was sent to ${booking.customerName}.`,
+              `${formattedAmount} sent to ${booking.customerName}.`,
           });
 
           router.replace({
@@ -1272,11 +1653,15 @@ export default function MakeOfferScreen() {
                 cleanMessage,
             },
           } as never);
-        } catch (sendError) {
-          console.error(
-            "SEND_WORKER_OFFER_ERROR:",
-            sendError,
-          );
+        } catch (
+          sendError
+        ) {
+          if (__DEV__) {
+            console.error(
+              "SEND_WORKER_OFFER_ERROR:",
+              sendError,
+            );
+          }
 
           showOfferError(
             sendError,
@@ -1291,7 +1676,6 @@ export default function MakeOfferScreen() {
         }
       },
       [
-        amountValid,
         booking,
         cleanMessage,
         formattedAmount,
@@ -1350,7 +1734,7 @@ export default function MakeOfferScreen() {
           </View>
 
           <AppText
-            variant="body"
+            variant="caption"
             tone="secondary"
             center
             style={
@@ -1365,7 +1749,7 @@ export default function MakeOfferScreen() {
   }
 
   /* ============================================================
-     ERROR
+     LOAD ERROR
   ============================================================ */
 
   if (
@@ -1395,105 +1779,20 @@ export default function MakeOfferScreen() {
   }
 
   /* ============================================================
-     ORDER NO LONGER PENDING
+     AVAILABILITY
   ============================================================ */
 
-  if (
-    booking.status !==
-    "pending"
-  ) {
-    return (
-      <CenteredState
-        icon="warning"
-        iconColor={
-          Colors.warning
-        }
-        iconBackground={
-          Colors.warningSoft
-        }
-        title="Order unavailable"
-        description="This order is no longer accepting offers."
-        buttonTitle="Back to Order"
-        onPress={
-          handleCancel
-        }
-      />
+  const unavailableState =
+    getUnavailableState(
+      booking,
     );
-  }
-
-  /* ============================================================
-     OFFER ALREADY SENT
-  ============================================================ */
 
   if (
-    booking.offerStatus ===
-    "sent"
+    unavailableState
   ) {
     return (
       <CenteredState
-        icon="success"
-        iconColor={
-          Colors.success
-        }
-        iconBackground={
-          Colors.successSoft
-        }
-        title="Offer already sent"
-        description="You have already sent an offer for this order."
-        buttonTitle="Back to Order"
-        onPress={
-          handleCancel
-        }
-      />
-    );
-  }
-
-  /* ============================================================
-     OTHER OFFER STATE
-  ============================================================ */
-
-  if (
-    booking.offerStatus !==
-    "none"
-  ) {
-    return (
-      <CenteredState
-        icon="info"
-        iconColor={
-          Colors.info
-        }
-        iconBackground={
-          Colors.infoSoft
-        }
-        title="Offer unavailable"
-        description="This order already has an offer response or negotiation state."
-        buttonTitle="Back to Order"
-        onPress={
-          handleCancel
-        }
-      />
-    );
-  }
-
-  /* ============================================================
-     NEGOTIATION STARTED
-  ============================================================ */
-
-  if (
-    booking.offerRound !==
-    INITIAL_OFFER_ROUND
-  ) {
-    return (
-      <CenteredState
-        icon="messages"
-        iconColor={
-          Colors.warning
-        }
-        iconBackground={
-          Colors.warningSoft
-        }
-        title="Negotiation already started"
-        description="This order is already in a negotiation round."
+        {...unavailableState}
         buttonTitle="Back to Order"
         onPress={
           handleCancel
@@ -1569,10 +1868,49 @@ export default function MakeOfferScreen() {
             customerName={
               booking.customerName
             }
+            icon={
+              booking.serviceIcon
+            }
+            iconColor={
+              booking.serviceIconColor
+            }
+            backgroundColor={
+              booking.serviceIconBackground
+            }
           />
 
           {/* ==================================================
-              AMOUNT + MESSAGE
+              INTRO
+          ================================================== */}
+
+          <View
+            style={
+              styles.intro
+            }
+          >
+            <AppText
+              variant="heading3"
+              weight="bold"
+              style={
+                styles.introTitle
+              }
+            >
+              Set your price
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.introText
+              }
+            >
+              Enter your price and a short note for the customer.
+            </AppText>
+          </View>
+
+          {/* ==================================================
+              FORM
           ================================================== */}
 
           <MakeOfferFormSections
@@ -1612,35 +1950,94 @@ export default function MakeOfferScreen() {
           />
 
           {/* ==================================================
+              INLINE VALIDATION
+          ================================================== */}
+
+          {amountError ? (
+            <View
+              style={
+                styles.validationError
+              }
+            >
+              <AppIcon
+                name="warning"
+                size="xs"
+                color={
+                  Colors.error
+                }
+              />
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.validationErrorText
+                }
+              >
+                {amountError}
+              </AppText>
+            </View>
+          ) : null}
+
+          {/* ==================================================
               SUMMARY
           ================================================== */}
 
-          <MakeOfferSummarySection
-            serviceName={
-              booking.serviceName
-            }
-            customerName={
-              booking.customerName
-            }
-            formattedAmount={
-              formattedAmount
-            }
-          />
+          {amountValid &&
+          messageValid ? (
+            <View
+              style={
+                styles.summary
+              }
+            >
+              <MakeOfferSummarySection
+                serviceName={
+                  booking.serviceName
+                }
+                customerName={
+                  booking.customerName
+                }
+                formattedAmount={
+                  formattedAmount
+                }
+              />
+            </View>
+          ) : null}
 
           {/* ==================================================
-              SEND
+              ACTIONS
           ================================================== */}
 
           <View
             style={
-              styles.sendAction
+              styles.actions
             }
           >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              center
+              style={[
+                styles.submitHint,
+
+                canSubmit
+                  ? styles.submitHintReady
+                  : null,
+
+                amountError
+                  ? styles.submitHintError
+                  : null,
+              ]}
+            >
+              {submitHint}
+            </AppText>
+
             <AppButton
               title={
                 submitting
-                  ? "Sending Offer..."
-                  : "Send Offer"
+                  ? "Sending..."
+                  : amountValid
+                    ? `Send ${formattedAmount} Offer`
+                    : "Send Offer"
               }
               role="worker"
               variant="primary"
@@ -1654,44 +2051,25 @@ export default function MakeOfferScreen() {
                 handleSendOffer
               }
             />
-          </View>
 
-          {/* ==================================================
-              CANCEL
-          ================================================== */}
-
-          <View
-            style={
-              styles.cancelAction
-            }
-          >
-            <AppButton
-              title="Cancel"
-              role="worker"
-              variant="ghost"
-              disabled={
-                submitting
+            <View
+              style={
+                styles.cancelAction
               }
-              onPress={
-                handleCancel
-              }
-            />
+            >
+              <AppButton
+                title="Cancel"
+                role="worker"
+                variant="ghost"
+                disabled={
+                  submitting
+                }
+                onPress={
+                  handleCancel
+                }
+              />
+            </View>
           </View>
-
-          {/* ==================================================
-              FOOTER
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            center
-            style={
-              styles.footer
-            }
-          >
-            Order #{resolvedOrderId}
-          </AppText>
         </ScrollView>
       </KeyboardAvoidingView>
     </AppScreen>
@@ -1740,7 +2118,6 @@ function CenteredState({
         <View
           style={[
             styles.stateIcon,
-
             {
               backgroundColor:
                 iconBackground,
@@ -1763,7 +2140,7 @@ function CenteredState({
           weight="bold"
           center
           style={
-            styles.errorTitle
+            styles.stateTitle
           }
         >
           {title}
@@ -1774,7 +2151,7 @@ function CenteredState({
           tone="secondary"
           center
           style={
-            styles.errorText
+            styles.stateText
           }
         >
           {description}
@@ -1835,44 +2212,126 @@ const styles =
       flexGrow: 1,
 
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       paddingBottom:
-        FixxamTokens.spacing.xxxl,
+        FixxamTokens.spacing.xl,
+    },
+
+    /* ========================================================
+       INTRO
+    ======================================================== */
+
+    intro: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    introTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    introText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 17,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       VALIDATION
+    ======================================================== */
+
+    validationError: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
+    validationErrorText: {
+      flex: 1,
+
+      lineHeight: 17,
+
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       SUMMARY
+    ======================================================== */
+
+    summary: {
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
        ACTIONS
     ======================================================== */
 
-    sendAction: {
+    actions: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.md,
+    },
+
+    submitHint: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textMuted,
+    },
+
+    submitHintReady: {
+      color:
+        WorkerColors.primary,
+    },
+
+    submitHintError: {
+      color:
+        Colors.error,
     },
 
     cancelAction: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    footer: {
-      width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textMuted,
+        FixxamTokens.spacing.xxs,
     },
 
     /* ========================================================
@@ -1884,10 +2343,10 @@ const styles =
 
       width: "100%",
 
-      minHeight: 560,
+      minHeight: 420,
 
       paddingHorizontal:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
 
       alignItems:
         "center",
@@ -1897,11 +2356,9 @@ const styles =
     },
 
     loadingIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
+      width: 48,
 
-      height:
-        FixxamTokens.size.avatarLg,
+      height: 48,
 
       alignItems:
         "center",
@@ -1918,18 +2375,16 @@ const styles =
 
     loadingText: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       color:
         Colors.textSecondary,
     },
 
     stateIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
+      width: 52,
 
-      height:
-        FixxamTokens.size.avatarLg,
+      height: 52,
 
       alignItems:
         "center",
@@ -1938,24 +2393,24 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
     },
 
-    errorTitle: {
+    stateTitle: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       color:
         Colors.textPrimary,
     },
 
-    errorText: {
-      maxWidth: 300,
+    stateText: {
+      maxWidth: 290,
 
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      lineHeight: 20,
+      lineHeight: 19,
 
       color:
         Colors.textSecondary,
@@ -1964,9 +2419,9 @@ const styles =
     stateAction: {
       width: "100%",
 
-      maxWidth: 230,
+      maxWidth: 220,
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
     },
   });

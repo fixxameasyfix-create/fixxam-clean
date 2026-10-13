@@ -7,6 +7,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -16,6 +17,11 @@ import {
 import {
   router,
 } from "expo-router";
+
+import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
 
 import {
   AppIcon,
@@ -29,10 +35,30 @@ import {
 } from "@/theme";
 
 import ProductGridCard from "./ProductGridCard";
+import ProductReviewModal from "./ProductReviewModal";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
+
+import {
+  subscribeToProductRatingCount,
+  toggleProductRating,
+} from "@/services/productRatingService";
+
+import {
+  createProductReview,
+  subscribeToProductReviewCount,
+} from "@/services/productReviewService";
+
+import {
+  ensureWorkerRated,
+} from "@/services/workerRatingService";
+
+import {
+  auth,
+  db,
+} from "@/firebase/config";
 
 /* ==============================================================
    TYPES
@@ -50,6 +76,8 @@ interface Product {
   storeId?: string;
 
   workerId?: string;
+
+  workerRating?: number;
 }
 
 interface ProductWithDeal
@@ -65,13 +93,60 @@ interface Props {
   loading: boolean;
 }
 
+type ProductRatingCounts =
+  Record<string, number>;
+
+type ProductRatingLoading =
+  Record<string, boolean>;
+
+type ProductReviewCounts =
+  Record<string, number>;
+
+type SelectedReviewProduct = {
+  id: string;
+
+  name: string;
+
+  workerId: string;
+};
+
 /* ==============================================================
    CONSTANTS
 ============================================================== */
 
 const PRODUCT_LIMIT = 10;
 
-const PRODUCT_CARD_WIDTH = 200;
+const PRODUCT_CARD_WIDTH = 168;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanId(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function cleanProfileName(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
 
 /* ==============================================================
    COMPONENT
@@ -95,6 +170,44 @@ export default function NewArrivals({
   ] =
     useState(false);
 
+  const [
+    ratingCounts,
+    setRatingCounts,
+  ] =
+    useState<ProductRatingCounts>(
+      {},
+    );
+
+  const [
+    ratingLoading,
+    setRatingLoading,
+  ] =
+    useState<ProductRatingLoading>(
+      {},
+    );
+
+  const [
+    reviewCounts,
+    setReviewCounts,
+  ] =
+    useState<ProductReviewCounts>(
+      {},
+    );
+
+  const [
+    selectedReviewProduct,
+    setSelectedReviewProduct,
+  ] =
+    useState<
+      SelectedReviewProduct | null
+    >(null);
+
+  const [
+    reviewSubmitting,
+    setReviewSubmitting,
+  ] =
+    useState(false);
+
   /* ============================================================
      VISIBLE PRODUCTS
   ============================================================ */
@@ -102,21 +215,53 @@ export default function NewArrivals({
   const visibleProducts =
     useMemo(
       () =>
-        Array.isArray(products)
+        Array.isArray(
+          products,
+        )
           ? products
               .filter(
-                (product) =>
+                product =>
                   typeof product.id ===
                     "string" &&
-                  product.id.trim()
-                    .length > 0,
+                  product.id
+                    .trim()
+                    .length >
+                    0,
               )
               .slice(
                 0,
                 PRODUCT_LIMIT,
               )
           : [],
-      [products],
+      [
+        products,
+      ],
+    );
+
+  /* ============================================================
+     PRODUCT IDS
+  ============================================================ */
+
+  const visibleProductIds =
+    useMemo(
+      () =>
+        [
+          ...new Set(
+            visibleProducts
+              .map(
+                product =>
+                  cleanId(
+                    product.id,
+                  ),
+              )
+              .filter(
+                Boolean,
+              ),
+          ),
+        ],
+      [
+        visibleProducts,
+      ],
     );
 
   /* ============================================================
@@ -129,13 +274,16 @@ export default function NewArrivals({
     >(
       () =>
         visibleProducts.map(
-          (product) => ({
+          product => ({
             ...product,
 
-            activeDeal: null,
+            activeDeal:
+              null,
           }),
         ),
-      [visibleProducts],
+      [
+        visibleProducts,
+      ],
     );
 
   /* ============================================================
@@ -143,7 +291,8 @@ export default function NewArrivals({
   ============================================================ */
 
   useEffect(() => {
-    let cancelled = false;
+    let cancelled =
+      false;
 
     const loadDeals =
       async () => {
@@ -162,13 +311,6 @@ export default function NewArrivals({
           return;
         }
 
-        /*
-         * Immediately move to the latest
-         * product set so stale products
-         * from a previous render cannot
-         * remain visible while deal data
-         * is loading.
-         */
         setProductsWithDeals(
           fallbackProducts,
         );
@@ -181,7 +323,7 @@ export default function NewArrivals({
           const productIds = [
             ...new Set(
               visibleProducts.map(
-                (product) =>
+                product =>
                   product.id,
               ),
             ),
@@ -199,45 +341,53 @@ export default function NewArrivals({
               productIds,
             );
 
-          if (cancelled) {
+          if (
+            cancelled
+          ) {
             return;
           }
 
           const mergedProducts =
             visibleProducts.map(
-              (product) => ({
+              product => ({
                 ...product,
 
                 activeDeal:
                   dealsByProductId.get(
                     product.id,
-                  ) ?? null,
+                  ) ??
+                  null,
               }),
             );
 
           setProductsWithDeals(
             mergedProducts,
           );
-        } catch (error) {
-          console.error(
-            "NEW_ARRIVALS_DEAL_LOAD_ERROR",
-            error,
-          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "NEW_ARRIVALS_DEAL_LOAD_ERROR",
+              error,
+            );
+          }
 
-          if (cancelled) {
+          if (
+            cancelled
+          ) {
             return;
           }
 
-          /*
-           * Deals are optional UI data.
-           * A deal failure must never
-           * hide valid market products.
-           */
           setProductsWithDeals(
             fallbackProducts,
           );
         } finally {
-          if (!cancelled) {
+          if (
+            !cancelled
+          ) {
             setDealsLoading(
               false,
             );
@@ -248,7 +398,8 @@ export default function NewArrivals({
     void loadDeals();
 
     return () => {
-      cancelled = true;
+      cancelled =
+        true;
     };
   }, [
     fallbackProducts,
@@ -256,11 +407,226 @@ export default function NewArrivals({
   ]);
 
   /* ============================================================
+     PRODUCT RATING COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      visibleProductIds.length ===
+      0
+    ) {
+      setRatingCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        visibleProductIds,
+      );
+
+    setRatingCounts(
+      current => {
+        const next:
+          ProductRatingCounts =
+          {};
+
+        for (
+          const productId of
+          visibleProductIds
+        ) {
+          next[productId] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      visibleProductIds.map(
+        productId =>
+          subscribeToProductRatingCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setRatingCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            error => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "NEW_ARRIVALS_PRODUCT_RATING_COUNT_ERROR",
+                  {
+                    productId,
+                    error,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    visibleProductIds,
+  ]);
+
+  /* ============================================================
+     PRODUCT REVIEW COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      visibleProductIds.length ===
+      0
+    ) {
+      setReviewCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        visibleProductIds,
+      );
+
+    setReviewCounts(
+      current => {
+        const next:
+          ProductReviewCounts =
+          {};
+
+        for (
+          const productId of
+          visibleProductIds
+        ) {
+          next[productId] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      visibleProductIds.map(
+        productId =>
+          subscribeToProductReviewCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setReviewCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            error => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "NEW_ARRIVALS_PRODUCT_REVIEW_COUNT_ERROR",
+                  {
+                    productId,
+                    error,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    visibleProductIds,
+  ]);
+
+  /* ============================================================
      DISPLAY DATA
   ============================================================ */
 
   const displayProducts =
-    productsWithDeals.length > 0
+    productsWithDeals.length >
+    0
       ? productsWithDeals
       : fallbackProducts;
 
@@ -274,9 +640,13 @@ export default function NewArrivals({
         productId: string,
       ) => {
         const safeProductId =
-          productId.trim();
+          cleanId(
+            productId,
+          );
 
-        if (!safeProductId) {
+        if (
+          !safeProductId
+        ) {
           return;
         }
 
@@ -285,7 +655,8 @@ export default function NewArrivals({
             "/(customer)/product/[id]",
 
           params: {
-            id: safeProductId,
+            id:
+              safeProductId,
           },
         });
       },
@@ -293,15 +664,384 @@ export default function NewArrivals({
     );
 
   /* ============================================================
+     PRODUCT RATING
+  ============================================================ */
+
+  const handleProductRating =
+    useCallback(
+      async (
+        productId: string,
+      ) => {
+        const safeProductId =
+          cleanId(
+            productId,
+          );
+
+        if (
+          !safeProductId
+        ) {
+          return;
+        }
+
+        if (
+          ratingLoading[
+            safeProductId
+          ]
+        ) {
+          return;
+        }
+
+        setRatingLoading(
+          current => ({
+            ...current,
+
+            [safeProductId]:
+              true,
+          }),
+        );
+
+        try {
+          await toggleProductRating(
+            safeProductId,
+          );
+
+          /*
+           * Firestore realtime listener
+           * updates the count.
+           */
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "NEW_ARRIVALS_PRODUCT_RATING_TOGGLE_ERROR",
+              {
+                productId:
+                  safeProductId,
+
+                error,
+              },
+            );
+          }
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unable to update product rating.";
+
+          Alert.alert(
+            "Rating",
+            message,
+          );
+        } finally {
+          setRatingLoading(
+            current => ({
+              ...current,
+
+              [safeProductId]:
+                false,
+            }),
+          );
+        }
+      },
+      [
+        ratingLoading,
+      ],
+    );
+
+  /* ============================================================
+     OPEN PRODUCT REVIEW
+  ============================================================ */
+
+  const handleReviewPress =
+    useCallback(
+      (
+        product: ProductWithDeal,
+      ) => {
+        const productId =
+          cleanId(
+            product.id,
+          );
+
+        if (
+          !productId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product information is unavailable.",
+          );
+
+          return;
+        }
+
+        const workerId =
+          cleanId(
+            product.workerId,
+          );
+
+        if (
+          !workerId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product owner information is unavailable.",
+          );
+
+          return;
+        }
+
+        setSelectedReviewProduct({
+          id:
+            productId,
+
+          name:
+            product.name,
+
+          workerId,
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     CLOSE PRODUCT REVIEW
+  ============================================================ */
+
+  const handleCloseReview =
+    useCallback(
+      () => {
+        if (
+          reviewSubmitting
+        ) {
+          return;
+        }
+
+        setSelectedReviewProduct(
+          null,
+        );
+      },
+      [
+        reviewSubmitting,
+      ],
+    );
+
+  /* ============================================================
+     SUBMIT PRODUCT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(
+      async (
+        rating: number,
+        comment: string,
+      ) => {
+        if (
+          !selectedReviewProduct ||
+          reviewSubmitting
+        ) {
+          return;
+        }
+
+        const currentUser =
+          auth.currentUser;
+
+        if (
+          !currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "You must be signed in to review this product.",
+          );
+
+          return;
+        }
+
+        setReviewSubmitting(
+          true,
+        );
+
+        try {
+          /* ==================================================
+             LOAD CUSTOMER PROFILE
+          ================================================== */
+
+          const profileSnapshot =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                currentUser.uid,
+              ),
+            );
+
+          if (
+            !profileSnapshot.exists()
+          ) {
+            Alert.alert(
+              "Review",
+              "Your customer profile could not be found.",
+            );
+
+            return;
+          }
+
+          const profileData =
+            profileSnapshot.data();
+
+          const savedFullName =
+            cleanProfileName(
+              profileData.fullName,
+            );
+
+          const firstName =
+            cleanProfileName(
+              profileData.firstName,
+            );
+
+          const otherName =
+            cleanProfileName(
+              profileData.otherName,
+            );
+
+          const surname =
+            cleanProfileName(
+              profileData.surname,
+            );
+
+          const customerName =
+            savedFullName ||
+            [
+              firstName,
+              otherName,
+              surname,
+            ]
+              .filter(
+                Boolean,
+              )
+              .join(" ");
+
+          if (
+            !customerName
+          ) {
+            Alert.alert(
+              "Review",
+              "Please complete your profile name before submitting a review.",
+            );
+
+            return;
+          }
+
+          /* ==================================================
+             CREATE PRODUCT REVIEW
+
+             Product gets customer's selected
+             1–5 star rating + comment.
+          ================================================== */
+
+          await createProductReview({
+            productId:
+              selectedReviewProduct.id,
+
+            productName:
+              selectedReviewProduct.name,
+
+            workerId:
+              selectedReviewProduct.workerId,
+
+            customerName,
+
+            rating,
+
+            comment,
+          });
+
+          /* ==================================================
+             ENSURE WORKER FIXED 3-STAR RATING
+
+             IMPORTANT:
+
+             The product review can be:
+             1, 2, 3, 4 or 5 stars.
+
+             The worker does NOT receive that value.
+
+             Worker receives fixed 3 stars only.
+
+             One customer = one quick rating per worker.
+          ================================================== */
+
+          await ensureWorkerRated(
+            selectedReviewProduct.workerId,
+          );
+
+          /* ==================================================
+             SUCCESS
+          ================================================== */
+
+          setSelectedReviewProduct(
+            null,
+          );
+
+          Alert.alert(
+            "Review submitted",
+            "Your product review has been submitted successfully.",
+          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "NEW_ARRIVALS_PRODUCT_REVIEW_SUBMIT_ERROR",
+              {
+                productId:
+                  selectedReviewProduct.id,
+
+                workerId:
+                  selectedReviewProduct.workerId,
+
+                error,
+              },
+            );
+          }
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unable to submit your review.";
+
+          Alert.alert(
+            "Review",
+            message,
+          );
+        } finally {
+          setReviewSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        reviewSubmitting,
+        selectedReviewProduct,
+      ],
+    );
+
+  /* ============================================================
      SEE ALL
   ============================================================ */
 
   const handleSeeAll =
-    useCallback(() => {
-      router.push(
-        "/(customer)/market/popular",
-      );
-    }, []);
+    useCallback(
+      () => {
+        router.push(
+          "/(customer)/market/popular",
+        );
+      },
+      [],
+    );
 
   /* ============================================================
      RENDER PRODUCT
@@ -313,35 +1053,85 @@ export default function NewArrivals({
         item,
       }: {
         item: ProductWithDeal;
-      }) => (
-        <View
-          style={styles.item}
-        >
-          <ProductGridCard
-            id={item.id}
-            name={item.name}
-            price={item.price}
-            image={
-              item.thumbnail
+      }) => {
+        const productId =
+          cleanId(
+            item.id,
+          );
+
+        const ratingCount =
+          ratingCounts[
+            productId
+          ] ??
+          0;
+
+        const reviewCount =
+          reviewCounts[
+            productId
+          ] ??
+          0;
+
+        return (
+          <View
+            style={
+              styles.item
             }
-            activeDeal={
-              item.activeDeal
-            }
-            onPress={() =>
-              handleProductPress(
-                item.id,
-              )
-            }
-            onBuy={() =>
-              handleProductPress(
-                item.id,
-              )
-            }
-          />
-        </View>
-      ),
+          >
+            <ProductGridCard
+              id={
+                item.id
+              }
+              name={
+                item.name
+              }
+              price={
+                item.price
+              }
+              image={
+                item.thumbnail
+              }
+              rating={
+                item.workerRating
+              }
+              ratingCount={
+                ratingCount
+              }
+              reviewCount={
+                reviewCount
+              }
+              activeDeal={
+                item.activeDeal
+              }
+              onRatingPress={() => {
+                void handleProductRating(
+                  item.id,
+                );
+              }}
+              onReviewPress={() => {
+                handleReviewPress(
+                  item,
+                );
+              }}
+              onPress={() =>
+                handleProductPress(
+                  item.id,
+                )
+              }
+              onBuy={() =>
+                handleProductPress(
+                  item.id,
+                )
+              }
+            />
+          </View>
+        );
+      },
       [
         handleProductPress,
+        handleProductRating,
+        handleReviewPress,
+        ratingCounts,
+        reviewCounts,
       ],
     );
 
@@ -351,14 +1141,18 @@ export default function NewArrivals({
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <View
           style={
@@ -368,8 +1162,12 @@ export default function NewArrivals({
           <AppText
             variant="heading3"
             weight="bold"
-            numberOfLines={1}
-            style={styles.title}
+            numberOfLines={
+              1
+            }
+            style={
+              styles.title
+            }
           >
             New Arrivals
           </AppText>
@@ -388,7 +1186,9 @@ export default function NewArrivals({
         </View>
 
         <Pressable
-          hitSlop={8}
+          hitSlop={
+            8
+          }
           onPress={
             handleSeeAll
           }
@@ -407,7 +1207,9 @@ export default function NewArrivals({
           <AppText
             variant="caption"
             weight="bold"
-            style={styles.seeAll}
+            style={
+              styles.seeAll
+            }
           >
             See All
           </AppText>
@@ -429,7 +1231,9 @@ export default function NewArrivals({
 
       {loading ? (
         <View
-          style={styles.center}
+          style={
+            styles.center
+          }
         >
           <ActivityIndicator
             size="small"
@@ -455,7 +1259,9 @@ export default function NewArrivals({
         ==================================================== */
 
         <View
-          style={styles.center}
+          style={
+            styles.center
+          }
         >
           <View
             style={
@@ -487,7 +1293,8 @@ export default function NewArrivals({
               styles.emptyText
             }
           >
-            New market products will appear here when available.
+            New market products will
+            appear here when available.
           </AppText>
         </View>
       ) : (
@@ -502,7 +1309,9 @@ export default function NewArrivals({
           }
           keyExtractor={(
             item,
-          ) => item.id}
+          ) =>
+            item.id
+          }
           renderItem={
             renderProduct
           }
@@ -518,10 +1327,37 @@ export default function NewArrivals({
           maxToRenderPerBatch={
             PRODUCT_LIMIT
           }
-          windowSize={3}
+          windowSize={
+            3
+          }
           keyboardShouldPersistTaps="handled"
         />
       )}
+
+      {/* ======================================================
+          PRODUCT REVIEW MODAL
+      ====================================================== */}
+
+      <ProductReviewModal
+        visible={
+          selectedReviewProduct !==
+          null
+        }
+        productName={
+          selectedReviewProduct
+            ?.name ??
+          ""
+        }
+        submitting={
+          reviewSubmitting
+        }
+        onClose={
+          handleCloseReview
+        }
+        onSubmit={
+          handleSubmitReview
+        }
+      />
     </View>
   );
 }
@@ -532,46 +1368,45 @@ export default function NewArrivals({
 
 const styles =
   StyleSheet.create({
-    /* ==========================================================
-       CONTAINER
-    ========================================================== */
-
     container: {
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
-
-    /* ==========================================================
-       HEADER
-    ========================================================== */
 
     header: {
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       justifyContent:
         "space-between",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     headerLeft: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       marginRight:
         FixxamTokens.spacing.sm,
     },
 
     title: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         Colors.textPrimary,
@@ -587,11 +1422,14 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -611,13 +1449,9 @@ const styles =
         CustomerColors.primary,
     },
 
-    /* ==========================================================
-       LIST
-    ========================================================== */
-
     list: {
       paddingRight:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
     },
 
     item: {
@@ -628,20 +1462,18 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
-    /* ==========================================================
-       LOADING / EMPTY
-    ========================================================== */
-
     center: {
-      minHeight: 150,
+      minHeight:
+        140,
 
       paddingVertical:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -664,7 +1496,8 @@ const styles =
       marginBottom:
         FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -682,17 +1515,15 @@ const styles =
     },
 
     emptyText: {
-      maxWidth: 280,
+      maxWidth:
+        280,
 
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 17,
+      lineHeight:
+        17,
     },
-
-    /* ==========================================================
-       PRESS
-    ========================================================== */
 
     pressed: {
       opacity:

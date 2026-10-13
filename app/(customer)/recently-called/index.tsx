@@ -2,6 +2,7 @@ import React, {
   memo,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -15,9 +16,7 @@ import {
   View,
 } from "react-native";
 
-import {
-  Image,
-} from "expo-image";
+import { Image } from "expo-image";
 
 import {
   router,
@@ -28,6 +27,12 @@ import {
   getAuth,
   onAuthStateChanged,
 } from "firebase/auth";
+
+import {
+  getDownloadURL,
+  getStorage,
+  ref,
+} from "firebase/storage";
 
 import {
   AppCard,
@@ -48,12 +53,206 @@ import {
   FixxamTokens,
 } from "@/theme";
 
+import {
+  getPublicWorkers,
+} from "@/firebase/queries/workerPublicProfiles";
+
+import {
+  workerMapper,
+} from "@/firebase/mappers/workerMapper";
+
+import type {
+  WorkerCardData,
+} from "@/components/customer/worker/types";
+
 /* ============================================================
    CONSTANTS
 ============================================================ */
 
 const RELATIVE_TIME_REFRESH_INTERVAL =
   60_000;
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type PublicWorker =
+  ReturnType<
+    typeof workerMapper
+  >;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function isHttpUrl(
+  value: string,
+): boolean {
+  return (
+    value.startsWith(
+      "https://",
+    ) ||
+    value.startsWith(
+      "http://",
+    )
+  );
+}
+
+function isFallbackWorkerName(
+  value: unknown,
+): boolean {
+  const name =
+    cleanString(
+      value,
+    );
+
+  return (
+    !name ||
+    name === "Worker" ||
+    name === "Fixxam Worker"
+  );
+}
+
+function isFallbackWorkerService(
+  value: unknown,
+): boolean {
+  const service =
+    cleanString(
+      value,
+    );
+
+  return (
+    !service ||
+    service ===
+      "Service Provider"
+  );
+}
+
+/* ============================================================
+   PUBLIC WORKER NAME
+============================================================ */
+
+function getPublicWorkerName(
+  worker: PublicWorker,
+): string {
+  const fullName =
+    cleanString(
+      worker.fullName,
+    );
+
+  if (
+    !isFallbackWorkerName(
+      fullName,
+    )
+  ) {
+    return fullName;
+  }
+
+  const firstName =
+    cleanString(
+      worker.firstName,
+    );
+
+  const surname =
+    cleanString(
+      worker.surname,
+    );
+
+  const combined =
+    [
+      firstName,
+      surname,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+  return combined;
+}
+
+/* ============================================================
+   PUBLIC WORKER SERVICE
+============================================================ */
+
+function getPublicWorkerService(
+  worker: PublicWorker,
+): string {
+  const subcategory =
+    cleanString(
+      worker.subcategory,
+    );
+
+  if (
+    !isFallbackWorkerService(
+      subcategory,
+    )
+  ) {
+    return subcategory;
+  }
+
+  const category =
+    cleanString(
+      worker.category,
+    );
+
+  if (
+    !isFallbackWorkerService(
+      category,
+    )
+  ) {
+    return category;
+  }
+
+  const firstService =
+    cleanString(
+      worker.services?.[0]
+        ?.name,
+    );
+
+  if (
+    !isFallbackWorkerService(
+      firstService,
+    )
+  ) {
+    return firstService;
+  }
+
+  return "";
+}
+
+/* ============================================================
+   PUBLIC WORKER RATING
+============================================================ */
+
+function getPublicWorkerRating(
+  worker: PublicWorker,
+): number {
+  const rating =
+    typeof worker.rating ===
+      "number" &&
+    Number.isFinite(
+      worker.rating,
+    )
+      ? worker.rating
+      : 0;
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      rating,
+    ),
+  );
+}
 
 /* ============================================================
    RELATIVE CALL TIME
@@ -63,10 +262,9 @@ function formatRelativeCallTime(
   contactedAt: string,
   now: number,
 ): string {
-  const time =
-    Date.parse(
-      contactedAt,
-    );
+  const time = Date.parse(
+    contactedAt,
+  );
 
   if (
     !Number.isFinite(
@@ -79,32 +277,26 @@ function formatRelativeCallTime(
   const difference =
     Math.max(
       0,
-      now -
-        time,
+      now - time,
     );
 
   const MINUTE =
     60_000;
 
   const HOUR =
-    60 *
-    MINUTE;
+    60 * MINUTE;
 
   const DAY =
-    24 *
-    HOUR;
+    24 * HOUR;
 
   const WEEK =
-    7 *
-    DAY;
+    7 * DAY;
 
   const MONTH =
-    30 *
-    DAY;
+    30 * DAY;
 
   const YEAR =
-    365 *
-    DAY;
+    365 * DAY;
 
   if (
     difference <
@@ -215,251 +407,323 @@ function formatRelativeCallTime(
    WORKER AVATAR
 ============================================================ */
 
-const WorkerAvatar =
-  memo(
-    function WorkerAvatar({
-      worker,
-    }: {
-      worker: RecentlyContactedWorker;
-    }) {
-      const [
-        failed,
-        setFailed,
-      ] =
-        useState(
-          false,
-        );
+const WorkerAvatar = memo(
+  function WorkerAvatar({
+    worker,
+  }: {
+    worker: RecentlyContactedWorker;
+  }) {
+    const [
+      resolvedUri,
+      setResolvedUri,
+    ] = useState("");
 
-      useEffect(() => {
-        setFailed(
-          false,
-        );
-      }, [
-        worker.image,
-      ]);
+    const [
+      failed,
+      setFailed,
+    ] = useState(false);
 
-      const showImage =
-        Boolean(
-          worker.image.trim(),
-        ) &&
-        !failed;
+    useEffect(() => {
+      let cancelled =
+        false;
 
-      if (
-        !showImage
-      ) {
-        return (
-          <View
-            style={
-              styles.avatarPlaceholder
-            }
-          >
-            <AppIcon
-              name="profile"
-              role="customer"
-              size="lg"
-              state="muted"
-            />
-          </View>
-        );
+      const source =
+        typeof worker.image ===
+        "string"
+          ? worker.image.trim()
+          : "";
+
+      setFailed(false);
+
+      if (!source) {
+        setResolvedUri("");
+
+        return () => {
+          cancelled =
+            true;
+        };
       }
 
-      return (
-        <Image
-          source={{
-            uri:
-              worker.image,
-          }}
-          style={
-            styles.avatar
-          }
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={150}
-          accessibilityLabel={`${worker.name} profile photo`}
-          onError={() => {
-            setFailed(
-              true,
+      if (
+        isHttpUrl(
+          source,
+        )
+      ) {
+        setResolvedUri(
+          source,
+        );
+
+        return () => {
+          cancelled =
+            true;
+        };
+      }
+
+      const resolveImage =
+        async () => {
+          try {
+            const storage =
+              getStorage();
+
+            const storageRef =
+              ref(
+                storage,
+                source,
+              );
+
+            const downloadUrl =
+              await getDownloadURL(
+                storageRef,
+              );
+
+            if (
+              cancelled
+            ) {
+              return;
+            }
+
+            if (
+              isHttpUrl(
+                downloadUrl,
+              )
+            ) {
+              setResolvedUri(
+                downloadUrl,
+              );
+            } else {
+              setResolvedUri(
+                "",
+              );
+            }
+          } catch (error) {
+            if (
+              cancelled
+            ) {
+              return;
+            }
+
+            if (
+              __DEV__
+            ) {
+              console.warn(
+                "RECENTLY_CALLED_WORKER_IMAGE_RESOLVE_ERROR:",
+                error,
+              );
+            }
+
+            setResolvedUri(
+              "",
             );
-          }}
-        />
+          }
+        };
+
+      void resolveImage();
+
+      return () => {
+        cancelled =
+          true;
+      };
+    }, [
+      worker.image,
+    ]);
+
+    const showImage =
+      Boolean(
+        resolvedUri.trim(),
+      ) &&
+      !failed;
+
+    if (
+      !showImage
+    ) {
+      return (
+        <View
+          style={
+            styles.avatarPlaceholder
+          }
+        >
+          <AppIcon
+            name="profile"
+            role="customer"
+            size="lg"
+            state="muted"
+          />
+        </View>
       );
-    },
-  );
+    }
+
+    return (
+      <Image
+        key={
+          resolvedUri
+        }
+        source={{
+          uri:
+            resolvedUri,
+        }}
+        style={
+          styles.avatar
+        }
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={150}
+        accessibilityRole="image"
+        accessibilityLabel={`${worker.name} profile photo`}
+        onError={() => {
+          setFailed(true);
+        }}
+      />
+    );
+  },
+);
 
 /* ============================================================
    WORKER CARD
 ============================================================ */
 
-const RecentWorkerCard =
-  memo(
-    function RecentWorkerCard({
-      worker,
-      now,
-      onCallAgain,
-    }: {
-      worker: RecentlyContactedWorker;
+const RecentWorkerCard = memo(
+  function RecentWorkerCard({
+    worker,
+    now,
+    onCallAgain,
+  }: {
+    worker: RecentlyContactedWorker;
 
-      now: number;
+    now: number;
 
-      onCallAgain: (
-        worker: RecentlyContactedWorker,
-      ) => void;
-    }) {
-      const handleCallAgain =
-        useCallback(() => {
-          onCallAgain(
-            worker,
-          );
-        }, [
-          onCallAgain,
+    onCallAgain: (
+      worker: RecentlyContactedWorker,
+    ) => void;
+  }) {
+    const handleCallAgain =
+      useCallback(() => {
+        onCallAgain(
           worker,
-        ]);
+        );
+      }, [
+        onCallAgain,
+        worker,
+      ]);
 
-      return (
-        <AppCard
-          role="customer"
-          variant="outlined"
+    return (
+      <AppCard
+        role="customer"
+        variant="outlined"
+        style={
+          styles.card
+        }
+      >
+        <WorkerAvatar
+          worker={worker}
+        />
+
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={1}
+          center
           style={
-            styles.card
+            styles.workerName
           }
         >
-          {/* ==================================================
-              AVATAR
-          ================================================== */}
+          {worker.name}
+        </AppText>
 
-          <WorkerAvatar
-            worker={
-              worker
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={1}
+          center
+          style={
+            styles.workerService
+          }
+        >
+          {worker.service}
+        </AppText>
+
+        <View
+          style={
+            styles.ratingRow
+          }
+        >
+          <AppIcon
+            name="star"
+            role="customer"
+            size="xs"
+            color={
+              Colors.warning
             }
           />
 
-          {/* ==================================================
-              NAME
-          ================================================== */}
+          <AppText
+            variant="caption"
+            style={
+              styles.rating
+            }
+          >
+            {worker.rating >
+            0
+              ? worker.rating.toFixed(
+                  1,
+                )
+              : "New"}
+          </AppText>
+        </View>
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          numberOfLines={1}
+          center
+          style={
+            styles.callTime
+          }
+        >
+          {formatRelativeCallTime(
+            worker.contactedAt,
+            now,
+          )}
+        </AppText>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${worker.name} again`}
+          onPress={
+            handleCallAgain
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.callAgainButton,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="phone"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
 
           <AppText
             variant="bodyMedium"
             weight="bold"
-            numberOfLines={1}
-            center
             style={
-              styles.workerName
+              styles.callAgainText
             }
           >
-            {worker.name}
+            Call Again
           </AppText>
-
-          {/* ==================================================
-              SERVICE
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={1}
-            center
-            style={
-              styles.workerService
-            }
-          >
-            {worker.service}
-          </AppText>
-
-          {/* ==================================================
-              RATING
-          ================================================== */}
-
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <AppIcon
-              name="star"
-              role="customer"
-              size="xs"
-              color={
-                Colors.warning
-              }
-            />
-
-            <AppText
-              variant="caption"
-              style={
-                styles.rating
-              }
-            >
-              {worker.rating >
-              0
-                ? worker.rating.toFixed(
-                    1,
-                  )
-                : "New"}
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              LAST CALL
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            tone="muted"
-            numberOfLines={1}
-            center
-            style={
-              styles.callTime
-            }
-          >
-            {formatRelativeCallTime(
-              worker.contactedAt,
-              now,
-            )}
-          </AppText>
-
-          {/* ==================================================
-              CALL AGAIN
-          ================================================== */}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${worker.name} again`}
-            onPress={
-              handleCallAgain
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.callAgainButton,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="phone"
-              role="customer"
-              size="xs"
-              color={
-                Colors.textInverse
-              }
-            />
-
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              style={
-                styles.callAgainText
-              }
-            >
-              Call Again
-            </AppText>
-          </Pressable>
-        </AppCard>
-      );
-    },
-  );
+        </Pressable>
+      </AppCard>
+    );
+  },
+);
 
 /* ============================================================
    CALL WORKER MODAL
@@ -478,9 +742,7 @@ function CallWorkerModal({
 
   onConfirm: () => void;
 }) {
-  if (
-    !worker
-  ) {
+  if (!worker) {
     return null;
   }
 
@@ -506,10 +768,6 @@ function CallWorkerModal({
             styles.modal
           }
         >
-          {/* ==================================================
-              ICON
-          ================================================== */}
-
           <View
             style={
               styles.modalIcon
@@ -523,10 +781,6 @@ function CallWorkerModal({
             />
           </View>
 
-          {/* ==================================================
-              TITLE
-          ================================================== */}
-
           <AppText
             variant="heading2"
             weight="bold"
@@ -534,10 +788,6 @@ function CallWorkerModal({
           >
             Call {worker.name}?
           </AppText>
-
-          {/* ==================================================
-              DESCRIPTION
-          ================================================== */}
 
           <AppText
             variant="body"
@@ -547,7 +797,8 @@ function CallWorkerModal({
               styles.modalDescription
             }
           >
-            Start an in-app voice call with {worker.name}.
+            Start an in-app voice call with{" "}
+            {worker.name}.
           </AppText>
 
           <AppText
@@ -558,12 +809,10 @@ function CallWorkerModal({
               styles.modalQuestion
             }
           >
-            You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
+            You&apos;ll stay inside Fixxam
+            and the worker&apos;s phone
+            number won&apos;t be shown.
           </AppText>
-
-          {/* ==================================================
-              ACTIONS
-          ================================================== */}
 
           <View
             style={
@@ -645,51 +894,59 @@ export default function RecentlyCalledScreen() {
   const [
     userId,
     setUserId,
-  ] =
-    useState<
-      string | null
-    >(
-      getAuth()
-        .currentUser
-        ?.uid ??
-        null,
-    );
+  ] = useState<
+    string | null
+  >(
+    getAuth()
+      .currentUser
+      ?.uid ?? null,
+  );
 
   const [
     workers,
     setWorkers,
-  ] =
-    useState<
-      RecentlyContactedWorker[]
-    >(
-      [],
-    );
+  ] = useState<
+    RecentlyContactedWorker[]
+  >([]);
 
   const [
     loaded,
     setLoaded,
-  ] =
-    useState(
-      false,
-    );
+  ] = useState(false);
 
   const [
     now,
     setNow,
-  ] =
-    useState(
-      Date.now(),
-    );
+  ] = useState(
+    Date.now(),
+  );
 
   const [
     selectedWorker,
     setSelectedWorker,
-  ] =
-    useState<
-      RecentlyContactedWorker | null
+  ] = useState<
+    RecentlyContactedWorker | null
+  >(null);
+
+  /* ==========================================================
+     PUBLIC WORKER CACHE
+  ========================================================== */
+
+  const publicWorkersRef =
+    useRef<
+      Map<
+        string,
+        PublicWorker
+      >
     >(
-      null,
+      new Map(),
     );
+
+  const publicWorkersLoadedRef =
+    useRef(false);
+
+  const loadRequestRef =
+    useRef(0);
 
   /* ==========================================================
      AUTH
@@ -699,12 +956,25 @@ export default function RecentlyCalledScreen() {
     const unsubscribe =
       onAuthStateChanged(
         getAuth(),
-        (
-          user,
-        ) => {
+        (user) => {
           const nextUserId =
-            user?.uid ??
-            null;
+            user?.uid ?? null;
+
+          /*
+           * Invalidate previous async loads.
+           */
+          loadRequestRef.current +=
+            1;
+
+          /*
+           * Reset public worker cache
+           * whenever the authenticated
+           * user changes.
+           */
+          publicWorkersRef.current.clear();
+
+          publicWorkersLoadedRef.current =
+            false;
 
           setUserId(
             nextUserId,
@@ -732,12 +1002,251 @@ export default function RecentlyCalledScreen() {
   }, []);
 
   /* ==========================================================
+     LOAD PUBLIC WORKERS
+  ========================================================== */
+
+  const loadPublicWorkerCache =
+    useCallback(
+      async (
+        force = false,
+      ): Promise<
+        Map<
+          string,
+          PublicWorker
+        >
+      > => {
+        if (
+          publicWorkersLoadedRef.current &&
+          !force
+        ) {
+          return publicWorkersRef.current;
+        }
+
+        try {
+          const snapshot =
+            await getPublicWorkers();
+
+          const nextMap =
+            new Map<
+              string,
+              PublicWorker
+            >();
+
+          for (
+            const document of
+              snapshot.docs
+          ) {
+            try {
+              const mapped =
+                workerMapper(
+                  document,
+                );
+
+              const workerId =
+                cleanString(
+                  mapped.id,
+                );
+
+              if (
+                !workerId
+              ) {
+                continue;
+              }
+
+              nextMap.set(
+                workerId,
+                mapped,
+              );
+            } catch (
+              mappingError
+            ) {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "RECENTLY_CALLED_PUBLIC_WORKER_MAPPING_ERROR:",
+                  mappingError,
+                );
+              }
+            }
+          }
+
+          publicWorkersRef.current =
+            nextMap;
+
+          publicWorkersLoadedRef.current =
+            true;
+
+          return nextMap;
+        } catch (
+          error
+        ) {
+          console.error(
+            "RECENTLY_CALLED_PUBLIC_WORKERS_LOAD_ERROR:",
+            error,
+          );
+
+          /*
+           * Do not destroy an existing
+           * successful cache when a
+           * refresh temporarily fails.
+           */
+          if (
+            publicWorkersLoadedRef.current
+          ) {
+            return publicWorkersRef.current;
+          }
+
+          return publicWorkersRef.current;
+        }
+      },
+      [],
+    );
+
+  /* ==========================================================
+     HYDRATE RECENT WORKERS
+  ========================================================== */
+
+  const hydrateRecentWorkers =
+    useCallback(
+      async (
+        recentWorkers:
+          RecentlyContactedWorker[],
+        forcePublicRefresh =
+          false,
+      ): Promise<
+        RecentlyContactedWorker[]
+      > => {
+        if (
+          recentWorkers.length ===
+          0
+        ) {
+          return [];
+        }
+
+        const publicWorkers =
+          await loadPublicWorkerCache(
+            forcePublicRefresh,
+          );
+
+        return Promise.all(
+          recentWorkers.map(
+            async (
+              recentWorker,
+            ) => {
+              const workerId =
+                cleanString(
+                  recentWorker.id,
+                );
+
+              const publicWorker =
+                publicWorkers.get(
+                  workerId,
+                );
+
+              if (
+                !publicWorker
+              ) {
+                return recentWorker;
+              }
+
+              const publicName =
+                getPublicWorkerName(
+                  publicWorker,
+                );
+
+              const publicService =
+                getPublicWorkerService(
+                  publicWorker,
+                );
+
+              const publicRating =
+                getPublicWorkerRating(
+                  publicWorker,
+                );
+
+              const publicImage =
+                cleanString(
+                  publicWorker
+                    .workerProfile
+                    ?.photoUrl,
+                );
+
+              /*
+               * Prefer real public profile
+               * data over stale/fallback
+               * local storage values.
+               */
+              const name =
+                !isFallbackWorkerName(
+                  publicName,
+                )
+                  ? publicName
+                  : !isFallbackWorkerName(
+                      recentWorker.name,
+                    )
+                  ? recentWorker.name
+                  : "Worker";
+
+              const service =
+                !isFallbackWorkerService(
+                  publicService,
+                )
+                  ? publicService
+                  : !isFallbackWorkerService(
+                      recentWorker.service,
+                    )
+                  ? recentWorker.service
+                  : "Service Provider";
+
+              const rating =
+                publicRating >
+                0
+                  ? publicRating
+                  : recentWorker.rating >
+                    0
+                  ? recentWorker.rating
+                  : 0;
+
+              const image =
+                publicImage ||
+                cleanString(
+                  recentWorker.image,
+                );
+
+              return {
+                ...recentWorker,
+
+                name,
+
+                service,
+
+                rating,
+
+                image,
+              };
+            },
+          ),
+        );
+      },
+      [
+        loadPublicWorkerCache,
+      ],
+    );
+
+  /* ==========================================================
      LOAD WORKERS
   ========================================================== */
 
   const loadWorkers =
     useCallback(
-      async () => {
+      async (
+        forcePublicRefresh =
+          false,
+      ) => {
+        const requestId =
+          ++loadRequestRef.current;
+
         if (
           !userId
         ) {
@@ -753,13 +1262,37 @@ export default function RecentlyCalledScreen() {
         }
 
         try {
-          const data =
+          const recentWorkers =
             await getRecentlyContactedWorkers(
               userId,
             );
 
+          /*
+           * User may have changed while
+           * the storage request was running.
+           */
+          if (
+            requestId !==
+            loadRequestRef.current
+          ) {
+            return;
+          }
+
+          const hydratedWorkers =
+            await hydrateRecentWorkers(
+              recentWorkers,
+              forcePublicRefresh,
+            );
+
+          if (
+            requestId !==
+            loadRequestRef.current
+          ) {
+            return;
+          }
+
           setWorkers(
-            data,
+            hydratedWorkers,
           );
 
           setNow(
@@ -773,16 +1306,60 @@ export default function RecentlyCalledScreen() {
             error,
           );
 
-          setWorkers(
-            [],
-          );
+          if (
+            requestId ===
+            loadRequestRef.current
+          ) {
+            /*
+             * Keep the screen usable even
+             * if public profile hydration
+             * temporarily fails.
+             */
+            try {
+              const fallbackWorkers =
+                await getRecentlyContactedWorkers(
+                  userId,
+                );
+
+              if (
+                requestId ===
+                loadRequestRef.current
+              ) {
+                setWorkers(
+                  fallbackWorkers,
+                );
+              }
+            } catch (
+              fallbackError
+            ) {
+              console.error(
+                "LOAD_RECENTLY_CALLED_FALLBACK_ERROR:",
+                fallbackError,
+              );
+
+              if (
+                requestId ===
+                loadRequestRef.current
+              ) {
+                setWorkers(
+                  [],
+                );
+              }
+            }
+          }
         } finally {
-          setLoaded(
-            true,
-          );
+          if (
+            requestId ===
+            loadRequestRef.current
+          ) {
+            setLoaded(
+              true,
+            );
+          }
         }
       },
       [
+        hydrateRecentWorkers,
         userId,
       ],
     );
@@ -796,7 +1373,9 @@ export default function RecentlyCalledScreen() {
       false,
     );
 
-    void loadWorkers();
+    void loadWorkers(
+      true,
+    );
   }, [
     loadWorkers,
   ]);
@@ -811,7 +1390,13 @@ export default function RecentlyCalledScreen() {
         Date.now(),
       );
 
-      void loadWorkers();
+      /*
+       * Refresh public worker profile
+       * data when the screen becomes active.
+       */
+      void loadWorkers(
+        true,
+      );
     }, [
       loadWorkers,
     ]),
@@ -828,12 +1413,18 @@ export default function RecentlyCalledScreen() {
       return;
     }
 
+    let active = true;
+
     const unsubscribe =
       subscribeToRecentlyContactedWorkers(
         userId,
         (
           data,
         ) => {
+          /*
+           * Immediately reflect the
+           * local storage update.
+           */
           setWorkers(
             data,
           );
@@ -845,11 +1436,46 @@ export default function RecentlyCalledScreen() {
           setLoaded(
             true,
           );
+
+          /*
+           * Then hydrate the same data
+           * with public worker information.
+           *
+           * If cache already exists this
+           * does not trigger another public
+           * worker fetch.
+           */
+          void hydrateRecentWorkers(
+            data,
+            false,
+          ).then(
+            (
+              hydrated,
+            ) => {
+              if (
+                active
+              ) {
+                setWorkers(
+                  hydrated,
+                );
+
+                setNow(
+                  Date.now(),
+                );
+              }
+            },
+          );
         },
       );
 
-    return unsubscribe;
+    return () => {
+      active =
+        false;
+
+      unsubscribe();
+    };
   }, [
+    hydrateRecentWorkers,
     userId,
   ]);
 
@@ -925,72 +1551,66 @@ export default function RecentlyCalledScreen() {
      START IN-APP CALL
   ========================================================== */
 
- /* ==========================================================
-   START IN-APP CALL
-========================================================== */
+  const handleConfirmCall =
+    useCallback(() => {
+      if (
+        !selectedWorker
+      ) {
+        return;
+      }
 
-const handleConfirmCall =
-  useCallback(() => {
-    if (
-      !selectedWorker
-    ) {
-      return;
-    }
+      const currentUser =
+        getAuth()
+          .currentUser;
 
-    const currentUser =
-      getAuth()
-        .currentUser;
+      if (
+        !currentUser
+      ) {
+        Alert.alert(
+          "Login required",
+          "Please login again to contact this worker.",
+        );
 
-    if (
-      !currentUser
-    ) {
-      Alert.alert(
-        "Login required",
-        "Please login again to contact this worker.",
+        return;
+      }
+
+      const worker =
+        selectedWorker;
+
+      setSelectedWorker(
+        null,
       );
 
-      return;
-    }
+      /*
+       * Existing call/navigation
+       * behavior remains unchanged.
+       */
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
 
-    const worker =
-      selectedWorker;
+        params: {
+          workerId:
+            worker.id,
 
-    setSelectedWorker(
-      null,
-    );
+          name:
+            worker.name,
 
-    /*
-     * Start Fixxam in-app calling.
-     *
-     * No phone number is sent.
-     * The worker is identified by workerId.
-     */
-    router.push({
-      pathname:
-        "/(customer)/call/[workerId]",
+          service:
+            worker.service,
 
-      params: {
-        workerId:
-          worker.id,
+          image:
+            worker.image,
 
-        name:
-          worker.name,
-
-        service:
-          worker.service,
-
-        image:
-          worker.image,
-
-        rating:
-          String(
-            worker.rating,
-          ),
-      },
-    });
-  }, [
-    selectedWorker,
-  ]);
+          rating:
+            String(
+              worker.rating,
+            ),
+        },
+      });
+    }, [
+      selectedWorker,
+    ]);
 
   /* ==========================================================
      RENDER ITEM
@@ -1127,9 +1747,15 @@ const handleConfirmCall =
               ? styles.row
               : undefined
           }
-          initialNumToRender={8}
-          maxToRenderPerBatch={8}
-          windowSize={7}
+          initialNumToRender={
+            8
+          }
+          maxToRenderPerBatch={
+            8
+          }
+          windowSize={
+            7
+          }
           ListEmptyComponent={
             <View
               style={

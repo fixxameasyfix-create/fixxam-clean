@@ -1,6 +1,4 @@
-import React, {
-  useCallback,
-} from "react";
+import React, { useCallback } from "react";
 
 import {
   Pressable,
@@ -9,19 +7,10 @@ import {
   useWindowDimensions,
 } from "react-native";
 
-import {
-  router,
-} from "expo-router";
+import { router } from "expo-router";
+import { Image } from "expo-image";
 
-import {
-  Image,
-} from "expo-image";
-
-import {
-  AppScreen,
-  AppText,
-} from "@/components/ui";
-
+import { AppScreen, AppText } from "@/components/ui";
 import RoleCard from "@/components/auth/RoleCard";
 
 import {
@@ -31,84 +20,65 @@ import {
   WorkerColors,
 } from "@/theme";
 
-/* ============================================================
-   SCREEN
-============================================================ */
-
 export default function RoleSelection() {
-  const {
-    height,
-  } =
-    useWindowDimensions();
+  const { width, height } = useWindowDimensions();
 
-  /* ==========================================================
-     RESPONSIVE LAYOUT
-  ========================================================== */
+  const isSmallScreen = height < 720;
+  const horizontalPadding = Math.max(20, width * 0.04);
 
-  const isSmallScreen =
-    height < 700;
+  const heroHeight = Math.min(
+    Math.max(height * (isSmallScreen ? 0.38 : 0.46), 260),
+    440,
+  );
 
-  const imageHeight =
-    isSmallScreen
-      ? 160
-      : 205;
+  const handleCustomerPress = useCallback(() => {
+    router.push("/(auth)/customer-signup");
+  }, []);
 
-  /* ==========================================================
-     NAVIGATION
-  ========================================================== */
+  const handleWorkerPress = useCallback(() => {
+    router.push("/(auth)/worker/worker-signup");
+  }, []);
 
-  const handleCustomerPress =
-    useCallback(() => {
-      router.push(
-        "/(auth)/customer-signup",
-      );
-    }, []);
-
-  const handleWorkerPress =
-    useCallback(() => {
-      router.push(
-        "/(auth)/worker/worker-signup",
-      );
-    }, []);
-
-  const handleLoginPress =
-    useCallback(() => {
-      router.push(
-        "/(auth)/login",
-      );
-    }, []);
-
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  const handleLoginPress = useCallback(() => {
+    router.push("/(auth)/login");
+  }, []);
 
   return (
     <AppScreen
+      role="customer"
+      padded={false}
       scrollEnabled
-      contentContainerStyle={[
-        styles.screen,
-
-        isSmallScreen
-          ? styles.smallScreen
-          : null,
-      ]}
+      contentContainerStyle={styles.screen}
+      backgroundColor="#F1F8FF"
+      edges={["top", "left", "right"]}
     >
-      {/* ======================================================
-          INTRO
-      ====================================================== */}
-
+      {/* Decorative background */}
       <View
-        style={
-          styles.intro
-        }
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
       >
+        <View style={styles.topCircleLeft} />
+        <View style={styles.topCircleRight} />
+        <View style={styles.bottomWaveOne} />
+        <View style={styles.bottomWaveTwo} />
+      </View>
+
+      {/* Brand and introduction */}
+      <View
+        style={[
+          styles.intro,
+          { paddingHorizontal: horizontalPadding },
+        ]}
+      >
+        
+          
+    
+
         <AppText
           variant="heading1"
           weight="bold"
           center
-          style={
-            styles.title
-          }
+          style={styles.title}
         >
           How will you use Fixxam?
         </AppText>
@@ -117,94 +87,86 @@ export default function RoleSelection() {
           variant="body"
           tone="secondary"
           center
-          style={
-            styles.subtitle
-          }
+          style={styles.subtitle}
         >
           Choose the experience that fits you best.
         </AppText>
       </View>
 
-      {/* ======================================================
-          IMAGE
-      ====================================================== */}
-
-      <Image
-        source={require("../../assets/ui-images/role-selection.jpg")}
-        contentFit="cover"
-        transition={150}
-        accessibilityLabel="Fixxam customers and professionals"
+      {/* Customer and worker hero image */}
+      <View
         style={[
-          styles.image,
-
+          styles.hero,
           {
-            height:
-              imageHeight,
+            height: heroHeight,
+            marginHorizontal: horizontalPadding * 0.6,
           },
         ]}
-      />
-
-      {/* ======================================================
-          ROLES
-      ====================================================== */}
-
-      <View
-        style={
-          styles.roles
-        }
       >
-      
-
-<RoleCard
-  title="Join as Customer"
-  description="Find trusted professionals and get jobs done with confidence."
-  icon="profile"
-  color={CustomerColors.primary}
-  onPress={handleCustomerPress}
-/>
-
-<RoleCard
-  title="Join as Worker"
-  description="Offer your skills, reach customers, and grow your work."
-  icon="professional"
-  color={WorkerColors.primary}
-  onPress={handleWorkerPress}
-/>
-
-
+        <Image
+          source={require("../../assets/ui-images/role-selection.jpg")}
+          contentFit="cover"
+          contentPosition="center top"
+          transition={200}
+          cachePolicy="memory-disk"
+          accessibilityLabel="A Fixxam customer beside a professional worker"
+          style={styles.heroImage}
+        />
       </View>
 
-      {/* ======================================================
-          FOOTER
-      ====================================================== */}
-
+      {/* Role selection cards */}
       <View
-        style={
-          styles.footer
-        }
+        style={[
+          styles.roles,
+          {
+            paddingHorizontal: horizontalPadding,
+            marginTop: isSmallScreen ? -18 : -28,
+          },
+        ]}
+      >
+        <RoleCard
+          title="Join as Customer"
+          description="Find trusted professionals and get jobs done with confidence."
+          icon="profile"
+          color={CustomerColors.primary}
+          onPress={handleCustomerPress}
+        />
+
+        <RoleCard
+          title="Join as Worker"
+          description="Offer your skills, reach customers, and grow your work."
+          icon="professional"
+          color={WorkerColors.primary}
+          onPress={handleWorkerPress}
+        />
+      </View>
+
+      {/* Sign in footer */}
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingHorizontal: horizontalPadding,
+            paddingBottom: isSmallScreen
+              ? FixxamTokens.spacing.lg
+              : FixxamTokens.spacing.xl,
+          },
+        ]}
       >
         <Pressable
-          onPress={
-            handleLoginPress
-          }
+          onPress={handleLoginPress}
           accessibilityRole="link"
           accessibilityLabel="Sign in to your Fixxam account"
-          style={({
-            pressed,
-          }) => [
+          hitSlop={8}
+          style={({ pressed }) => [
             styles.loginRow,
-
-            pressed
-              ? styles.pressed
-              : null,
+            pressed && styles.pressed,
           ]}
         >
           <AppText
             variant="body"
             tone="secondary"
-            style={
-              styles.loginText
-            }
+            style={styles.loginText}
           >
             Already have an account?
           </AppText>
@@ -212,9 +174,7 @@ export default function RoleSelection() {
           <AppText
             variant="bodyMedium"
             weight="bold"
-            style={
-              styles.loginLink
-            }
+            style={styles.loginLink}
           >
             Sign in
           </AppText>
@@ -224,9 +184,7 @@ export default function RoleSelection() {
           variant="caption"
           tone="secondary"
           center
-          style={
-            styles.note
-          }
+          style={styles.note}
         >
           You can change this later in your profile.
         </AppText>
@@ -235,171 +193,138 @@ export default function RoleSelection() {
   );
 }
 
-/* ============================================================
-   STYLES
-============================================================ */
+const styles = StyleSheet.create({
+  screen: {
+    flexGrow: 1,
+    width: "100%",
+    paddingTop: FixxamTokens.spacing.md,
+    paddingBottom: 0,
+    backgroundColor: "#F1F8FF",
+  },
 
-const styles =
-  StyleSheet.create({
-    /* ========================================================
-       SCREEN
-    ======================================================== */
+  intro: {
+    alignItems: "center",
+    paddingTop: FixxamTokens.spacing.sm,
+    paddingBottom: FixxamTokens.spacing.md,
+  },
 
-    screen: {
-      flexGrow: 1,
+  logo: {
+    color: CustomerColors.primary,
+    fontSize: 38,
+    lineHeight: 46,
+    letterSpacing: -1.5,
+    marginBottom: FixxamTokens.spacing.md,
+  },
 
-      width: "100%",
+  title: {
+    width: "100%",
+    color: "#111B35",
+    fontSize: 29,
+    lineHeight: 36,
+    letterSpacing: -0.7,
+  },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+  subtitle: {
+    marginTop: FixxamTokens.spacing.sm,
+    lineHeight: 23,
+    color: "#64748B",
+  },
 
-      paddingTop:
-        FixxamTokens.spacing.lg,
+  hero: {
+    width: "auto",
+    overflow: "hidden",
+    borderRadius: FixxamTokens.radius.xl,
+    backgroundColor: "#DCEEFF",
+  },
 
-      paddingBottom:
-        FixxamTokens.spacing.xl,
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
 
-      justifyContent:
-        "center",
+  roles: {
+    zIndex: 2,
+    gap: FixxamTokens.spacing.md,
+  },
 
-      backgroundColor:
-        Colors.background,
-    },
+  footer: {
+    alignItems: "center",
+    marginTop: FixxamTokens.spacing.lg,
+  },
 
-    smallScreen: {
-      justifyContent:
-        "flex-start",
+  loginRow: {
+    minHeight: FixxamTokens.size.minimumTouchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: FixxamTokens.spacing.xs,
+  },
 
-      paddingTop:
-        FixxamTokens.spacing.md,
-    },
+  loginText: {
+    color: "#64748B",
+  },
 
-    /* ========================================================
-       INTRO
-    ======================================================== */
+  loginLink: {
+    color: CustomerColors.primary,
+  },
 
-    intro: {
-      alignItems:
-        "center",
+  note: {
+    marginTop: FixxamTokens.spacing.xs,
+    lineHeight: 19,
+    color: "#94A3B8",
+  },
 
-      marginBottom:
-        FixxamTokens.spacing.lg,
-    },
+  pressed: {
+    opacity: FixxamTokens.motion.pressedOpacity,
+    transform: [
+      {
+        scale: FixxamTokens.motion.scalePressed,
+      },
+    ],
+  },
 
-    title: {
-      color:
-        Colors.textPrimary,
-    },
+  topCircleLeft: {
+    position: "absolute",
+    top: -105,
+    left: -105,
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    backgroundColor: "#D9ECFF",
+    opacity: 0.65,
+  },
 
-    subtitle: {
-      maxWidth: 320,
+  topCircleRight: {
+    position: "absolute",
+    top: -120,
+    right: -120,
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: "#D7EBFF",
+    opacity: 0.65,
+  },
 
-      marginTop:
-        FixxamTokens.spacing.sm,
+  bottomWaveOne: {
+    position: "absolute",
+    bottom: -175,
+    left: -100,
+    width: 330,
+    height: 260,
+    borderRadius: 165,
+    backgroundColor: "#D5EAFE",
+    transform: [{ rotate: "-18deg" }],
+  },
 
-      lineHeight: 20,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       IMAGE
-    ======================================================== */
-
-    image: {
-      width: "100%",
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      borderRadius:
-        FixxamTokens.radius.xl,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    /* ========================================================
-       ROLES
-    ======================================================== */
-
-    roles: {
-      width: "100%",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       FOOTER
-    ======================================================== */
-
-    footer: {
-      marginTop:
-        FixxamTokens.spacing.xl,
-
-      alignItems:
-        "center",
-    },
-
-    loginRow: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    loginText: {
-      color:
-        Colors.textSecondary,
-    },
-
-    loginLink: {
-      marginLeft:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    note: {
-      maxWidth: 300,
-
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      lineHeight: 16,
-
-      color:
-        Colors.textMuted,
-    },
-
-    /* ========================================================
-       STATES
-    ======================================================== */
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-  });
+  bottomWaveTwo: {
+    position: "absolute",
+    bottom: -205,
+    right: -120,
+    width: 370,
+    height: 270,
+    borderRadius: 185,
+    backgroundColor: "#B8DCFF",
+    transform: [{ rotate: "18deg" }],
+  },
+});

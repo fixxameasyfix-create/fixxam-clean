@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -34,69 +35,78 @@ function WorkerMarketNote({
   note,
 }: Props) {
   const normalizedNote =
-    typeof note === "string"
-      ? note.trim()
-      : "";
+    useMemo(
+      () =>
+        typeof note ===
+        "string"
+          ? note.trim()
+          : "",
+      [
+        note,
+      ],
+    );
 
-  if (!normalizedNote) {
+  if (
+    !normalizedNote
+  ) {
     return null;
   }
 
   return (
     <View
+      accessible
+      accessibilityLabel={`Customer note. ${normalizedNote}`}
       style={
         styles.card
       }
-      accessibilityLabel={`Customer note: ${normalizedNote}`}
     >
       {/* ======================================================
-          ICON
+          HEADER
       ====================================================== */}
 
       <View
         style={
-          styles.iconBox
+          styles.header
         }
       >
-        <AppIcon
-          name="messages"
-          role="worker"
-          size="sm"
-          color={
-            WorkerColors.primary
+        <View
+          style={
+            styles.icon
           }
-        />
-      </View>
+        >
+          <AppIcon
+            name="messages"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
+          />
+        </View>
 
-      {/* ======================================================
-          CONTENT
-      ====================================================== */}
-
-      <View
-        style={
-          styles.content
-        }
-      >
         <AppText
-          variant="bodyMedium"
+          variant="bodyLarge"
           weight="bold"
+          numberOfLines={1}
           style={
             styles.title
           }
         >
-          Customer Note
-        </AppText>
-
-        <AppText
-          variant="body"
-          tone="secondary"
-          style={
-            styles.text
-          }
-        >
-          {normalizedNote}
+          Customer note
         </AppText>
       </View>
+
+      {/* ======================================================
+          NOTE
+      ====================================================== */}
+
+      <AppText
+        variant="body"
+        style={
+          styles.note
+        }
+      >
+        {normalizedNote}
+      </AppText>
     </View>
   );
 }
@@ -119,43 +129,55 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.md,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    header: {
       flexDirection:
         "row",
 
       alignItems:
-        "flex-start",
+        "center",
 
       gap:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        WorkerColors.primarySoft,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
+        FixxamTokens.spacing.xs,
     },
 
-    iconBox: {
+    icon: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        28,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        28,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -167,25 +189,30 @@ const styles =
         FixxamTokens.radius.md,
 
       backgroundColor:
-        Colors.surface,
-    },
-
-    content: {
-      flex: 1,
-
-      minWidth: 0,
+        WorkerColors.primarySoft,
     },
 
     title: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
       color:
-        WorkerColors.primary,
+        Colors.textPrimary,
     },
 
-    text: {
+    /* ========================================================
+       NOTE
+    ======================================================== */
+
+    note: {
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 20,
+      lineHeight:
+        19,
 
       color:
         Colors.textSecondary,

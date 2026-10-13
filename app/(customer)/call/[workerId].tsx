@@ -34,13 +34,11 @@ import {
 import {
   createCustomerCallSession,
   endCustomerCallSession,
-  subscribeToCallSession,
-  type CallSessionStatus,
 } from "@/services/calls/customerCallSession";
 
 import {
-  addRecentlyContactedWorker,
-} from "@/services/storage/recentlyContactedWorkers";
+  prefetchLiveKitCallCredentials,
+} from "@/services/calls/liveKitCall";
 
 import type {
   CallParticipant,
@@ -101,75 +99,6 @@ function getParam(
 }
 
 /* ============================================================
-   RATING
-============================================================ */
-
-function parseRating(
-  value: string,
-): number {
-  const parsed =
-    Number(
-      value,
-    );
-
-  if (
-    !Number.isFinite(
-      parsed,
-    )
-  ) {
-    return 0;
-  }
-
-  return Math.min(
-    5,
-    Math.max(
-      0,
-      parsed,
-    ),
-  );
-}
-
-/* ============================================================
-   CALL STATUS -> UI STATUS
-============================================================ */
-
-function toUiStatus(
-  status: CallSessionStatus,
-): CallStatus {
-  switch (
-    status
-  ) {
-    case "ringing":
-      return "ringing";
-
-    /*
-     * Worker has accepted the call,
-     * but real audio has not connected yet.
-     *
-     * LiveKit will later transition:
-     *
-     * accepted -> connected
-     */
-    case "accepted":
-      return "connecting";
-
-    case "connected":
-      return "connected";
-
-    case "ended":
-    case "declined":
-    case "missed":
-      return "ended";
-
-    case "failed":
-      return "failed";
-
-    default:
-      return "connecting";
-  }
-}
-
-/* ============================================================
    SCREEN
 ============================================================ */
 
@@ -178,7 +107,7 @@ export default function CustomerCallScreen() {
     useLocalSearchParams<CallRouteParams>();
 
   /* ==========================================================
-     ROUTE PARAMS
+     ROUTE DATA
   ========================================================== */
 
   const workerId =
@@ -203,15 +132,8 @@ export default function CustomerCallScreen() {
     ) ||
     "Service Provider";
 
-  const routeWorkerRating =
-    parseRating(
-      getParam(
-        params.rating,
-      ),
-    );
-
   /* ==========================================================
-     FRESH PUBLIC WORKER PROFILE
+     WORKER PROFILE
   ========================================================== */
 
   const [
@@ -224,18 +146,6 @@ export default function CustomerCallScreen() {
       null,
     );
 
-  const [
-    workerProfileReady,
-    setWorkerProfileReady,
-  ] =
-    useState(
-      false,
-    );
-
-  /*
-   * Keep latest worker profile available
-   * inside long-lived Firestore callbacks.
-   */
   const freshWorkerRef =
     useRef<
       WorkerCallPublicProfile | null
@@ -244,7 +154,7 @@ export default function CustomerCallScreen() {
     );
 
   /* ==========================================================
-     CALL SESSION
+     CALL STATE
   ========================================================== */
 
   const [
@@ -266,16 +176,6 @@ export default function CustomerCallScreen() {
     );
 
   const [
-    connectedAt,
-    setConnectedAt,
-  ] =
-    useState<
-      number | null
-    >(
-      null,
-    );
-
-  const [
     ending,
     setEnding,
   ] =
@@ -292,13 +192,18 @@ export default function CustomerCallScreen() {
       false,
     );
 
-  const recentSavedRef =
+  const sharedCallOpenedRef =
+    useRef(
+      false,
+    );
+
+  const leavingRef =
     useRef(
       false,
     );
 
   /* ==========================================================
-     KEEP FRESH WORKER REF UPDATED
+     KEEP PROFILE REF UPDATED
   ========================================================== */
 
   useEffect(() => {
@@ -309,26 +214,18 @@ export default function CustomerCallScreen() {
   ]);
 
   /* ==========================================================
-     LOAD FRESH WORKER PUBLIC PROFILE
+     LOAD PUBLIC PROFILE
   ========================================================== */
 
   useEffect(() => {
     if (
       !workerId
     ) {
-      setWorkerProfileReady(
-        true,
-      );
-
       return;
     }
 
     let active =
       true;
-
-    setWorkerProfileReady(
-      false,
-    );
 
     const loadWorkerProfile =
       async () => {
@@ -339,62 +236,47 @@ export default function CustomerCallScreen() {
             );
 
           if (
-            !active
+            !active ||
+            !profile
           ) {
             return;
           }
 
+          freshWorkerRef.current =
+            profile;
+
+          setFreshWorker(
+            profile,
+          );
+
           if (
-            profile
+            __DEV__
           ) {
-            freshWorkerRef.current =
-              profile;
+            console.info(
+              "FIXXAM_CALL_WORKER_PROFILE_READY:",
+              {
+                workerId:
+                  profile.id,
 
-            setFreshWorker(
-              profile,
+                name:
+                  profile.name,
+
+                service:
+                  profile.service,
+              },
             );
-
-            if (
-              __DEV__
-            ) {
-              console.log(
-                "CALL_WORKER_PROFILE_LOADED:",
-                {
-                  workerId:
-                    profile.id,
-
-                  name:
-                    profile.name,
-
-                  service:
-                    profile.service,
-
-                  rating:
-                    profile.rating,
-
-                  hasPhoto:
-                    Boolean(
-                      profile.photoUrl,
-                    ),
-
-                  photoUrl:
-                    profile.photoUrl,
-                },
-              );
-            }
           }
         } catch (
           profileError
         ) {
           /*
-           * Route metadata remains the fallback.
+           * Do not delay or fail the voice call
+           * because profile refresh failed.
            *
-           * Failure to refresh a public profile
-           * must not prevent the customer
-           * from starting the call.
+           * Route metadata remains the fallback.
            */
           console.error(
-            "LOAD_CALL_WORKER_PROFILE_ERROR:",
+            "FIXXAM_CALL_WORKER_PROFILE_ERROR:",
             {
               workerId,
 
@@ -402,14 +284,6 @@ export default function CustomerCallScreen() {
                 profileError,
             },
           );
-        } finally {
-          if (
-            active
-          ) {
-            setWorkerProfileReady(
-              true,
-            );
-          }
         }
       };
 
@@ -424,13 +298,11 @@ export default function CustomerCallScreen() {
   ]);
 
   /* ==========================================================
-     PARTICIPANT DISPLAY
+     PARTICIPANT
   ========================================================== */
 
   const participant =
-    useMemo<
-      CallParticipant
-    >(
+    useMemo<CallParticipant>(
       () => ({
         id:
           workerId,
@@ -460,23 +332,10 @@ export default function CustomerCallScreen() {
     );
 
   /* ==========================================================
-     START CALL SESSION
+     START CALL IMMEDIATELY
   ========================================================== */
 
   useEffect(() => {
-    /*
-     * Wait until public worker metadata
-     * has either loaded or failed.
-     *
-     * This gives the Firestore call document
-     * the best available worker snapshot.
-     */
-    if (
-      !workerProfileReady
-    ) {
-      return;
-    }
-
     if (
       startedRef.current
     ) {
@@ -488,16 +347,7 @@ export default function CustomerCallScreen() {
         .currentUser;
 
     if (
-      !user
-    ) {
-      setStatus(
-        "failed",
-      );
-
-      return;
-    }
-
-    if (
+      !user ||
       !workerId
     ) {
       setStatus(
@@ -510,22 +360,21 @@ export default function CustomerCallScreen() {
     startedRef.current =
       true;
 
-    let unsubscribe:
-      | (() => void)
-      | undefined;
-
     let cancelled =
       false;
 
     const startCall =
       async () => {
         try {
+          /*
+           * Do NOT wait for another worker-profile
+           * network request before creating the call.
+           *
+           * Fast calling is more important here.
+           * Fresh profile data is used when already available.
+           */
           const latestWorker =
             freshWorkerRef.current;
-
-          /* ==================================================
-             CUSTOMER SNAPSHOT
-          ================================================== */
 
           const customerName =
             user.displayName
@@ -536,10 +385,6 @@ export default function CustomerCallScreen() {
             user.photoURL
               ?.trim() ||
             "";
-
-          /* ==================================================
-             WORKER SNAPSHOT
-          ================================================== */
 
           const workerName =
             latestWorker
@@ -557,44 +402,64 @@ export default function CustomerCallScreen() {
             routeWorkerService;
 
           /* ==================================================
-             CREATE UNIFIED FIRESTORE CALL
+             CREATE FIRESTORE CALL
           ================================================== */
 
           const nextCallId =
-            await createCustomerCallSession(
-              {
-                customerId:
-                  user.uid,
+            await createCustomerCallSession({
+              customerId:
+                user.uid,
 
-                workerId,
+              workerId,
 
-                customerSnapshot: {
-                  name:
-                    customerName,
+              customerSnapshot: {
+                name:
+                  customerName,
 
-                  image:
-                    customerImage,
+                image:
+                  customerImage,
 
-                  service:
-                    "Customer",
-                },
-
-                workerSnapshot: {
-                  name:
-                    workerName,
-
-                  image:
-                    workerImage,
-
-                  service:
-                    workerService,
-                },
+                service:
+                  "Customer",
               },
-            );
 
+              workerSnapshot: {
+                name:
+                  workerName,
+
+                image:
+                  workerImage,
+
+                service:
+                  workerService,
+              },
+            });
+
+          /*
+           * User may have left while the Firestore
+           * call document was being created.
+           *
+           * End the new call instead of leaving an
+           * orphaned ringing session.
+           */
           if (
-            cancelled
+            cancelled ||
+            leavingRef.current
           ) {
+            try {
+              await endCustomerCallSession(
+                nextCallId,
+                user.uid,
+              );
+            } catch (
+              cleanupError
+            ) {
+              console.error(
+                "FIXXAM_CANCEL_CREATED_CALL_CLEANUP_ERROR:",
+                cleanupError,
+              );
+            }
+
             return;
           }
 
@@ -602,211 +467,61 @@ export default function CustomerCallScreen() {
             nextCallId,
           );
 
+          setStatus(
+            "ringing",
+          );
+
+          /* ==================================================
+             FAST TOKEN PREFETCH
+          ================================================== */
+
+          /*
+           * Fire-and-forget intentionally.
+           *
+           * Shared voice screen will request the
+           * same credentials. liveKitCall.ts will
+           * reuse the cached/in-flight request.
+           */
+          prefetchLiveKitCallCredentials(
+            nextCallId,
+          );
+
+          /* ==================================================
+             OPEN SHARED SCREEN WHILE RINGING
+          ================================================== */
+
+          if (
+            sharedCallOpenedRef.current
+          ) {
+            return;
+          }
+
+          sharedCallOpenedRef.current =
+            true;
+
           if (
             __DEV__
           ) {
-            console.log(
-              "CUSTOMER_CALL_CREATED:",
+            console.info(
+              "FIXXAM_CUSTOMER_FAST_CALL_OPEN:",
               {
                 callId:
                   nextCallId,
 
-                customerId:
-                  user.uid,
-
                 workerId,
-
-                workerName,
-
-                workerHasPhoto:
-                  Boolean(
-                    workerImage,
-                  ),
               },
             );
           }
 
-          /* ==================================================
-             LISTEN TO CALL SESSION
-          ================================================== */
+          router.replace({
+            pathname:
+              "/voice-call/[callId]",
 
-          unsubscribe =
-            subscribeToCallSession(
-              nextCallId,
-
-              (
-                session,
-              ) => {
-                if (
-                  cancelled
-                ) {
-                  return;
-                }
-
-                const nextStatus =
-                  toUiStatus(
-                    session.status,
-                  );
-
-                setStatus(
-                  nextStatus,
-                );
-
-                /* ============================================
-                   RINGING
-                ============================================ */
-
-                if (
-                  session.status ===
-                  "ringing"
-                ) {
-                  setConnectedAt(
-                    null,
-                  );
-
-                  return;
-                }
-
-                /* ============================================
-                   ACCEPTED
-                ============================================ */
-
-                if (
-                  session.status ===
-                  "accepted"
-                ) {
-                  /*
-                   * Worker accepted.
-                   *
-                   * Do NOT start timer yet.
-                   *
-                   * LiveKit must connect first.
-                   */
-                  setConnectedAt(
-                    null,
-                  );
-
-                  return;
-                }
-
-                /* ============================================
-                   CONNECTED
-                ============================================ */
-
-                if (
-                  session.status ===
-                  "connected"
-                ) {
-                  const connectedTime =
-                    session.connectedAt
-                      ?.getTime() ??
-                    Date.now();
-
-                  setConnectedAt(
-                    connectedTime,
-                  );
-
-                  /*
-                   * Recently Called is written only
-                   * after the call has genuinely
-                   * reached connected state.
-                   */
-                  if (
-                    !recentSavedRef.current
-                  ) {
-                    recentSavedRef.current =
-                      true;
-
-                    const latestProfile =
-                      freshWorkerRef.current;
-
-                    void addRecentlyContactedWorker(
-                      user.uid,
-                      {
-                        id:
-                          workerId,
-
-                        name:
-                          latestProfile
-                            ?.name ||
-                          routeWorkerName,
-
-                        service:
-                          latestProfile
-                            ?.service ||
-                          routeWorkerService,
-
-                        rating:
-                          latestProfile
-                            ?.rating ??
-                          routeWorkerRating,
-
-                        image:
-                          latestProfile
-                            ?.photoUrl ||
-                          routeWorkerImage,
-                      },
-                    ).catch(
-                      (
-                        storageError,
-                      ) => {
-                        recentSavedRef.current =
-                          false;
-
-                        console.error(
-                          "SAVE_CONNECTED_CALL_RECENT_ERROR:",
-                          storageError,
-                        );
-                      },
-                    );
-                  }
-
-                  return;
-                }
-
-                /* ============================================
-                   TERMINAL STATES
-                ============================================ */
-
-                if (
-                  session.status ===
-                    "declined" ||
-                  session.status ===
-                    "missed" ||
-                  session.status ===
-                    "ended" ||
-                  session.status ===
-                    "failed"
-                ) {
-                  setConnectedAt(
-                    null,
-                  );
-                }
-              },
-
-              (
-                subscriptionError,
-              ) => {
-                if (
-                  cancelled
-                ) {
-                  return;
-                }
-
-                console.error(
-                  "CALL_SESSION_SUBSCRIPTION_ERROR:",
-                  subscriptionError,
-                );
-
-                setConnectedAt(
-                  null,
-                );
-
-                setStatus(
-                  "failed",
-                );
-              },
-            );
+            params: {
+              callId:
+                nextCallId,
+            },
+          } as never);
         } catch (
           startError
         ) {
@@ -817,12 +532,13 @@ export default function CustomerCallScreen() {
           }
 
           console.error(
-            "START_CUSTOMER_CALL_ERROR:",
-            startError,
-          );
+            "FIXXAM_CUSTOMER_CALL_START_ERROR:",
+            {
+              workerId,
 
-          setConnectedAt(
-            null,
+              error:
+                startError,
+            },
           );
 
           setStatus(
@@ -836,79 +552,74 @@ export default function CustomerCallScreen() {
     return () => {
       cancelled =
         true;
-
-      unsubscribe?.();
     };
   }, [
     routeWorkerImage,
     routeWorkerName,
-    routeWorkerRating,
     routeWorkerService,
     workerId,
-    workerProfileReady,
   ]);
 
   /* ==========================================================
-     END CALL
+     END / CANCEL CALL
   ========================================================== */
 
   const handleEndCall =
-    useCallback(async () => {
-      if (
-        ending
-      ) {
-        return;
-      }
-
-      setEnding(
-        true,
-      );
-
-      const user =
-        getAuth()
-          .currentUser;
-
-      try {
+    useCallback(
+      async () => {
         if (
-          callId &&
-          user
+          ending
         ) {
-          await endCustomerCallSession(
-            callId,
-            user.uid,
-          );
-        }
-      } catch (
-        endError
-      ) {
-        console.error(
-          "END_CUSTOMER_CALL_ERROR:",
-          endError,
-        );
-      } finally {
-        setConnectedAt(
-          null,
-        );
-
-        if (
-          router.canGoBack()
-        ) {
-          router.back();
-
           return;
         }
 
-        router.replace(
-          "/(customer)" as never,
+        leavingRef.current =
+          true;
+
+        setEnding(
+          true,
         );
-      }
-    }, [
-      callId,
-      ending,
-    ]);
+
+        const user =
+          getAuth()
+            .currentUser;
+
+        try {
+          if (
+            callId &&
+            user
+          ) {
+            await endCustomerCallSession(
+              callId,
+              user.uid,
+            );
+          }
+        } catch (
+          endError
+        ) {
+          console.error(
+            "FIXXAM_CUSTOMER_CALL_END_ERROR:",
+            {
+              callId,
+
+              error:
+                endError,
+            },
+          );
+        } finally {
+          router.replace(
+            "/(customer)" as never,
+          );
+        }
+      },
+      [
+        callId,
+        ending,
+      ],
+    );
 
   /* ==========================================================
-     ANDROID HARDWARE BACK
+     ANDROID BACK
   ========================================================== */
 
   useEffect(() => {
@@ -916,15 +627,11 @@ export default function CustomerCallScreen() {
       BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
-          /*
-           * If the call has already ended,
-           * simply leave the screen.
-           */
           if (
             status ===
-              "ended" ||
+              "failed" ||
             status ===
-              "failed"
+              "ended"
           ) {
             void handleEndCall();
 
@@ -987,7 +694,7 @@ export default function CustomerCallScreen() {
           status
         }
         connectedAt={
-          connectedAt
+          null
         }
         onEndCall={
           handleEndCall

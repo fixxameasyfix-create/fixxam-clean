@@ -3,13 +3,12 @@ import React, {
 } from "react";
 
 import {
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  AppButton,
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -26,13 +25,8 @@ import {
 
 type Props = {
   customerName: string;
-
-  customerPhone?: string;
-
   address: string;
-
   hasGps: boolean;
-
   onCallCustomer: () => void;
 };
 
@@ -41,18 +35,11 @@ type Props = {
 ============================================================== */
 
 function cleanValue(
-  value:
-    | string
-    | undefined,
+  value: string | undefined,
 ): string {
-  if (
-    typeof value !==
-    "string"
-  ) {
-    return "";
-  }
-
-  return value.trim();
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
 /* ==============================================================
@@ -61,228 +48,161 @@ function cleanValue(
 
 function WorkerMarketCustomerDeliverySection({
   customerName,
-  customerPhone,
   address,
   hasGps,
   onCallCustomer,
 }: Props) {
   const displayCustomerName =
-    cleanValue(
-      customerName,
-    ) ||
+    cleanValue(customerName) ||
     "Customer";
 
-  const displayPhone =
-    cleanValue(
-      customerPhone,
-    );
-
   const displayAddress =
-    cleanValue(
-      address,
-    ) ||
+    cleanValue(address) ||
     "Address unavailable";
 
-  const hasPhone =
-    Boolean(
-      displayPhone,
-    );
-
   return (
-    <>
+    <View style={styles.section}>
       {/* ========================================================
-          CUSTOMER
+          CUSTOMER HEADER
       ======================================================== */}
 
-      <AppCard
-        role="worker"
-        variant="outlined"
-        style={
-          styles.card
-        }
-      >
+      <View style={styles.sectionHeader}>
         <AppText
           variant="heading3"
           weight="bold"
-          style={
-            styles.sectionTitle
-          }
+          style={styles.sectionTitle}
         >
           Customer
         </AppText>
-
-        <View
-          style={
-            styles.customerRow
-          }
-        >
-          <View
-            style={
-              styles.workerAccentIcon
-            }
-          >
-            <AppIcon
-              name="profile"
-              role="worker"
-              size="md"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.customerInfo
-            }
-          >
-            <AppText
-              variant="bodyLarge"
-              weight="medium"
-              numberOfLines={1}
-              style={
-                styles.customerName
-              }
-            >
-              {displayCustomerName}
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-              style={
-                styles.customerPhone
-              }
-            >
-              {hasPhone
-                ? displayPhone
-                : "Phone number unavailable"}
-            </AppText>
-          </View>
-
-          <View
-            style={
-              styles.callAction
-            }
-          >
-            <AppButton
-              title="Call"
-              role="worker"
-              variant="outline"
-              size="sm"
-              leftIconName="phone"
-              disabled={
-                !hasPhone
-              }
-              onPress={
-                onCallCustomer
-              }
-            />
-          </View>
-        </View>
-      </AppCard>
+      </View>
 
       {/* ========================================================
-          DELIVERY
+          CUSTOMER ROW
       ======================================================== */}
 
-      <AppCard
-        role="worker"
-        variant="outlined"
-        style={
-          styles.card
-        }
-      >
-        <View
-          style={
-            styles.sectionHeader
-          }
-        >
+      <View style={styles.customerRow}>
+        {/* CUSTOMER ICON */}
+
+        <View style={styles.customerIcon}>
+          <AppIcon
+            name="profile"
+            size="md"
+            color={WorkerColors.primary}
+          />
+        </View>
+
+        {/* CUSTOMER INFO */}
+
+        <View style={styles.customerInfo}>
           <AppText
-            variant="heading3"
-            weight="bold"
-            style={
-              styles.sectionTitle
-            }
+            variant="bodyLarge"
+            weight="medium"
+            numberOfLines={1}
+            style={styles.customerName}
           >
-            Delivery
+            {displayCustomerName}
           </AppText>
 
-          {hasGps ? (
-            <View
-              style={
-                styles.gpsBadge
-              }
-            >
-              <AppIcon
-                name="location"
-                size="xs"
-                color={
-                  Colors.success
-                }
-              />
-
-              <AppText
-                variant="caption"
-                weight="medium"
-                style={
-                  styles.gpsText
-                }
-              >
-                GPS
-              </AppText>
-            </View>
-          ) : null}
+          <AppText
+            variant="caption"
+            numberOfLines={1}
+            style={styles.secondaryText}
+          >
+            Contact customer through Fixxam
+          </AppText>
         </View>
 
-        <View
-          style={
-            styles.addressRow
-          }
+        {/* CALL CUSTOMER */}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${displayCustomerName}`}
+          accessibilityHint="Start a Fixxam voice call with this customer"
+          hitSlop={8}
+          onPress={onCallCustomer}
+          style={({ pressed }) => [
+            styles.callButton,
+            pressed && styles.callButtonPressed,
+          ]}
         >
-          <View
-            style={
-              styles.workerAccentIcon
-            }
-          >
+          <AppIcon
+            name="phone"
+            size="sm"
+            color={Colors.white}
+          />
+        </Pressable>
+      </View>
+
+      {/* ========================================================
+          DIVIDER
+      ======================================================== */}
+
+      <View style={styles.divider} />
+
+      {/* ========================================================
+          DELIVERY HEADER
+      ======================================================== */}
+
+      <View style={styles.deliveryHeader}>
+        <AppText
+          variant="heading3"
+          weight="bold"
+          style={styles.sectionTitle}
+        >
+          Delivery
+        </AppText>
+
+        {hasGps ? (
+          <View style={styles.gpsBadge}>
             <AppIcon
               name="location"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
+              size="xs"
+              color={Colors.success}
             />
-          </View>
 
-          <View
-            style={
-              styles.addressContent
-            }
-          >
             <AppText
               variant="caption"
-              tone="secondary"
-              style={
-                styles.addressLabel
-              }
+              weight="medium"
+              style={styles.gpsText}
             >
-              DELIVERY ADDRESS
-            </AppText>
-
-            <AppText
-              variant="body"
-              style={
-                styles.addressText
-              }
-            >
-              {displayAddress}
+              GPS
             </AppText>
           </View>
+        ) : null}
+      </View>
+
+      {/* ========================================================
+          DELIVERY LOCATION
+      ======================================================== */}
+
+      <View style={styles.deliveryRow}>
+        <View style={styles.locationIcon}>
+          <AppIcon
+            name="location"
+            size="md"
+            color={WorkerColors.primary}
+          />
         </View>
-      </AppCard>
-    </>
+
+        <View style={styles.addressContent}>
+          <AppText
+            variant="caption"
+            numberOfLines={1}
+            style={styles.addressLabel}
+          >
+            DELIVERY ADDRESS
+          </AppText>
+
+          <AppText
+            variant="body"
+            numberOfLines={3}
+            style={styles.addressText}
+          >
+            {displayAddress}
+          </AppText>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -294,171 +214,252 @@ export default memo(
    STYLES
 ============================================================== */
 
-const styles =
-  StyleSheet.create({
-    card: {
-      width: "100%",
+const styles = StyleSheet.create({
+  /* ============================================================
+     SECTION
+  ============================================================ */
 
-      marginBottom:
-        FixxamTokens.spacing.md,
+  section: {
+    width: "100%",
 
-      padding:
-        FixxamTokens.spacing.lg,
+    marginBottom:
+      FixxamTokens.spacing.lg,
+
+    paddingVertical:
+      FixxamTokens.spacing.sm,
+  },
+
+  sectionHeader: {
+    marginBottom:
+      FixxamTokens.spacing.md,
+  },
+
+  sectionTitle: {
+    color:
+      Colors.textPrimary,
+  },
+
+  /* ============================================================
+     CUSTOMER
+  ============================================================ */
+
+  customerRow: {
+    minHeight: 64,
+
+    flexDirection: "row",
+
+    alignItems: "center",
+  },
+
+  customerIcon: {
+    width: 44,
+
+    height: 44,
+
+    flexShrink: 0,
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      WorkerColors.primarySoft,
+  },
+
+  customerInfo: {
+    flex: 1,
+
+    minWidth: 0,
+
+    marginLeft:
+      FixxamTokens.spacing.md,
+  },
+
+  customerName: {
+    color:
+      Colors.textPrimary,
+  },
+
+  secondaryText: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
+
+    color:
+      Colors.textSecondary,
+  },
+
+  /* ============================================================
+     CALL BUTTON
+  ============================================================ */
+
+  callButton: {
+    width:
+      FixxamTokens.size.minimumTouchTarget,
+
+    height:
+      FixxamTokens.size.minimumTouchTarget,
+
+    marginLeft:
+      FixxamTokens.spacing.sm,
+
+    alignItems: "center",
+
+    justifyContent: "center",
+
+    borderRadius:
+      FixxamTokens.radius.full,
+
+    backgroundColor:
+      WorkerColors.primary,
+
+    shadowColor:
+      WorkerColors.primary,
+
+    shadowOffset: {
+      width: 0,
+      height: 2,
     },
 
-    sectionTitle: {
-      color:
-        Colors.textPrimary,
-    },
+    shadowOpacity: 0.18,
 
-    /* ==========================================================
-       CUSTOMER
-    ========================================================== */
+    shadowRadius: 4,
 
-    customerRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
+    elevation: 2,
+  },
 
-      flexDirection:
-        "row",
+  callButtonPressed: {
+    opacity:
+      FixxamTokens.motion.pressedOpacity,
 
-      alignItems:
-        "center",
-    },
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion.scalePressed,
+      },
+    ],
+  },
 
-    workerAccentIcon: {
-      width:
-        FixxamTokens.size.iconBox,
+  /* ============================================================
+     DIVIDER
+  ============================================================ */
 
-      height:
-        FixxamTokens.size.iconBox,
+  divider: {
+    height:
+      StyleSheet.hairlineWidth,
 
-      flexShrink: 0,
+    marginVertical:
+      FixxamTokens.spacing.lg,
 
-      alignItems:
-        "center",
+    marginLeft: 56,
 
-      justifyContent:
-        "center",
+    backgroundColor:
+      Colors.border,
+  },
 
-      borderRadius:
-        FixxamTokens.radius.md,
+  /* ============================================================
+     DELIVERY HEADER
+  ============================================================ */
 
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
+  deliveryHeader: {
+    marginBottom:
+      FixxamTokens.spacing.md,
 
-    customerInfo: {
-      flex: 1,
+    flexDirection: "row",
 
-      minWidth: 0,
+    alignItems: "center",
 
-      marginLeft:
-        FixxamTokens.spacing.md,
+    justifyContent: "space-between",
 
-      marginRight:
-        FixxamTokens.spacing.sm,
-    },
+    gap:
+      FixxamTokens.spacing.md,
+  },
 
-    customerName: {
-      color:
-        Colors.textPrimary,
-    },
+  /* ============================================================
+     DELIVERY ROW
+  ============================================================ */
 
-    customerPhone: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+  deliveryRow: {
+    flexDirection: "row",
 
-      color:
-        Colors.textSecondary,
-    },
+    alignItems: "flex-start",
+  },
 
-    callAction: {
-      flexShrink: 0,
-    },
+  locationIcon: {
+    width: 44,
 
-    /* ==========================================================
-       DELIVERY
-    ========================================================== */
+    height: 44,
 
-    sectionHeader: {
-      marginBottom:
-        FixxamTokens.spacing.md,
+    flexShrink: 0,
 
-      flexDirection:
-        "row",
+    alignItems: "center",
 
-      alignItems:
-        "center",
+    justifyContent: "center",
 
-      justifyContent:
-        "space-between",
+    borderRadius:
+      FixxamTokens.radius.full,
 
-      gap:
-        FixxamTokens.spacing.md,
-    },
+    backgroundColor:
+      WorkerColors.primarySoft,
+  },
 
-    gpsBadge: {
-      minHeight: 28,
+  addressContent: {
+    flex: 1,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
+    minWidth: 0,
 
-      paddingVertical:
-        FixxamTokens.spacing.xs,
+    marginLeft:
+      FixxamTokens.spacing.md,
+  },
 
-      flexDirection:
-        "row",
+  addressLabel: {
+    letterSpacing: 0.5,
 
-      alignItems:
-        "center",
+    color:
+      Colors.textMuted,
+  },
 
-      gap:
-        FixxamTokens.spacing.xs,
+  addressText: {
+    marginTop:
+      FixxamTokens.spacing.xs,
 
-      borderRadius:
-        FixxamTokens.radius.full,
+    lineHeight: 21,
 
-      backgroundColor:
-        Colors.successSoft,
-    },
+    color:
+      Colors.textPrimary,
+  },
 
-    gpsText: {
-      color:
-        Colors.success,
-    },
+  /* ============================================================
+     GPS
+  ============================================================ */
 
-    addressRow: {
-      flexDirection:
-        "row",
+  gpsBadge: {
+    minHeight: 26,
 
-      alignItems:
-        "flex-start",
-    },
+    paddingHorizontal:
+      FixxamTokens.spacing.sm,
 
-    addressContent: {
-      flex: 1,
+    paddingVertical:
+      FixxamTokens.spacing.xxs,
 
-      minWidth: 0,
+    flexDirection: "row",
 
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
+    alignItems: "center",
 
-    addressLabel: {
-      letterSpacing: 0.6,
+    gap:
+      FixxamTokens.spacing.xxs,
 
-      color:
-        Colors.textMuted,
-    },
+    borderRadius:
+      FixxamTokens.radius.full,
 
-    addressText: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+    backgroundColor:
+      Colors.successSoft,
+  },
 
-      lineHeight: 20,
-
-      color:
-        Colors.textPrimary,
-    },
-  });
+  gpsText: {
+    color:
+      Colors.success,
+  },
+});

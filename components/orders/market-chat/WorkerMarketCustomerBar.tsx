@@ -28,6 +28,10 @@ type Props = {
 
   customerPhone: string;
 
+  calling?: boolean;
+
+  onCallCustomer: () => void;
+
   onOpenItems: () => void;
 };
 
@@ -38,6 +42,8 @@ type Props = {
 function WorkerMarketCustomerBar({
   customerName,
   customerPhone,
+  calling = false,
+  onCallCustomer,
   onOpenItems,
 }: Props) {
   const displayName =
@@ -104,6 +110,68 @@ function WorkerMarketCustomerBar({
       </View>
 
       {/* ======================================================
+          CALL
+      ====================================================== */}
+
+      <Pressable
+        onPress={
+          onCallCustomer
+        }
+        disabled={
+          calling
+        }
+        accessibilityRole="button"
+        accessibilityLabel={
+          calling
+            ? `Calling ${displayName}`
+            : `Call ${displayName}`
+        }
+        accessibilityState={{
+          disabled:
+            calling,
+
+          busy:
+            calling,
+        }}
+        style={({
+          pressed,
+        }) => [
+          styles.callButton,
+
+          pressed &&
+          !calling
+            ? styles.pressed
+            : null,
+
+          calling
+            ? styles.disabled
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="phone"
+          role="worker"
+          size="xs"
+          color={
+            WorkerColors.primary
+          }
+        />
+
+        <AppText
+          variant="caption"
+          weight="bold"
+          numberOfLines={1}
+          style={
+            styles.callButtonText
+          }
+        >
+          {calling
+            ? "CALLING..."
+            : "CALL"}
+        </AppText>
+      </Pressable>
+
+      {/* ======================================================
           ITEMS
       ====================================================== */}
 
@@ -111,15 +179,27 @@ function WorkerMarketCustomerBar({
         onPress={
           onOpenItems
         }
+        disabled={
+          calling
+        }
         accessibilityRole="button"
         accessibilityLabel="View order items"
+        accessibilityState={{
+          disabled:
+            calling,
+        }}
         style={({
           pressed,
         }) => [
           styles.itemsButton,
 
-          pressed
+          pressed &&
+          !calling
             ? styles.pressed
+            : null,
+
+          calling
+            ? styles.disabled
             : null,
         ]}
       >
@@ -233,6 +313,46 @@ const styles =
     },
 
     /* ========================================================
+       CALL
+    ======================================================== */
+
+    callButton: {
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
+
+      flexShrink: 0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    callButtonText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    /* ========================================================
        ITEMS
     ======================================================== */
 
@@ -285,5 +405,11 @@ const styles =
               .scalePressed,
         },
       ],
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

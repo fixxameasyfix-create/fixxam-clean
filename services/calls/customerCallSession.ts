@@ -1,77 +1,56 @@
-import {
-  addDoc,
-  collection,
-  doc,
-  onSnapshot,
-  runTransaction,
-  serverTimestamp,
-  Timestamp,
-  type Unsubscribe,
-} from "firebase/firestore";
+import { auth } from "@/firebase/config";
 
 import {
-  db,
-} from "@/firebase/config";
+  createCallSession,
+  endCall,
+  subscribeToCall,
+  type FixxamCallParticipantSnapshot,
+  type FixxamCallSession,
+  type FixxamCallStatus,
+} from "./callSession";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
 export type CallSessionStatus =
-  | "ringing"
-  | "accepted"
-  | "connected"
-  | "declined"
-  | "missed"
-  | "ended"
-  | "failed";
+  FixxamCallStatus;
 
 export type CallParticipantSnapshotInput = {
   name: string;
-
   image?: string;
-
   service?: string;
 };
 
 export type CreateCustomerCallSessionInput = {
   customerId: string;
-
   workerId: string;
 
-  customerSnapshot?: CallParticipantSnapshotInput;
+  customerSnapshot?:
+    | CallParticipantSnapshotInput
+    | null;
 
-  workerSnapshot?: CallParticipantSnapshotInput;
+  workerSnapshot?:
+    | CallParticipantSnapshotInput
+    | null;
 };
 
 export type CustomerCallSession = {
   id: string;
 
   callerId: string;
-
   callerRole: "customer";
 
   calleeId: string;
-
   calleeRole: "worker";
 
   status: CallSessionStatus;
 
   createdAt: Date | null;
-
   acceptedAt: Date | null;
-
   connectedAt: Date | null;
-
   endedAt: Date | null;
 };
-
-/* ============================================================
-   CONSTANTS
-============================================================ */
-
-const CALLS_COLLECTION =
-  "calls";
 
 /* ============================================================
    HELPERS
@@ -80,84 +59,68 @@ const CALLS_COLLECTION =
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value ===
-    "string"
+  return typeof value === "string"
     ? value.trim()
     : "";
 }
 
-function cleanHttpsImage(
-  value: unknown,
-): string {
-  const image =
-    cleanString(
-      value,
-    );
+/* ============================================================
+   MAP SHARED CALL -> CUSTOMER CALL
+============================================================ */
 
-  return image.startsWith(
-    "https://",
-  )
-    ? image
-    : "";
-}
-
-function normalizeSnapshot(
-  snapshot:
-    | CallParticipantSnapshotInput
-    | undefined,
-) {
-  if (
-    !snapshot
-  ) {
-    return null;
-  }
-
-  const name =
-    cleanString(
-      snapshot.name,
-    );
+function toCustomerCallSession(
+  call: FixxamCallSession,
+): CustomerCallSession | null {
+  /*
+   * This compatibility service represents
+   * customer -> worker calls only.
+   *
+   * The shared call service supports:
+   *
+   * customer -> worker
+   * worker -> customer
+   *
+   * Worker-originated calls are therefore
+   * handled by the shared call service.
+   */
 
   if (
-    !name
+    call.callerRole !== "customer" ||
+    call.calleeRole !== "worker"
   ) {
     return null;
   }
 
   return {
-    name,
+    id: call.id,
 
-    image:
-      cleanHttpsImage(
-        snapshot.image,
-      ),
+    callerId:
+      call.callerId,
 
-    service:
-      cleanString(
-        snapshot.service,
-      ),
+    callerRole:
+      "customer",
+
+    calleeId:
+      call.calleeId,
+
+    calleeRole:
+      "worker",
+
+    status:
+      call.status,
+
+    createdAt:
+      call.createdAt,
+
+    acceptedAt:
+      call.acceptedAt,
+
+    connectedAt:
+      call.connectedAt,
+
+    endedAt:
+      call.endedAt,
   };
-}
-
-function toDate(
-  value: unknown,
-): Date | null {
-  return value instanceof Timestamp
-    ? value.toDate()
-    : null;
-}
-
-function isCallStatus(
-  value: unknown,
-): value is CallSessionStatus {
-  return (
-    value === "ringing" ||
-    value === "accepted" ||
-    value === "connected" ||
-    value === "declined" ||
-    value === "missed" ||
-    value === "ended" ||
-    value === "failed"
-  );
 }
 
 /* ============================================================
@@ -180,17 +143,13 @@ export async function createCustomerCallSession({
       workerId,
     );
 
-  if (
-    !normalizedCustomerId
-  ) {
+  if (!normalizedCustomerId) {
     throw new Error(
       "Customer ID is required.",
     );
   }
 
-  if (
-    !normalizedWorkerId
-  ) {
+  if (!normalizedWorkerId) {
     throw new Error(
       "Worker ID is required.",
     );
@@ -205,76 +164,63 @@ export async function createCustomerCallSession({
     );
   }
 
-  const normalizedCustomerSnapshot =
-    normalizeSnapshot(
-      customerSnapshot,
+  /*
+   * Authentication guard.
+   *
+   * Firestore rules remain the authoritative
+   * security boundary.
+   */
+  const currentUserId =
+    auth.currentUser?.uid;
+
+  if (!currentUserId) {
+    throw new Error(
+      "You must be signed in to make a call.",
     );
+  }
 
-  const normalizedWorkerSnapshot =
-    normalizeSnapshot(
-      workerSnapshot,
+  if (
+    currentUserId !==
+    normalizedCustomerId
+  ) {
+    throw new Error(
+      "You are not authorized to start this call.",
     );
+  }
 
-  const callDocument = {
-    /* ========================================================
-       UNIFIED PARTICIPANTS
-    ======================================================== */
-
+  /*
+   * Use the unified call engine.
+   *
+   * The shared service handles:
+   *
+   * - authentication
+   * - duplicate active calls
+   * - customer -> worker calls
+   * - worker -> customer calls
+   * - reverse-direction detection
+   * - participant snapshots
+   * - Firestore persistence
+   * - call lifecycle
+   */
+  return createCallSession({
     callerId:
       normalizedCustomerId,
 
     callerRole:
-      "customer" as const,
+      "customer",
 
     calleeId:
       normalizedWorkerId,
 
     calleeRole:
-      "worker" as const,
-
-    /* ========================================================
-       DISPLAY SNAPSHOTS
-    ======================================================== */
+      "worker",
 
     callerSnapshot:
-      normalizedCustomerSnapshot,
+      customerSnapshot,
 
     calleeSnapshot:
-      normalizedWorkerSnapshot,
-
-    /* ========================================================
-       CALL STATE
-    ======================================================== */
-
-    status:
-      "ringing" as const,
-
-    createdAt:
-      serverTimestamp(),
-
-    acceptedAt:
-      null,
-
-    connectedAt:
-      null,
-
-    endedAt:
-      null,
-
-    endedBy:
-      null,
-  };
-
-  const reference =
-    await addDoc(
-      collection(
-        db,
-        CALLS_COLLECTION,
-      ),
-      callDocument,
-    );
-
-  return reference.id;
+      workerSnapshot,
+  });
 }
 
 /* ============================================================
@@ -289,134 +235,46 @@ export function subscribeToCallSession(
   onError?: (
     error: Error,
   ) => void,
-): Unsubscribe {
+): () => void {
   const normalizedCallId =
     cleanString(
       callId,
     );
 
-  if (
-    !normalizedCallId
-  ) {
+  if (!normalizedCallId) {
     throw new Error(
       "Call ID is required.",
     );
   }
 
-  return onSnapshot(
-    doc(
-      db,
-      CALLS_COLLECTION,
-      normalizedCallId,
-    ),
+  return subscribeToCall(
+    normalizedCallId,
 
-    (
-      snapshot,
-    ) => {
-      if (
-        !snapshot.exists()
-      ) {
+    (call) => {
+      const customerCall =
+        toCustomerCallSession(
+          call,
+        );
+
+      /*
+       * Ignore worker-originated calls.
+       *
+       * This compatibility API is specifically
+       * for the customer -> worker direction.
+       *
+       * The unified call service should be used
+       * for both directions.
+       */
+      if (!customerCall) {
         return;
       }
 
-      const data =
-        snapshot.data();
-
-      if (
-        !isCallStatus(
-          data.status,
-        )
-      ) {
-        console.error(
-          "INVALID_CALL_STATUS:",
-          {
-            callId:
-              snapshot.id,
-
-            status:
-              data.status,
-          },
-        );
-
-        return;
-      }
-
-      const callerId =
-        cleanString(
-          data.callerId,
-        );
-
-      const calleeId =
-        cleanString(
-          data.calleeId,
-        );
-
-      if (
-        !callerId ||
-        !calleeId
-      ) {
-        console.error(
-          "INVALID_CALL_PARTICIPANTS:",
-          {
-            callId:
-              snapshot.id,
-          },
-        );
-
-        return;
-      }
-
-      onChange({
-        id:
-          snapshot.id,
-
-        callerId,
-
-        callerRole:
-          "customer",
-
-        calleeId,
-
-        calleeRole:
-          "worker",
-
-        status:
-          data.status,
-
-        createdAt:
-          toDate(
-            data.createdAt,
-          ),
-
-        acceptedAt:
-          toDate(
-            data.acceptedAt,
-          ),
-
-        connectedAt:
-          toDate(
-            data.connectedAt,
-          ),
-
-        endedAt:
-          toDate(
-            data.endedAt,
-          ),
-      });
-    },
-
-    (
-      error,
-    ) => {
-      console.error(
-        "CUSTOMER_CALL_SUBSCRIPTION_ERROR:",
-        error,
-      );
-
-      onError?.(
-        error,
+      onChange(
+        customerCall,
       );
     },
+
+    onError,
   );
 }
 
@@ -438,90 +296,44 @@ export async function endCustomerCallSession(
       customerId,
     );
 
-  if (
-    !normalizedCallId ||
-    !normalizedCustomerId
-  ) {
-    return;
+  if (!normalizedCallId) {
+    throw new Error(
+      "Call ID is required.",
+    );
   }
 
-  const callRef =
-    doc(
-      db,
-      CALLS_COLLECTION,
-      normalizedCallId,
+  if (!normalizedCustomerId) {
+    throw new Error(
+      "Customer ID is required.",
     );
+  }
 
-  await runTransaction(
-    db,
-    async (
-      transaction,
-    ) => {
-      const snapshot =
-        await transaction.get(
-          callRef,
-        );
+  /*
+   * Client-side authentication guard.
+   *
+   * Firestore rules remain the authoritative
+   * security boundary.
+   */
+  const currentUserId =
+    auth.currentUser?.uid;
 
-      if (
-        !snapshot.exists()
-      ) {
-        return;
-      }
+  if (!currentUserId) {
+    throw new Error(
+      "You must be signed in to end this call.",
+    );
+  }
 
-      const data =
-        snapshot.data();
+  if (
+    currentUserId !==
+    normalizedCustomerId
+  ) {
+    throw new Error(
+      "You are not authorized to end this call.",
+    );
+  }
 
-      const callerId =
-        cleanString(
-          data.callerId,
-        );
-
-      const calleeId =
-        cleanString(
-          data.calleeId,
-        );
-
-      const status =
-        data.status;
-
-      const isParticipant =
-        callerId ===
-          normalizedCustomerId ||
-        calleeId ===
-          normalizedCustomerId;
-
-      if (
-        !isParticipant
-      ) {
-        throw new Error(
-          "You are not a participant in this call.",
-        );
-      }
-
-      if (
-        status ===
-          "ended" ||
-        status ===
-          "declined" ||
-        status ===
-          "missed"
-      ) {
-        return;
-      }
-
-      transaction.update(
-        callRef,
-        {
-          status:
-            "ended",
-
-          endedAt:
-            serverTimestamp(),
-
-          endedBy:
-            normalizedCustomerId,
-        },
-      );
-    },
+  await endCall(
+    normalizedCallId,
+    normalizedCustomerId,
   );
 }

@@ -1,17 +1,11 @@
 import React, {
   memo,
-  useEffect,
-  useState,
 } from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
-
-import {
-  Image,
-} from "expo-image";
 
 import {
   AppIcon,
@@ -31,8 +25,6 @@ import type {
 import {
   formatMarketDate,
   formatMarketOrderNumber,
-  getFirstMarketProductImage,
-  getFirstMarketProductName,
   getMarketStatusConfig,
   type MarketStatus,
 } from "./marketOrder.utils";
@@ -61,22 +53,11 @@ function MarketOrderHeaderComponent({
   orderId,
   status,
   createdAt,
-  products,
   storeName,
 }: Props) {
   const statusConfig =
     getMarketStatusConfig(
       status,
-    );
-
-  const productName =
-    getFirstMarketProductName(
-      products,
-    );
-
-  const productImage =
-    getFirstMarketProductImage(
-      products,
     );
 
   const orderNumber =
@@ -89,232 +70,133 @@ function MarketOrderHeaderComponent({
       createdAt,
     );
 
+  const safeStoreName =
+    typeof storeName === "string" &&
+    storeName.trim()
+      ? storeName.trim()
+      : "Market Store";
+
   return (
     <View
-      style={styles.card}
-      accessibilityLabel={`${productName}. Order ${orderNumber}. ${statusConfig.label}. Store ${storeName}.`}
+      accessible
+      accessibilityLabel={`Order ${orderNumber}. Store ${safeStoreName}. ${statusConfig.label}.`}
+      style={
+        styles.card
+      }
     >
-      {/* ======================================================
-          ORDER INFORMATION
-      ====================================================== */}
-
-      <View
-        style={styles.orderRow}
-      >
-        <ProductThumbnail
-          image={
-            productImage
-          }
-          productName={
-            productName
-          }
-        />
-
-        <View
-          style={styles.orderInfo}
-        >
-          <View
-            style={styles.titleRow}
-          >
-            <AppText
-              variant="bodyLarge"
-              weight="bold"
-              numberOfLines={2}
-              style={
-                styles.productName
-              }
-            >
-              {productName}
-            </AppText>
-
-            <View
-              style={[
-                styles.statusBadge,
-                {
-                  backgroundColor:
-                    statusConfig.background,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.statusDot,
-                  {
-                    backgroundColor:
-                      statusConfig.color,
-                  },
-                ]}
-              />
-
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={[
-                  styles.statusText,
-                  {
-                    color:
-                      statusConfig.color,
-                  },
-                ]}
-              >
-                {statusConfig.label}
-              </AppText>
-            </View>
-          </View>
-
-          <AppText
-            variant="caption"
-            style={
-              styles.orderIdLabel
-            }
-          >
-            Order ID
-          </AppText>
-
-          <AppText
-            variant="caption"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.orderId
-            }
-          >
-            {orderNumber}
-          </AppText>
-
-          {orderedDate ? (
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.orderedDate
-              }
-            >
-              Ordered on{" "}
-              {orderedDate}
-            </AppText>
-          ) : null}
-        </View>
-      </View>
-
       {/* ======================================================
           STORE
       ====================================================== */}
 
       <View
-        style={styles.storeRow}
+        style={
+          styles.storeRow
+        }
       >
         <View
-          style={styles.storeIcon}
+          style={
+            styles.storeIcon
+          }
         >
           <AppIcon
             name="cart"
             role="customer"
             size="sm"
-            color={
-              CustomerColors.primary
-            }
+            state="active"
           />
         </View>
 
         <View
-          style={styles.storeInfo}
+          style={
+            styles.storeInfo
+          }
         >
           <AppText
-            variant="caption"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
             numberOfLines={1}
+            ellipsizeMode="tail"
             style={
               styles.storeName
             }
           >
-            {storeName}
+            {safeStoreName}
           </AppText>
 
           <AppText
             variant="caption"
-            style={
-              styles.storeLabel
-            }
+            tone="secondary"
           >
-            Seller / Store
+            Seller
           </AppText>
         </View>
       </View>
-    </View>
-  );
-}
 
-/* ============================================================
-   PRODUCT THUMBNAIL
-============================================================ */
+      {/* ======================================================
+          META
+      ====================================================== */}
 
-function ProductThumbnail({
-  image,
-  productName,
-}: {
-  image:
-    | string
-    | null;
+      <View
+        style={
+          styles.divider
+        }
+      />
 
-  productName: string;
-}) {
-  const [
-    imageFailed,
-    setImageFailed,
-  ] =
-    useState(false);
-
-  useEffect(() => {
-    setImageFailed(
-      false,
-    );
-  }, [
-    image,
-  ]);
-
-  const safeImage =
-    typeof image === "string"
-      ? image.trim()
-      : "";
-
-  const showImage =
-    safeImage.length > 0 &&
-    !imageFailed;
-
-  return (
-    <View
-      style={
-        styles.imageContainer
-      }
-    >
-      {showImage ? (
-        <Image
-          source={{
-            uri: safeImage,
-          }}
-          contentFit="cover"
-          transition={150}
-          accessibilityLabel={`${productName} product image`}
-          onError={() => {
-            setImageFailed(
-              true,
-            );
-          }}
+      <View
+        style={
+          styles.metaRow
+        }
+      >
+        <View
           style={
-            styles.productImage
+            styles.metaItem
           }
-        />
-      ) : (
-        <AppIcon
-          name="package"
-          role="customer"
-          size="lg"
-          color={
-            CustomerColors.primary
-          }
-        />
-      )}
+        >
+          <AppText
+            variant="caption"
+            tone="muted"
+          >
+            Order
+          </AppText>
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            numberOfLines={1}
+            style={
+              styles.metaValue
+            }
+          >
+            {orderNumber}
+          </AppText>
+        </View>
+
+        {orderedDate ? (
+          <View
+            style={
+              styles.dateItem
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="muted"
+            >
+              Ordered
+            </AppText>
+
+            <AppText
+              variant="caption"
+              weight="semibold"
+              numberOfLines={1}
+              style={
+                styles.metaValue
+              }
+            >
+              {orderedDate}
+            </AppText>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -339,173 +221,27 @@ export default MarketOrderHeader;
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
-
     card: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    /* ========================================================
-       ORDER
-    ======================================================== */
-
-    orderRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-    },
-
-    imageContainer: {
-      width:
-        FixxamTokens.size.avatarXl,
-
-      height:
-        FixxamTokens.size.avatarXl,
-
-      flexShrink: 0,
-
-      overflow:
-        "hidden",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    productImage: {
-      width: "100%",
-
-      height: "100%",
-    },
-
-    orderInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    titleRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    productName: {
-      flex: 1,
-
-      minWidth: 0,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    /* ========================================================
-       STATUS
-    ======================================================== */
-
-    statusBadge: {
-      flexShrink: 0,
-
-      minHeight: 26,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.chip,
-    },
-
-    statusDot: {
-      width: 6,
-
-      height: 6,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-    },
-
-    statusText: {
-      letterSpacing: 0.2,
-    },
-
-    /* ========================================================
-       ORDER META
-    ======================================================== */
-
-    orderIdLabel: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textMuted,
-    },
-
-    orderId: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    orderedDate: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -513,32 +249,25 @@ const styles =
     ======================================================== */
 
     storeRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.md,
+      minHeight:
+        48,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        Colors.divider,
     },
 
     storeIcon: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -554,9 +283,11 @@ const styles =
     },
 
     storeInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -567,11 +298,63 @@ const styles =
         Colors.textPrimary,
     },
 
-    storeLabel: {
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
+
+    divider: {
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginVertical:
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    /* ========================================================
+       META
+    ======================================================== */
+
+    metaRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    metaItem: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+    },
+
+    dateItem: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      alignItems:
+        "flex-end",
+    },
+
+    metaValue: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
 
       color:
-        Colors.textMuted,
+        Colors.textPrimary,
     },
   });

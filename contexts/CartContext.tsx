@@ -96,6 +96,17 @@ type CartContextType = {
   clearCart: () => void;
 
   /**
+   * Replace the entire cart with one
+   * validated product in one state update.
+   *
+   * Used when the customer explicitly
+   * agrees to switch to another worker.
+   */
+  replaceCartWithItem: (
+    item: CartItem,
+  ) => boolean;
+
+  /**
    * Original total before discounts.
    */
   subtotal: number;
@@ -839,13 +850,6 @@ export function CartProvider({
          *
          * because Fixxam supports a multi-role
          * Firebase account.
-         *
-         * Example:
-         *
-         * Customer UID = ABC
-         * Worker UID   = ABC
-         *
-         * This is valid.
          */
 
         /* ------------------------------------------------------
@@ -866,9 +870,12 @@ export function CartProvider({
               currentItems.length ===
               0
             ) {
-              result = "added";
+              result =
+                "added";
 
-              return [item];
+              return [
+                item,
+              ];
             }
 
             /* --------------------------------------------------
@@ -1119,6 +1126,108 @@ export function CartProvider({
     }, []);
 
   /* ==========================================================
+     REPLACE CART WITH ITEM
+  ========================================================== */
+
+  const replaceCartWithItem =
+    useCallback(
+      (
+        rawItem: CartItem,
+      ): boolean => {
+        /*
+         * Normalize exactly the same way
+         * as addToCart.
+         */
+        const item =
+          normalizeCartItem(
+            rawItem,
+          );
+
+        /*
+         * Never replace the current cart
+         * with invalid product data.
+         */
+        if (
+          !validateCartItem(
+            item,
+          )
+        ) {
+          console.error(
+            "FIXXAM_INVALID_REPLACEMENT_CART_ITEM",
+            {
+              productId:
+                item.id,
+
+              productName:
+                item.name,
+
+              workerId:
+                item.workerId ??
+                null,
+
+              sellerId:
+                item.sellerId ??
+                null,
+
+              storeId:
+                item.storeId ??
+                null,
+
+              currentUserId:
+                auth.currentUser
+                  ?.uid ?? null,
+            },
+          );
+
+          return false;
+        }
+
+        const workerId =
+          getWorkerId(
+            item,
+          );
+
+        if (!workerId) {
+          console.error(
+            "FIXXAM_REPLACEMENT_CART_WORKER_MISSING",
+            {
+              productId:
+                item.id,
+
+              productName:
+                item.name,
+            },
+          );
+
+          return false;
+        }
+
+        /*
+         * IMPORTANT:
+         *
+         * This is intentionally ONE state
+         * update.
+         *
+         * Do not change this back to:
+         *
+         * clearCart();
+         * addToCart(item);
+         *
+         * because those are two separate
+         * React state updates and can cause
+         * the previous worker to be detected
+         * by addToCart.
+         */
+        setItems([
+          item,
+        ]);
+
+        return true;
+      },
+      [],
+    );
+
+  /* ==========================================================
      SUBTOTAL
   ========================================================== */
 
@@ -1131,7 +1240,9 @@ export function CartProvider({
             item.quantity,
         0,
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      DISCOUNT TOTAL
@@ -1142,7 +1253,9 @@ export function CartProvider({
       return items.reduce(
         (sum, item) => {
           const original =
-            Number(item.price);
+            Number(
+              item.price,
+            );
 
           const actual =
             Number(
@@ -1172,14 +1285,17 @@ export function CartProvider({
             sum +
             Math.max(
               0,
-              original - actual,
+              original -
+                actual,
             ) *
               quantity
           );
         },
         0,
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      FINAL TOTAL
@@ -1194,7 +1310,9 @@ export function CartProvider({
             item.quantity,
         0,
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      CART WORKER
@@ -1202,7 +1320,9 @@ export function CartProvider({
 
   const cartWorkerId =
     useMemo(() => {
-      if (!items.length) {
+      if (
+        !items.length
+      ) {
         return null;
       }
 
@@ -1211,7 +1331,9 @@ export function CartProvider({
           items[0],
         ) || null
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      CART SELLER
@@ -1219,7 +1341,9 @@ export function CartProvider({
 
   const cartSellerId =
     useMemo(() => {
-      if (!items.length) {
+      if (
+        !items.length
+      ) {
         return null;
       }
 
@@ -1228,7 +1352,9 @@ export function CartProvider({
           items[0],
         ) || null
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      CART STORE
@@ -1236,7 +1362,9 @@ export function CartProvider({
 
   const cartStoreId =
     useMemo(() => {
-      if (!items.length) {
+      if (
+        !items.length
+      ) {
         return null;
       }
 
@@ -1245,7 +1373,9 @@ export function CartProvider({
           items[0],
         ) || null
       );
-    }, [items]);
+    }, [
+      items,
+    ]);
 
   /* ==========================================================
      CONTEXT VALUE
@@ -1263,6 +1393,8 @@ export function CartProvider({
         updateQuantity,
 
         clearCart,
+
+        replaceCartWithItem,
 
         subtotal,
 
@@ -1289,6 +1421,8 @@ export function CartProvider({
 
         clearCart,
 
+        replaceCartWithItem,
+
         subtotal,
 
         discountTotal,
@@ -1311,7 +1445,9 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={value}
+      value={
+        value
+      }
     >
       {children}
     </CartContext.Provider>

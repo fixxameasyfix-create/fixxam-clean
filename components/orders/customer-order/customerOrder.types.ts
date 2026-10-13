@@ -3,10 +3,21 @@ import type {
 } from "firebase/firestore";
 
 import type {
+  BookingCancelledBy,
+  BookingCancellationReason,
   BookingStatus,
   CounterOfferBy,
   OfferStatus,
+  NegotiationStatus,
 } from "@/types/booking";
+
+import type {
+  BookingFulfillmentMode,
+} from "@/types/bookingFulfillment";
+
+import type {
+  BookingPriority,
+} from "@/types/bookingPriority";
 
 /* ============================================================
    SHARED TIMESTAMP
@@ -18,6 +29,14 @@ export type BookingTimestamp =
   | string
   | number
   | null;
+
+/* ============================================================
+   BOOKING TIMING
+============================================================ */
+
+export type BookingTiming =
+  | "asap"
+  | "schedule";
 
 /* ============================================================
    COUNTER OFFER
@@ -37,9 +56,13 @@ export type CounterOfferStatus =
 export type BookingLocation = {
   address?: string;
 
-  latitude?: number | null;
+  latitude?:
+    | number
+    | null;
 
-  longitude?: number | null;
+  longitude?:
+    | number
+    | null;
 };
 
 /* ============================================================
@@ -51,15 +74,24 @@ export type LiveLocation = {
 
   longitude: number;
 
-  accuracy?: number | null;
+  accuracy?:
+    | number
+    | null;
 
-  heading?: number | null;
+  heading?:
+    | number
+    | null;
 
-  speed?: number | null;
+  speed?:
+    | number
+    | null;
 
-  userId?: string;
+  userId?:
+    | string
+    | null;
 
-  updatedAt?: BookingTimestamp;
+  updatedAt?:
+    BookingTimestamp;
 };
 
 /* ============================================================
@@ -69,6 +101,8 @@ export type LiveLocation = {
 export type CustomerBooking = {
   id: string;
 
+
+  startConfirmationRequestedAt?: unknown;
   /* ==========================================================
      CUSTOMER
   ========================================================== */
@@ -117,6 +151,9 @@ export type CustomerBooking = {
     | string
     | null;
 
+  fulfillmentMode:
+    BookingFulfillmentMode;
+
   description: string;
 
   photos: string[];
@@ -135,10 +172,31 @@ export type CustomerBooking = {
     | number
     | null;
 
-  location?: BookingLocation;
+  location?:
+    BookingLocation;
 
   /* ==========================================================
-     SCHEDULE
+     SERVICE PRIORITY / TIMING
+  ========================================================== */
+
+  bookingPriority?:
+    | BookingPriority
+    | null;
+
+  timing?:
+    | BookingTiming
+    | null;
+
+  bookingDate?:
+    | string
+    | null;
+
+  bookingTime?:
+    | string
+    | null;
+
+  /* ==========================================================
+     LEGACY SCHEDULE
   ========================================================== */
 
   date?:
@@ -157,13 +215,6 @@ export type CustomerBooking = {
     | number
     | null;
 
-  /**
-   * Final mutually agreed service amount.
-   *
-   * Once an offer is accepted this should
-   * be treated as the source of truth for
-   * the agreed service price.
-   */
   agreedPrice?:
     | number
     | null;
@@ -178,7 +229,26 @@ export type CustomerBooking = {
      BOOKING STATUS
   ========================================================== */
 
-  status: BookingStatus;
+  status:
+    BookingStatus;
+
+  /* ==========================================================
+     CANCELLATION
+  ========================================================== */
+
+  cancellationReason?:
+    | BookingCancellationReason
+    | null;
+
+  cancelledBy?:
+    BookingCancelledBy;
+
+  cancelledAt?:
+    BookingTimestamp;
+
+  /* ==========================================================
+     PAYMENT
+  ========================================================== */
 
   paymentStatus?:
     | string
@@ -198,13 +268,24 @@ export type CustomerBooking = {
 
   offerRound: number;
 
-  offerStatus: OfferStatus;
+  offerStatus:
+    OfferStatus;
 
-  offerExpiresAt?: BookingTimestamp;
+  offerExpiresAt?:
+    BookingTimestamp;
 
-  offerSentAt?: BookingTimestamp;
+  offerSentAt?:
+    BookingTimestamp;
 
-  offerRespondedAt?: BookingTimestamp;
+  offerRespondedAt?:
+    BookingTimestamp;
+
+  offerAcceptedAt?:
+    BookingTimestamp;
+
+  offerWorkerId?:
+    | string
+    | null;
 
   /* ==========================================================
      COUNTER OFFER
@@ -218,7 +299,8 @@ export type CustomerBooking = {
     | string
     | null;
 
-  counterOfferBy: CounterOfferBy;
+  counterOfferBy:
+    CounterOfferBy;
 
   counterOfferStatus:
     CounterOfferStatus;
@@ -230,8 +312,20 @@ export type CustomerBooking = {
     BookingTimestamp;
 
   /* ==========================================================
+     NEGOTIATION
+  ========================================================== */
+
+  negotiationStatus?:
+    | NegotiationStatus
+    | null;
+
+
+    /* ==========================================================
      SERVICE CONFIRMATIONS
   ========================================================== */
+
+  workerMarkedCompletedAt?:
+    BookingTimestamp;
 
   customerStartedConfirmedAt?:
     BookingTimestamp;
@@ -239,19 +333,33 @@ export type CustomerBooking = {
   customerCompletedConfirmedAt?:
     BookingTimestamp;
 
+
+    serviceStartedAt?: BookingTimestamp;
+serviceCompletedAt?: BookingTimestamp;
+completedAt?: BookingTimestamp;
+
   /* ==========================================================
-     LIVE LOCATION
+     REALTIME LOCATION
   ========================================================== */
 
   workerLiveLocation?:
     | LiveLocation
     | null;
 
+  customerLiveLocation?:
+    | LiveLocation
+    | null;
+
+  customerLiveSharingEnabled:
+    boolean;
+
   /* ==========================================================
      META
   ========================================================== */
 
-  createdAt?: BookingTimestamp;
+  createdAt?:
+    BookingTimestamp;
 
-  updatedAt?: BookingTimestamp;
+  updatedAt?:
+    BookingTimestamp;
 };

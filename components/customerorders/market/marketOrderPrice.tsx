@@ -30,19 +30,40 @@ type Props = {
 };
 
 /* ============================================================
-   MONEY FORMATTER
+   HELPERS
 ============================================================ */
+
+function normalizeAmount(
+  value: number,
+): number {
+  if (
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    value,
+  );
+}
 
 function formatMoney(
   value: number,
 ): string {
-  const safeValue =
-    Number.isFinite(value)
-      ? Math.max(0, value)
-      : 0;
+  const amount =
+    normalizeAmount(
+      value,
+    );
 
-  return `₦${safeValue.toLocaleString(
+  return `₦${amount.toLocaleString(
     "en-NG",
+    {
+      maximumFractionDigits:
+        2,
+    },
   )}`;
 }
 
@@ -55,54 +76,72 @@ function MarketOrderPrice({
   deliveryFee,
   total,
 }: Props) {
+  const safeSubtotal =
+    normalizeAmount(
+      subtotal,
+    );
+
+  const safeDeliveryFee =
+    normalizeAmount(
+      deliveryFee,
+    );
+
+  const safeTotal =
+    normalizeAmount(
+      total,
+    );
+
   return (
     <View
+      accessible
+      accessibilityLabel={`Price breakdown. Subtotal ${formatMoney(
+        safeSubtotal,
+      )}. Delivery fee ${formatMoney(
+        safeDeliveryFee,
+      )}. Total ${formatMoney(
+        safeTotal,
+      )}.`}
       style={
         styles.card
       }
-      accessibilityLabel={`Price breakdown. Subtotal ${formatMoney(
-        subtotal,
-      )}. Delivery fee ${formatMoney(
-        deliveryFee,
-      )}. Total amount ${formatMoney(
-        total,
-      )}.`}
     >
       {/* ======================================================
           TITLE
       ====================================================== */}
 
       <AppText
-        variant="body"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
         style={
           styles.title
         }
       >
-        Price Breakdown
+        Price
       </AppText>
 
       {/* ======================================================
-          SUBTOTAL
+          BREAKDOWN
       ====================================================== */}
 
-      <PriceRow
-        label="Subtotal"
-        value={
-          subtotal
+      <View
+        style={
+          styles.breakdown
         }
-      />
+      >
+        <PriceRow
+          label="Subtotal"
+          value={
+            safeSubtotal
+          }
+        />
 
-      {/* ======================================================
-          DELIVERY
-      ====================================================== */}
-
-      <PriceRow
-        label="Delivery Fee"
-        value={
-          deliveryFee
-        }
-      />
+        <PriceRow
+          label="Delivery"
+          value={
+            safeDeliveryFee
+          }
+        />
+      </View>
 
       {/* ======================================================
           DIVIDER
@@ -123,46 +162,49 @@ function MarketOrderPrice({
           styles.totalRow
         }
       >
-        <AppText
-          variant="body"
-          weight="bold"
+        <View
           style={
-            styles.totalLabel
+            styles.totalContent
           }
         >
-          Total Amount
-        </AppText>
+          <AppText
+            variant="bodyMedium"
+            weight="semibold"
+            style={
+              styles.totalLabel
+            }
+          >
+            Total
+          </AppText>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.totalHint
+            }
+          >
+            Order total
+          </AppText>
+        </View>
 
         <AppText
           variant="heading3"
           weight="bold"
           numberOfLines={1}
+          adjustsFontSizeToFit
           style={
             styles.totalAmount
           }
         >
           {formatMoney(
-            total,
+            safeTotal,
           )}
         </AppText>
       </View>
     </View>
   );
 }
-
-/* ============================================================
-   MEMO
-============================================================ */
-
-const MemoizedMarketOrderPrice =
-  memo(
-    MarketOrderPrice,
-  );
-
-MemoizedMarketOrderPrice.displayName =
-  "MarketOrderPrice";
-
-export default MemoizedMarketOrderPrice;
 
 /* ============================================================
    PRICE ROW
@@ -196,7 +238,7 @@ const PriceRow =
 
           <AppText
             variant="caption"
-            weight="bold"
+            weight="semibold"
             numberOfLines={1}
             style={
               styles.priceValue
@@ -215,6 +257,20 @@ PriceRow.displayName =
   "PriceRow";
 
 /* ============================================================
+   MEMO
+============================================================ */
+
+const MemoizedMarketOrderPrice =
+  memo(
+    MarketOrderPrice,
+  );
+
+MemoizedMarketOrderPrice.displayName =
+  "MarketOrderPrice";
+
+export default MemoizedMarketOrderPrice;
+
+/* ============================================================
    STYLES
 ============================================================ */
 
@@ -225,24 +281,26 @@ const styles =
     ======================================================== */
 
     card: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -255,12 +313,17 @@ const styles =
     },
 
     /* ========================================================
-       PRICE ROW
+       BREAKDOWN
     ======================================================== */
 
-    priceRow: {
+    breakdown: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+    },
+
+    priceRow: {
+      minHeight:
+        32,
 
       flexDirection:
         "row",
@@ -276,14 +339,16 @@ const styles =
     },
 
     priceLabel: {
-      flex: 1,
+      flex:
+        1,
 
-      color:
-        Colors.textSecondary,
+      minWidth:
+        0,
     },
 
     priceValue: {
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       color:
         Colors.textPrimary,
@@ -294,10 +359,11 @@ const styles =
     ======================================================== */
 
     divider: {
-      height: 1,
+      height:
+        StyleSheet.hairlineWidth,
 
-      marginTop:
-        FixxamTokens.spacing.md,
+      marginVertical:
+        FixxamTokens.spacing.sm,
 
       backgroundColor:
         Colors.divider,
@@ -308,8 +374,11 @@ const styles =
     ======================================================== */
 
     totalRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      minHeight:
+        58,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -322,17 +391,38 @@ const styles =
 
       gap:
         FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    totalContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     totalLabel: {
-      flex: 1,
-
       color:
         Colors.textPrimary,
     },
 
+    totalHint: {
+      marginTop:
+        2,
+    },
+
     totalAmount: {
-      flexShrink: 0,
+      maxWidth:
+        "55%",
+
+      flexShrink:
+        0,
 
       color:
         CustomerColors.primary,

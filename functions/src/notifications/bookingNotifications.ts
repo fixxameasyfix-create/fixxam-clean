@@ -63,8 +63,14 @@ function getRecipientId(
   role: RecipientRole,
 ): string | undefined {
   return role === "customer"
-    ? getString(booking, "customerId")
-    : getString(booking, "workerId");
+    ? getString(
+        booking,
+        "customerId",
+      )
+    : getString(
+        booking,
+        "workerId",
+      );
 }
 
 function getName(
@@ -99,31 +105,45 @@ function getServiceName(
   );
 }
 
+/* ============================================================
+   PRICE
+============================================================ */
+
 function getPrice(
   booking: BookingData,
 ): string | undefined {
   const price =
     booking.agreedPrice ??
+    booking.counterOfferAmount ??
+    booking.offerAmount ??
     booking.counterOfferPrice ??
     booking.offerPrice ??
     booking.amount;
 
   if (
     typeof price === "number" &&
-    Number.isFinite(price)
+    Number.isFinite(price) &&
+    price >= 0
   ) {
-    return price.toLocaleString("en-NG");
+    return price.toLocaleString(
+      "en-NG",
+    );
   }
 
-  if (
-    typeof price === "string" &&
-    price.trim()
-  ) {
-    return price.trim();
+  if (typeof price === "string") {
+    const cleaned = price.trim();
+
+    if (cleaned) {
+      return cleaned;
+    }
   }
 
   return undefined;
 }
+
+/* ============================================================
+   NOTIFICATION ID
+============================================================ */
 
 function sanitizeEventId(
   eventId: string,
@@ -138,14 +158,20 @@ function createNotificationId(
   bookingId: string,
   eventId: string,
   recipientRole: RecipientRole,
+  action: string,
 ): string {
   return [
     "booking",
     bookingId,
     sanitizeEventId(eventId),
     recipientRole,
+    action,
   ].join("_");
 }
+
+/* ============================================================
+   NOTIFICATION DATA
+============================================================ */
 
 function buildNotificationData(
   bookingId: string,
@@ -163,14 +189,10 @@ function buildNotificationData(
 ============================================================ */
 
 /**
- * Initial offer sender.
+ * Identify the sender of the initial offer.
  *
- * `offerWorkerId` is the safest field for identifying
- * the worker who sent the initial offer.
- *
- * If it is not available, we fall back to workerId
- * because the current booking flow uses Worker as
- * the initial offer sender.
+ * Current FIXXAM service flow normally uses Worker
+ * as the sender of the initial offer.
  */
 function getInitialOfferSender(
   booking: BookingData,
@@ -207,6 +229,10 @@ function getInitialOfferSender(
     return "customer";
   }
 
+  /*
+   * Current production flow:
+   * Worker sends the initial offer.
+   */
   if (workerId) {
     return "worker";
   }
@@ -226,10 +252,12 @@ function getOppositeRole(
    BOOKING UPDATED → NOTIFICATION DECISION
 ============================================================ */
 
-function getNotification(
+function getNotifications(
   before: BookingData,
   after: BookingData,
-): NotificationEvent | null {
+): NotificationEvent[] {
+  const notifications: NotificationEvent[] = [];
+
   const beforeStatus =
     getString(
       before,
@@ -287,38 +315,44 @@ function getNotification(
     beforeOfferStatus !== "sent"
   ) {
     const senderRole =
-      getInitialOfferSender(after);
-
-    if (!senderRole) {
-      return null;
-    }
-
-    const recipientRole =
-      getOppositeRole(senderRole);
-
-    const price =
-      getPrice(after);
-
-    const senderName =
-      getName(
+      getInitialOfferSender(
         after,
-        senderRole,
       );
 
-    const serviceName =
-      getServiceName(after);
+    if (senderRole) {
+      const recipientRole =
+        getOppositeRole(
+          senderRole,
+        );
 
-    return {
-      action: "offer_received",
+      const price =
+        getPrice(after);
 
-      title: "New Offer Received",
+      const senderName =
+        getName(
+          after,
+          senderRole,
+        );
 
-      message: price
-        ? `${senderName} sent you an offer of ₦${price} for ${serviceName}.`
-        : `${senderName} sent you an offer for ${serviceName}.`,
+      const serviceName =
+        getServiceName(after);
 
-      recipientRole,
-    };
+      notifications.push({
+        action:
+          "offer_received",
+
+        title:
+          "New Offer Received",
+
+        message: price
+          ? `${senderName} sent you an offer of ₦${price} for ${serviceName}.`
+          : `${senderName} sent you an offer for ${serviceName}.`,
+
+        recipientRole,
+      });
+    }
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -336,7 +370,7 @@ function getNotification(
     const price =
       getPrice(after);
 
-    return {
+    notifications.push({
       action:
         "counter_offer_received",
 
@@ -353,8 +387,11 @@ function getNotification(
             "customer",
           )} sent you a counter offer.`,
 
-      recipientRole: "worker",
-    };
+      recipientRole:
+        "worker",
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -372,7 +409,7 @@ function getNotification(
     const price =
       getPrice(after);
 
-    return {
+    notifications.push({
       action:
         "counter_offer_received",
 
@@ -389,8 +426,11 @@ function getNotification(
             "worker",
           )} sent you a counter offer.`,
 
-      recipientRole: "customer",
-    };
+      recipientRole:
+        "customer",
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -409,15 +449,17 @@ function getNotification(
           : undefined;
 
     if (!counterSender) {
-      return null;
+      return notifications;
     }
-
-    const accepterRole =
-      getOppositeRole(counterSender);
 
     const senderName =
       getName(
         after,
+        counterSender,
+      );
+
+    const accepterRole =
+      getOppositeRole(
         counterSender,
       );
 
@@ -427,7 +469,7 @@ function getNotification(
         accepterRole,
       );
 
-    return {
+    notifications.push({
       action:
         "counter_offer_accepted",
 
@@ -439,7 +481,9 @@ function getNotification(
 
       recipientRole:
         counterSender,
-    };
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -452,19 +496,18 @@ function getNotification(
     afterCounterStatus !== "accepted"
   ) {
     const offerSender =
-      getInitialOfferSender(after);
+      getInitialOfferSender(
+        after,
+      );
 
     if (!offerSender) {
-      return null;
+      return notifications;
     }
 
     const accepterRole =
       getOppositeRole(
         offerSender,
       );
-
-    const recipientRole =
-      offerSender;
 
     const accepterName =
       getName(
@@ -475,7 +518,7 @@ function getNotification(
     const serviceName =
       getServiceName(after);
 
-    return {
+    notifications.push({
       action:
         "offer_accepted",
 
@@ -485,8 +528,11 @@ function getNotification(
       message:
         `${accepterName} accepted your offer for ${serviceName}.`,
 
-      recipientRole,
-    };
+      recipientRole:
+        offerSender,
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -498,10 +544,12 @@ function getNotification(
     beforeOfferStatus !== "declined"
   ) {
     const offerSender =
-      getInitialOfferSender(after);
+      getInitialOfferSender(
+        after,
+      );
 
     if (!offerSender) {
-      return null;
+      return notifications;
     }
 
     const declinerRole =
@@ -518,7 +566,7 @@ function getNotification(
     const serviceName =
       getServiceName(after);
 
-    return {
+    notifications.push({
       action:
         "offer_declined",
 
@@ -530,7 +578,9 @@ function getNotification(
 
       recipientRole:
         offerSender,
-    };
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -549,7 +599,7 @@ function getNotification(
           : undefined;
 
     if (!counterSender) {
-      return null;
+      return notifications;
     }
 
     const declinerRole =
@@ -563,7 +613,7 @@ function getNotification(
         declinerRole,
       );
 
-    return {
+    notifications.push({
       action:
         "counter_offer_declined",
 
@@ -575,7 +625,66 @@ function getNotification(
 
       recipientRole:
         counterSender,
-    };
+    });
+
+    return notifications;
+  }
+
+  /* ==========================================================
+     OFFER EXPIRED
+     
+     Backend authority:
+     status = cancelled
+     cancellationReason = offer_expired
+     cancelledBy = system
+     
+     Notify BOTH customer and worker.
+  ========================================================== */
+
+  const cancellationReason =
+    getString(
+      after,
+      "cancellationReason",
+    );
+
+  if (
+    afterStatus === "cancelled" &&
+    beforeStatus !== "cancelled" &&
+    cancellationReason === "offer_expired"
+  ) {
+    const serviceName =
+      getServiceName(after);
+
+    notifications.push(
+      {
+        action:
+          "offer_expired",
+
+        title:
+          "Offer Expired",
+
+        message:
+          `The offer for your ${serviceName} booking expired because no response was received within 24 hours.`,
+
+        recipientRole:
+          "customer",
+      },
+      {
+        action:
+          "offer_expired",
+
+        title:
+          "Offer Expired",
+
+        message:
+          `The offer for the ${serviceName} booking expired because the customer did not respond within 24 hours.`,
+
+        recipientRole:
+          "worker",
+      },
+    );
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -591,7 +700,7 @@ function getNotification(
     );
 
   if (journeyStarted) {
-    return {
+    notifications.push({
       action:
         "journey_started",
 
@@ -606,7 +715,9 @@ function getNotification(
 
       recipientRole:
         "customer",
-    };
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -622,7 +733,7 @@ function getNotification(
     );
 
   if (workerArrived) {
-    return {
+    notifications.push({
       action:
         "worker_arrived",
 
@@ -637,7 +748,9 @@ function getNotification(
 
       recipientRole:
         "customer",
-    };
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -648,9 +761,9 @@ function getNotification(
     afterStatus === "in-progress" &&
     beforeStatus !== "in-progress"
   ) {
-    return {
+    notifications.push({
       action:
-        "work_started",
+        "booking_in_progress",
 
       title:
         "Work Started",
@@ -665,7 +778,9 @@ function getNotification(
 
       recipientRole:
         "customer",
-    };
+    });
+
+    return notifications;
   }
 
   /* ==========================================================
@@ -676,7 +791,7 @@ function getNotification(
     afterStatus === "completed" &&
     beforeStatus !== "completed"
   ) {
-    return {
+    notifications.push({
       action:
         "booking_completed",
 
@@ -690,69 +805,9 @@ function getNotification(
 
       recipientRole:
         "customer",
-    };
-  }
+    });
 
-  /* ==========================================================
-     CUSTOMER PAYMENT CONFIRMED → WORKER
-  ========================================================== */
-
-  const customerPaymentConfirmed =
-    hasValue(
-      after.customerPaymentConfirmedAt,
-    ) &&
-    !hasValue(
-      before.customerPaymentConfirmedAt,
-    );
-
-  if (customerPaymentConfirmed) {
-    return {
-      action:
-        "payment_confirmed",
-
-      title:
-        "Payment Confirmed",
-
-      message:
-        `${getName(
-          after,
-          "customer",
-        )} confirmed payment for the booking.`,
-
-      recipientRole:
-        "worker",
-    };
-  }
-
-  /* ==========================================================
-     WORKER PAYMENT CONFIRMED → CUSTOMER
-  ========================================================== */
-
-  const workerPaymentConfirmed =
-    hasValue(
-      after.workerPaymentConfirmedAt,
-    ) &&
-    !hasValue(
-      before.workerPaymentConfirmedAt,
-    );
-
-  if (workerPaymentConfirmed) {
-    return {
-      action:
-        "payment_confirmed",
-
-      title:
-        "Payment Confirmed",
-
-      message:
-        `${getName(
-          after,
-          "worker",
-        )} confirmed payment for the booking.`,
-
-      recipientRole:
-        "customer",
-    };
+    return notifications;
   }
 
   /* ==========================================================
@@ -763,16 +818,30 @@ function getNotification(
     afterStatus === "cancelled" &&
     beforeStatus !== "cancelled"
   ) {
+    /*
+     * offer_expired has already been handled above.
+     */
+    if (
+      cancellationReason ===
+      "offer_expired"
+    ) {
+      return notifications;
+    }
+
     const cancelledBy =
       getString(
         after,
         "cancelledBy",
       );
 
+    /* --------------------------------------------------------
+       CUSTOMER CANCELLED → WORKER
+    -------------------------------------------------------- */
+
     if (
       cancelledBy === "customer"
     ) {
-      return {
+      notifications.push({
         action:
           "booking_cancelled",
 
@@ -787,13 +856,19 @@ function getNotification(
 
         recipientRole:
           "worker",
-      };
+      });
+
+      return notifications;
     }
+
+    /* --------------------------------------------------------
+       WORKER CANCELLED → CUSTOMER
+    -------------------------------------------------------- */
 
     if (
       cancelledBy === "worker"
     ) {
-      return {
+      notifications.push({
         action:
           "booking_cancelled",
 
@@ -808,10 +883,16 @@ function getNotification(
 
         recipientRole:
           "customer",
-      };
+      });
+
+      return notifications;
     }
 
-    return {
+    /* --------------------------------------------------------
+       SYSTEM / LEGACY FALLBACK
+    -------------------------------------------------------- */
+
+    notifications.push({
       action:
         "booking_cancelled",
 
@@ -824,11 +905,13 @@ function getNotification(
         )} has been cancelled.`,
 
       recipientRole:
-        "worker",
-    };
+        "customer",
+    });
+
+    return notifications;
   }
 
-  return null;
+  return notifications;
 }
 
 /* ============================================================
@@ -849,7 +932,7 @@ export const bookingCreatedNotifications =
         true,
     },
 
-    async (event) => {
+    async event => {
       const booking =
         event.data?.data();
 
@@ -875,6 +958,32 @@ export const bookingCreatedNotifications =
         console.warn(
           "BOOKING_CREATED_NO_WORKER",
           bookingId,
+        );
+
+        return;
+      }
+
+      const customerId =
+        getRecipientId(
+          booking,
+          "customer",
+        );
+
+      /* ======================================================
+         SELF-ASSIGNMENT PROTECTION
+      ====================================================== */
+
+      if (
+        customerId &&
+        customerId === workerId
+      ) {
+        console.warn(
+          "BOOKING_CREATED_SELF_ASSIGNMENT_SKIPPED",
+          {
+            bookingId,
+            customerId,
+            workerId,
+          },
         );
 
         return;
@@ -936,83 +1045,160 @@ export const bookingNotifications =
         true,
     },
 
-    async (event) => {
+    async event => {
       const before =
         event.data?.before.data();
 
       const after =
         event.data?.after.data();
 
-      if (!before || !after) {
+      if (
+        !before ||
+        !after
+      ) {
         return;
       }
 
       const bookingId =
         event.params.bookingId;
 
-      const notification =
-        getNotification(
+      const notifications =
+        getNotifications(
           before,
           after,
         );
 
-      if (!notification) {
+      if (
+        notifications.length === 0
+      ) {
         return;
       }
 
-      const recipientId =
+      const customerId =
         getRecipientId(
           after,
-          notification.recipientRole,
+          "customer",
         );
 
-      if (!recipientId) {
+      const workerId =
+        getRecipientId(
+          after,
+          "worker",
+        );
+
+      /* ======================================================
+         SELF-ASSIGNMENT PROTECTION
+      ====================================================== */
+
+      if (
+        customerId &&
+        workerId &&
+        customerId === workerId
+      ) {
         console.warn(
-          "BOOKING_NOTIFICATION_NO_RECIPIENT",
+          "BOOKING_NOTIFICATION_SELF_ASSIGNMENT_SKIPPED",
           {
             bookingId,
 
-            recipientRole:
-              notification.recipientRole,
-
-            action:
-              notification.action,
+            actions:
+              notifications.map(
+                notification =>
+                  notification.action,
+              ),
           },
         );
 
         return;
       }
 
-      const notificationId =
-        createNotificationId(
-          bookingId,
-          event.id,
-          notification.recipientRole,
-        );
+      /* ======================================================
+         SEND ALL EVENT NOTIFICATIONS
+      ====================================================== */
 
-      await sendUserPushNotification({
-        userId:
-          recipientId,
+      for (
+        const notification of
+          notifications
+      ) {
+        const recipientId =
+          getRecipientId(
+            after,
+            notification.recipientRole,
+          );
 
-        recipientRole:
-          notification.recipientRole,
+        if (
+          !recipientId
+        ) {
+          console.warn(
+            "BOOKING_NOTIFICATION_NO_RECIPIENT",
+            {
+              bookingId,
 
-        type:
-          "booking",
+              recipientRole:
+                notification.recipientRole,
 
-        title:
-          notification.title,
+              action:
+                notification.action,
+            },
+          );
 
-        message:
-          notification.message,
+          continue;
+        }
 
-        notificationId,
-
-        data:
-          buildNotificationData(
+        const notificationId =
+          createNotificationId(
             bookingId,
+            event.id,
+            notification.recipientRole,
             notification.action,
-          ),
-      });
+          );
+
+        try {
+          await sendUserPushNotification({
+            userId:
+              recipientId,
+
+            recipientRole:
+              notification.recipientRole,
+
+            type:
+              "booking",
+
+            title:
+              notification.title,
+
+            message:
+              notification.message,
+
+            notificationId,
+
+            data:
+              buildNotificationData(
+                bookingId,
+                notification.action,
+              ),
+          });
+        } catch (error) {
+          /*
+           * Do not stop the remaining recipients
+           * if one notification fails.
+           */
+          console.error(
+            "BOOKING_NOTIFICATION_SEND_ERROR",
+            {
+              bookingId,
+
+              recipientId,
+
+              recipientRole:
+                notification.recipientRole,
+
+              action:
+                notification.action,
+
+              error,
+            },
+          );
+        }
+      }
     },
   );

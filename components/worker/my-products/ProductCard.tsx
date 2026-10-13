@@ -26,7 +26,7 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import {
+import type {
   MenuAnchor,
 } from "../products/ProductPopupMenu/ProductPopupMenu.types";
 
@@ -47,6 +47,14 @@ type Props = {
     | number
     | string;
 
+  /**
+   * Kept for compatibility with existing screens.
+   *
+   * ProductCard no longer depends on this value.
+   * Sale price is calculated from:
+   *
+   * price + discountPercent
+   */
   discountedPrice?:
     | number
     | string;
@@ -78,7 +86,9 @@ function getNumber(
   if (
     typeof value ===
       "number" &&
-    Number.isFinite(value)
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
@@ -135,7 +145,6 @@ function ProductCard({
   category = "Others",
   price,
   discountPercent = 0,
-  discountedPrice,
   thumbnail,
   stock,
   width = 156,
@@ -208,27 +217,51 @@ function ProductCard({
 
   /* ============================================================
      SALE PRICE
+
+     IMPORTANT:
+     Current discountPercent is the source of truth.
+
+     Example:
+     Price = ₦20,000
+     Discount = 12
+     Sale price = ₦17,600
   ============================================================ */
 
   const salePrice =
     useMemo(() => {
-      const value =
-        getNumber(
-          discountedPrice,
-        );
-
       if (
         originalPrice <= 0 ||
-        discount <= 0 ||
-        value <= 0 ||
-        value >= originalPrice
+        discount <= 0
       ) {
         return 0;
       }
 
-      return value;
+      const calculatedPrice =
+        originalPrice *
+        (
+          1 -
+          discount / 100
+        );
+
+      if (
+        !Number.isFinite(
+          calculatedPrice,
+        ) ||
+        calculatedPrice <= 0 ||
+        calculatedPrice >=
+          originalPrice
+      ) {
+        return 0;
+      }
+
+      return (
+        Math.round(
+          calculatedPrice *
+            100,
+        ) /
+        100
+      );
     }, [
-      discountedPrice,
       discount,
       originalPrice,
     ]);
@@ -274,7 +307,9 @@ function ProductCard({
 
   const handleMore =
     useCallback(() => {
-      if (!onMore) {
+      if (
+        !onMore
+      ) {
         return;
       }
 
@@ -361,8 +396,10 @@ function ProductCard({
 
         {
           width,
+
           minWidth:
             width,
+
           maxWidth:
             width,
         },
@@ -393,7 +430,9 @@ function ProductCard({
                 thumbnail,
             }}
             contentFit="cover"
-            transition={150}
+            transition={
+              150
+            }
             recyclingKey={
               thumbnail
             }
@@ -479,12 +518,16 @@ function ProductCard({
             }
           >
             <Pressable
-              onPress={event => {
-                event.stopPropagation();
+              onPress={
+                event => {
+                  event.stopPropagation();
 
-                handleMore();
-              }}
-              hitSlop={8}
+                  handleMore();
+                }
+              }
+              hitSlop={
+                8
+              }
               accessibilityRole="button"
               accessibilityLabel={`More options for ${displayTitle}`}
               style={({
@@ -535,7 +578,9 @@ function ProductCard({
             <AppText
               variant="caption"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={[
                 styles.stockText,
 
@@ -572,7 +617,9 @@ function ProductCard({
         <AppText
           variant="bodyMedium"
           weight="bold"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           ellipsizeMode="tail"
           style={
             styles.title
@@ -588,7 +635,9 @@ function ProductCard({
         <AppText
           variant="caption"
           tone="secondary"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           ellipsizeMode="tail"
           style={
             styles.category
@@ -611,7 +660,9 @@ function ProductCard({
               <AppText
                 variant="bodyMedium"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.discountedPrice
                 }
@@ -623,7 +674,9 @@ function ProductCard({
 
               <AppText
                 variant="caption"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.originalPrice
                 }
@@ -637,7 +690,9 @@ function ProductCard({
             <AppText
               variant="caption"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.saveText
               }
@@ -653,7 +708,9 @@ function ProductCard({
             <AppText
               variant="bodyMedium"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.price
               }
@@ -666,7 +723,9 @@ function ProductCard({
             <AppText
               variant="caption"
               tone="secondary"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.noDiscountText
               }
@@ -702,7 +761,8 @@ const styles =
     ========================================================== */
 
     card: {
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignSelf:
         "flex-start",
@@ -710,7 +770,8 @@ const styles =
       overflow:
         "hidden",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -743,7 +804,8 @@ const styles =
     ========================================================== */
 
     imageContainer: {
-      height: 150,
+      height:
+        150,
 
       position:
         "relative",
@@ -756,14 +818,16 @@ const styles =
     },
 
     image: {
-      height: 150,
+      height:
+        150,
 
       backgroundColor:
         Colors.disabledBackground,
     },
 
     placeholder: {
-      height: 150,
+      height:
+        150,
 
       alignItems:
         "center",
@@ -797,7 +861,8 @@ const styles =
       left:
         FixxamTokens.spacing.sm,
 
-      zIndex: 5,
+      zIndex:
+        5,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -831,13 +896,16 @@ const styles =
       right:
         FixxamTokens.spacing.sm,
 
-      zIndex: 10,
+      zIndex:
+        10,
     },
 
     moreButton: {
-      width: 36,
+      width:
+        36,
 
-      height: 36,
+      height:
+        36,
 
       alignItems:
         "center",
@@ -877,9 +945,11 @@ const styles =
       bottom:
         FixxamTokens.spacing.sm,
 
-      zIndex: 5,
+      zIndex:
+        5,
 
-      maxWidth: 105,
+      maxWidth:
+        105,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -901,9 +971,11 @@ const styles =
     },
 
     stockDot: {
-      width: 6,
+      width:
+        6,
 
-      height: 6,
+      height:
+        6,
 
       marginRight:
         FixxamTokens.spacing.xs,
@@ -916,7 +988,8 @@ const styles =
     },
 
     stockText: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         Colors.success,
@@ -942,7 +1015,8 @@ const styles =
     ========================================================== */
 
     content: {
-      minHeight: 94,
+      minHeight:
+        94,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -992,14 +1066,16 @@ const styles =
     },
 
     discountedPrice: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         WorkerColors.primary,
     },
 
     originalPrice: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         Colors.textMuted,

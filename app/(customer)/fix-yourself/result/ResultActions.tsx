@@ -34,6 +34,11 @@ import {
 } from "@/firebase/config";
 
 import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
+import {
   Colors,
   CustomerColors,
   FixxamTokens,
@@ -71,6 +76,8 @@ type ServiceDocument = {
   backgroundColor?: unknown;
 
   categoryId?: unknown;
+
+  fulfillmentMode?: unknown;
 };
 
 /* ==============================================================
@@ -151,7 +158,7 @@ export default function ResultActions({
 
       try {
         /* ======================================================
-           FALLBACK DATA FROM AI RESULT
+           FALLBACK DISPLAY DATA FROM AI RESULT
         ====================================================== */
 
         let resolvedServiceName =
@@ -182,95 +189,153 @@ export default function ResultActions({
             categoryId,
           );
 
+        /*
+         * IMPORTANT:
+         * Fulfillment mode must come from
+         * the authoritative service document.
+         *
+         * Do not infer it from the AI result.
+         */
+        let resolvedFulfillmentMode:
+          ServiceFulfillmentMode | null =
+          null;
+
         /* ======================================================
            LOAD AUTHORITATIVE SERVICE METADATA
         ====================================================== */
 
-        try {
-          const serviceRef =
-            doc(
-              db,
-              "services",
-              resolvedServiceId,
-            );
+        const serviceRef =
+          doc(
+            db,
+            "services",
+            resolvedServiceId,
+          );
 
-          const serviceSnapshot =
+        let serviceSnapshot;
+
+        try {
+          serviceSnapshot =
             await getDoc(
               serviceRef,
             );
-
-          if (
-            serviceSnapshot.exists()
-          ) {
-            const serviceData =
-              serviceSnapshot.data() as ServiceDocument;
-
-            const firestoreName =
-              cleanString(
-                serviceData.name,
-              );
-
-            const firestoreIcon =
-              cleanString(
-                serviceData.icon,
-              );
-
-            const firestoreColor =
-              cleanString(
-                serviceData.color,
-              );
-
-            const firestoreBackground =
-              cleanString(
-                serviceData.backgroundColor,
-              );
-
-            const firestoreCategoryId =
-              cleanString(
-                serviceData.categoryId,
-              );
-
-            if (firestoreName) {
-              resolvedServiceName =
-                firestoreName;
-            }
-
-            if (firestoreIcon) {
-              resolvedServiceIcon =
-                firestoreIcon;
-            }
-
-            if (firestoreColor) {
-              resolvedServiceColor =
-                firestoreColor;
-            }
-
-            if (
-              firestoreBackground
-            ) {
-              resolvedServiceBackgroundColor =
-                firestoreBackground;
-            }
-
-            if (
-              firestoreCategoryId
-            ) {
-              resolvedCategoryId =
-                firestoreCategoryId;
-            }
-          }
         } catch (
           metadataError
         ) {
-          /*
-           * Metadata failure must not block
-           * navigation when valid fallback
-           * values were already supplied.
-           */
           console.error(
             "LOAD_SERVICE_METADATA_ERROR:",
             metadataError,
           );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Service unavailable",
+
+            text2:
+              "We could not verify this service. Please try again.",
+          });
+
+          return;
+        }
+
+        /* ======================================================
+           AUTHORITATIVE SERVICE MUST EXIST
+        ====================================================== */
+
+        if (
+          !serviceSnapshot.exists()
+        ) {
+          console.error(
+            "SERVICE_DOCUMENT_NOT_FOUND:",
+            resolvedServiceId,
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Service unavailable",
+
+            text2:
+              "This service is no longer available for booking.",
+          });
+
+          return;
+        }
+
+        const serviceData =
+          serviceSnapshot.data() as ServiceDocument;
+
+        /* ======================================================
+           DISPLAY METADATA
+        ====================================================== */
+
+        const firestoreName =
+          cleanString(
+            serviceData.name,
+          );
+
+        const firestoreIcon =
+          cleanString(
+            serviceData.icon,
+          );
+
+        const firestoreColor =
+          cleanString(
+            serviceData.color,
+          );
+
+        const firestoreBackground =
+          cleanString(
+            serviceData.backgroundColor,
+          );
+
+        const firestoreCategoryId =
+          cleanString(
+            serviceData.categoryId,
+          );
+
+        if (firestoreName) {
+          resolvedServiceName =
+            firestoreName;
+        }
+
+        if (firestoreIcon) {
+          resolvedServiceIcon =
+            firestoreIcon;
+        }
+
+        if (firestoreColor) {
+          resolvedServiceColor =
+            firestoreColor;
+        }
+
+        if (
+          firestoreBackground
+        ) {
+          resolvedServiceBackgroundColor =
+            firestoreBackground;
+        }
+
+        if (
+          firestoreCategoryId
+        ) {
+          resolvedCategoryId =
+            firestoreCategoryId;
+        }
+
+        /* ======================================================
+           AUTHORITATIVE FULFILLMENT MODE
+        ====================================================== */
+
+        if (
+          isServiceFulfillmentMode(
+            serviceData.fulfillmentMode,
+          )
+        ) {
+          resolvedFulfillmentMode =
+            serviceData.fulfillmentMode;
         }
 
         /* ======================================================
@@ -288,6 +353,35 @@ export default function ResultActions({
 
             text2:
               "The selected service name could not be identified.",
+          });
+
+          return;
+        }
+
+        if (
+          !resolvedFulfillmentMode ||
+          resolvedFulfillmentMode ===
+            "needs_review"
+        ) {
+          console.error(
+            "SERVICE_FULFILLMENT_MODE_UNAVAILABLE:",
+            {
+              serviceId:
+                resolvedServiceId,
+
+              fulfillmentMode:
+                serviceData.fulfillmentMode,
+            },
+          );
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Booking unavailable",
+
+            text2:
+              "This service is not configured for booking yet.",
           });
 
           return;
@@ -322,6 +416,9 @@ export default function ResultActions({
 
             serviceBackgroundColor:
               resolvedServiceBackgroundColor,
+
+            fulfillmentMode:
+              resolvedFulfillmentMode,
 
             ...(resolvedCategoryId
               ? {
@@ -483,9 +580,11 @@ const styles =
     },
 
     header: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     iconContainer: {
@@ -493,9 +592,11 @@ const styles =
 
       height: 36,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -520,6 +621,7 @@ const styles =
     },
 
     button: {
-      width: "100%",
+      width:
+        "100%",
     },
   });

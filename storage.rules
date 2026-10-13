@@ -3,246 +3,376 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    /* ============================================================
-       USER PROFILE PHOTO
-       users/{uid}/profile/profile-photo.jpg
-    ============================================================ */
+    /* =========================================================
+       HELPERS
+    ========================================================= */
 
-    match /users/{uid}/profile/profile-photo.jpg {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-      /* Public profile photo */
-      allow read:
-        if true;
+    function isOwner(userId) {
+      return signedIn()
+        && request.auth.uid == userId;
+    }
 
-      /* Only owner can upload/replace */
-      allow create, update:
-        if request.auth != null
-        && request.auth.uid == uid
-        && request.resource != null
+    /*
+     * Maximum image size:
+     * 10 MB
+     *
+     * Allowed:
+     * JPEG
+     * JPG
+     * PNG
+     * WEBP
+     * HEIC
+     * HEIF
+     */
+    function isValidImageUpload() {
+      return request.resource != null
         && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.size <= 10 * 1024 * 1024
         && request.resource.contentType != null
         && request.resource.contentType.matches(
-          'image/.*'
+          'image/(jpeg|jpg|png|webp|heic|heif)'
         );
-
-      /* Only owner can delete */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == uid;
     }
 
 
-    /* ============================================================
-       CUSTOMER PROFILE PHOTO
-       customerProfiles/{uid}/profile.jpg
-    ============================================================ */
+    /* =========================================================
+       USER PROFILE PHOTOS
 
-    match /customerProfiles/{uid}/profile.jpg {
+       users/{userId}/profile/{fileName}
+    ========================================================= */
 
-      /* Public customer profile photo */
-      allow read:
-        if true;
+    match /users/{userId}/profile/{fileName} {
 
-      /* Only owner can upload/replace */
-      allow create, update:
-        if request.auth != null
-        && request.auth.uid == uid
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
+      allow create: if
+        isOwner(userId)
+        && isValidImageUpload();
 
-      /* Only owner can delete */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == uid;
+      allow update: if
+        isOwner(userId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(userId);
+
+      allow read: if
+        signedIn();
     }
 
 
-    /* ============================================================
-       WORKER PROFILE PHOTO
-       workerProfiles/{uid}/profile.jpg
-    ============================================================ */
+    /* =========================================================
+       USER ROOT PHOTOS
 
-    match /workerProfiles/{uid}/profile.jpg {
+       users/{userId}/{fileName}
 
-      /* Customers can display worker photos */
-      allow read:
-        if true;
+       Supports customer registration/profile uploads such as:
 
-      /* Only worker owner can upload/replace */
-      allow create, update:
-        if request.auth != null
-        && request.auth.uid == uid
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
+       users/{uid}/customer-profile.jpeg
+       users/{uid}/customer-profile-123.jpeg
+    ========================================================= */
 
-      /* Only worker owner can delete */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == uid;
+    match /users/{userId}/{fileName} {
+
+      /*
+       * Only the authenticated owner can upload.
+       */
+      allow create: if
+        isOwner(userId)
+        && isValidImageUpload();
+
+      /*
+       * Only the authenticated owner can replace.
+       */
+      allow update: if
+        isOwner(userId)
+        && isValidImageUpload();
+
+      /*
+       * Only the authenticated owner can delete.
+       */
+      allow delete: if
+        isOwner(userId);
+
+      /*
+       * Signed-in users can read user images.
+       */
+      allow read: if
+        signedIn();
     }
 
 
-    /* ============================================================
-       WORKER GALLERY
-       workerProfiles/{uid}/gallery/{fileName}
-    ============================================================ */
+    /* =========================================================
+       WORKER PROFILE PHOTOS
 
-    match /workerProfiles/{uid}/gallery/{fileName} {
+       workers/{workerId}/profile/{fileName}
+    ========================================================= */
 
-      /* Gallery images can be displayed publicly */
-      allow read:
-        if true;
+    match /workers/{workerId}/profile/{fileName} {
 
-      /* Only worker owner can upload/replace */
-      allow create, update:
-        if request.auth != null
-        && request.auth.uid == uid
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
+      allow create: if
+        isOwner(workerId)
+        && isValidImageUpload();
 
-      /* Only worker owner can delete */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == uid;
+      allow update: if
+        isOwner(workerId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(workerId);
+
+      allow read: if
+        signedIn();
     }
 
 
-    /* ============================================================
-       PRODUCT IMAGES
+    /* =========================================================
+       WORKER GALLERY PHOTOS
+
+       workers/{workerId}/gallery/{fileName}
+    ========================================================= */
+
+    match /workers/{workerId}/gallery/{fileName} {
+
+      allow create: if
+        isOwner(workerId)
+        && isValidImageUpload();
+
+      allow update: if
+        isOwner(workerId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(workerId);
+
+      allow read: if
+        signedIn();
+    }
+
+
+    /* =========================================================
+       SHOPS — COVER PHOTO
+
+       shops/{ownerId}/cover/{fileName}
+    ========================================================= */
+
+    match /shops/{ownerId}/cover/{fileName} {
+
+      allow create: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow update: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(ownerId);
+
+      allow read: if
+        signedIn();
+    }
+
+
+    /* =========================================================
+       SHOPS — LOGO
+
+       shops/{ownerId}/logo/{fileName}
+    ========================================================= */
+
+    match /shops/{ownerId}/logo/{fileName} {
+
+      allow create: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow update: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(ownerId);
+
+      allow read: if
+        signedIn();
+    }
+
+
+    /* =========================================================
+       SHOPS — SERVICE IMAGES
+
+       shops/{ownerId}/services/{fileName}
+    ========================================================= */
+
+    match /shops/{ownerId}/services/{fileName} {
+
+      allow create: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow update: if
+        isOwner(ownerId)
+        && isValidImageUpload();
+
+      allow delete: if
+        isOwner(ownerId);
+
+      allow read: if
+        signedIn();
+    }
+
+
+    /* =========================================================
+       PRODUCTS — PRODUCT IMAGES
+
        products/{workerId}/{fileName}
-    ============================================================ */
+
+       Used by uploadProductImage()
+    ========================================================= */
 
     match /products/{workerId}/{fileName} {
 
       /*
-       * Product images are public because customers
-       * must be able to browse marketplace products.
+       * Only the authenticated worker who owns
+       * the product folder can upload.
        */
-      allow read:
-        if true;
+      allow create: if
+        isOwner(workerId)
+        && isValidImageUpload();
 
       /*
-       * ONLY the authenticated worker who owns the
-       * product folder can upload a product image.
+       * Only the owner can replace the image.
        */
-      allow create:
-        if request.auth != null
-        && request.auth.uid == workerId
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
+      allow update: if
+        isOwner(workerId)
+        && isValidImageUpload();
 
       /*
-       * ONLY the product owner can replace
-       * an existing product image.
+       * Only the owner can delete the image.
        */
-      allow update:
-        if request.auth != null
-        && request.auth.uid == workerId
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
+      allow delete: if
+        isOwner(workerId);
 
       /*
-       * ONLY the product owner can delete
-       * product images.
+       * Signed-in users can view product images.
        */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == workerId;
+      allow read: if
+        signedIn();
     }
 
 
-    /* ============================================================
+    /* =========================================================
        BOOKING PHOTOS
-       bookings/{customerId}/{fileName}
-    ============================================================ */
 
-    match /bookings/{customerId}/{fileName} {
+       bookings/{customerId}/{bookingId}/{fileName}
+    ========================================================= */
 
-      /*
-       * Customer can read their own booking photos.
-       */
-      allow read:
-        if request.auth != null
-        && request.auth.uid == customerId;
+    match /bookings/{customerId}/{bookingId}/{fileName} {
 
       /*
-       * Only the customer who owns the folder
-       * can upload booking photos.
+       * Customer can upload booking photos.
        */
-      allow create:
-        if request.auth != null
-        && request.auth.uid == customerId
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
+      allow create: if
+        isOwner(customerId)
+        && isValidImageUpload();
+
+      /*
+       * Customer can replace booking photos.
+       */
+      allow update: if
+        isOwner(customerId)
+        && isValidImageUpload();
+
+      /*
+       * Customer can delete booking photos.
+       */
+      allow delete: if
+        isOwner(customerId);
+
+      /*
+       * Customer can read their own photos.
+       *
+       * Worker can read photos when the booking
+       * belongs to that worker.
+       */
+      allow read: if
+        isOwner(customerId)
+        ||
+        (
+          signedIn()
+          &&
+          firestore.exists(
+            /databases/(default)/documents/bookings/$(bookingId)
+          )
+          &&
+          firestore.get(
+            /databases/(default)/documents/bookings/$(bookingId)
+          ).data.workerId == request.auth.uid
         );
-
-      /*
-       * Only the customer who owns the folder
-       * can replace a booking photo.
-       */
-      allow update:
-        if request.auth != null
-        && request.auth.uid == customerId
-        && request.resource != null
-        && request.resource.size > 0
-        && request.resource.size <= 5 * 1024 * 1024
-        && request.resource.contentType != null
-        && request.resource.contentType.matches(
-          'image/.*'
-        );
-
-      /*
-       * Only the customer can delete
-       * their own booking photos.
-       */
-      allow delete:
-        if request.auth != null
-        && request.auth.uid == customerId;
     }
 
 
-    /* ============================================================
+    /* =========================================================
+       SHOP REQUEST PHOTOS
+
+       shop-requests/{customerId}/{requestId}/{fileName}
+    ========================================================= */
+
+    match /shop-requests/{customerId}/{requestId}/{fileName} {
+
+      /*
+       * Customer can upload request photos.
+       */
+      allow create: if
+        isOwner(customerId)
+        && isValidImageUpload();
+
+      /*
+       * Customer can replace request photos.
+       */
+      allow update: if
+        isOwner(customerId)
+        && isValidImageUpload();
+
+      /*
+       * Customer can delete request photos.
+       */
+      allow delete: if
+        isOwner(customerId);
+
+      /*
+       * Customer can read their own photos.
+       *
+       * Worker can read photos when the request
+       * belongs to that worker.
+       */
+      allow read: if
+        isOwner(customerId)
+        ||
+        (
+          signedIn()
+          &&
+          firestore.exists(
+            /databases/(default)/documents/shopRequests/$(requestId)
+          )
+          &&
+          firestore.get(
+            /databases/(default)/documents/shopRequests/$(requestId)
+          ).data.workerId == request.auth.uid
+        );
+    }
+
+
+    /* =========================================================
        DEFAULT DENY
-    ============================================================ */
+
+       Anything not explicitly allowed above is denied.
+    ========================================================= */
 
     match /{allPaths=**} {
-
-      /*
-       * Anything not explicitly allowed above
-       * is completely denied.
-       */
-      allow read, write:
-        if false;
+      allow read, write: if false;
     }
   }
 }

@@ -43,6 +43,15 @@ export type WorkerServiceIcon =
   keyof typeof MaterialCommunityIcons.glyphMap;
 
 /* ==============================================================
+   FULFILLMENT MODE
+============================================================== */
+
+export type WorkerFulfillmentMode =
+  | "worker_visits_customer"
+  | "customer_visits_worker"
+  | "remote";
+
+/* ==============================================================
    MARKET PRODUCT
 ============================================================== */
 
@@ -85,6 +94,8 @@ export type WorkerOrderBase = {
 
   workerId?: string;
 
+  fulfillmentMode?: WorkerFulfillmentMode;
+
   address?: string;
 
   location?: string;
@@ -110,49 +121,47 @@ export type WorkerOrderBase = {
    SERVICE ORDER
 ============================================================== */
 
-export type WorkerServiceOrder =
-  WorkerOrderBase & {
-    type?: "service";
+export type WorkerServiceOrder = WorkerOrderBase & {
+  type?: "service";
 
-    serviceId?: string;
+  serviceId?: string;
 
-    serviceName: string;
+  serviceName: string;
 
-    serviceIcon: WorkerServiceIcon;
+  serviceIcon: WorkerServiceIcon;
 
-    serviceColor: string;
+  serviceColor: string;
 
-    serviceBackgroundColor: string;
+  serviceBackgroundColor: string;
 
-    description?: string;
-  };
+  description?: string;
+};
 
 /* ==============================================================
    MARKET ORDER
 ============================================================== */
 
-export type WorkerMarketOrder =
-  WorkerOrderBase & {
-    type?: "market";
+export type WorkerMarketOrder = WorkerOrderBase & {
+  type?: "market";
 
-    storeId?: string;
+  storeId?: string;
 
-    storeName: string;
+  storeName: string;
 
-    productId?: string;
+  productId?: string;
 
-    productName?: string;
+  productName?: string;
 
-    productImage?: string;
+  productImage?: string;
 
-    products: WorkerMarketProduct[];
+  products: WorkerMarketProduct[];
 
-    itemCount?: number;
+  itemCount?: number;
 
-    total?: number;
+  total?: number;
 
-    totalAmount?: number;
-  };
+  totalAmount?: number;
+};
 
 /* ==============================================================
    WORKER ORDER
@@ -161,45 +170,44 @@ export type WorkerMarketOrder =
    Useful for screens that display both service and market orders.
 ============================================================== */
 
-export type WorkerOrder =
-  WorkerOrderBase & {
-    type?: "service" | "market";
+export type WorkerOrder = WorkerOrderBase & {
+  type?: "service" | "market";
 
-    /* ==========================================================
-       SERVICE
-    ========================================================== */
+  /* ==========================================================
+     SERVICE
+  ========================================================== */
 
-    serviceId?: string;
+  serviceId?: string;
 
-    serviceName?: string;
+  serviceName?: string;
 
-    serviceIcon?: WorkerServiceIcon;
+  serviceIcon?: WorkerServiceIcon;
 
-    serviceColor?: string;
+  serviceColor?: string;
 
-    serviceBackgroundColor?: string;
+  serviceBackgroundColor?: string;
 
-    description?: string;
+  description?: string;
 
-    /* ==========================================================
-       MARKET
-    ========================================================== */
+  /* ==========================================================
+     MARKET
+  ========================================================== */
 
-    storeId?: string;
+  storeId?: string;
 
-    storeName?: string;
+  storeName?: string;
 
-    productId?: string;
+  productId?: string;
 
-    productName?: string;
+  productName?: string;
 
-    productImage?: string;
+  productImage?: string;
 
-    products?: WorkerMarketProduct[];
+  products?: WorkerMarketProduct[];
 
-    itemCount?: number;
+  itemCount?: number;
 
-    total?: number;
+  total?: number;
 
-    totalAmount?: number;
-  };
+  totalAmount?: number;
+};

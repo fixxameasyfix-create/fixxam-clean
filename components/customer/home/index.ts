@@ -38,3 +38,6 @@ export {
 export {
     default as FixxamActivity
 } from "./FixxamActivity";
+
+
+export { default as LocationLanguageTicker } from "./LocationLanguageTicker";

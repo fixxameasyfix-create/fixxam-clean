@@ -440,10 +440,6 @@ const CallWorkerModal =
                 styles.callModal
               }
             >
-              {/* ==================================================
-                  ICON
-              ================================================== */}
-
               <View
                 style={
                   styles.callModalIcon
@@ -459,10 +455,6 @@ const CallWorkerModal =
                 />
               </View>
 
-              {/* ==================================================
-                  TITLE
-              ================================================== */}
-
               <AppText
                 variant="heading2"
                 weight="bold"
@@ -473,10 +465,6 @@ const CallWorkerModal =
               >
                 Call {worker.name}?
               </AppText>
-
-              {/* ==================================================
-                  DESCRIPTION
-              ================================================== */}
 
               <AppText
                 variant="body"
@@ -499,10 +487,6 @@ const CallWorkerModal =
               >
                 You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
               </AppText>
-
-              {/* ==================================================
-                  ACTIONS
-              ================================================== */}
 
               <View
                 style={
@@ -586,7 +570,11 @@ const CallWorkerModal =
 type WorkerHomeCardProps = {
   worker: Worker;
 
-  onPress: (
+  onContact: (
+    worker: Worker,
+  ) => void;
+
+  onProfile: (
     worker: Worker,
   ) => void;
 
@@ -599,16 +587,27 @@ const WorkerHomeCard =
   memo(
     function WorkerHomeCard({
       worker,
-      onPress,
+      onContact,
+      onProfile,
       onImageError,
     }: WorkerHomeCardProps) {
-      const handlePress =
+      const handleContact =
         useCallback(() => {
-          onPress(
+          onContact(
             worker,
           );
         }, [
-          onPress,
+          onContact,
+          worker,
+        ]);
+
+      const handleProfile =
+        useCallback(() => {
+          onProfile(
+            worker,
+          );
+        }, [
+          onProfile,
           worker,
         ]);
 
@@ -630,143 +629,164 @@ const WorkerHomeCard =
           }
         >
           {/* ==================================================
-              IMAGE
+              PROFILE AREA
           ================================================== */}
 
-          <View
-            style={
-              styles.imageContainer
+          <Pressable
+            onPress={
+              handleProfile
             }
+            accessibilityRole="button"
+            accessibilityLabel={`View ${worker.name} profile`}
+            style={({
+              pressed,
+            }) => [
+              styles.profileArea,
+
+              pressed
+                ? styles.profileAreaPressed
+                : null,
+            ]}
           >
-            {worker.image ? (
-              <Image
-                source={{
-                  uri:
-                    worker.image,
-                }}
-                style={
-                  styles.image
-                }
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={150}
-                accessibilityLabel={`${worker.name} profile photo`}
-                onError={
-                  handleImageError
-                }
-              />
-            ) : (
-              <View
-                style={
-                  styles.imagePlaceholder
-                }
-              >
-                <AppIcon
-                  name="profile"
-                  role="customer"
-                  size="lg"
-                  state="muted"
-                />
-              </View>
-            )}
+            {/* ==================================================
+                IMAGE
+            ================================================== */}
 
             <View
-              accessible
-              accessibilityLabel={
-                worker.online
-                  ? "Worker online"
-                  : "Worker offline"
+              style={
+                styles.imageContainer
               }
-              style={[
-                styles.online,
+            >
+              {worker.image ? (
+                <Image
+                  source={{
+                    uri:
+                      worker.image,
+                  }}
+                  style={
+                    styles.image
+                  }
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={150}
+                  accessibilityLabel={`${worker.name} profile photo`}
+                  onError={
+                    handleImageError
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.imagePlaceholder
+                  }
+                >
+                  <AppIcon
+                    name="profile"
+                    role="customer"
+                    size="lg"
+                    state="muted"
+                  />
+                </View>
+              )}
 
-                worker.online
-                  ? styles.onlineActive
-                  : styles.onlineOffline,
-              ]}
-            />
-          </View>
+              <View
+                accessible
+                accessibilityLabel={
+                  worker.online
+                    ? "Worker online"
+                    : "Worker offline"
+                }
+                style={[
+                  styles.online,
 
-          {/* ==================================================
-              NAME
-          ================================================== */}
+                  worker.online
+                    ? styles.onlineActive
+                    : styles.onlineOffline,
+                ]}
+              />
+            </View>
 
-          <AppText
-            variant="bodyMedium"
-            weight="bold"
-            numberOfLines={1}
-            center
-            style={
-              styles.name
-            }
-          >
-            {worker.name}
-          </AppText>
+            {/* ==================================================
+                NAME
+            ================================================== */}
 
-          {/* ==================================================
-              SERVICE
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={1}
-            center
-            style={
-              styles.service
-            }
-          >
-            {worker.service}
-          </AppText>
-
-          {/* ==================================================
-              RATING
-          ================================================== */}
-
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <AppIcon
-              name="star"
-              role="customer"
-              size="xs"
-              color={
-                Colors.warning
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={1}
+              center
+              style={
+                styles.name
               }
-            />
+            >
+              {worker.name}
+            </AppText>
+
+            {/* ==================================================
+                SERVICE
+            ================================================== */}
 
             <AppText
               variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              center
               style={
-                styles.rating
+                styles.service
               }
             >
-              {worker.rating >
-              0
-                ? worker.rating.toFixed(
-                    1,
-                  )
-                : "New"}
+              {worker.service}
             </AppText>
-          </View>
 
-          {/* ==================================================
-              ARRIVAL
-          ================================================== */}
+            {/* ==================================================
+                RATING
+            ================================================== */}
 
-          <AppText
-            variant="caption"
-            tone="secondary"
-            center
-            numberOfLines={1}
-            style={
-              styles.arrivalTime
-            }
-          >
-            {worker.arrivalTime}
-          </AppText>
+            <View
+              style={
+                styles.ratingRow
+              }
+            >
+              <AppIcon
+                name="star"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.warning
+                }
+              />
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.rating
+                }
+              >
+                {worker.rating >
+                0
+                  ? worker.rating.toFixed(
+                      1,
+                    )
+                  : "New"}
+              </AppText>
+            </View>
+
+            {/* ==================================================
+                ARRIVAL
+            ================================================== */}
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              center
+              numberOfLines={1}
+              style={
+                styles.arrivalTime
+              }
+            >
+              {worker.arrivalTime}
+            </AppText>
+          </Pressable>
 
           {/* ==================================================
               CONTACT
@@ -774,7 +794,7 @@ const WorkerHomeCard =
 
           <Pressable
             onPress={
-              handlePress
+              handleContact
             }
             accessibilityRole="button"
             accessibilityLabel={`Contact ${worker.name}`}
@@ -1552,7 +1572,40 @@ export default function ContactWorkers() {
     );
 
   /* ==========================================================
-     WORKER PRESS
+     OPEN WORKER PROFILE
+  ========================================================== */
+
+  const handleWorkerProfile =
+    useCallback(
+      (
+        worker: Worker,
+      ) => {
+        const workerId =
+          cleanString(
+            worker.id,
+          );
+
+        if (
+          !workerId
+        ) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/details/worker-profile/[id]",
+
+          params: {
+            id:
+              workerId,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ==========================================================
+     CONTACT WORKER
   ========================================================== */
 
   const handleWorkerPress =
@@ -1702,12 +1755,6 @@ export default function ContactWorkers() {
         null,
       );
 
-      /*
-       * No phone number is sent.
-       *
-       * The call screen identifies
-       * the worker using workerId.
-       */
       router.push({
         pathname:
           "/(customer)/call/[workerId]",
@@ -1775,8 +1822,11 @@ export default function ContactWorkers() {
           worker={
             item
           }
-          onPress={
+          onContact={
             handleWorkerPress
+          }
+          onProfile={
+            handleWorkerProfile
           }
           onImageError={
             handleImageError
@@ -1786,6 +1836,7 @@ export default function ContactWorkers() {
       [
         handleImageError,
         handleWorkerPress,
+        handleWorkerProfile,
       ],
     );
 
@@ -2319,6 +2370,19 @@ const styles =
 
       borderRadius:
         FixxamTokens.radius.lg,
+    },
+
+    profileArea: {
+      width: "100%",
+
+      alignItems:
+        "center",
+    },
+
+    profileAreaPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     imageContainer: {

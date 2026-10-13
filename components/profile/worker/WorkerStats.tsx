@@ -9,7 +9,6 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
   AppText,
 } from "@/components/ui";
 
@@ -163,9 +162,10 @@ function WorkerStats({
     );
 
   return (
-    <AppCard
-      role="worker"
-      style={styles.card}
+    <View
+      style={
+        styles.container
+      }
     >
       {stats.map(
         (
@@ -173,7 +173,9 @@ function WorkerStats({
           index,
         ) => (
           <React.Fragment
-            key={item.label}
+            key={
+              item.label
+            }
           >
             {index > 0 ? (
               <View
@@ -215,7 +217,7 @@ function WorkerStats({
           </React.Fragment>
         ),
       )}
-    </AppCard>
+    </View>
   );
 }
 
@@ -230,35 +232,24 @@ export default memo(
 const styles =
   StyleSheet.create({
     /* ========================================================
-       CARD
+       CONTAINER
     ======================================================== */
 
-    card: {
-      marginHorizontal: 0,
-
-      marginTop: 0,
-
-      marginBottom: 0,
-
-      minHeight: 88,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
+    container: {
+      minHeight:
+        88,
 
       paddingVertical:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
+      alignItems:
+        "center",
 
       backgroundColor:
         Colors.surface,
@@ -269,21 +260,25 @@ const styles =
     ======================================================== */
 
     item: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
+      minWidth:
+        0,
 
       paddingHorizontal:
         FixxamTokens.spacing.xxs,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     value: {
-      textAlign: "center",
+      textAlign:
+        "center",
 
       color:
         WorkerColors.primary,
@@ -293,7 +288,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xxs,
 
-      textAlign: "center",
+      textAlign:
+        "center",
 
       color:
         Colors.textSecondary,
@@ -304,9 +300,11 @@ const styles =
     ======================================================== */
 
     divider: {
-      width: 1,
+      width:
+        1,
 
-      height: 38,
+      height:
+        38,
 
       backgroundColor:
         Colors.divider,

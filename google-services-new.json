@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "209267641975",
+    "project_id": "fixxam-clean",
+    "storage_bucket": "fixxam-clean.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209267641975:android:66123e63cfedb9e6d2c072",
+        "android_client_info": {
+          "package_name": "com.fixxam.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOW-VHBkJiyooaKLX8Ho6TRqImFhdUorc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209267641975:android:b35c20494ef962d4d2c072",
+        "android_client_info": {
+          "package_name": "com.fixxam.new"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOW-VHBkJiyooaKLX8Ho6TRqImFhdUorc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

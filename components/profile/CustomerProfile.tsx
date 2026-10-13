@@ -36,13 +36,22 @@ type Props = {
 
   onProfile: () => void;
 
+  onRequests: () => void;
+
+  onMarket: () => void;
+
+  onOrders: () => void;
+
+  onPromotions: () => void;
+
+
   onActivity: () => void;
 
   onSaved: () => void;
 
-  onAddresses: () => void;
+  onLocation: () => void;
 
-  onPayments: () => void;
+  onMywallet: () => void;
 
   onNotifications: () => void;
 
@@ -74,11 +83,16 @@ export default function CustomerProfile({
   onSwitchWorker,
 
   onProfile,
-  onActivity,
+onRequests,
+onMarket,
+onOrders,
+
+onPromotions,
+onActivity,
 
   onSaved,
-  onAddresses,
-  onPayments,
+  onLocation,
+  onMywallet,
   onNotifications,
   onReviews,
   onSupport,
@@ -100,14 +114,35 @@ export default function CustomerProfile({
             onProfile,
         },
 
-        /*
-         * No route/callback exists yet.
-         * Keep disabled.
-         */
         {
-          label: "Orders",
+          label:
+            "My Requests",
           icon: "jobs",
+          onPress:
+            onRequests,
         },
+
+{
+  label: "My Market",
+  icon: "cart",
+  onPress:
+    onMarket,
+},
+
+{
+  label: "Orders",
+  icon: "file",
+  onPress:
+    onOrders,
+},
+
+
+{
+  label: "Promotions",
+  icon: "info",
+  onPress:
+    onPromotions,
+},
 
         {
           label: "Saved",
@@ -120,24 +155,21 @@ export default function CustomerProfile({
          * No route/callback exists yet.
          * Keep disabled.
          */
-        {
-          label: "Promotions",
-          icon: "info",
-        },
+  
 
         {
-          label: "Addresses",
+          label: "Location",
           icon: "location",
           onPress:
-            onAddresses,
+            onLocation,
         },
 
         {
           label:
-            "Payment Methods",
-          icon: "payment",
+            "My Wallet",
+          icon: "wallet",
           onPress:
-            onPayments,
+            onMywallet,
         },
 
         {
@@ -181,10 +213,11 @@ export default function CustomerProfile({
       ],
       [
         onActivity,
-        onAddresses,
+        onLocation,
         onNotifications,
-        onPayments,
+        onMywallet,
         onProfile,
+        onRequests,
         onReviews,
         onSaved,
         onSettings,
@@ -252,8 +285,6 @@ export default function CustomerProfile({
             : null,
         ]}
       >
-        {/* WORKER ICON */}
-
         <View
           style={
             styles.workerIcon
@@ -272,8 +303,6 @@ export default function CustomerProfile({
             }
           />
         </View>
-
-        {/* WORKER CONTENT */}
 
         <View
           style={
@@ -302,8 +331,6 @@ export default function CustomerProfile({
             {workerDescription}
           </AppText>
         </View>
-
-        {/* CONTINUE */}
 
         <View
           style={
@@ -337,7 +364,9 @@ export default function CustomerProfile({
       ===================================================== */}
 
       <View
-        style={styles.menu}
+        style={
+          styles.menu
+        }
       >
         {menuItems.map(
           (
@@ -390,8 +419,6 @@ export default function CustomerProfile({
                     : null,
                 ]}
               >
-                {/* ICON */}
-
                 <View
                   style={
                     styles.iconBox
@@ -415,8 +442,6 @@ export default function CustomerProfile({
                   />
                 </View>
 
-                {/* LABEL */}
-
                 <AppText
                   variant="body"
                   numberOfLines={1}
@@ -430,8 +455,6 @@ export default function CustomerProfile({
                 >
                   {item.label}
                 </AppText>
-
-                {/* STATUS / ARROW */}
 
                 {isDisabled ? (
                   <AppIcon
@@ -506,7 +529,8 @@ const styles =
     ======================================================== */
 
     container: {
-      width: "100%",
+      width:
+        "100%",
     },
 
     /* ========================================================
@@ -514,14 +538,17 @@ const styles =
     ======================================================== */
 
     workerCard: {
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
+      minHeight:
+        76,
 
       marginBottom:
         FixxamTokens.spacing.sm,
 
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -529,7 +556,8 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         WorkerColors.primary,
@@ -539,8 +567,6 @@ const styles =
 
       backgroundColor:
         WorkerColors.primarySoft,
-
-      ...FixxamTokens.shadow.card,
     },
 
     workerIcon: {
@@ -552,7 +578,8 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -568,9 +595,11 @@ const styles =
     },
 
     workerContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -588,7 +617,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xxs,
 
-      lineHeight: 16,
+      lineHeight:
+        16,
     },
 
     continueButton: {
@@ -596,7 +626,8 @@ const styles =
         FixxamTokens.size
           .buttonSmallHeight,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -633,10 +664,8 @@ const styles =
       overflow:
         "hidden",
 
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
-
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -649,10 +678,11 @@ const styles =
     },
 
     row: {
-      minHeight: 56,
+      minHeight:
+        56,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -662,7 +692,8 @@ const styles =
     },
 
     rowBorder: {
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
         Colors.divider,
@@ -680,11 +711,14 @@ const styles =
     },
 
     iconBox: {
-      width: 38,
+      width:
+        FixxamTokens.size.iconBox,
 
-      height: 38,
+      height:
+        FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -700,9 +734,11 @@ const styles =
     },
 
     rowText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -728,14 +764,8 @@ const styles =
         FixxamTokens.size
           .buttonSmallHeight,
 
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
-
       marginTop:
         FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -752,7 +782,8 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.error,

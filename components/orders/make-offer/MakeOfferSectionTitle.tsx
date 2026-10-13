@@ -17,80 +17,133 @@ import {
   WorkerColors,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
-  number: string;
   title: string;
+
+  /**
+   * Optional for backward compatibility.
+   * Remove when numbered sections are no longer used.
+   */
+  number?: string;
 };
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function MakeOfferSectionTitle({
-  number,
   title,
+  number,
 }: Props) {
+  const cleanTitle =
+    title.trim();
+
+  if (!cleanTitle) {
+    return null;
+  }
+
   return (
     <View
       style={
-        styles.sectionTitle
+        styles.container
       }
     >
       <View
         style={
-          styles.sectionNumber
+          styles.titleRow
         }
       >
+        {number ? (
+          <View
+            style={
+              styles.numberDot
+            }
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              center
+              style={
+                styles.numberText
+              }
+            >
+              {number}
+            </AppText>
+          </View>
+        ) : null}
+
         <AppText
-          variant="caption"
+          variant="bodyMedium"
           weight="bold"
-          center
+          numberOfLines={2}
           style={
-            styles.sectionNumberText
+            styles.title
           }
         >
-          {number}
+          {cleanTitle}
         </AppText>
       </View>
-
-      <AppText
-        variant="bodyMedium"
-        weight="bold"
-        style={
-          styles.sectionText
-        }
-      >
-        {title}
-      </AppText>
     </View>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MakeOfferSectionTitle.displayName =
+  "MakeOfferSectionTitle";
 
 export default memo(
   MakeOfferSectionTitle,
 );
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
-    sectionTitle: {
-      width: "100%",
+    container: {
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.md,
 
       marginBottom:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
+    },
+
+    titleRow: {
+      width:
+        "100%",
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
-    sectionNumber: {
-      width: 28,
+    numberDot: {
+      width:
+        20,
 
-      height: 28,
+      height:
+        20,
 
-      marginRight:
-        FixxamTokens.spacing.sm,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -99,19 +152,26 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         WorkerColors.primarySoft,
     },
 
-    sectionNumberText: {
+    numberText: {
+      fontSize:
+        10,
+
       color:
         WorkerColors.primary,
     },
 
-    sectionText: {
-      flex: 1,
+    title: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       color:
         Colors.textPrimary,

@@ -1,207 +1,509 @@
 import {
   doc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   setDoc,
-  type Unsubscribe,
+  writeBatch,
 } from "firebase/firestore";
 
 import {
+  deleteObject,
   getDownloadURL,
-  getStorage,
   ref,
   uploadBytes,
 } from "firebase/storage";
 
-import {
-  db,
-} from "@/firebase/config";
+import { auth, db, storage } from "@/firebase/config";
 
 import {
-  EMPTY_WORKER_PROFILE,
   MAX_GALLERY_PHOTOS,
-  type WorkerProfile,
+  WorkerProfile,
+  WorkerServiceLocation,
 } from "@/types/workerProfile";
 
-import {
-  cleanString,
-  getSafeImageUrl,
-  isHttpsUrl,
-  isLocalUri,
-  normalizePhoneNumber,
-  normalizeProfileData,
-} from "@/utils/workerProfile";
-
 /* ============================================================
-   TYPES
+   CONSTANTS
 ============================================================ */
 
-type ProfileListener = (
-  profile: WorkerProfile,
-) => void;
+const USERS_COLLECTION =
+  "users";
 
-type ProfileErrorListener = (
-  error: Error,
-) => void;
+const WORKER_PUBLIC_PROFILES_COLLECTION =
+  "workerPublicProfiles";
 
 /* ============================================================
-   PROFILE DOCUMENT
+   HELPERS
 ============================================================ */
 
-function getWorkerProfileRef(
-  uid: string,
-) {
-  const safeUid =
-    cleanString(uid);
+function normalizeString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
 
-  if (!safeUid) {
-    throw new Error(
-      "Worker UID is required.",
-    );
+function normalizePhotoUrl(
+  value: unknown,
+): string {
+  const url =
+    normalizeString(value);
+
+  if (!url) {
+    return "";
   }
 
-  return doc(
+  return /^https:\/\//i.test(url)
+    ? url
+    : "";
+}
+
+function normalizeGallery(
+  value: unknown,
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .filter(
+          (item): item is string =>
+            typeof item === "string",
+        )
+        .map((item) => item.trim())
+        .filter(
+          (item) =>
+            item.length > 0 &&
+            /^https:\/\//i.test(item),
+        ),
+    ),
+  ).slice(0, MAX_GALLERY_PHOTOS);
+}
+
+function normalizeServiceLocation(
+  value:
+    | WorkerServiceLocation
+    | undefined,
+): WorkerServiceLocation {
+  if (!value) {
+    return {
+      address: "",
+      state: "",
+      lga: "",
+      latitude: null,
+      longitude: null,
+    };
+  }
+
+  return {
+    address:
+      normalizeString(
+        value.address,
+      ),
+
+    state:
+      normalizeString(
+        value.state,
+      ),
+
+    lga:
+      normalizeString(
+        value.lga,
+      ),
+
+    latitude:
+      typeof value.latitude === "number" &&
+      Number.isFinite(
+        value.latitude,
+      )
+        ? value.latitude
+        : null,
+
+    longitude:
+      typeof value.longitude === "number" &&
+      Number.isFinite(
+        value.longitude,
+      )
+        ? value.longitude
+        : null,
+  };
+}
+
+function preferUsableString(
+  ...values: unknown[]
+): string {
+  for (const value of values) {
+    const normalized =
+      normalizeString(value);
+
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return "";
+}
+
+/* ============================================================
+   PROFILE NORMALIZATION
+============================================================ */
+
+function normalizeProfileData(
+  userData: Record<string, unknown>,
+  publicData: Record<string, unknown>,
+): WorkerProfile {
+  const userWorkerProfile =
+    (
+      userData.workerProfile ??
+      {}
+    ) as Record<string, unknown>;
+
+  const publicWorkerProfile =
+    (
+      publicData.workerProfile ??
+      {}
+    ) as Record<string, unknown>;
+
+  const rawPhotoUrl =
+    preferUsableString(
+      userWorkerProfile.photoUrl,
+      publicWorkerProfile.photoUrl,
+
+      userData.photoUrl,
+      publicData.photoUrl,
+
+      userWorkerProfile.photoURL,
+      publicWorkerProfile.photoURL,
+
+      userData.photoURL,
+      publicData.photoURL,
+    );
+
+  const rawGallery =
+    Array.isArray(
+      userWorkerProfile.workGallery,
+    )
+      ? userWorkerProfile.workGallery
+      : Array.isArray(
+          publicWorkerProfile.workGallery,
+        )
+      ? publicWorkerProfile.workGallery
+      : Array.isArray(
+          userData.workGallery,
+        )
+      ? userData.workGallery
+      : publicData.workGallery;
+
+  const rawSelectedServices =
+    Array.isArray(
+      userWorkerProfile.selectedServices,
+    )
+      ? userWorkerProfile.selectedServices
+      : Array.isArray(
+          publicWorkerProfile.selectedServices,
+        )
+      ? publicWorkerProfile.selectedServices
+      : [];
+
+  const serviceLocation =
+    normalizeServiceLocation(
+      (
+        userWorkerProfile.serviceLocation ??
+        publicWorkerProfile.serviceLocation ??
+        userData.serviceLocation ??
+        publicData.serviceLocation
+      ) as
+        | WorkerServiceLocation
+        | undefined,
+    );
+
+  return {
+    fullName:
+      preferUsableString(
+        userWorkerProfile.fullName,
+        publicWorkerProfile.fullName,
+        userData.fullName,
+        publicData.fullName,
+      ),
+
+    phoneNumber:
+      preferUsableString(
+        userWorkerProfile.phoneNumber,
+        publicWorkerProfile.phoneNumber,
+        userData.phoneNumber,
+        publicData.phoneNumber,
+      ),
+
+    photoUrl:
+      normalizePhotoUrl(
+        rawPhotoUrl,
+      ),
+
+    category:
+      preferUsableString(
+        userWorkerProfile.category,
+        publicWorkerProfile.category,
+      ),
+
+    subcategory:
+      preferUsableString(
+        userWorkerProfile.subcategory,
+        publicWorkerProfile.subcategory,
+      ),
+
+    selectedServices:
+      Array.from(
+        new Set(
+          rawSelectedServices
+            .filter(
+              (
+                item,
+              ): item is string =>
+                typeof item ===
+                "string",
+            )
+            .map((item) =>
+              item.trim(),
+            )
+            .filter(Boolean),
+        ),
+      ),
+
+    experience:
+      preferUsableString(
+        userWorkerProfile.experience,
+        publicWorkerProfile.experience,
+      ),
+
+    hourlyRate:
+      preferUsableString(
+        userWorkerProfile.hourlyRate,
+        publicWorkerProfile.hourlyRate,
+      ),
+
+    location:
+      preferUsableString(
+        userWorkerProfile.location,
+        publicWorkerProfile.location,
+      ),
+
+    serviceLocation,
+
+    workGallery:
+      normalizeGallery(
+        rawGallery,
+      ),
+
+    aboutMe:
+      preferUsableString(
+        userWorkerProfile.aboutMe,
+        publicWorkerProfile.aboutMe,
+      ),
+  };
+}
+
+/* ============================================================
+   GET EXISTING PROFILE DOCUMENTS
+============================================================ */
+
+async function getWorkerProfileDocuments(
+  uid: string,
+) {
+  const userRef = doc(
     db,
-    "workerPublicProfiles",
-    safeUid,
+    USERS_COLLECTION,
+    uid,
+  );
+
+  const publicRef = doc(
+    db,
+    WORKER_PUBLIC_PROFILES_COLLECTION,
+    uid,
+  );
+
+  const [
+    userSnapshot,
+    publicSnapshot,
+  ] = await Promise.all([
+    getDoc(userRef),
+    getDoc(publicRef),
+  ]);
+
+  return {
+    userRef,
+    publicRef,
+    userData:
+      userSnapshot.exists()
+        ? (userSnapshot.data() as Record<
+            string,
+            unknown
+          >)
+        : {},
+    publicData:
+      publicSnapshot.exists()
+        ? (publicSnapshot.data() as Record<
+            string,
+            unknown
+          >)
+        : {},
+  };
+}
+
+/* ============================================================
+   GET PERSISTED PHOTO
+============================================================ */
+
+async function getPersistedPhotoUrl(
+  uid: string,
+): Promise<string> {
+  const {
+    userData,
+    publicData,
+  } =
+    await getWorkerProfileDocuments(
+      uid,
+    );
+
+  const userWorkerProfile =
+    (
+      userData.workerProfile ??
+      {}
+    ) as Record<string, unknown>;
+
+  const publicWorkerProfile =
+    (
+      publicData.workerProfile ??
+      {}
+    ) as Record<string, unknown>;
+
+  return normalizePhotoUrl(
+    preferUsableString(
+      userWorkerProfile.photoUrl,
+      publicWorkerProfile.photoUrl,
+
+      userData.photoUrl,
+      publicData.photoUrl,
+
+      userWorkerProfile.photoURL,
+      publicWorkerProfile.photoURL,
+
+      userData.photoURL,
+      publicData.photoURL,
+    ),
   );
 }
 
 /* ============================================================
-   PROFILE LISTENER
+   REALTIME SUBSCRIPTION
 ============================================================ */
 
 export function subscribeToWorkerProfile(
   uid: string,
-  onProfile: ProfileListener,
-  onError: ProfileErrorListener,
-): Unsubscribe {
-  const profileRef =
-    getWorkerProfileRef(uid);
+  onProfile: (
+    profile: WorkerProfile,
+  ) => void,
+  onError?: (
+    error: Error,
+  ) => void,
+): () => void {
+  const userRef = doc(
+    db,
+    USERS_COLLECTION,
+    uid,
+  );
 
-  return onSnapshot(
-    profileRef,
+  const publicRef = doc(
+    db,
+    WORKER_PUBLIC_PROFILES_COLLECTION,
+    uid,
+  );
 
-    snapshot => {
-      if (!snapshot.exists()) {
-        onProfile({
-          ...EMPTY_WORKER_PROFILE,
-          workGallery: [],
-        });
+  let userData:
+    | Record<string, unknown>
+    = {};
 
-        return;
-      }
+  let publicData:
+    | Record<string, unknown>
+    = {};
 
-      const profile =
-        normalizeProfileData(
-          snapshot.data() as Record<
-            string,
-            unknown
-          >,
+  let hasUserSnapshot = false;
+  let hasPublicSnapshot = false;
+
+  const emitProfile = () => {
+    if (
+      !hasUserSnapshot &&
+      !hasPublicSnapshot
+    ) {
+      return;
+    }
+
+    onProfile(
+      normalizeProfileData(
+        userData,
+        publicData,
+      ),
+    );
+  };
+
+  const unsubscribeUser =
+    onSnapshot(
+      userRef,
+      (snapshot) => {
+        userData =
+          snapshot.exists()
+            ? (snapshot.data() as Record<
+                string,
+                unknown
+              >)
+            : {};
+
+        hasUserSnapshot = true;
+
+        emitProfile();
+      },
+      (error) => {
+        console.error(
+          "[workerProfileService] User profile subscription error:",
+          error,
         );
 
-      onProfile(profile);
-    },
-
-    error => {
-      onError(error);
-    },
-  );
-}
-
-/* ============================================================
-   UPLOAD IMAGE
-============================================================ */
-
-export async function uploadWorkerImage(
-  localUri: string,
-  storagePath: string,
-  mimeType = "image/jpeg",
-): Promise<string> {
-  const uri =
-    cleanString(localUri);
-
-  const path =
-    cleanString(storagePath);
-
-  if (!uri) {
-    throw new Error(
-      "Image URI is empty.",
-    );
-  }
-
-  if (!path) {
-    throw new Error(
-      "Storage path is empty.",
-    );
-  }
-
-  /*
-   * Already uploaded images do not
-   * need to be uploaded again.
-   */
-  if (isHttpsUrl(uri)) {
-    return uri;
-  }
-
-  if (!isLocalUri(uri)) {
-    throw new Error(
-      "Invalid local image URI.",
-    );
-  }
-
-  const response =
-    await fetch(uri);
-
-  const blob =
-    await response.blob();
-
-  if (
-    !blob ||
-    blob.size <= 0
-  ) {
-    throw new Error(
-      "Selected image is empty.",
-    );
-  }
-
-  const storage =
-    getStorage();
-
-  const imageRef =
-    ref(
-      storage,
-      path,
+        onError?.(error);
+      },
     );
 
-  await uploadBytes(
-    imageRef,
-    blob,
-    {
-      contentType:
-        cleanString(mimeType) ||
-        blob.type ||
-        "image/jpeg",
+  const unsubscribePublic =
+    onSnapshot(
+      publicRef,
+      (snapshot) => {
+        publicData =
+          snapshot.exists()
+            ? (snapshot.data() as Record<
+                string,
+                unknown
+              >)
+            : {};
 
-      cacheControl:
-        "public,max-age=3600",
-    },
-  );
+        hasPublicSnapshot = true;
 
-  const downloadURL =
-    await getDownloadURL(
-      imageRef,
+        emitProfile();
+      },
+      (error) => {
+        console.error(
+          "[workerProfileService] Public profile subscription error:",
+          error,
+        );
+
+        onError?.(error);
+      },
     );
 
-  if (
-    !isHttpsUrl(downloadURL)
-  ) {
-    throw new Error(
-      "Firebase Storage returned an invalid image URL.",
-    );
-  }
-
-  return downloadURL;
+  return () => {
+    unsubscribeUser();
+    unsubscribePublic();
+  };
 }
 
 /* ============================================================
@@ -212,36 +514,40 @@ export async function saveWorkerProfilePhoto(
   uid: string,
   photoUrl: string,
 ): Promise<void> {
-  const safePhotoUrl =
-    getSafeImageUrl(
+  const normalizedPhotoUrl =
+    normalizePhotoUrl(
       photoUrl,
     );
 
-  if (!safePhotoUrl) {
+  if (!normalizedPhotoUrl) {
     throw new Error(
-      "A valid profile photo URL is required.",
+      "A valid HTTPS profile photo URL is required.",
     );
   }
 
-  const profileRef =
-    getWorkerProfileRef(uid);
+  const userRef = doc(
+    db,
+    USERS_COLLECTION,
+    uid,
+  );
 
-  await setDoc(
-    profileRef,
+  const publicRef = doc(
+    db,
+    WORKER_PUBLIC_PROFILES_COLLECTION,
+    uid,
+  );
+
+  const batch =
+    writeBatch(db);
+
+  batch.set(
+    userRef,
     {
-      photoURL:
-        safePhotoUrl,
-
       photoUrl:
-        safePhotoUrl,
+        normalizedPhotoUrl,
 
-      workerProfile: {
-        photoUrl:
-          safePhotoUrl,
-
-        photoURL:
-          safePhotoUrl,
-      },
+      "workerProfile.photoUrl":
+        normalizedPhotoUrl,
 
       updatedAt:
         serverTimestamp(),
@@ -250,41 +556,63 @@ export async function saveWorkerProfilePhoto(
       merge: true,
     },
   );
+
+  batch.set(
+    publicRef,
+    {
+      photoUrl:
+        normalizedPhotoUrl,
+
+      "workerProfile.photoUrl":
+        normalizedPhotoUrl,
+
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    },
+  );
+
+  await batch.commit();
 }
 
 /* ============================================================
-   SAVE WORK GALLERY
+   SAVE GALLERY
 ============================================================ */
 
 export async function saveWorkerGallery(
   uid: string,
   gallery: string[],
 ): Promise<void> {
-  const safeGallery =
-    Array.from(
-      new Set(
-        gallery.filter(
-          isHttpsUrl,
-        ),
-      ),
-    ).slice(
-      0,
-      MAX_GALLERY_PHOTOS,
+  const normalizedGallery =
+    normalizeGallery(
+      gallery,
     );
 
-  const profileRef =
-    getWorkerProfileRef(uid);
+  const userRef = doc(
+    db,
+    USERS_COLLECTION,
+    uid,
+  );
 
-  await setDoc(
-    profileRef,
+  const publicRef = doc(
+    db,
+    WORKER_PUBLIC_PROFILES_COLLECTION,
+    uid,
+  );
+
+  const batch =
+    writeBatch(db);
+
+  batch.set(
+    userRef,
     {
       workGallery:
-        safeGallery,
+        normalizedGallery,
 
-      workerProfile: {
-        workGallery:
-          safeGallery,
-      },
+      "workerProfile.workGallery":
+        normalizedGallery,
 
       updatedAt:
         serverTimestamp(),
@@ -293,6 +621,25 @@ export async function saveWorkerGallery(
       merge: true,
     },
   );
+
+  batch.set(
+    publicRef,
+    {
+      workGallery:
+        normalizedGallery,
+
+      "workerProfile.workGallery":
+        normalizedGallery,
+
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    },
+  );
+
+  await batch.commit();
 }
 
 /* ============================================================
@@ -303,154 +650,415 @@ export async function saveWorkerProfile(
   uid: string,
   profile: WorkerProfile,
 ): Promise<void> {
-  const safeUid =
-    cleanString(uid);
-
-  if (!safeUid) {
+  if (!uid) {
     throw new Error(
-      "Worker UID is required.",
+      "A valid user ID is required.",
     );
   }
 
+  const {
+    userRef,
+    publicRef,
+    userData,
+    publicData,
+  } =
+    await getWorkerProfileDocuments(
+      uid,
+    );
+
+  /* ----------------------------------------------------------
+     PHOTO PROTECTION
+  ---------------------------------------------------------- */
+
+  const requestedPhotoUrl =
+    normalizePhotoUrl(
+      profile.photoUrl,
+    );
+
+  const persistedPhotoUrl =
+    normalizePhotoUrl(
+      preferUsableString(
+        (
+          (
+            userData.workerProfile ??
+            {}
+          ) as Record<
+            string,
+            unknown
+          >
+        ).photoUrl,
+
+        (
+          (
+            publicData.workerProfile ??
+            {}
+          ) as Record<
+            string,
+            unknown
+          >
+        ).photoUrl,
+
+        userData.photoUrl,
+        publicData.photoUrl,
+
+        (
+          (
+            userData.workerProfile ??
+            {}
+          ) as Record<
+            string,
+            unknown
+          >
+        ).photoURL,
+
+        (
+          (
+            publicData.workerProfile ??
+            {}
+          ) as Record<
+            string,
+            unknown
+          >
+        ).photoURL,
+
+        userData.photoURL,
+        publicData.photoURL,
+      ),
+    );
+
+  /**
+   * IMPORTANT:
+   *
+   * A complete profile save must never erase
+   * an already persisted photo.
+   */
+  const finalPhotoUrl =
+    requestedPhotoUrl ||
+    persistedPhotoUrl;
+
+  /* ----------------------------------------------------------
+     NORMALIZE PROFILE
+  ---------------------------------------------------------- */
+
   const fullName =
-    profile.fullName.trim();
+    normalizeString(
+      profile.fullName,
+    );
+
+  if (!fullName) {
+    throw new Error(
+      "Your full name is required.",
+    );
+  }
+
+  if (
+    fullName.length > 100
+  ) {
+    throw new Error(
+      "Your name is too long.",
+    );
+  }
 
   const phoneNumber =
-    normalizePhoneNumber(
+    normalizeString(
       profile.phoneNumber,
     );
 
+  const category =
+    normalizeString(
+      profile.category,
+    );
+
+  const subcategory =
+    normalizeString(
+      profile.subcategory,
+    );
+
   const experience =
-    Number(
+    normalizeString(
       profile.experience,
     );
 
   const hourlyRate =
-    Number(
+    normalizeString(
       profile.hourlyRate,
     );
 
   const location =
-    profile.location.trim();
+    normalizeString(
+      profile.location,
+    );
 
   const aboutMe =
-    profile.aboutMe.trim();
+    normalizeString(
+      profile.aboutMe,
+    );
 
-  const photoUrl =
-    getSafeImageUrl(
-      profile.photoUrl,
+  const selectedServices =
+    Array.from(
+      new Set(
+        (
+          profile.selectedServices ??
+          []
+        )
+          .filter(
+            (
+              item,
+            ): item is string =>
+              typeof item ===
+              "string",
+          )
+          .map((item) =>
+            item.trim(),
+          )
+          .filter(Boolean),
+      ),
     );
 
   const workGallery =
-    Array.from(
-      new Set(
-        profile.workGallery.filter(
-          isHttpsUrl,
-        ),
-      ),
-    ).slice(
-      0,
-      MAX_GALLERY_PHOTOS,
+    normalizeGallery(
+      profile.workGallery,
     );
 
-  /* ==========================================================
-     CANONICAL WORKER PROFILE
-  ========================================================== */
+  const serviceLocation =
+    normalizeServiceLocation(
+      profile.serviceLocation,
+    );
 
-  const workerProfile = {
+  /* ----------------------------------------------------------
+     PROFILE DATA
+  ---------------------------------------------------------- */
+
+  const workerProfileData: Record<
+    string,
+    unknown
+  > = {
     fullName,
-
     phoneNumber,
-
-    photoUrl,
-
-    photoURL:
-      photoUrl,
-
-    workGallery,
-
-    /*
-     * Preserve the existing nested
-     * Firestore format for compatibility.
-     */
-    experience:
-      String(experience),
-
+    category,
+    subcategory,
+    selectedServices,
+    experience,
     hourlyRate,
-
     location,
-
-    address:
-      location,
-
+    serviceLocation,
+    workGallery,
     aboutMe,
-
-    about:
-      aboutMe,
   };
 
-  const profileRef =
-    getWorkerProfileRef(
-      safeUid,
+  if (finalPhotoUrl) {
+    workerProfileData.photoUrl =
+      finalPhotoUrl;
+  }
+
+  /* ----------------------------------------------------------
+     USER DATA
+  ---------------------------------------------------------- */
+
+  const userPayload: Record<
+    string,
+    unknown
+  > = {
+    fullName,
+    phoneNumber,
+    category,
+    subcategory,
+    selectedServices,
+    experience,
+    hourlyRate,
+    location,
+    serviceLocation,
+    workGallery,
+    aboutMe,
+
+    workerProfile:
+      workerProfileData,
+
+    updatedAt:
+      serverTimestamp(),
+  };
+
+  /* ----------------------------------------------------------
+     PUBLIC DATA
+  ---------------------------------------------------------- */
+
+  const publicPayload: Record<
+    string,
+    unknown
+  > = {
+    fullName,
+    phoneNumber,
+    category,
+    subcategory,
+    selectedServices,
+    experience,
+    hourlyRate,
+    location,
+    serviceLocation,
+    workGallery,
+    aboutMe,
+
+    workerProfile:
+      workerProfileData,
+
+    updatedAt:
+      serverTimestamp(),
+  };
+
+  /* ----------------------------------------------------------
+     PHOTO DUPLICATION
+  ---------------------------------------------------------- */
+
+  if (finalPhotoUrl) {
+    userPayload.photoUrl =
+      finalPhotoUrl;
+
+    userPayload[
+      "workerProfile.photoUrl"
+    ] = finalPhotoUrl;
+
+    publicPayload.photoUrl =
+      finalPhotoUrl;
+
+    publicPayload[
+      "workerProfile.photoUrl"
+    ] = finalPhotoUrl;
+  }
+
+  /* ----------------------------------------------------------
+     ATOMIC FIRESTORE WRITE
+  ---------------------------------------------------------- */
+
+  const batch =
+    writeBatch(db);
+
+  batch.set(
+    userRef,
+    userPayload,
+    {
+      merge: true,
+    },
+  );
+
+  batch.set(
+    publicRef,
+    publicPayload,
+    {
+      merge: true,
+    },
+  );
+
+  await batch.commit();
+}
+
+/* ============================================================
+   UPLOAD WORKER IMAGE
+============================================================ */
+
+export async function uploadWorkerImage(
+  uid: string,
+  uri: string,
+  fileName: string,
+  folder:
+    | "profile"
+    | "gallery",
+): Promise<string> {
+  if (!uid) {
+    throw new Error(
+      "A valid user ID is required.",
+    );
+  }
+
+  if (!uri) {
+    throw new Error(
+      "Image URI is required.",
+    );
+  }
+
+  const response =
+    await fetch(uri);
+
+  if (!response.ok) {
+    throw new Error(
+      "Unable to read the selected image.",
+    );
+  }
+
+  const blob =
+    await response.blob();
+
+  const safeFileName =
+    fileName
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_",
+      );
+
+  const storagePath =
+    `workers/${uid}/${folder}/${Date.now()}-${safeFileName}`;
+
+  const storageRef =
+    ref(
+      storage,
+      storagePath,
     );
 
-  await setDoc(
-    profileRef,
+  await uploadBytes(
+    storageRef,
+    blob,
     {
-      uid:
-        safeUid,
+      contentType:
+        blob.type ||
+        "image/jpeg",
+    },
+  );
 
-      userId:
-        safeUid,
+  return getDownloadURL(
+    storageRef,
+  );
+}
 
-      fullName,
+/* ============================================================
+   DELETE PROFILE PHOTO
+============================================================ */
 
-      name:
-        fullName,
+export async function deleteWorkerProfilePhoto(
+  uid: string,
+): Promise<void> {
+  if (!uid) {
+    throw new Error(
+      "A valid user ID is required.",
+    );
+  }
 
-      phoneNumber,
+  const userRef = doc(
+    db,
+    USERS_COLLECTION,
+    uid,
+  );
 
-      /* ======================================================
-         ROOT COMPATIBILITY
-      ====================================================== */
+  const publicRef = doc(
+    db,
+    WORKER_PUBLIC_PROFILES_COLLECTION,
+    uid,
+  );
 
-      photoURL:
-        photoUrl,
+  const batch =
+    writeBatch(db);
 
-      photoUrl,
-
-      experience,
-
-      rate:
-        hourlyRate,
-
-      hourlyRate,
-
-      location,
-
-      workGallery,
-
-      aboutMe,
-
-      /* ======================================================
-         CANONICAL PROFILE
-      ====================================================== */
-
-      workerProfile,
-
-      /* ======================================================
-         PROFILE STATE
-      ====================================================== */
-
-      published:
-        true,
-
-      /*
-       * Do not set available=true here.
-       * Profile editing must not change
-       * worker online availability.
-       */
-
+  /**
+   * Explicit deletion is different from
+   * a normal profile save.
+   *
+   * We intentionally delete the fields
+   * here only.
+   */
+  batch.set(
+    userRef,
+    {
+      photoUrl: "",
+      "workerProfile.photoUrl": "",
       updatedAt:
         serverTimestamp(),
     },
@@ -458,4 +1066,32 @@ export async function saveWorkerProfile(
       merge: true,
     },
   );
+
+  batch.set(
+    publicRef,
+    {
+      photoUrl: "",
+      "workerProfile.photoUrl": "",
+      updatedAt:
+        serverTimestamp(),
+    },
+    {
+      merge: true,
+    },
+  );
+
+  await batch.commit();
 }
+
+/* ============================================================
+   DEFAULT EXPORT
+============================================================ */
+
+export default {
+  subscribeToWorkerProfile,
+  saveWorkerProfile,
+  saveWorkerProfilePhoto,
+  saveWorkerGallery,
+  uploadWorkerImage,
+  deleteWorkerProfilePhoto,
+};

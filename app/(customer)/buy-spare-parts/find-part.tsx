@@ -23,25 +23,31 @@ import {
 } from "react-native-safe-area-context";
 
 import {
+  AppButton,
   AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
 
 import {
+  identifySparePart,
+} from "@/services/ai-booking/identifySpareParts";
+
+import {
+  getSparePartErrorPresentation,
+  getSparePartRejectionPresentation,
+  type SparePartErrorPresentation,
+} from "@/services/spare-parts/sparePartErrors";
+
+import {
+  imageToBase64,
+} from "@/utils/aiBooking/imageToBase64";
+
+import {
   Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
-
-/* ==============================================================
-   CONSTANTS
-============================================================== */
-
-const PROCESSING_DURATION = 5400;
-
-const COMPLETION_DELAY =
-  FixxamTokens.motion.normal;
 
 /* ==============================================================
    TYPES
@@ -64,6 +70,28 @@ type FindPartParams = {
 };
 
 /* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanParam(
+  value: unknown,
+): string {
+  if (
+    Array.isArray(
+      value,
+    )
+  ) {
+    return String(
+      value[0] ?? "",
+    ).trim();
+  }
+
+  return String(
+    value ?? "",
+  ).trim();
+}
+
+/* ==============================================================
    SCREEN
 ============================================================== */
 
@@ -71,20 +99,21 @@ export default function FindPartScreen() {
   const insets =
     useSafeAreaInsets();
 
+  const params =
+    useLocalSearchParams<
+      FindPartParams
+    >();
+
   /* ============================================================
      PARAMS
   ============================================================ */
 
-  const params =
-    useLocalSearchParams<FindPartParams>();
-
   const photoUri =
     useMemo(
       () =>
-        String(
-          params.photoUri ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.photoUri,
+        ),
       [
         params.photoUri,
       ],
@@ -93,10 +122,9 @@ export default function FindPartScreen() {
   const description =
     useMemo(
       () =>
-        String(
-          params.description ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.description,
+        ),
       [
         params.description,
       ],
@@ -105,10 +133,9 @@ export default function FindPartScreen() {
   const source =
     useMemo(
       () =>
-        String(
-          params.source ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.source,
+        ),
       [
         params.source,
       ],
@@ -117,10 +144,9 @@ export default function FindPartScreen() {
   const equipmentId =
     useMemo(
       () =>
-        String(
-          params.equipmentId ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.equipmentId,
+        ),
       [
         params.equipmentId,
       ],
@@ -129,10 +155,9 @@ export default function FindPartScreen() {
   const equipmentName =
     useMemo(
       () =>
-        String(
-          params.equipmentName ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.equipmentName,
+        ),
       [
         params.equipmentName,
       ],
@@ -141,10 +166,9 @@ export default function FindPartScreen() {
   const brandId =
     useMemo(
       () =>
-        String(
-          params.brandId ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.brandId,
+        ),
       [
         params.brandId,
       ],
@@ -153,46 +177,64 @@ export default function FindPartScreen() {
   const brandName =
     useMemo(
       () =>
-        String(
-          params.brandName ??
-            "",
-        ).trim(),
+        cleanParam(
+          params.brandName,
+        ),
       [
         params.brandName,
       ],
     );
 
   /* ============================================================
-     SEARCH TYPE
+     INPUT TYPES
   ============================================================ */
 
-  const isPhotoSearch =
-    source === "photo" ||
+  const hasPhoto =
     Boolean(
       photoUri,
     );
 
-  const isDescriptionSearch =
-    source ===
-      "description" ||
+  const hasDescription =
     Boolean(
       description,
     );
 
-  const isEquipmentSearch =
-    source ===
-      "equipment" ||
+  const hasEquipment =
     Boolean(
-      equipmentId,
-    ) ||
-    Boolean(
-      brandId,
+      equipmentId ||
+      equipmentName ||
+      brandId ||
+      brandName,
     );
 
+  const inputCount =
+    [
+      hasPhoto,
+      hasDescription,
+      hasEquipment,
+    ].filter(
+      Boolean,
+    ).length;
+
+  const isCombinedSearch =
+    inputCount > 1;
+
+  const isPhotoSearch =
+    hasPhoto &&
+    !isCombinedSearch;
+
+  const isDescriptionSearch =
+    hasDescription &&
+    !isCombinedSearch;
+
+  const isEquipmentSearch =
+    hasEquipment &&
+    !isCombinedSearch;
+
   const hasSearchInput =
-    isPhotoSearch ||
-    isDescriptionSearch ||
-    isEquipmentSearch;
+    hasPhoto ||
+    hasDescription ||
+    hasEquipment;
 
   /* ============================================================
      STATE
@@ -202,199 +244,447 @@ export default function FindPartScreen() {
     isProcessing,
     setIsProcessing,
   ] =
-    useState(true);
+    useState(
+      true,
+    );
 
-  /* ============================================================
-     TIMER
-  ============================================================ */
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      SparePartErrorPresentation | null
+    >(
+      null,
+    );
 
-  const processingTimerRef =
-    useRef<
-      ReturnType<
-        typeof setTimeout
-      > | null
-    >(null);
-
-  const completionTimerRef =
-    useRef<
-      ReturnType<
-        typeof setTimeout
-      > | null
-    >(null);
-
-  /* ============================================================
-     CLEANUP
-  ============================================================ */
-
-  const cleanupTimers =
-    useCallback(() => {
-      if (
-        processingTimerRef.current
-      ) {
-        clearTimeout(
-          processingTimerRef.current,
-        );
-
-        processingTimerRef.current =
-          null;
-      }
-
-      if (
-        completionTimerRef.current
-      ) {
-        clearTimeout(
-          completionTimerRef.current,
-        );
-
-        completionTimerRef.current =
-          null;
-      }
-    }, []);
+  /*
+   * Prevent old asynchronous requests from
+   * modifying state after navigation/retry.
+   */
+  const requestIdRef =
+    useRef(
+      0,
+    );
 
   /* ============================================================
      OPEN PRODUCTS
   ============================================================ */
 
   const openProducts =
-    useCallback(() => {
-      if (
-        !hasSearchInput
-      ) {
+    useCallback(
+      ({
+        partName,
+        resolvedEquipmentId,
+        resolvedEquipmentName,
+        resolvedBrandId,
+        resolvedBrandName,
+        category,
+        searchQuery,
+        keywords,
+        confidence,
+        mode,
+      }: {
+        partName: string;
+
+        resolvedEquipmentId: string;
+
+        resolvedEquipmentName: string;
+
+        resolvedBrandId: string;
+
+        resolvedBrandName: string;
+
+        category: string;
+
+        searchQuery: string;
+
+        keywords: string[];
+
+        confidence: number;
+
+        mode: string;
+      }) => {
+        router.replace({
+          pathname:
+            "/(customer)/buy-spare-parts/spare-products",
+
+          params: {
+            /* ----------------------------------------------
+               ORIGINAL INPUT
+            ---------------------------------------------- */
+
+            ...(photoUri
+              ? {
+                  photoUri,
+                }
+              : {}),
+
+            ...(description
+              ? {
+                  description,
+                }
+              : {}),
+
+            ...(source
+              ? {
+                  source,
+                }
+              : {}),
+
+            /* ----------------------------------------------
+               EQUIPMENT
+            ---------------------------------------------- */
+
+            ...(resolvedEquipmentId
+              ? {
+                  equipmentId:
+                    resolvedEquipmentId,
+                }
+              : {}),
+
+            ...(resolvedEquipmentName
+              ? {
+                  equipmentName:
+                    resolvedEquipmentName,
+                }
+              : {}),
+
+            /* ----------------------------------------------
+               BRAND
+            ---------------------------------------------- */
+
+            ...(resolvedBrandId
+              ? {
+                  brandId:
+                    resolvedBrandId,
+                }
+              : {}),
+
+            ...(resolvedBrandName
+              ? {
+                  brandName:
+                    resolvedBrandName,
+                }
+              : {}),
+
+            /* ----------------------------------------------
+               AI RESULT
+            ---------------------------------------------- */
+
+            ...(partName
+              ? {
+                  aiPartName:
+                    partName,
+                }
+              : {}),
+
+            ...(category
+              ? {
+                  aiCategory:
+                    category,
+                }
+              : {}),
+
+            ...(searchQuery
+              ? {
+                  aiSearchQuery:
+                    searchQuery,
+                }
+              : {}),
+
+            ...(keywords.length >
+            0
+              ? {
+                  aiKeywords:
+                    JSON.stringify(
+                      keywords,
+                    ),
+                }
+              : {}),
+
+            aiConfidence:
+              String(
+                confidence,
+              ),
+
+            aiMode:
+              mode,
+          },
+        });
+      },
+      [
+        description,
+        photoUri,
+        source,
+      ],
+    );
+
+  /* ============================================================
+     RUN SEARCH
+  ============================================================ */
+
+  const runSearch =
+    useCallback(
+      async () => {
+        const requestId =
+          ++requestIdRef.current;
+
+        /* ======================================================
+           INPUT VALIDATION
+        ====================================================== */
+
         if (
-          router.canGoBack()
+          !hasSearchInput
         ) {
-          router.back();
+          setIsProcessing(
+            false,
+          );
+
+          setError({
+            title:
+              "Add search information",
+
+            message:
+              "Please add a photo, describe the spare part, or select your equipment.",
+
+            retryable:
+              false,
+          });
 
           return;
         }
 
-        router.replace(
-          "/(customer)/buy-spare-parts/spare-products",
+        setError(
+          null,
         );
 
-        return;
-      }
+        setIsProcessing(
+          true,
+        );
 
-      router.replace({
-        pathname:
-          "/(customer)/buy-spare-parts/spare-products",
+        try {
+          /* ====================================================
+             PREPARE PHOTO
+          ==================================================== */
 
-        params: {
-          ...(photoUri
-            ? {
-                photoUri,
-              }
-            : {}),
+          let imageBase64:
+            string | undefined;
 
-          ...(description
-            ? {
-                description,
-              }
-            : {}),
+          let mimeType:
+            string | undefined;
 
-          ...(source
-            ? {
-                source,
-              }
-            : {}),
-
-          ...(equipmentId
-            ? {
-                equipmentId,
-              }
-            : {}),
-
-          ...(equipmentName
-            ? {
-                equipmentName,
-              }
-            : {}),
-
-          ...(brandId
-            ? {
-                brandId,
-              }
-            : {}),
-
-          ...(brandName
-            ? {
-                brandName,
-              }
-            : {}),
-        },
-      });
-    }, [
-      brandId,
-      brandName,
-      description,
-      equipmentId,
-      equipmentName,
-      hasSearchInput,
-      photoUri,
-      source,
-    ]);
-
-  /* ============================================================
-     PROCESSING
-  ============================================================ */
-
-  useEffect(() => {
-    if (
-      !hasSearchInput
-    ) {
-      openProducts();
-
-      return;
-    }
-
-    let cancelled =
-      false;
-
-    setIsProcessing(
-      true,
-    );
-
-    processingTimerRef.current =
-      setTimeout(
-        () => {
           if (
-            cancelled
+            hasPhoto
+          ) {
+            const preparedImage =
+              await imageToBase64(
+                photoUri,
+              );
+
+            if (
+              requestId !==
+              requestIdRef.current
+            ) {
+              return;
+            }
+
+            imageBase64 =
+              preparedImage.base64;
+
+            mimeType =
+              preparedImage.mimeType;
+          }
+
+          /* ====================================================
+             AI / EQUIPMENT RESOLUTION
+          ==================================================== */
+
+          const result =
+            await identifySparePart({
+              imageBase64,
+
+              mimeType,
+
+              description:
+                description ||
+                undefined,
+
+              equipmentId:
+                equipmentId ||
+                undefined,
+
+              equipmentName:
+                equipmentName ||
+                undefined,
+
+              brandId:
+                brandId ||
+                undefined,
+
+              brandName:
+                brandName ||
+                undefined,
+            });
+
+          if (
+            requestId !==
+            requestIdRef.current
           ) {
             return;
+          }
+
+          /* ====================================================
+             AI REJECTION
+          ==================================================== */
+
+          if (
+            !result.success ||
+            result.rejected ||
+            !result.completed
+          ) {
+            setIsProcessing(
+              false,
+            );
+
+            setError(
+              getSparePartRejectionPresentation(
+                result.reason,
+                result.message,
+              ),
+            );
+
+            return;
+          }
+
+          /* ====================================================
+             SUCCESS
+          ==================================================== */
+
+          setIsProcessing(
+            false,
+          );
+
+          openProducts({
+            partName:
+              result.partName,
+
+            resolvedEquipmentId:
+              result.equipmentId ||
+              equipmentId,
+
+            resolvedEquipmentName:
+              result.equipmentName ||
+              equipmentName,
+
+            resolvedBrandId:
+              result.brandId ||
+              brandId,
+
+            resolvedBrandName:
+              result.brandName ||
+              brandName,
+
+            category:
+              result.category,
+
+            searchQuery:
+              result.searchQuery,
+
+            keywords:
+              result.keywords,
+
+            confidence:
+              result.confidence,
+
+            mode:
+              result.mode,
+          });
+        } catch (
+          searchError: unknown
+        ) {
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          if (__DEV__) {
+            console.warn(
+              "[FIND_SPARE_PART] Search failed",
+              {
+                name:
+                  searchError instanceof
+                  Error
+                    ? searchError.name
+                    : "",
+
+                message:
+                  searchError instanceof
+                  Error
+                    ? searchError.message
+                    : "Unknown spare-part search error.",
+              },
+            );
           }
 
           setIsProcessing(
             false,
           );
 
-          completionTimerRef.current =
-            setTimeout(
-              () => {
-                if (
-                  cancelled
-                ) {
-                  return;
-                }
+          setError(
+            getSparePartErrorPresentation(
+              searchError,
+            ),
+          );
+        }
+      },
+      [
+        brandId,
+        brandName,
+        description,
+        equipmentId,
+        equipmentName,
+        hasPhoto,
+        hasSearchInput,
+        openProducts,
+        photoUri,
+      ],
+    );
 
-                openProducts();
-              },
-              COMPLETION_DELAY,
-            );
-        },
-        PROCESSING_DURATION,
-      );
+  /* ============================================================
+     INITIAL SEARCH
+  ============================================================ */
+
+  useEffect(() => {
+    void runSearch();
 
     return () => {
-      cancelled =
-        true;
-
-      cleanupTimers();
+      requestIdRef.current +=
+        1;
     };
   }, [
-    cleanupTimers,
-    hasSearchInput,
-    openProducts,
+    runSearch,
   ]);
+
+  /* ============================================================
+     RETRY
+  ============================================================ */
+
+  const handleRetry =
+    useCallback(() => {
+      if (
+        isProcessing
+      ) {
+        return;
+      }
+
+      void runSearch();
+    }, [
+      isProcessing,
+      runSearch,
+    ]);
 
   /* ============================================================
      BACK
@@ -402,7 +692,8 @@ export default function FindPartScreen() {
 
   const handleBack =
     useCallback(() => {
-      cleanupTimers();
+      requestIdRef.current +=
+        1;
 
       if (
         router.canGoBack()
@@ -415,27 +706,66 @@ export default function FindPartScreen() {
       router.replace(
         "/(customer)/buy-spare-parts/spare-products",
       );
-    }, [
-      cleanupTimers,
-    ]);
+    }, []);
 
   /* ============================================================
-     TEXT
+     TITLE
   ============================================================ */
 
   const title =
-    isEquipmentSearch
-      ? "Finding your spare part"
-      : "Fixxam is finding your spare part";
+    useMemo(() => {
+      if (error) {
+        return error.title;
+      }
+
+      if (
+        isCombinedSearch
+      ) {
+        return "Fixxam is finding your spare part";
+      }
+
+      if (
+        isEquipmentSearch
+      ) {
+        return "Finding parts for your equipment";
+      }
+
+      if (
+        isDescriptionSearch
+      ) {
+        return "Fixxam is understanding your spare part";
+      }
+
+      return "Fixxam is finding your spare part";
+    }, [
+      error,
+      isCombinedSearch,
+      isDescriptionSearch,
+      isEquipmentSearch,
+    ]);
+
+  /* ============================================================
+     SUBTITLE
+  ============================================================ */
 
   const subtitle =
     useMemo(() => {
+      if (error) {
+        return error.message;
+      }
+
+      if (
+        isCombinedSearch
+      ) {
+        return "Analyzing your information and finding the best matching spare parts...";
+      }
+
       if (
         isEquipmentSearch
       ) {
         const equipment =
           equipmentName ||
-          "equipment";
+          "selected equipment";
 
         if (
           brandName
@@ -449,14 +779,61 @@ export default function FindPartScreen() {
       if (
         isDescriptionSearch
       ) {
-        return "Understanding your description and finding compatible parts...";
+        return "Understanding your description and finding matching spare parts...";
       }
 
-      return "Analyzing your photo and finding compatible parts...";
+      if (
+        isPhotoSearch
+      ) {
+        return "Analyzing your photo and finding compatible spare parts...";
+      }
+
+      return "Preparing your spare-part search...";
     }, [
       brandName,
       equipmentName,
+      error,
+      isCombinedSearch,
       isDescriptionSearch,
+      isEquipmentSearch,
+      isPhotoSearch,
+    ]);
+
+  /* ============================================================
+     STATUS
+  ============================================================ */
+
+  const statusText =
+    useMemo(() => {
+      if (
+        isEquipmentSearch
+      ) {
+        return "Checking compatible parts...";
+      }
+
+      if (
+        hasPhoto &&
+        hasDescription
+      ) {
+        return "Analyzing photo and description...";
+      }
+
+      if (
+        hasPhoto
+      ) {
+        return "Analyzing photo...";
+      }
+
+      if (
+        hasDescription
+      ) {
+        return "Understanding description...";
+      }
+
+      return "Preparing results...";
+    }, [
+      hasDescription,
+      hasPhoto,
       isEquipmentSearch,
     ]);
 
@@ -523,13 +900,17 @@ export default function FindPartScreen() {
           }
         >
           {/* ==================================================
-              SEARCH ICON
+              ICON
           ================================================== */}
 
           <View
-            style={
-              styles.searchCircle
-            }
+            style={[
+              styles.searchCircle,
+
+              error
+                ? styles.searchCircleError
+                : null,
+            ]}
           >
             <View
               style={
@@ -537,10 +918,18 @@ export default function FindPartScreen() {
               }
             >
               <AppIcon
-                name="search"
+                name={
+                  error
+                    ? "warning"
+                    : "search"
+                }
                 role="customer"
                 size="xl"
-                state="active"
+                state={
+                  error
+                    ? "error"
+                    : "active"
+                }
               />
             </View>
           </View>
@@ -576,48 +965,54 @@ export default function FindPartScreen() {
           </AppText>
 
           {/* ==================================================
-              STATUS
+              PROCESSING
           ================================================== */}
 
-          <View
-            style={
-              styles.statusContainer
-            }
-          >
-            {isProcessing ? (
+          {!error ? (
+            <View
+              style={
+                styles.statusContainer
+              }
+            >
               <ActivityIndicator
                 size="small"
                 color={
                   CustomerColors.primary
                 }
               />
-            ) : (
-              <View
+
+              <AppText
+                variant="caption"
+                tone="secondary"
                 style={
-                  styles.completedIcon
+                  styles.statusText
                 }
               >
-                <AppIcon
-                  name="check"
-                  role="customer"
-                  size="sm"
-                  state="success"
-                />
-              </View>
-            )}
+                {statusText}
+              </AppText>
+            </View>
+          ) : null}
 
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.statusText
+          {/* ==================================================
+              ERROR ACTION
+          ================================================== */}
+
+          {error?.retryable ? (
+            <AppButton
+              title="Try Again"
+              role="customer"
+              leftIconName="refresh"
+              disabled={
+                isProcessing
               }
-            >
-              {isProcessing
-                ? "Preparing results..."
-                : "Results ready"}
-            </AppText>
-          </View>
+              onPress={
+                handleRetry
+              }
+              style={
+                styles.retryButton
+              }
+            />
+          ) : null}
 
           {/* ==================================================
               REASSURANCE
@@ -664,7 +1059,7 @@ export default function FindPartScreen() {
                 }
               >
                 Fixxam will only prepare
-                compatible spare parts.
+                matching spare parts.
                 Nothing is ordered until
                 you choose a product.
               </AppText>
@@ -806,6 +1201,14 @@ const styles =
         CustomerColors.primarySoft,
     },
 
+    searchCircleError: {
+      borderColor:
+        Colors.error,
+
+      backgroundColor:
+        Colors.errorSoft,
+    },
+
     searchIconInner: {
       width:
         FixxamTokens.size.fabLarge,
@@ -833,14 +1236,14 @@ const styles =
     ======================================================== */
 
     title: {
-      maxWidth: 340,
+      maxWidth: 360,
 
       marginTop:
         FixxamTokens.spacing.xl,
     },
 
     subtitle: {
-      maxWidth: 340,
+      maxWidth: 360,
 
       marginTop:
         FixxamTokens.spacing.sm,
@@ -882,22 +1285,11 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
-    completedIcon: {
-      width: 28,
+    retryButton: {
+      minWidth: 180,
 
-      height: 28,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.successSoft,
+      marginTop:
+        FixxamTokens.spacing.lg,
     },
 
     /* ========================================================

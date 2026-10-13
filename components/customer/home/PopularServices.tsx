@@ -30,23 +30,13 @@ import {
   FixxamTokens,
 } from "@/theme";
 
-import usePopularServices from "@/hooks/services/usePopularServices";
+import usePopularServices, {
+  type PopularService,
+} from "@/hooks/services/usePopularServices";
 
 /* ==============================================================
    TYPES
 ============================================================== */
-
-type PopularService = {
-  id: string;
-
-  name: string;
-
-  icon?: string | null;
-
-  color?: string | null;
-
-  backgroundColor?: string | null;
-};
 
 type ServiceCardProps = {
   service: PopularService;
@@ -116,7 +106,9 @@ const ServiceCard = memo(
     return (
       <Pressable
         onPress={() =>
-          onPress(service)
+          onPress(
+            service,
+          )
         }
         accessibilityRole="button"
         accessibilityLabel={`Open ${serviceName}`}
@@ -133,14 +125,12 @@ const ServiceCard = memo(
       >
         <AppCard
           role="customer"
-          style={styles.card}
+          style={
+            styles.card
+          }
         >
           {/* ==================================================
               SERVICE ICON
-
-              Uses common ServiceIcon so Firebase
-              MaterialCommunityIcons render exactly
-              like CategoryCard/HomeCategories.
           ================================================== */}
 
           <ServiceIcon
@@ -173,7 +163,9 @@ const ServiceCard = memo(
           <AppText
             variant="body"
             weight="bold"
-            numberOfLines={2}
+            numberOfLines={
+              2
+            }
             ellipsizeMode="tail"
             style={
               styles.name
@@ -222,28 +214,26 @@ export default function PopularServices() {
   ============================================================ */
 
   const safeServices =
-    useMemo<PopularService[]>(
+    useMemo(
       () =>
-        Array.isArray(
-          services,
-        )
-          ? (
-              services as PopularService[]
-            ).filter(
-              (service) =>
-                Boolean(
-                  cleanText(
-                    service.id,
-                  ),
-                ) &&
-                Boolean(
-                  cleanText(
-                    service.name,
-                  ),
-                ),
-            )
-          : [],
-      [services],
+        services.filter(
+          (
+            service,
+          ) =>
+            Boolean(
+              cleanText(
+                service.id,
+              ),
+            ) &&
+            Boolean(
+              cleanText(
+                service.name,
+              ),
+            ),
+        ),
+      [
+        services,
+      ],
     );
 
   /* ============================================================
@@ -296,10 +286,18 @@ export default function PopularServices() {
           ) ||
           CustomerColors.primarySoft;
 
-        /*
-         * Preserve existing route
-         * and params exactly.
-         */
+        const categoryId =
+          cleanText(
+            service.categoryId,
+          );
+
+        const fulfillmentMode =
+          service.fulfillmentMode;
+
+        /* ======================================================
+           WORKER LIST
+        ====================================================== */
+
         router.push({
           pathname:
             "/(customer)/details/workers/[id]",
@@ -312,11 +310,22 @@ export default function PopularServices() {
 
             serviceName,
 
+            service:
+              serviceName,
+
             serviceIcon,
 
             serviceColor,
 
             serviceBackgroundColor,
+
+            fulfillmentMode,
+
+            ...(categoryId
+              ? {
+                  categoryId,
+                }
+              : {}),
           },
         });
       },
@@ -346,7 +355,9 @@ export default function PopularServices() {
         item: PopularService;
       }) => (
         <ServiceCard
-          service={item}
+          service={
+            item
+          }
           onPress={
             handleServicePress
           }
@@ -361,7 +372,9 @@ export default function PopularServices() {
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <View
         style={
@@ -443,7 +456,9 @@ export default function PopularServices() {
         <AppText
           variant="heading3"
           weight="bold"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           style={
             styles.title
           }
@@ -457,7 +472,9 @@ export default function PopularServices() {
           }
           accessibilityRole="button"
           accessibilityLabel="See all popular services"
-          hitSlop={8}
+          hitSlop={
+            8
+          }
           style={({
             pressed,
           }) => [
@@ -500,7 +517,9 @@ export default function PopularServices() {
         }
         keyExtractor={(
           item,
-        ) => item.id}
+        ) =>
+          item.id
+        }
         renderItem={
           renderService
         }
@@ -510,9 +529,15 @@ export default function PopularServices() {
         contentContainerStyle={
           styles.list
         }
-        initialNumToRender={5}
-        maxToRenderPerBatch={8}
-        windowSize={3}
+        initialNumToRender={
+          5
+        }
+        maxToRenderPerBatch={
+          8
+        }
+        windowSize={
+          3
+        }
         keyboardShouldPersistTaps="handled"
       />
     </View>
@@ -545,9 +570,11 @@ const styles =
       marginBottom:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
@@ -575,9 +602,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.xs,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -625,7 +654,8 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      position: "relative",
+      position:
+        "relative",
 
       alignItems:
         "flex-start",
@@ -633,7 +663,8 @@ const styles =
       justifyContent:
         "flex-start",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -652,12 +683,14 @@ const styles =
     ========================================================== */
 
     name: {
-      width: "82%",
+      width:
+        "82%",
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
 
       color:
         Colors.textPrimary,
@@ -668,7 +701,8 @@ const styles =
     ========================================================== */
 
     arrow: {
-      position: "absolute",
+      position:
+        "absolute",
 
       right:
         FixxamTokens.spacing.sm,
@@ -676,11 +710,14 @@ const styles =
       bottom:
         FixxamTokens.spacing.sm,
 
-      width: 28,
+      width:
+        28,
 
-      height: 28,
+      height:
+        28,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -697,9 +734,11 @@ const styles =
     ========================================================== */
 
     loadingContainer: {
-      minHeight: 120,
+      minHeight:
+        120,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",

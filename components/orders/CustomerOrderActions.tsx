@@ -1,12 +1,18 @@
-import React, {
-  memo,
-} from "react";
+import React, { memo, useState } from "react";
 
 import {
+  ActivityIndicator,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from "react-native";
+
+import type {
+  CustomerCancellationReason,
+} from "@/firebase/queries/bookings";
 
 import {
   AppIcon,
@@ -15,36 +21,45 @@ import {
 
 import {
   Colors,
+  CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-/* ==============================================================
-   CONSTANTS
-============================================================== */
-
-const CALL_COLOR =
-  "#F97316";
-
-const CALL_ICON_BACKGROUND =
-  "#FB923C";
-
-/* ==============================================================
-   TYPES
-============================================================== */
-
 type CustomerOrderActionsProps = {
   onCall: () => void;
-
-  onCancel: () => void;
-
+  onCancel: (
+    reason: CustomerCancellationReason,
+    note?: string,
+  ) => Promise<boolean>;
   callDisabled?: boolean;
-
   cancelDisabled?: boolean;
 };
 
-/* ==============================================================
-   COMPONENT
-============================================================== */
+const CANCELLATION_OPTIONS: {
+  value: CustomerCancellationReason;
+  label: string;
+}[] = [
+  {
+    value: "not_ready",
+    label: "I'm not ready yet",
+  },
+  {
+    value: "accidental_request",
+    label: "I placed this order by mistake",
+  },
+  {
+    value: "request_later",
+    label: "I want to book later",
+  },
+  {
+    value: "personal_reason",
+    label: "Personal reasons",
+  },
+  {
+    value: "other",
+    label: "Other reason",
+  },
+];
 
 function CustomerOrderActions({
   onCall,
@@ -52,297 +67,594 @@ function CustomerOrderActions({
   callDisabled = false,
   cancelDisabled = false,
 }: CustomerOrderActionsProps) {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedReason, setSelectedReason] =
+    useState<CustomerCancellationReason | null>(null);
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState("");
+
+  const closeModal = () => {
+    if (submitting) return;
+
+    setModalVisible(false);
+    setSelectedReason(null);
+    setNote("");
+    setValidationError("");
+  };
+
+  const submitCancellation = async () => {
+    if (submitting) return;
+
+    if (!selectedReason) {
+      setValidationError("Please select a cancellation reason.");
+      return;
+    }
+
+    const normalizedNote = note.trim();
+
+    if (selectedReason === "other" && !normalizedNote) {
+      setValidationError("Please explain why you want to cancel.");
+      return;
+    }
+
+    if (normalizedNote.length > 500) {
+      setValidationError("Your note must not exceed 500 characters.");
+      return;
+    }
+
+    setValidationError("");
+    setSubmitting(true);
+
+    try {
+      const success = await onCancel(
+        selectedReason,
+        normalizedNote,
+      );
+
+      if (success) {
+        setModalVisible(false);
+        setSelectedReason(null);
+        setNote("");
+      }
+    } catch {
+      setValidationError(
+        "Cancellation failed. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
-    <View
-      style={styles.container}
-    >
-      {/* ======================================================
-          CALL
-      ====================================================== */}
-
-      <Pressable
-        onPress={onCall}
-        disabled={callDisabled}
-        accessibilityRole="button"
-        accessibilityLabel="Call worker"
-        accessibilityState={{
-          disabled:
-            callDisabled,
-        }}
-        style={({
-          pressed,
-        }) => [
-          styles.callButton,
-
-          /*
-           * Intentionally remains visually
-           * orange while disabled.
-           */
-          pressed &&
-          !callDisabled
-            ? styles.pressed
-            : null,
-        ]}
-      >
-        <View
-          style={styles.callIcon}
-        >
-          <AppIcon
-            name="phone"
-            size="sm"
-            color={
-              Colors.textInverse
-            }
-          />
-        </View>
-
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={
-            styles.callText
-          }
-        >
-          CALL
-        </AppText>
-      </Pressable>
-
-      {/* ======================================================
-          CANCEL
-      ====================================================== */}
-
-      <Pressable
-        onPress={onCancel}
-        disabled={
-          cancelDisabled
-        }
-        accessibilityRole="button"
-        accessibilityLabel="Cancel order"
-        accessibilityState={{
-          disabled:
-            cancelDisabled,
-        }}
-        style={({
-          pressed,
-        }) => [
-          styles.cancelButton,
-
-          cancelDisabled
-            ? styles.cancelButtonDisabled
-            : null,
-
-          pressed &&
-          !cancelDisabled
-            ? styles.pressed
-            : null,
-        ]}
-      >
-        <View
-          style={[
-            styles.cancelIcon,
-
-            cancelDisabled
-              ? styles.disabledIcon
-              : null,
+    <>
+      <View style={styles.container}>
+        <Pressable
+          onPress={onCall}
+          disabled={callDisabled}
+          accessibilityRole="button"
+          accessibilityLabel="Call worker"
+          accessibilityState={{ disabled: callDisabled }}
+          style={({ pressed }) => [
+            styles.button,
+            styles.callButton,
+            callDisabled && styles.disabledButton,
+            pressed && !callDisabled && styles.pressed,
           ]}
         >
           <AppIcon
-            name="error"
-            size="sm"
+            name="phone"
+            role="customer"
+            size="xs"
             color={
-              cancelDisabled
+              callDisabled
                 ? Colors.textMuted
                 : Colors.textInverse
             }
           />
-        </View>
 
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={[
-            styles.cancelText,
+          <AppText
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={1}
+            style={[
+              styles.buttonText,
+              styles.callText,
+              callDisabled && styles.disabledText,
+            ]}
+          >
+            Call Worker
+          </AppText>
+        </Pressable>
 
-            cancelDisabled
-              ? styles.disabledText
-              : null,
+        <Pressable
+          onPress={() => setModalVisible(true)}
+          disabled={cancelDisabled || submitting}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel order"
+          accessibilityState={{
+            disabled: cancelDisabled || submitting,
+          }}
+          style={({ pressed }) => [
+            styles.button,
+            styles.cancelButton,
+            (cancelDisabled || submitting) &&
+              styles.disabledButton,
+            pressed &&
+              !cancelDisabled &&
+              !submitting &&
+              styles.cancelPressed,
           ]}
         >
-          CANCEL ORDER
-        </AppText>
-      </Pressable>
-    </View>
+          <AppIcon
+            name="error"
+            role="customer"
+            size="xs"
+            color={
+              cancelDisabled
+                ? Colors.textMuted
+                : Colors.error
+            }
+          />
+
+          <AppText
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={1}
+            style={[
+              styles.buttonText,
+              styles.cancelText,
+              cancelDisabled && styles.disabledText,
+            ]}
+          >
+            Cancel
+          </AppText>
+        </Pressable>
+      </View>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={styles.modalCard}
+            accessibilityViewIsModal
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIcon}>
+                <AppIcon
+                  name="error"
+                  size="md"
+                  color={Colors.error}
+                />
+              </View>
+
+              <Pressable
+                onPress={closeModal}
+                disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel="Close cancellation dialog"
+                style={styles.closeButton}
+              >
+                <AppIcon
+                  name="close"
+                  size="sm"
+                  color={Colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+
+            <AppText
+              variant="heading3"
+              weight="bold"
+              style={styles.modalTitle}
+            >
+              Cancel order?
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={styles.modalDescription}
+            >
+              Please tell us why you want to cancel this order.
+            </AppText>
+
+            <ScrollView
+              style={styles.optionsList}
+              contentContainerStyle={styles.optionsContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {CANCELLATION_OPTIONS.map(option => {
+                const selected =
+                  selectedReason === option.value;
+
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => {
+                      setSelectedReason(option.value);
+                      setValidationError("");
+                    }}
+                    disabled={submitting}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    style={[
+                      styles.reasonOption,
+                      selected && styles.reasonOptionSelected,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        selected && styles.radioOuterSelected,
+                      ]}
+                    >
+                      {selected && (
+                        <View style={styles.radioInner} />
+                      )}
+                    </View>
+
+                    <AppText
+                      variant="body"
+                      style={[
+                        styles.reasonLabel,
+                        selected && styles.reasonLabelSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+
+              {selectedReason === "other" && (
+                <View style={styles.noteContainer}>
+                  <AppText
+                    variant="bodyMedium"
+                    weight="semibold"
+                    style={styles.noteLabel}
+                  >
+                    Please explain
+                  </AppText>
+
+                  <TextInput
+                    value={note}
+                    onChangeText={value => {
+                      setNote(value);
+                      setValidationError("");
+                    }}
+                    placeholder="Tell us why you're cancelling..."
+                    placeholderTextColor={Colors.textMuted}
+                    multiline
+                    maxLength={500}
+                    editable={!submitting}
+                    textAlignVertical="top"
+                    accessibilityLabel="Cancellation explanation"
+                    style={styles.noteInput}
+                  />
+
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={styles.characterCount}
+                  >
+                    {note.length}/500
+                  </AppText>
+                </View>
+              )}
+            </ScrollView>
+
+            {!!validationError && (
+              <AppText
+                variant="caption"
+                style={styles.validationError}
+                accessibilityRole="alert"
+              >
+                {validationError}
+              </AppText>
+            )}
+
+            <View style={styles.modalActions}>
+              <Pressable
+                onPress={closeModal}
+                disabled={submitting}
+                accessibilityRole="button"
+                style={[
+                  styles.modalButton,
+                  styles.keepButton,
+                  submitting && styles.disabledButton,
+                ]}
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="semibold"
+                  style={styles.keepButtonText}
+                >
+                  Keep order
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => void submitCancellation()}
+                disabled={submitting || cancelDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Confirm order cancellation"
+                style={[
+                  styles.modalButton,
+                  styles.confirmCancelButton,
+                  (submitting || cancelDisabled) &&
+                    styles.disabledButton,
+                ]}
+              >
+                {submitting ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={Colors.textInverse}
+                  />
+                ) : (
+                  <AppText
+                    variant="bodyMedium"
+                    weight="semibold"
+                    style={styles.confirmCancelText}
+                  >
+                    Confirm cancel
+                  </AppText>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
-export default memo(
-  CustomerOrderActions,
-);
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    marginTop: FixxamTokens.spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: FixxamTokens.spacing.sm,
+  },
 
-/* ==============================================================
-   STYLES
-============================================================== */
+  button: {
+    minHeight: FixxamTokens.size.minimumTouchTarget,
+    paddingHorizontal: FixxamTokens.spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: FixxamTokens.spacing.xs,
+    borderWidth: 1,
+    borderRadius: FixxamTokens.radius.md,
+  },
 
-const styles =
-  StyleSheet.create({
-    /* ========================================================
-       CONTAINER
-    ======================================================== */
+  buttonText: {
+    flexShrink: 1,
+  },
 
-    container: {
-      width: "100%",
+  callButton: {
+    flex: 1.35,
+    borderColor: CustomerColors.primary,
+    backgroundColor: CustomerColors.primary,
+  },
 
-      marginTop:
-        FixxamTokens.spacing.sm,
+  callText: {
+    color: Colors.textInverse,
+  },
 
-      flexDirection: "row",
+  cancelButton: {
+    flex: 1,
+    borderColor: Colors.error,
+    backgroundColor: Colors.surface,
+  },
 
-      gap:
-        FixxamTokens.spacing.sm,
-    },
+  cancelText: {
+    color: Colors.error,
+  },
 
-    /* ========================================================
-       CALL
-    ======================================================== */
+  disabledButton: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.disabledBackground,
+    opacity: 0.7,
+  },
 
-    callButton: {
-      flex: 1,
+  disabledText: {
+    color: Colors.textMuted,
+  },
 
-      minHeight: 58,
+  pressed: {
+    opacity: FixxamTokens.motion.pressedOpacity,
+    transform: [{ scale: FixxamTokens.motion.scalePressed }],
+  },
 
-      flexDirection: "row",
+  cancelPressed: {
+    backgroundColor: Colors.errorSoft,
+    opacity: FixxamTokens.motion.pressedOpacity,
+    transform: [{ scale: FixxamTokens.motion.scalePressed }],
+  },
 
-      alignItems: "center",
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: FixxamTokens.spacing.md,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
 
-      justifyContent: "center",
+  modalCard: {
+    width: "100%",
+    maxWidth: 440,
+    maxHeight: "85%",
+    padding: FixxamTokens.spacing.lg,
+    borderRadius: FixxamTokens.radius.xl,
+    backgroundColor: Colors.surface,
+  },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+  modalIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: FixxamTokens.radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.errorSoft,
+  },
 
-      backgroundColor:
-        CALL_COLOR,
+  closeButton: {
+    minWidth: FixxamTokens.size.minimumTouchTarget,
+    minHeight: FixxamTokens.size.minimumTouchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-      /*
-       * Preserve existing UX:
-       * disabled call remains visually strong.
-       */
-      opacity: 1,
-    },
+  modalTitle: {
+    marginTop: FixxamTokens.spacing.md,
+    color: Colors.textPrimary,
+  },
 
-    callIcon: {
-      width: 38,
+  modalDescription: {
+    marginTop: FixxamTokens.spacing.xs,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
 
-      height: 38,
+  optionsList: {
+    flexGrow: 0,
+    marginTop: FixxamTokens.spacing.md,
+  },
 
-      marginRight:
-        FixxamTokens.spacing.sm,
+  optionsContent: {
+    gap: FixxamTokens.spacing.xs,
+    paddingBottom: FixxamTokens.spacing.xs,
+  },
 
-      alignItems: "center",
+  reasonOption: {
+    minHeight: FixxamTokens.size.minimumTouchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: FixxamTokens.spacing.sm,
+    paddingVertical: FixxamTokens.spacing.sm,
+    gap: FixxamTokens.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: FixxamTokens.radius.md,
+  },
 
-      justifyContent: "center",
+  reasonOptionSelected: {
+    borderColor: CustomerColors.primary,
+    backgroundColor: CustomerColors.primarySoft,
+  },
 
-      borderRadius:
-        FixxamTokens.radius.md,
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-      backgroundColor:
-        CALL_ICON_BACKGROUND,
-    },
+  radioOuterSelected: {
+    borderColor: CustomerColors.primary,
+  },
 
-    callText: {
-      letterSpacing: 0.3,
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: CustomerColors.primary,
+  },
 
-      color:
-        Colors.textInverse,
-    },
+  reasonLabel: {
+    flex: 1,
+    color: Colors.textPrimary,
+  },
 
-    /* ========================================================
-       CANCEL
-    ======================================================== */
+  reasonLabelSelected: {
+    fontWeight: "600",
+  },
 
-    cancelButton: {
-      flex: 1,
+  noteContainer: {
+    marginTop: FixxamTokens.spacing.sm,
+  },
 
-      minHeight: 58,
+  noteLabel: {
+    marginBottom: FixxamTokens.spacing.xs,
+    color: Colors.textPrimary,
+  },
 
-      flexDirection: "row",
+  noteInput: {
+    minHeight: 96,
+    maxHeight: 150,
+    padding: FixxamTokens.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: FixxamTokens.radius.md,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.background,
+    fontSize: 15,
+    lineHeight: 21,
+  },
 
-      alignItems: "center",
+  characterCount: {
+    marginTop: FixxamTokens.spacing.xs,
+    textAlign: "right",
+    color: Colors.textSecondary,
+  },
 
-      justifyContent: "center",
+  validationError: {
+    marginTop: FixxamTokens.spacing.sm,
+    color: Colors.error,
+  },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
+  modalActions: {
+    flexDirection: "row",
+    gap: FixxamTokens.spacing.sm,
+    marginTop: FixxamTokens.spacing.lg,
+  },
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+  modalButton: {
+    flex: 1,
+    minHeight: FixxamTokens.size.minimumTouchTarget,
+    paddingHorizontal: FixxamTokens.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: FixxamTokens.radius.md,
+    borderWidth: 1,
+  },
 
-      backgroundColor:
-        Colors.error,
-    },
+  keepButton: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
 
-    cancelButtonDisabled: {
-      backgroundColor:
-        Colors.disabledBackground,
-    },
+  keepButtonText: {
+    color: Colors.textPrimary,
+  },
 
-    cancelIcon: {
-      width: 38,
+  confirmCancelButton: {
+    borderColor: Colors.error,
+    backgroundColor: Colors.error,
+  },
 
-      height: 38,
+  confirmCancelText: {
+    color: Colors.textInverse,
+  },
+});
 
-      marginRight:
-        FixxamTokens.spacing.sm,
+CustomerOrderActions.displayName = "CustomerOrderActions";
 
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.error,
-    },
-
-    cancelText: {
-      letterSpacing: 0.2,
-
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       DISABLED
-    ======================================================== */
-
-    disabledIcon: {
-      backgroundColor:
-        Colors.disabled,
-    },
-
-    disabledText: {
-      color:
-        Colors.textMuted,
-    },
-
-    /* ========================================================
-       PRESSED
-    ======================================================== */
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-  });
+export default memo(CustomerOrderActions);

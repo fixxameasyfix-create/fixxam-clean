@@ -43,10 +43,15 @@ import {
 import InAppCallScreen from "@/components/call/InAppCallScreen";
 
 import {
+  addRecentlyContactedWorker,
+} from "@/services/storage/recentlyContactedWorkers";
+
+import {
   endCall,
   getCallSession,
   markCallConnected,
   subscribeToCall,
+  type FixxamCallRole,
   type FixxamCallSession,
   type FixxamCallStatus,
 } from "@/services/calls/callSession";
@@ -61,72 +66,47 @@ import type {
 } from "@/types/call";
 
 /* ============================================================
-   TYPES
+TYPES
 ============================================================ */
 
 type RouteParams = {
-  callId?:
-    | string
-    | string[];
+  callId?: string | string[];
 };
 
 /* ============================================================
-   HELPERS
+HELPERS
 ============================================================ */
 
 function getParam(
-  value:
-    | string
-    | string[]
-    | undefined,
+  value: string | string[] | undefined,
 ): string {
-  if (
-    Array.isArray(
-      value,
-    )
-  ) {
-    return (
-      value[0]?.trim() ??
-      ""
-    );
+  if (Array.isArray(value)) {
+    return value[0]?.trim() ?? "";
   }
 
-  return (
-    value?.trim() ??
-    ""
-  );
+  return value?.trim() ?? "";
 }
 
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value ===
-    "string"
+  return typeof value === "string"
     ? value.trim()
     : "";
 }
 
+/* ============================================================
+CALL STATUS -> UI STATUS
+============================================================ */
+
 function toUiStatus(
   status: FixxamCallStatus,
 ): CallStatus {
-  switch (
-    status
-  ) {
+  switch (status) {
     case "ringing":
       return "ringing";
 
     case "accepted":
-      /*
-       * Accepted does NOT mean audio
-       * is connected yet.
-       *
-       * accepted
-       * -> LiveKit token
-       * -> room join
-       * -> microphone publish
-       * -> remote audio ready
-       * -> connected
-       */
       return "connecting";
 
     case "connected":
@@ -145,6 +125,10 @@ function toUiStatus(
   }
 }
 
+/* ============================================================
+ACTIVE CALL
+============================================================ */
+
 function isActiveCall(
   status: FixxamCallStatus,
 ): boolean {
@@ -155,7 +139,22 @@ function isActiveCall(
   );
 }
 
-function shouldUseLiveKit(
+/* ============================================================
+LIVEKIT PREPARATION
+============================================================ */
+
+function shouldPrepareLiveKit(
+  status: FixxamCallStatus,
+  currentUserIsCaller: boolean,
+): boolean {
+  return (
+    status === "accepted" ||
+    status === "connected" ||
+    (status === "ringing" && currentUserIsCaller)
+  );
+}
+
+function shouldPublishMicrophone(
   status: FixxamCallStatus,
 ): boolean {
   return (
@@ -165,7 +164,7 @@ function shouldUseLiveKit(
 }
 
 /* ============================================================
-   SCREEN
+SCREEN
 ============================================================ */
 
 export default function SharedVoiceCallScreen() {
@@ -173,159 +172,275 @@ export default function SharedVoiceCallScreen() {
     useLocalSearchParams<RouteParams>();
 
   const callId =
-    getParam(
-      params.callId,
-    );
+    getParam(params.callId);
 
   /* ==========================================================
-     STATE
+  STATE
   ========================================================== */
 
   const [
     call,
     setCall,
-  ] =
-    useState<
-      FixxamCallSession | null
-    >(
-      null,
-    );
+  ] = useState<FixxamCallSession | null>(null);
 
   const [
     loading,
     setLoading,
-  ] =
-    useState(
-      true,
-    );
+  ] = useState(true);
 
   const [
     error,
     setError,
-  ] =
-    useState<
-      string | null
-    >(
-      null,
-    );
+  ] = useState<string | null>(null);
 
   const [
     ending,
     setEnding,
-  ] =
-    useState(
-      false,
-    );
+  ] = useState(false);
 
   const [
     liveKitJoining,
     setLiveKitJoining,
-  ] =
-    useState(
-      false,
-    );
+  ] = useState(false);
 
   const [
     liveKitReconnecting,
     setLiveKitReconnecting,
-  ] =
-    useState(
-      false,
-    );
+  ] = useState(false);
 
   const [
     mediaError,
     setMediaError,
-  ] =
-    useState<
-      string | null
-    >(
-      null,
-    );
+  ] = useState<string | null>(null);
+
+  /*
+   * IMPORTANT:
+   *
+   * LiveKit media state is independent from Firestore
+   * call.status.
+   *
+   * This prevents a Firestore synchronization failure
+   * from making an already-working voice call look failed.
+   */
+  const [
+    liveKitVoiceConnected,
+    setLiveKitVoiceConnected,
+  ] = useState(false);
+
+  const [
+    liveKitConnectedAt,
+    setLiveKitConnectedAt,
+  ] = useState<number | null>(null);
+
+  /*
+   * IMPORTANT:
+   *
+   * These are React states instead of refs because
+   * refs do not trigger a render.
+   *
+   * The call UI therefore always receives the latest
+   * audio-control readiness state.
+   */
+  const [
+    audioSessionReady,
+    setAudioSessionReady,
+  ] = useState(false);
+
+  const [
+    microphoneReady,
+    setMicrophoneReady,
+  ] = useState(false);
 
   /* ==========================================================
-     REFS
+  REFS
   ========================================================== */
 
   const mountedRef =
-    useRef(
-      true,
-    );
+    useRef(true);
 
   const callRef =
-    useRef<
-      FixxamCallSession | null
-    >(
-      null,
-    );
+    useRef<FixxamCallSession | null>(null);
 
   const roomRef =
-    useRef<
-      Room | null
-    >(
-      null,
-    );
+    useRef<Room | null>(null);
 
   const roomCallIdRef =
-    useRef(
-      "",
-    );
+    useRef("");
 
   const liveKitJoinInFlightRef =
-    useRef(
-      false,
-    );
+    useRef(false);
+
+  const liveKitGenerationRef =
+    useRef(0);
 
   const audioSessionStartedRef =
-    useRef(
-      false,
-    );
+    useRef(false);
 
   const localMicrophoneReadyRef =
-    useRef(
-      false,
-    );
+    useRef(false);
+
+  const microphoneEnableInFlightRef =
+    useRef(false);
 
   const intentionalDisconnectRef =
-    useRef(
-      false,
-    );
+    useRef(false);
 
   const markingConnectedRef =
-    useRef(
-      false,
-    );
+    useRef(false);
 
   const connectedMarkedCallIdRef =
-    useRef(
-      "",
-    );
+    useRef("");
+
+  const recentlySavedCallIdRef =
+    useRef("");
+
+  const recentlySavingCallIdRef =
+    useRef("");
+
+  const participantImageRef =
+    useRef("");
+
+  const participantImageOwnerRef =
+    useRef("");
+
+  /*
+   * Keeps the current LiveKit event cleanup function.
+   *
+   * This is important because Room listeners should be
+   * explicitly removed before the room is discarded.
+   */
+  const removeRoomListenersRef =
+    useRef<(() => void) | null>(null);
+
+  /*
+   * Refs prevent unnecessary callback dependency changes.
+   */
+  const liveKitVoiceConnectedRef =
+    useRef(false);
+
+  const liveKitConnectedAtRef =
+    useRef<number | null>(null);
 
   /* ==========================================================
-     CURRENT USER
+  CURRENT USER
   ========================================================== */
 
   const currentUserId =
-    getAuth()
-      .currentUser
-      ?.uid ??
-    "";
+    getAuth().currentUser?.uid ?? "";
 
   const currentCallStatus =
-    call?.status ??
-    null;
+    call?.status ?? null;
 
   /* ==========================================================
-     DISCONNECT LIVEKIT
+  CURRENT USER ROLE
+  ========================================================== */
+
+  const currentUserRole =
+    useMemo<FixxamCallRole | null>(
+      () => {
+        if (!call || !currentUserId) {
+          return null;
+        }
+
+        if (
+          call.callerId ===
+          currentUserId
+        ) {
+          return call.callerRole;
+        }
+
+        if (
+          call.calleeId ===
+          currentUserId
+        ) {
+          return call.calleeRole;
+        }
+
+        return null;
+      },
+      [
+        call,
+        currentUserId,
+      ],
+    );
+
+  /* ==========================================================
+  REMOTE ROLE
+  ========================================================== */
+
+  const remoteRole =
+    useMemo<FixxamCallRole | undefined>(
+      () => {
+        if (!call || !currentUserId) {
+          return undefined;
+        }
+
+        if (
+          call.callerId ===
+          currentUserId
+        ) {
+          return call.calleeRole;
+        }
+
+        if (
+          call.calleeId ===
+          currentUserId
+        ) {
+          return call.callerRole;
+        }
+
+        return undefined;
+      },
+      [
+        call,
+        currentUserId,
+      ],
+    );
+
+  /* ==========================================================
+  REMOVE LIVEKIT LISTENERS
+  ========================================================== */
+
+  const removeRoomListeners =
+    useCallback(() => {
+      const cleanup =
+        removeRoomListenersRef.current;
+
+      if (!cleanup) {
+        return;
+      }
+
+      try {
+        cleanup();
+      } catch (
+        listenerCleanupError
+      ) {
+        console.error(
+          "FIXXAM_LIVEKIT_LISTENER_CLEANUP_ERROR:",
+          listenerCleanupError,
+        );
+      } finally {
+        removeRoomListenersRef.current =
+          null;
+      }
+    }, []);
+
+  /* ==========================================================
+  DISCONNECT LIVEKIT
   ========================================================== */
 
   const disconnectLiveKit =
     useCallback(
       async () => {
+        liveKitGenerationRef.current += 1;
+
         intentionalDisconnectRef.current =
           true;
 
         localMicrophoneReadyRef.current =
+          false;
+
+        microphoneEnableInFlightRef.current =
           false;
 
         liveKitJoinInFlightRef.current =
@@ -333,6 +448,28 @@ export default function SharedVoiceCallScreen() {
 
         connectedMarkedCallIdRef.current =
           "";
+
+        /*
+         * Remove listeners before disconnecting the room.
+         */
+        removeRoomListeners();
+
+        /*
+         * Reset local LiveKit connection state.
+         */
+        liveKitVoiceConnectedRef.current =
+          false;
+
+        liveKitConnectedAtRef.current =
+          null;
+
+        if (mountedRef.current) {
+          setLiveKitVoiceConnected(false);
+          setLiveKitConnectedAt(null);
+
+          setAudioSessionReady(false);
+          setMicrophoneReady(false);
+        }
 
         const room =
           roomRef.current;
@@ -343,13 +480,9 @@ export default function SharedVoiceCallScreen() {
         roomCallIdRef.current =
           "";
 
-        if (
-          room
-        ) {
+        if (room) {
           try {
-            await room.disconnect(
-              true,
-            );
+            await room.disconnect(true);
           } catch (
             disconnectError
           ) {
@@ -364,8 +497,7 @@ export default function SharedVoiceCallScreen() {
           audioSessionStartedRef.current
         ) {
           try {
-            await AudioSession
-              .stopAudioSession();
+            await AudioSession.stopAudioSession();
           } catch (
             audioError
           ) {
@@ -379,35 +511,28 @@ export default function SharedVoiceCallScreen() {
             false;
         }
 
-        if (
-          mountedRef.current
-        ) {
-          setLiveKitJoining(
-            false,
-          );
-
-          setLiveKitReconnecting(
-            false,
-          );
+        if (mountedRef.current) {
+          setLiveKitJoining(false);
+          setLiveKitReconnecting(false);
         }
 
         intentionalDisconnectRef.current =
           false;
       },
-      [],
+      [
+        removeRoomListeners,
+      ],
     );
 
   /* ==========================================================
-     MOUNT STATE
+  MOUNT STATE
   ========================================================== */
 
   useEffect(() => {
-    mountedRef.current =
-      true;
+    mountedRef.current = true;
 
     return () => {
-      mountedRef.current =
-        false;
+      mountedRef.current = false;
 
       void disconnectLiveKit();
     };
@@ -416,27 +541,187 @@ export default function SharedVoiceCallScreen() {
   ]);
 
   /* ==========================================================
-     KEEP CALL REF UPDATED
+  RESET CALL REFS
   ========================================================== */
 
   useEffect(() => {
-    callRef.current =
-      call;
+    recentlySavedCallIdRef.current = "";
+    recentlySavingCallIdRef.current = "";
+    connectedMarkedCallIdRef.current = "";
+
+    liveKitVoiceConnectedRef.current =
+      false;
+
+    liveKitConnectedAtRef.current =
+      null;
+
+    localMicrophoneReadyRef.current =
+      false;
+
+    setLiveKitVoiceConnected(false);
+    setLiveKitConnectedAt(null);
+
+    setAudioSessionReady(false);
+    setMicrophoneReady(false);
+  }, [
+    callId,
+  ]);
+
+  /* ==========================================================
+  KEEP CALL REF UPDATED
+  ========================================================== */
+
+  useEffect(() => {
+    callRef.current = call;
   }, [
     call,
   ]);
 
   /* ==========================================================
-     LOAD + SUBSCRIBE CALL
+  SAVE RECENTLY CONTACTED WORKER
   ========================================================== */
 
   useEffect(() => {
     if (
-      !callId
+      !call ||
+      !currentUserId ||
+      call.status !== "connected"
     ) {
-      setLoading(
-        false,
-      );
+      return;
+    }
+
+    const currentUserIsCaller =
+      call.callerId ===
+      currentUserId;
+
+    const userRole =
+      currentUserIsCaller
+        ? call.callerRole
+        : call.calleeRole;
+
+    if (
+      userRole !== "customer"
+    ) {
+      return;
+    }
+
+    const workerId =
+      currentUserIsCaller
+        ? call.calleeId
+        : call.callerId;
+
+    const workerRole =
+      currentUserIsCaller
+        ? call.calleeRole
+        : call.callerRole;
+
+    const workerSnapshot =
+      currentUserIsCaller
+        ? call.calleeSnapshot
+        : call.callerSnapshot;
+
+    if (
+      workerRole !== "worker" ||
+      !workerId
+    ) {
+      return;
+    }
+
+    if (
+      recentlySavedCallIdRef.current ===
+        call.id ||
+      recentlySavingCallIdRef.current ===
+        call.id
+    ) {
+      return;
+    }
+
+    recentlySavingCallIdRef.current =
+      call.id;
+
+    const saveRecentlyCalled =
+      async () => {
+        try {
+          await addRecentlyContactedWorker(
+            currentUserId,
+            {
+              id: workerId,
+
+              name:
+                cleanString(
+                  workerSnapshot?.name,
+                ) ||
+                "Fixxam Worker",
+
+              service:
+                cleanString(
+                  workerSnapshot?.service,
+                ) ||
+                "Service Provider",
+
+              rating: 0,
+
+              image:
+                cleanString(
+                  workerSnapshot?.image,
+                ),
+            },
+          );
+
+          recentlySavedCallIdRef.current =
+            call.id;
+
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_RECENT_CALL_SAVED:",
+              {
+                callId:
+                  call.id,
+                customerId:
+                  currentUserId,
+                workerId,
+              },
+            );
+          }
+        } catch (
+          recentCallError
+        ) {
+          console.error(
+            "FIXXAM_RECENT_CALL_SAVE_ERROR:",
+            {
+              callId:
+                call.id,
+              customerId:
+                currentUserId,
+              workerId,
+              error:
+                recentCallError,
+            },
+          );
+        } finally {
+          if (
+            recentlySavingCallIdRef.current ===
+            call.id
+          ) {
+            recentlySavingCallIdRef.current =
+              "";
+          }
+        }
+      };
+
+    void saveRecentlyCalled();
+  }, [
+    call,
+    currentUserId,
+  ]);
+
+  /* ==========================================================
+  REALTIME CALL SNAPSHOT
+  ========================================================== */
+
+  useEffect(() => {
+    if (!callId) {
+      setLoading(false);
 
       setError(
         "Call information is missing.",
@@ -446,15 +731,10 @@ export default function SharedVoiceCallScreen() {
     }
 
     const user =
-      getAuth()
-        .currentUser;
+      getAuth().currentUser;
 
-    if (
-      !user
-    ) {
-      setLoading(
-        false,
-      );
+    if (!user) {
+      setLoading(false);
 
       setError(
         "Your session has expired. Please login again.",
@@ -463,57 +743,29 @@ export default function SharedVoiceCallScreen() {
       return;
     }
 
-    let unsubscribe:
-      | (() => void)
-      | undefined;
+    let cancelled = false;
 
-    let cancelled =
-      false;
+    const unsubscribe =
+      subscribeToCall(
+        callId,
 
-    const start =
-      async () => {
-        try {
-          /* ==================================================
-             INITIAL CALL
-          ================================================== */
-
-          const initialCall =
-            await getCallSession(
-              callId,
-            );
-
+        nextCall => {
           if (
-            cancelled
+            cancelled ||
+            !mountedRef.current
           ) {
-            return;
-          }
-
-          if (
-            !initialCall
-          ) {
-            setLoading(
-              false,
-            );
-
-            setError(
-              "This call is no longer available.",
-            );
-
             return;
           }
 
           const isParticipant =
-            initialCall.callerId ===
+            nextCall.callerId ===
               user.uid ||
-            initialCall.calleeId ===
+            nextCall.calleeId ===
               user.uid;
 
-          if (
-            !isParticipant
-          ) {
-            setLoading(
-              false,
-            );
+          if (!isParticipant) {
+            setCall(null);
+            setLoading(false);
 
             setError(
               "You do not have access to this call.",
@@ -523,124 +775,47 @@ export default function SharedVoiceCallScreen() {
           }
 
           callRef.current =
-            initialCall;
+            nextCall;
 
           setCall(
-            initialCall,
+            nextCall,
           );
 
-          setLoading(
-            false,
-          );
+          setLoading(false);
+          setError(null);
+        },
 
-          /* ==================================================
-             REALTIME SUBSCRIPTION
-          ================================================== */
-
-          unsubscribe =
-            subscribeToCall(
-              callId,
-
-              (
-                nextCall,
-              ) => {
-                if (
-                  cancelled ||
-                  !mountedRef.current
-                ) {
-                  return;
-                }
-
-                const stillParticipant =
-                  nextCall.callerId ===
-                    user.uid ||
-                  nextCall.calleeId ===
-                    user.uid;
-
-                if (
-                  !stillParticipant
-                ) {
-                  setError(
-                    "You no longer have access to this call.",
-                  );
-
-                  return;
-                }
-
-                callRef.current =
-                  nextCall;
-
-                setCall(
-                  nextCall,
-                );
-
-                setError(
-                  null,
-                );
-              },
-
-              (
-                subscriptionError,
-              ) => {
-                if (
-                  cancelled
-                ) {
-                  return;
-                }
-
-                console.error(
-                  "SHARED_CALL_SUBSCRIPTION_ERROR:",
-                  subscriptionError,
-                );
-
-                setError(
-                  "The call connection was interrupted.",
-                );
-              },
-            );
-        } catch (
-          loadError
-        ) {
+        subscriptionError => {
           if (
-            cancelled
+            cancelled ||
+            !mountedRef.current
           ) {
             return;
           }
 
           console.error(
-            "LOAD_SHARED_CALL_ERROR:",
-            {
-              callId,
-
-              error:
-                loadError,
-            },
+            "SHARED_CALL_SUBSCRIPTION_ERROR:",
+            subscriptionError,
           );
 
-          setLoading(
-            false,
-          );
+          setLoading(false);
 
           setError(
-            "We couldn't load this call.",
+            "The call connection was interrupted.",
           );
-        }
-      };
-
-    void start();
+        },
+      );
 
     return () => {
-      cancelled =
-        true;
-
-      unsubscribe?.();
+      cancelled = true;
+      unsubscribe();
     };
   }, [
     callId,
   ]);
 
   /* ==========================================================
-     MARK FIRESTORE CALL CONNECTED
+  MARK CALL CONNECTED
   ========================================================== */
 
   const markConnectedWhenReady =
@@ -670,20 +845,23 @@ export default function SharedVoiceCallScreen() {
           return;
         }
 
-        /*
-         * Local microphone must already
-         * be successfully published.
-         */
+        const latestCall =
+          callRef.current;
+
+        if (
+          !latestCall ||
+          latestCall.status ===
+            "ringing"
+        ) {
+          return;
+        }
+
         if (
           !localMicrophoneReadyRef.current
         ) {
           return;
         }
 
-        /*
-         * Other participant must be inside
-         * the same LiveKit room.
-         */
         if (
           room.remoteParticipants.size ===
           0
@@ -691,27 +869,48 @@ export default function SharedVoiceCallScreen() {
           return;
         }
 
-        /*
-         * Wait until the remote participant
-         * has an audio publication.
-         */
         const remoteAudioReady =
           Array.from(
             room.remoteParticipants.values(),
           ).some(
-            (
-              remoteParticipant,
-            ) =>
+            remoteParticipant =>
               remoteParticipant
                 .audioTrackPublications
-                .size >
-              0,
+                .size > 0,
           );
 
-        if (
-          !remoteAudioReady
-        ) {
+        if (!remoteAudioReady) {
           return;
+        }
+
+        /*
+         * LiveKit has:
+         *
+         * 1. Local microphone ready
+         * 2. Remote participant present
+         * 3. Remote audio publication present
+         *
+         * Therefore the actual voice connection exists.
+         */
+        if (
+          !liveKitVoiceConnectedRef.current
+        ) {
+          const connectedTimestamp =
+            Date.now();
+
+          liveKitVoiceConnectedRef.current =
+            true;
+
+          liveKitConnectedAtRef.current =
+            connectedTimestamp;
+
+          if (mountedRef.current) {
+            setLiveKitVoiceConnected(true);
+
+            setLiveKitConnectedAt(
+              connectedTimestamp,
+            );
+          }
         }
 
         markingConnectedRef.current =
@@ -726,31 +925,25 @@ export default function SharedVoiceCallScreen() {
           connectedMarkedCallIdRef.current =
             targetCallId;
 
-          if (
-            mountedRef.current
-          ) {
-            setMediaError(
-              null,
-            );
+          if (mountedRef.current) {
+            setMediaError(null);
           }
         } catch (
           markError
         ) {
           /*
-           * Both phones may detect readiness
-           * simultaneously.
-           *
-           * If the other device already changed
-           * Firestore to connected, this is fine.
+           * Firestore synchronization failure must NOT
+           * turn an already-working LiveKit call into
+           * a media failure.
            */
           try {
-            const latestCall =
+            const latestServerCall =
               await getCallSession(
                 targetCallId,
               );
 
             if (
-              latestCall?.status ===
+              latestServerCall?.status ===
               "connected"
             ) {
               connectedMarkedCallIdRef.current =
@@ -761,30 +954,36 @@ export default function SharedVoiceCallScreen() {
           } catch (
             verifyError
           ) {
-            console.error(
-              "FIXXAM_VERIFY_CONNECTED_CALL_ERROR:",
-              verifyError,
+            if (__DEV__) {
+              console.warn(
+                "FIXXAM_VERIFY_CONNECTED_CALL_PENDING:",
+                {
+                  callId:
+                    targetCallId,
+                  error:
+                    verifyError,
+                },
+              );
+            }
+          }
+
+          if (__DEV__) {
+            console.warn(
+              "FIXXAM_CALL_STATE_SYNC_PENDING:",
+              {
+                callId:
+                  targetCallId,
+                error:
+                  markError,
+              },
             );
           }
 
-          console.error(
-            "FIXXAM_MARK_CALL_CONNECTED_ERROR:",
-            {
-              callId:
-                targetCallId,
-
-              error:
-                markError,
-            },
-          );
-
-          if (
-            mountedRef.current
-          ) {
-            setMediaError(
-              "The secure voice connection could not be confirmed.",
-            );
-          }
+          /*
+           * DO NOT call setMediaError here.
+           *
+           * LiveKit is connected.
+           */
         } finally {
           markingConnectedRef.current =
             false;
@@ -794,7 +993,126 @@ export default function SharedVoiceCallScreen() {
     );
 
   /* ==========================================================
-     REAL MICROPHONE CONTROL
+  ENABLE MICROPHONE AFTER ACCEPT
+  ========================================================== */
+
+  const ensureMicrophoneReady =
+    useCallback(
+      async (
+        room: Room,
+        targetCallId: string,
+        userId: string,
+      ) => {
+        const latestCall =
+          callRef.current;
+
+        if (
+          !latestCall ||
+          !shouldPublishMicrophone(
+            latestCall.status,
+          )
+        ) {
+          return;
+        }
+
+        if (
+          localMicrophoneReadyRef.current
+        ) {
+          if (mountedRef.current) {
+            setMicrophoneReady(true);
+          }
+
+          await markConnectedWhenReady(
+            room,
+            targetCallId,
+            userId,
+          );
+
+          return;
+        }
+
+        if (
+          microphoneEnableInFlightRef.current
+        ) {
+          return;
+        }
+
+        microphoneEnableInFlightRef.current =
+          true;
+
+        try {
+          const startedAt =
+            Date.now();
+
+          await room
+            .localParticipant
+            .setMicrophoneEnabled(
+              true,
+            );
+
+          localMicrophoneReadyRef.current =
+            true;
+
+          if (mountedRef.current) {
+            setMicrophoneReady(true);
+            setMediaError(null);
+          }
+
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_MICROPHONE_READY:",
+              {
+                callId:
+                  targetCallId,
+                durationMs:
+                  Date.now() -
+                  startedAt,
+              },
+            );
+          }
+
+          await markConnectedWhenReady(
+            room,
+            targetCallId,
+            userId,
+          );
+        } catch (
+          microphoneError
+        ) {
+          console.error(
+            "FIXXAM_LIVEKIT_MICROPHONE_ENABLE_ERROR:",
+            {
+              callId:
+                targetCallId,
+              error:
+                microphoneError,
+            },
+          );
+
+          localMicrophoneReadyRef.current =
+            false;
+
+          if (mountedRef.current) {
+            setMicrophoneReady(false);
+
+            setMediaError(
+              "Fixxam could not start the microphone.",
+            );
+          }
+
+          throw microphoneError;
+        } finally {
+          microphoneEnableInFlightRef.current =
+            false;
+        }
+      },
+      [
+        markConnectedWhenReady,
+      ],
+    );
+
+  /* ==========================================================
+  MICROPHONE CONTROL
   ========================================================== */
 
   const handleToggleMute =
@@ -816,9 +1134,6 @@ export default function SharedVoiceCallScreen() {
         }
 
         try {
-          /*
-           * muted=true means microphone enabled=false.
-           */
           await room
             .localParticipant
             .setMicrophoneEnabled(
@@ -831,9 +1146,7 @@ export default function SharedVoiceCallScreen() {
             "FIXXAM_LIVEKIT_MUTE_ERROR:",
             {
               callId,
-
               muted,
-
               error:
                 muteError,
             },
@@ -848,7 +1161,7 @@ export default function SharedVoiceCallScreen() {
     );
 
   /* ==========================================================
-     REAL SPEAKER CONTROL
+  SPEAKER CONTROL
   ========================================================== */
 
   const handleToggleSpeaker =
@@ -866,16 +1179,10 @@ export default function SharedVoiceCallScreen() {
 
         try {
           const outputs =
-            await AudioSession
-              .getAudioOutputs();
-
-          /* ==================================================
-             IOS
-          ================================================== */
+            await AudioSession.getAudioOutputs();
 
           if (
-            Platform.OS ===
-            "ios"
+            Platform.OS === "ios"
           ) {
             const targetOutput =
               enabled
@@ -894,25 +1201,17 @@ export default function SharedVoiceCallScreen() {
               );
             }
 
-            await AudioSession
-              .selectAudioOutput(
-                targetOutput,
-              );
+            await AudioSession.selectAudioOutput(
+              targetOutput,
+            );
 
             return;
           }
 
-          /* ==================================================
-             ANDROID
-          ================================================== */
-
           if (
-            Platform.OS ===
-            "android"
+            Platform.OS === "android"
           ) {
-            if (
-              enabled
-            ) {
+            if (enabled) {
               if (
                 !outputs.includes(
                   "speaker",
@@ -923,47 +1222,44 @@ export default function SharedVoiceCallScreen() {
                 );
               }
 
-              await AudioSession
-                .selectAudioOutput(
-                  "speaker",
-                );
+              await AudioSession.selectAudioOutput(
+                "speaker",
+              );
 
               return;
             }
 
             /*
-             * When loudspeaker is disabled:
+             * Normal call audio should prefer:
              *
-             * 1. Bluetooth
+             * 1. Earpiece
              * 2. Wired headset
-             * 3. Earpiece
+             * 3. Bluetooth
+             *
+             * This is more natural for a phone call than
+             * automatically preferring Bluetooth.
              */
             const normalOutput =
               [
-                "bluetooth",
-                "headset",
                 "earpiece",
+                "headset",
+                "bluetooth",
               ].find(
-                (
-                  output,
-                ) =>
+                output =>
                   outputs.includes(
                     output,
                   ),
               );
 
-            if (
-              !normalOutput
-            ) {
+            if (!normalOutput) {
               throw new Error(
                 "No normal call audio output is available.",
               );
             }
 
-            await AudioSession
-              .selectAudioOutput(
-                normalOutput,
-              );
+            await AudioSession.selectAudioOutput(
+              normalOutput,
+            );
           }
         } catch (
           speakerError
@@ -972,9 +1268,7 @@ export default function SharedVoiceCallScreen() {
             "FIXXAM_LIVEKIT_SPEAKER_ERROR:",
             {
               callId,
-
               enabled,
-
               error:
                 speakerError,
             },
@@ -989,7 +1283,7 @@ export default function SharedVoiceCallScreen() {
     );
 
   /* ==========================================================
-     LIVEKIT ROOM
+  LIVEKIT ROOM
   ========================================================== */
 
   useEffect(() => {
@@ -1001,13 +1295,21 @@ export default function SharedVoiceCallScreen() {
       return;
     }
 
-    /* ========================================================
-       TERMINAL / RINGING STATE
-    ======================================================== */
+    const latestCall =
+      callRef.current;
+
+    if (!latestCall) {
+      return;
+    }
+
+    const currentUserIsCaller =
+      latestCall.callerId ===
+      currentUserId;
 
     if (
-      !shouldUseLiveKit(
+      !shouldPrepareLiveKit(
         currentCallStatus,
+        currentUserIsCaller,
       )
     ) {
       if (
@@ -1021,10 +1323,6 @@ export default function SharedVoiceCallScreen() {
       return;
     }
 
-    /* ========================================================
-       EXISTING ROOM
-    ======================================================== */
-
     const existingRoom =
       roomRef.current;
 
@@ -1033,7 +1331,7 @@ export default function SharedVoiceCallScreen() {
       roomCallIdRef.current ===
         callId
     ) {
-      void markConnectedWhenReady(
+      void ensureMicrophoneReady(
         existingRoom,
         callId,
         currentUserId,
@@ -1048,27 +1346,54 @@ export default function SharedVoiceCallScreen() {
       return;
     }
 
-    let cancelled =
-      false;
-
     liveKitJoinInFlightRef.current =
       true;
 
-    setLiveKitJoining(
-      true,
-    );
+    setLiveKitJoining(true);
+    setLiveKitReconnecting(false);
+    setMediaError(null);
 
-    setLiveKitReconnecting(
-      false,
-    );
+    const generation =
+      liveKitGenerationRef.current + 1;
 
-    setMediaError(
-      null,
-    );
+    liveKitGenerationRef.current =
+      generation;
 
-    /* ========================================================
-       CONNECT
-    ======================================================== */
+    const isCurrentAttempt =
+      (): boolean => {
+        if (
+          !mountedRef.current
+        ) {
+          return false;
+        }
+
+        if (
+          liveKitGenerationRef.current !==
+          generation
+        ) {
+          return false;
+        }
+
+        const activeCall =
+          callRef.current;
+
+        if (
+          !activeCall ||
+          activeCall.id !==
+            callId
+        ) {
+          return false;
+        }
+
+        const userIsCaller =
+          activeCall.callerId ===
+          currentUserId;
+
+        return shouldPrepareLiveKit(
+          activeCall.status,
+          userIsCaller,
+        );
+      };
 
     const connectToLiveKit =
       async () => {
@@ -1077,87 +1402,144 @@ export default function SharedVoiceCallScreen() {
           | null =
           null;
 
-        try {
-          /* ==================================================
-             SECURE TOKEN
-          ================================================== */
+        let audioPreparationPromise:
+          | Promise<void>
+          | null =
+          null;
 
-          const credentials =
-            await getLiveKitCallCredentials(
+        const startedAt =
+          Date.now();
+
+        const currentCall =
+          callRef.current;
+
+        const localIdentity:
+          | "caller"
+          | "callee"
+          | "unknown" =
+          currentCall?.callerId ===
+            currentUserId
+            ? "caller"
+            : currentCall?.calleeId ===
+                currentUserId
+              ? "callee"
+              : "unknown";
+
+        try {
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_LIVEKIT_JOIN_START:",
+              {
+                callId,
+                identity:
+                  localIdentity,
+                status:
+                  currentCall
+                    ?.status ??
+                  null,
+                fastPreconnect:
+                  currentCall
+                    ?.status ===
+                  "ringing",
+              },
+            );
+          }
+
+          const credentialsPromise =
+            getLiveKitCallCredentials(
               callId,
             );
 
+          audioPreparationPromise =
+            (async () => {
+              await AudioSession.configureAudio({
+                android: {
+                  audioTypeOptions:
+                    AndroidAudioTypePresets
+                      .communication,
+
+                  preferredOutputList: [
+                    "bluetooth",
+                    "headset",
+                    "earpiece",
+                    "speaker",
+                  ],
+                },
+
+                ios: {
+                  defaultOutput:
+                    "earpiece",
+                },
+              });
+
+              if (
+                !isCurrentAttempt()
+              ) {
+                return;
+              }
+
+              await AudioSession.startAudioSession();
+
+              audioSessionStartedRef.current =
+                true;
+
+              if (mountedRef.current) {
+                setAudioSessionReady(true);
+              }
+            })();
+
+          const [
+            credentials,
+          ] =
+            await Promise.all([
+              credentialsPromise,
+              audioPreparationPromise,
+            ]);
+
           if (
-            cancelled ||
-            !mountedRef.current
+            !isCurrentAttempt()
           ) {
+            if (
+              audioSessionStartedRef.current
+            ) {
+              try {
+                await AudioSession.stopAudioSession();
+              } catch (
+                audioStopError
+              ) {
+                console.error(
+                  "FIXXAM_STALE_AUDIO_SESSION_STOP_ERROR:",
+                  audioStopError,
+                );
+              }
+
+              audioSessionStartedRef.current =
+                false;
+            }
+
+            if (mountedRef.current) {
+              setAudioSessionReady(false);
+            }
+
             return;
           }
 
-          /* ==================================================
-             AUDIO CONFIGURATION
-          ================================================== */
-
-          /*
-           * Configure before startAudioSession().
-           *
-           * Android:
-           * - communication mode
-           * - Bluetooth preferred
-           * - then wired headset
-           * - then earpiece
-           * - speaker last
-           *
-           * iOS:
-           * - normal voice call starts on earpiece
-           */
-          await AudioSession
-            .configureAudio({
-              android: {
-                audioTypeOptions:
-                  AndroidAudioTypePresets
-                    .communication,
-
-                preferredOutputList: [
-                  "bluetooth",
-                  "headset",
-                  "earpiece",
-                  "speaker",
-                ],
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_LIVEKIT_FAST_PREP_READY:",
+              {
+                callId,
+                identity:
+                  localIdentity,
+                durationMs:
+                  Date.now() -
+                  startedAt,
+                participantRole:
+                  credentials
+                    .participantRole,
               },
-
-              ios: {
-                defaultOutput:
-                  "earpiece",
-              },
-            });
-
-          /* ==================================================
-             START AUDIO SESSION
-          ================================================== */
-
-          await AudioSession
-            .startAudioSession();
-
-          audioSessionStartedRef.current =
-            true;
-
-          if (
-            cancelled ||
-            !mountedRef.current
-          ) {
-            await AudioSession
-              .stopAudioSession();
-
-            audioSessionStartedRef.current =
-              false;
-
-            return;
+            );
           }
-
-          /* ==================================================
-             CREATE ROOM
-          ================================================== */
 
           room =
             new Room();
@@ -1174,20 +1556,35 @@ export default function SharedVoiceCallScreen() {
           localMicrophoneReadyRef.current =
             false;
 
-          /* ==================================================
-             REMOTE PARTICIPANT READY
-          ================================================== */
+          if (mountedRef.current) {
+            setMicrophoneReady(false);
+          }
+
+          liveKitVoiceConnectedRef.current =
+            false;
+
+          liveKitConnectedAtRef.current =
+            null;
+
+          if (mountedRef.current) {
+            setLiveKitVoiceConnected(false);
+            setLiveKitConnectedAt(null);
+          }
 
           const handleParticipantConnected =
             () => {
               const activeRoom =
                 roomRef.current;
 
-              if (
-                !activeRoom
-              ) {
+              if (!activeRoom) {
                 return;
               }
+
+              void ensureMicrophoneReady(
+                activeRoom,
+                callId,
+                currentUserId,
+              );
 
               void markConnectedWhenReady(
                 activeRoom,
@@ -1195,21 +1592,21 @@ export default function SharedVoiceCallScreen() {
                 currentUserId,
               );
             };
-
-          /* ==================================================
-             REMOTE AUDIO PUBLISHED
-          ================================================== */
 
           const handleTrackPublished =
             () => {
               const activeRoom =
                 roomRef.current;
 
-              if (
-                !activeRoom
-              ) {
+              if (!activeRoom) {
                 return;
               }
+
+              void ensureMicrophoneReady(
+                activeRoom,
+                callId,
+                currentUserId,
+              );
 
               void markConnectedWhenReady(
                 activeRoom,
@@ -1217,10 +1614,6 @@ export default function SharedVoiceCallScreen() {
                 currentUserId,
               );
             };
-
-          /* ==================================================
-             RECONNECTING
-          ================================================== */
 
           const handleReconnecting =
             () => {
@@ -1234,14 +1627,8 @@ export default function SharedVoiceCallScreen() {
                 true,
               );
 
-              setMediaError(
-                null,
-              );
+              setMediaError(null);
             };
-
-          /* ==================================================
-             RECONNECTED
-          ================================================== */
 
           const handleReconnected =
             () => {
@@ -1255,16 +1642,18 @@ export default function SharedVoiceCallScreen() {
                 false,
               );
 
-              setMediaError(
-                null,
-              );
+              setMediaError(null);
 
               const activeRoom =
                 roomRef.current;
 
-              if (
-                activeRoom
-              ) {
+              if (activeRoom) {
+                void ensureMicrophoneReady(
+                  activeRoom,
+                  callId,
+                  currentUserId,
+                );
+
                 void markConnectedWhenReady(
                   activeRoom,
                   callId,
@@ -1272,10 +1661,6 @@ export default function SharedVoiceCallScreen() {
                 );
               }
             };
-
-          /* ==================================================
-             DISCONNECTED
-          ================================================== */
 
           const handleDisconnected =
             () => {
@@ -1286,13 +1671,35 @@ export default function SharedVoiceCallScreen() {
                 return;
               }
 
-              const latestCall =
+              const activeCall =
                 callRef.current;
 
+              /*
+               * Real LiveKit disconnect is a media problem.
+               *
+               * Unlike Firestore sync errors, this SHOULD
+               * be shown to the user.
+               */
+              liveKitVoiceConnectedRef.current =
+                false;
+
+              liveKitConnectedAtRef.current =
+                null;
+
+              localMicrophoneReadyRef.current =
+                false;
+
+              if (mountedRef.current) {
+                setLiveKitVoiceConnected(false);
+                setLiveKitConnectedAt(null);
+
+                setMicrophoneReady(false);
+              }
+
               if (
-                latestCall &&
+                activeCall &&
                 isActiveCall(
-                  latestCall.status,
+                  activeCall.status,
                 )
               ) {
                 setLiveKitReconnecting(
@@ -1305,14 +1712,9 @@ export default function SharedVoiceCallScreen() {
               }
             };
 
-          /* ==================================================
-             MEDIA DEVICE ERROR
-          ================================================== */
-
           const handleMediaDeviceError =
             (
-              deviceError:
-                Error,
+              deviceError: Error,
             ) => {
               console.error(
                 "FIXXAM_LIVEKIT_MEDIA_DEVICE_ERROR:",
@@ -1322,15 +1724,13 @@ export default function SharedVoiceCallScreen() {
               if (
                 mountedRef.current
               ) {
+                setMicrophoneReady(false);
+
                 setMediaError(
                   "Fixxam could not access the microphone.",
                 );
               }
             };
-
-          /* ==================================================
-             ROOM EVENTS
-          ================================================== */
 
           room.on(
             RoomEvent.ParticipantConnected,
@@ -1362,58 +1762,110 @@ export default function SharedVoiceCallScreen() {
             handleMediaDeviceError,
           );
 
-          /* ==================================================
-             JOIN ROOM
-          ================================================== */
+          /*
+           * Store explicit listener cleanup.
+           */
+          removeRoomListenersRef.current =
+            () => {
+              room?.off(
+                RoomEvent.ParticipantConnected,
+                handleParticipantConnected,
+              );
+
+              room?.off(
+                RoomEvent.TrackPublished,
+                handleTrackPublished,
+              );
+
+              room?.off(
+                RoomEvent.Reconnecting,
+                handleReconnecting,
+              );
+
+              room?.off(
+                RoomEvent.Reconnected,
+                handleReconnected,
+              );
+
+              room?.off(
+                RoomEvent.Disconnected,
+                handleDisconnected,
+              );
+
+              room?.off(
+                RoomEvent.MediaDevicesError,
+                handleMediaDeviceError,
+              );
+            };
+
+          const roomConnectStartedAt =
+            Date.now();
+
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_LIVEKIT_ROOM_CONNECT_START:",
+              {
+                callId,
+                identity:
+                  localIdentity,
+              },
+            );
+          }
 
           await room.connect(
             credentials.url,
             credentials.token,
           );
 
+          if (__DEV__) {
+            console.info(
+              "FIXXAM_LIVEKIT_ROOM_CONNECTED:",
+              {
+                callId,
+                identity:
+                  localIdentity,
+                durationMs:
+                  Date.now() -
+                  roomConnectStartedAt,
+                totalDurationMs:
+                  Date.now() -
+                  startedAt,
+              },
+            );
+          }
+
           if (
-            cancelled ||
-            !mountedRef.current
+            !isCurrentAttempt()
           ) {
             intentionalDisconnectRef.current =
               true;
 
-            await room.disconnect(
-              true,
-            );
+            removeRoomListeners();
 
-            intentionalDisconnectRef.current =
-              false;
+            try {
+              await room.disconnect(
+                true,
+              );
+            } finally {
+              intentionalDisconnectRef.current =
+                false;
+            }
+
+            if (
+              roomRef.current ===
+              room
+            ) {
+              roomRef.current =
+                null;
+
+              roomCallIdRef.current =
+                "";
+            }
 
             return;
           }
 
-          /* ==================================================
-             ENABLE + PUBLISH MICROPHONE
-          ================================================== */
-
-          await room
-            .localParticipant
-            .setMicrophoneEnabled(
-              true,
-            );
-
-          localMicrophoneReadyRef.current =
-            true;
-
-          if (
-            mountedRef.current
-          ) {
-            setMediaError(
-              null,
-            );
-          }
-
-          /* ==================================================
-             REMOTE USER MAY ALREADY BE PRESENT
-          ================================================== */
-
-          await markConnectedWhenReady(
+          await ensureMicrophoneReady(
             room,
             callId,
             currentUserId,
@@ -1421,22 +1873,59 @@ export default function SharedVoiceCallScreen() {
         } catch (
           liveKitError
         ) {
-          console.error(
-            "FIXXAM_LIVEKIT_CONNECT_ERROR:",
-            {
-              callId,
+          if (
+            audioPreparationPromise
+          ) {
+            await Promise.allSettled([
+              audioPreparationPromise,
+            ]);
+          }
 
-              error:
-                liveKitError,
-            },
-          );
+          const attemptStillCurrent =
+            liveKitGenerationRef.current ===
+              generation &&
+            mountedRef.current;
+
+          if (
+            attemptStillCurrent
+          ) {
+            console.error(
+              "FIXXAM_LIVEKIT_CONNECT_ERROR:",
+              {
+                callId,
+                identity:
+                  localIdentity,
+                error:
+                  liveKitError,
+              },
+            );
+          }
 
           localMicrophoneReadyRef.current =
             false;
 
-          if (
-            room
-          ) {
+          microphoneEnableInFlightRef.current =
+            false;
+
+          liveKitVoiceConnectedRef.current =
+            false;
+
+          liveKitConnectedAtRef.current =
+            null;
+
+          if (mountedRef.current) {
+            setLiveKitVoiceConnected(false);
+            setLiveKitConnectedAt(null);
+
+            setMicrophoneReady(false);
+          }
+
+          /*
+           * Explicitly remove listeners before room cleanup.
+           */
+          removeRoomListeners();
+
+          if (room) {
             try {
               intentionalDisconnectRef.current =
                 true;
@@ -1472,13 +1961,12 @@ export default function SharedVoiceCallScreen() {
             audioSessionStartedRef.current
           ) {
             try {
-              await AudioSession
-                .stopAudioSession();
+              await AudioSession.stopAudioSession();
             } catch (
               audioStopError
             ) {
               console.error(
-                "FIXXAM_AUDIO_SESSION_CONNECT_CLEANUP_ERROR:",
+                "FIXXAM_LIVEKIT_AUDIO_SESSION_CONNECT_CLEANUP_ERROR:",
                 audioStopError,
               );
             }
@@ -1487,62 +1975,66 @@ export default function SharedVoiceCallScreen() {
               false;
           }
 
+          if (mountedRef.current) {
+            setAudioSessionReady(false);
+          }
+
+          const activeCall =
+            callRef.current;
+
           if (
-            !cancelled &&
-            mountedRef.current
+            attemptStillCurrent &&
+            activeCall &&
+            activeCall.status !==
+              "ringing"
           ) {
             setMediaError(
               "We couldn't establish the secure voice connection.",
             );
           }
         } finally {
-          liveKitJoinInFlightRef.current =
-            false;
-
           if (
-            !cancelled &&
-            mountedRef.current
+            liveKitGenerationRef.current ===
+            generation
           ) {
-            setLiveKitJoining(
-              false,
-            );
+            liveKitJoinInFlightRef.current =
+              false;
+
+            if (
+              mountedRef.current
+            ) {
+              setLiveKitJoining(
+                false,
+              );
+            }
           }
         }
       };
 
     void connectToLiveKit();
-
-    return () => {
-      cancelled =
-        true;
-    };
   }, [
     callId,
     currentCallStatus,
     currentUserId,
     disconnectLiveKit,
+    ensureMicrophoneReady,
     markConnectedWhenReady,
+    removeRoomListeners,
   ]);
 
   /* ==========================================================
-     PARTICIPANT
+  PARTICIPANT
   ========================================================== */
 
   const participant =
-    useMemo<
-      CallParticipant
-    >(
+    useMemo<CallParticipant>(
       () => {
-        if (
-          !call
-        ) {
+        if (!call) {
           return {
             id: "",
-            name:
-              "Fixxam User",
+            name: "Fixxam User",
             image: "",
-            service:
-              "Fixxam Voice",
+            service: "Fixxam Voice",
           };
         }
 
@@ -1567,41 +2059,44 @@ export default function SharedVoiceCallScreen() {
 
         const snapshotName =
           cleanString(
-            otherSnapshot
-              ?.name,
+            otherSnapshot?.name,
           );
 
         const snapshotImage =
           cleanString(
-            otherSnapshot
-              ?.image,
+            otherSnapshot?.image,
           );
 
         const snapshotService =
           cleanString(
-            otherSnapshot
-              ?.service,
+            otherSnapshot?.service,
+          );
+
+        const sameParticipant =
+          participantImageOwnerRef.current ===
+          otherId;
+
+        const resolvedParticipantImage =
+          snapshotImage ||
+          (
+            sameParticipant
+              ? participantImageRef.current
+              : ""
           );
 
         return {
-          id:
-            otherId,
+          id: otherId,
 
           name:
             snapshotName ||
             (
-              otherRole ===
-              "worker"
+              otherRole === "worker"
                 ? "Fixxam Worker"
                 : "Fixxam Customer"
             ),
 
           image:
-            snapshotImage.startsWith(
-              "https://",
-            )
-              ? snapshotImage
-              : "",
+            resolvedParticipantImage,
 
           service:
             snapshotService ||
@@ -1615,7 +2110,44 @@ export default function SharedVoiceCallScreen() {
     );
 
   /* ==========================================================
-     UI STATUS
+  PRESERVE VALID PARTICIPANT IMAGE
+  ========================================================== */
+
+  useEffect(() => {
+    if (!participant.id) {
+      participantImageRef.current =
+        "";
+
+      participantImageOwnerRef.current =
+        "";
+
+      return;
+    }
+
+    if (
+      participantImageOwnerRef.current !==
+      participant.id
+    ) {
+      participantImageOwnerRef.current =
+        participant.id;
+
+      participantImageRef.current =
+        participant.image || "";
+
+      return;
+    }
+
+    if (participant.image) {
+      participantImageRef.current =
+        participant.image;
+    }
+  }, [
+    participant.id,
+    participant.image,
+  ]);
+
+  /* ==========================================================
+  UI STATUS
   ========================================================== */
 
   const uiStatus =
@@ -1628,16 +2160,36 @@ export default function SharedVoiceCallScreen() {
           return "failed";
         }
 
-        if (
-          !call
-        ) {
+        if (!call) {
           return "connecting";
         }
 
+        if (
+          call.status === "ringing"
+        ) {
+          return "ringing";
+        }
+
         /*
-         * During initial room join or network
-         * recovery always show Connecting.
+         * LIVEKIT IS THE SOURCE OF TRUTH FOR MEDIA
+         * CONNECTION.
+         *
+         * But only accepted/connected Firestore states
+         * may display an active connected UI.
+         *
+         * This prevents a stale LiveKit state from making
+         * an ended/declined/missed call appear connected.
          */
+        if (
+          liveKitVoiceConnected &&
+          (
+            call.status === "accepted" ||
+            call.status === "connected"
+          )
+        ) {
+          return "connected";
+        }
+
         if (
           liveKitJoining ||
           liveKitReconnecting
@@ -1645,9 +2197,18 @@ export default function SharedVoiceCallScreen() {
           return "connecting";
         }
 
+        /*
+         * mediaError is reserved for REAL media errors:
+         *
+         * - microphone failure
+         * - LiveKit disconnect
+         * - LiveKit connection failure
+         *
+         * Firestore markCallConnected errors do NOT reach here.
+         */
         if (
           mediaError &&
-          shouldUseLiveKit(
+          shouldPublishMicrophone(
             call.status,
           )
         ) {
@@ -1663,186 +2224,229 @@ export default function SharedVoiceCallScreen() {
         error,
         liveKitJoining,
         liveKitReconnecting,
+        liveKitVoiceConnected,
         mediaError,
       ],
     );
 
   /* ==========================================================
-     CONNECTED TIME
+  CONNECTED TIME
   ========================================================== */
 
   const connectedAt =
     useMemo(
-      () =>
-        call?.status ===
-          "connected"
-          ? (
-              call.connectedAt
-                ?.getTime() ??
-              Date.now()
-            )
-          : null,
+      () => {
+        /*
+         * Once the call is ended/declined/missed,
+         * stop the active timer.
+         */
+        if (
+          call?.status === "ended" ||
+          call?.status === "declined" ||
+          call?.status === "missed"
+        ) {
+          return null;
+        }
+
+        /*
+         * Prefer the authoritative Firestore timestamp
+         * when available.
+         *
+         * Otherwise use the actual LiveKit connection time.
+         */
+        return (
+          call?.connectedAt?.getTime() ??
+          liveKitConnectedAt
+        );
+      },
       [
-        call,
+        call?.connectedAt,
+        call?.status,
+        liveKitConnectedAt,
       ],
     );
 
   /* ==========================================================
-     AUDIO CONTROLS READY
+  AUDIO CONTROLS READY
   ========================================================== */
 
+  /*
+   * IMPORTANT:
+   *
+   * This is now state-driven.
+   *
+   * Previously audioSessionStartedRef and
+   * localMicrophoneReadyRef were read directly here.
+   * Updating refs does not cause React to render.
+   *
+   * Now the UI reliably enables/disables mute and speaker
+   * controls when the audio system becomes ready.
+   */
   const audioControlsReady =
-    Boolean(
-      roomRef.current,
-    ) &&
-    audioSessionStartedRef.current &&
-    localMicrophoneReadyRef.current &&
-    call?.status ===
-      "connected" &&
+    Boolean(roomRef.current) &&
+    audioSessionReady &&
+    microphoneReady &&
+    liveKitVoiceConnected &&
     !liveKitJoining &&
     !liveKitReconnecting &&
     !ending &&
     !mediaError;
 
   /* ==========================================================
-     EXIT SCREEN
+  EXIT SCREEN
   ========================================================== */
 
   const exitScreen =
-    useCallback(() => {
-      const currentCall =
-        callRef.current;
+    useCallback(
+      () => {
+        const currentCall =
+          callRef.current;
 
-      if (
-        router.canGoBack()
-      ) {
-        router.back();
+        const userIsWorker =
+          (
+            currentCall?.calleeRole ===
+              "worker" &&
+            currentCall.calleeId ===
+              currentUserId
+          ) ||
+          (
+            currentCall?.callerRole ===
+              "worker" &&
+            currentCall.callerId ===
+              currentUserId
+          );
 
-        return;
-      }
+        if (userIsWorker) {
+          router.replace(
+            "/(worker)/(tabs)/home" as never,
+          );
 
-      if (
-        currentCall
-          ?.calleeRole ===
-          "worker" &&
-        currentCall.calleeId ===
-          currentUserId
-      ) {
+          return;
+        }
+
         router.replace(
-          "/(worker)" as never,
+          "/(customer)" as never,
         );
-
-        return;
-      }
-
-      if (
-        currentCall
-          ?.callerRole ===
-          "worker" &&
-        currentCall.callerId ===
-          currentUserId
-      ) {
-        router.replace(
-          "/(worker)" as never,
-        );
-
-        return;
-      }
-
-      router.replace(
-        "/(customer)" as never,
-      );
-    }, [
-      currentUserId,
-    ]);
+      },
+      [
+        currentUserId,
+      ],
+    );
 
   /* ==========================================================
-     END CALL
+  GO BACK FROM CALL SCREEN
   ========================================================== */
 
-  const handleEndCall =
-    useCallback(async () => {
-      if (
-        ending
-      ) {
-        return;
-      }
-
-      const user =
-        getAuth()
-          .currentUser;
-
-      const currentCall =
-        callRef.current;
-
-      /*
-       * If the call already finished,
-       * the red button becomes Close.
-       */
-      if (
-        !currentCall ||
-        !user ||
-        !isActiveCall(
-          currentCall.status,
-        )
-      ) {
-        await disconnectLiveKit();
-
-        exitScreen();
-
-        return;
-      }
-
-      setEnding(
-        true,
-      );
-
-      try {
+  const handleGoBack =
+    useCallback(
+      () => {
         /*
-         * Stop microphone and audio
-         * immediately before Firestore update.
+         * Navigation must happen FIRST.
+         *
+         * LiveKit cleanup runs in the background.
          */
-        await disconnectLiveKit();
+        const canGoBack =
+          router.canGoBack();
 
-        await endCall(
-          currentCall.id,
-          user.uid,
-        );
-      } catch (
-        endError
-      ) {
-        console.error(
-          "END_SHARED_CALL_ERROR:",
-          {
-            callId:
-              currentCall.id,
+        void disconnectLiveKit();
 
-            error:
-              endError,
-          },
-        );
-      } finally {
-        if (
-          mountedRef.current
-        ) {
-          setEnding(
-            false,
-          );
+        if (canGoBack) {
+          router.back();
+
+          return;
         }
 
         exitScreen();
-      }
-    }, [
-      disconnectLiveKit,
-      ending,
-      exitScreen,
-    ]);
+      },
+      [
+        disconnectLiveKit,
+        exitScreen,
+      ],
+    );
 
   /* ==========================================================
-     ANDROID BACK
+  END CALL
+  ========================================================== */
+
+  const handleEndCall =
+    useCallback(
+      async () => {
+        if (ending) {
+          return;
+        }
+
+        const user =
+          getAuth().currentUser;
+
+        const currentCall =
+          callRef.current;
+
+        /*
+         * If call is already inactive,
+         * only cleanup media.
+         */
+        if (
+          !currentCall ||
+          !user ||
+          !isActiveCall(
+            currentCall.status,
+          )
+        ) {
+          await disconnectLiveKit();
+
+          return;
+        }
+
+        setEnding(true);
+
+        try {
+          /*
+           * Disconnect LiveKit first.
+           */
+          await disconnectLiveKit();
+
+          /*
+           * Update Firestore.
+           */
+          await endCall(
+            currentCall.id,
+            user.uid,
+          );
+        } catch (
+          endError
+        ) {
+          console.error(
+            "END_SHARED_CALL_ERROR:",
+            {
+              callId:
+                currentCall.id,
+              error:
+                endError,
+            },
+          );
+        } finally {
+          if (
+            mountedRef.current
+          ) {
+            setEnding(false);
+          }
+        }
+      },
+      [
+        disconnectLiveKit,
+        ending,
+      ],
+    );
+
+  /* ==========================================================
+  ANDROID BACK
   ========================================================== */
 
   useEffect(() => {
+    if (Platform.OS !== "android") {
+      return;
+    }
+
     const subscription =
       BackHandler.addEventListener(
         "hardwareBackPress",
@@ -1856,9 +2460,7 @@ export default function SharedVoiceCallScreen() {
               currentCall.status,
             )
           ) {
-            void disconnectLiveKit();
-
-            exitScreen();
+            handleGoBack();
 
             return true;
           }
@@ -1868,24 +2470,15 @@ export default function SharedVoiceCallScreen() {
             "Do you want to end this Fixxam voice call?",
             [
               {
-                text:
-                  "Stay",
-
-                style:
-                  "cancel",
+                text: "Stay",
+                style: "cancel",
               },
-
               {
-                text:
-                  "End Call",
-
-                style:
-                  "destructive",
-
-                onPress:
-                  () => {
-                    void handleEndCall();
-                  },
+                text: "End Call",
+                style: "destructive",
+                onPress: () => {
+                  void handleEndCall();
+                },
               },
             ],
           );
@@ -1898,27 +2491,22 @@ export default function SharedVoiceCallScreen() {
       subscription.remove();
     };
   }, [
-    disconnectLiveKit,
-    exitScreen,
     handleEndCall,
+    handleGoBack,
   ]);
 
   /* ==========================================================
-     LOADING
+  LOADING
   ========================================================== */
 
-  if (
-    loading
-  ) {
+  if (loading) {
     return (
       <AppScreen
         role="customer"
         padded={false}
       >
         <View
-          style={
-            styles.center
-          }
+          style={styles.center}
         >
           <ActivityIndicator
             size="large"
@@ -1940,21 +2528,17 @@ export default function SharedVoiceCallScreen() {
   }
 
   /* ==========================================================
-     CALL NOT AVAILABLE
+  CALL NOT AVAILABLE
   ========================================================== */
 
-  if (
-    !call
-  ) {
+  if (!call) {
     return (
       <AppScreen
         role="customer"
         padded={false}
       >
         <View
-          style={
-            styles.center
-          }
+          style={styles.center}
         >
           <AppText
             variant="heading2"
@@ -1980,15 +2564,14 @@ export default function SharedVoiceCallScreen() {
             accessibilityRole="button"
             accessibilityLabel="Close call"
             onPress={
-              exitScreen
+              handleGoBack
             }
-            style={({
-              pressed,
-            }) => [
+            style={({ pressed }) => [
               styles.closeButton,
 
-              pressed &&
-                styles.pressed,
+              pressed
+                ? styles.pressed
+                : null,
             ]}
           >
             <AppText
@@ -2007,16 +2590,14 @@ export default function SharedVoiceCallScreen() {
   }
 
   /* ==========================================================
-     CALL ROOM
+  CALL ROOM
   ========================================================== */
 
   return (
     <AppScreen
       role={
-        call.callerId ===
-          currentUserId
-          ? call.callerRole
-          : call.calleeRole
+        currentUserRole ??
+        "customer"
       }
       padded={false}
     >
@@ -2030,6 +2611,9 @@ export default function SharedVoiceCallScreen() {
         connectedAt={
           connectedAt
         }
+        remoteRole={
+          remoteRole
+        }
         audioControlsDisabled={
           !audioControlsReady
         }
@@ -2040,7 +2624,12 @@ export default function SharedVoiceCallScreen() {
           handleToggleSpeaker
         }
         onEndCall={
-          handleEndCall
+          call &&
+          isActiveCall(
+            call.status,
+          )
+            ? handleEndCall
+            : handleGoBack
         }
       />
     </AppScreen>
@@ -2048,7 +2637,7 @@ export default function SharedVoiceCallScreen() {
 }
 
 /* ============================================================
-   STYLES
+STYLES
 ============================================================ */
 
 const styles =
@@ -2062,25 +2651,32 @@ const styles =
       justifyContent:
         "center",
 
-      paddingHorizontal: 28,
+      paddingHorizontal:
+        28,
     },
 
     loadingText: {
-      marginTop: 14,
+      marginTop:
+        14,
     },
 
     errorText: {
-      marginTop: 10,
+      marginTop:
+        10,
 
-      maxWidth: 320,
+      maxWidth:
+        320,
 
-      lineHeight: 22,
+      lineHeight:
+        22,
     },
 
     closeButton: {
-      minWidth: 140,
+      minWidth:
+        140,
 
-      marginTop: 24,
+      marginTop:
+        24,
 
       alignItems:
         "center",
@@ -2088,11 +2684,14 @@ const styles =
       justifyContent:
         "center",
 
-      paddingHorizontal: 24,
+      paddingHorizontal:
+        24,
 
-      paddingVertical: 14,
+      paddingVertical:
+        14,
 
-      borderRadius: 999,
+      borderRadius:
+        999,
 
       backgroundColor:
         "#1684E8",
@@ -2104,11 +2703,13 @@ const styles =
     },
 
     pressed: {
-      opacity: 0.8,
+      opacity:
+        0.8,
 
       transform: [
         {
-          scale: 0.98,
+          scale:
+            0.98,
         },
       ],
     },

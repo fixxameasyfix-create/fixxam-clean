@@ -19,13 +19,18 @@ import {
   styles,
 } from "./marketChatStyles";
 
+/* ============================================================
+   COMPONENT
+============================================================ */
+
 function MarketChatEmptyComponent() {
   return (
     <View
+      accessible
+      accessibilityLabel="No messages yet. Start a conversation with the store about this order."
       style={
         styles.emptyContainer
       }
-      accessibilityLabel="No messages yet"
     >
       <View
         style={
@@ -35,7 +40,7 @@ function MarketChatEmptyComponent() {
         <AppIcon
           name="messages"
           role="customer"
-          size="lg"
+          size="md"
           color={
             CustomerColors.primary
           }
@@ -43,14 +48,14 @@ function MarketChatEmptyComponent() {
       </View>
 
       <AppText
-        variant="body"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
         center
         style={
           styles.emptyTitle
         }
       >
-        Start a conversation
+        No messages yet
       </AppText>
 
       <AppText
@@ -66,6 +71,10 @@ function MarketChatEmptyComponent() {
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
 
 const MarketChatEmpty =
   memo(

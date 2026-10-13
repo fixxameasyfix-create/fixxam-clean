@@ -36,16 +36,17 @@ type Props = {
 function AgreedPriceCardComponent({
   amount,
 }: Props) {
+  const formattedAmount =
+    formatAmount(amount);
+
   return (
     <View
       style={styles.card}
       accessibilityRole="summary"
-      accessibilityLabel={`Agreed service amount ${formatAmount(
-        amount,
-      )}`}
+      accessibilityLabel={`Agreed service amount ${formattedAmount}`}
     >
       {/* ======================================================
-          STATUS ICON
+          ICON
       ====================================================== */}
 
       <View
@@ -53,7 +54,7 @@ function AgreedPriceCardComponent({
       >
         <AppIcon
           name="success"
-          size="md"
+          size="xs"
           color={
             Colors.success
           }
@@ -67,46 +68,46 @@ function AgreedPriceCardComponent({
       <View
         style={styles.content}
       >
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={styles.label}
+        <View
+          style={styles.priceRow}
         >
-          AGREED SERVICE AMOUNT
-        </AppText>
+          <View
+            style={
+              styles.labelContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={1}
+              style={styles.label}
+            >
+              Agreed price
+            </AppText>
 
-        <AppText
-          variant="heading3"
-          weight="bold"
-          style={styles.amount}
-        >
-          {formatAmount(
-            amount,
-          )}
-        </AppText>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={styles.text}
+            >
+              Final service amount
+            </AppText>
+          </View>
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={styles.text}
-        >
-          This is the final amount agreed between you and the worker.
-        </AppText>
+          <AppText
+            variant="bodyLarge"
+            weight="bold"
+            numberOfLines={1}
+            style={styles.amount}
+          >
+            {formattedAmount}
+          </AppText>
+        </View>
       </View>
     </View>
   );
 }
-
-/* ============================================================
-   MEMO
-============================================================ */
-
-const AgreedPriceCard =
-  memo(
-    AgreedPriceCardComponent,
-  );
-
-export default AgreedPriceCard;
 
 /* ============================================================
    STYLES
@@ -115,21 +116,29 @@ export default AgreedPriceCard;
 const styles =
   StyleSheet.create({
     card: {
+      width:
+        "100%",
+
+      minHeight:
+        58,
+
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.sm,
 
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.md,
+      paddingVertical:
+        8,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
-        "flex-start",
+        "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.success,
@@ -139,20 +148,24 @@ const styles =
 
       backgroundColor:
         Colors.successSoft,
-
-      ...FixxamTokens.shadow.card,
     },
+
+    /* ========================================================
+       ICON
+    ======================================================== */
 
     icon: {
       width:
-        FixxamTokens.size.iconBox,
+        34,
 
       height:
-        FixxamTokens.size.iconBox,
+        34,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -164,37 +177,81 @@ const styles =
         Colors.surface,
     },
 
-    content: {
-      flex: 1,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-      minWidth: 0,
+    content: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+    },
+
+    priceRow: {
+      width:
+        "100%",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    labelContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     label: {
-      letterSpacing: 0.5,
-
       color:
         Colors.success,
     },
 
-    amount: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textPrimary,
-    },
-
     text: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
 
-      lineHeight: 16,
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,
     },
+
+    amount: {
+      flexShrink:
+        0,
+
+      color:
+        Colors.textPrimary,
+    },
   });
+
+/* ============================================================
+   MEMO / EXPORT
+============================================================ */
+
+const AgreedPriceCard =
+  memo(
+    AgreedPriceCardComponent,
+  );
+
+AgreedPriceCard.displayName =
+  "AgreedPriceCard";
+
+export default AgreedPriceCard;

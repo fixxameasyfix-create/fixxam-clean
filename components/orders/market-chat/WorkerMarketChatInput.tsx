@@ -1,16 +1,18 @@
 import React, {
   memo,
-  useState,
+  useCallback,
 } from "react";
 
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
-  StyleSheet,
   TextInput,
   View,
 } from "react-native";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
   AppIcon,
@@ -19,9 +21,12 @@ import {
 import {
   Colors,
   FixxamTokens,
-  Typography,
   WorkerColors,
 } from "@/theme";
+
+import {
+  styles,
+} from "./workerMarketChatStyles";
 
 /* ==============================================================
    TYPES
@@ -68,15 +73,8 @@ function WorkerMarketChatInput({
   onFocus,
   onSend,
 }: Props) {
-  const [
-    focused,
-    setFocused,
-  ] =
-    useState(false);
-
-  /* ============================================================
-     STATE
-  ============================================================ */
+  const insets =
+    useSafeAreaInsets();
 
   const canCompose =
     !sending &&
@@ -93,24 +91,22 @@ function WorkerMarketChatInput({
     !hasMessage;
 
   /* ============================================================
-     FOCUS
+     SEND
   ============================================================ */
 
-  const handleFocus =
-    () => {
-      setFocused(
-        true,
-      );
+  const handleSend =
+    useCallback(() => {
+      if (
+        sendDisabled
+      ) {
+        return;
+      }
 
-      onFocus();
-    };
-
-  const handleBlur =
-    () => {
-      setFocused(
-        false,
-      );
-    };
+      onSend();
+    }, [
+      onSend,
+      sendDisabled,
+    ]);
 
   /* ============================================================
      UI
@@ -118,24 +114,27 @@ function WorkerMarketChatInput({
 
   return (
     <View
-      style={
-        styles.inputArea
-      }
+      style={[
+        styles.inputArea,
+
+        {
+          paddingBottom:
+            Math.max(
+              insets.bottom,
+              FixxamTokens.spacing.sm,
+            ),
+        },
+      ]}
     >
       <View
-        style={[
-          styles.inputContainer,
-
-          focused &&
-          canCompose
-            ? styles.inputContainerFocused
-            : null,
-
-          !canCompose
-            ? styles.inputContainerDisabled
-            : null,
-        ]}
+        style={
+          styles.inputContainer
+        }
       >
+        {/* ====================================================
+            INPUT
+        ==================================================== */}
+
         <TextInput
           value={
             text
@@ -144,16 +143,9 @@ function WorkerMarketChatInput({
             onChangeText
           }
           onFocus={
-            handleFocus
+            onFocus
           }
-          onBlur={
-            handleBlur
-          }
-          placeholder={
-            orderAvailable
-              ? "Reply to customer..."
-              : "Chat unavailable"
-          }
+          placeholder="Type a message..."
           placeholderTextColor={
             Colors.textMuted
           }
@@ -170,14 +162,11 @@ function WorkerMarketChatInput({
           editable={
             canCompose
           }
-          blurOnSubmit={
-            false
-          }
-          returnKeyType="default"
           textAlignVertical="center"
           autoCorrect
           autoCapitalize="sentences"
-          accessibilityLabel="Message customer"
+          accessibilityLabel="Message"
+          accessibilityHint="Type a message to the customer"
           accessibilityState={{
             disabled:
               !canCompose,
@@ -187,9 +176,13 @@ function WorkerMarketChatInput({
           }
         />
 
+        {/* ====================================================
+            SEND
+        ==================================================== */}
+
         <Pressable
           onPress={
-            onSend
+            handleSend
           }
           disabled={
             sendDisabled
@@ -203,18 +196,11 @@ function WorkerMarketChatInput({
             busy:
               sending,
           }}
-          style={({
-            pressed,
-          }) => [
+          style={[
             styles.sendButton,
 
             sendDisabled
               ? styles.sendDisabled
-              : null,
-
-            pressed &&
-            !sendDisabled
-              ? styles.sendPressed
               : null,
           ]}
         >
@@ -227,7 +213,7 @@ function WorkerMarketChatInput({
             />
           ) : (
             <AppIcon
-              name="arrow-up"
+              name="next"
               role="worker"
               size="sm"
               color={
@@ -244,157 +230,3 @@ function WorkerMarketChatInput({
 export default memo(
   WorkerMarketChatInput,
 );
-
-/* ==============================================================
-   STYLES
-============================================================== */
-
-const styles =
-  StyleSheet.create({
-    inputArea: {
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.sm,
-
-      paddingBottom:
-        Platform.OS ===
-        "ios"
-          ? FixxamTokens.spacing.lg
-          : FixxamTokens.spacing.sm,
-
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
-
-      borderTopColor:
-        Colors.divider,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    /* ==========================================================
-       INPUT
-    ========================================================== */
-
-    inputContainer: {
-      minHeight: 52,
-
-      maxHeight: 120,
-
-      paddingLeft:
-        FixxamTokens.spacing.md,
-
-      paddingRight:
-        FixxamTokens.spacing.xs,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-end",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    inputContainerFocused: {
-      borderColor:
-        WorkerColors.primary,
-    },
-
-    inputContainerDisabled: {
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    input: {
-      flex: 1,
-
-      minWidth: 0,
-
-      minHeight: 44,
-
-      maxHeight: 104,
-
-      paddingHorizontal: 0,
-
-      paddingTop:
-        FixxamTokens.spacing.sm,
-
-      paddingBottom:
-        FixxamTokens.spacing.sm,
-
-      fontSize:
-        Typography.fontSize.md,
-
-      lineHeight: 20,
-
-      color:
-        Colors.textPrimary,
-
-      includeFontPadding:
-        false,
-    },
-
-    /* ==========================================================
-       SEND
-    ========================================================== */
-
-    sendButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      marginLeft:
-        FixxamTokens.spacing.xs,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primary,
-    },
-
-    sendDisabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    sendPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-  });

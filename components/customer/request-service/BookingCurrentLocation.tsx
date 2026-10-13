@@ -65,7 +65,7 @@ function BookingCurrentLocation({
         <AppIcon
           name="location"
           role="customer"
-          size="sm"
+          size="md"
           state="active"
         />
       </View>
@@ -79,13 +79,44 @@ function BookingCurrentLocation({
           styles.content
         }
       >
-        <AppText
-          variant="bodyMedium"
-          weight="bold"
-          numberOfLines={1}
+        <View
+          style={
+            styles.titleRow
+          }
         >
-          Current location
-        </AppText>
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            numberOfLines={1}
+            style={
+              styles.title
+            }
+          >
+            Current location
+          </AppText>
+
+          <View
+            style={
+              styles.statusBadge
+            }
+          >
+            <View
+              style={
+                styles.statusDot
+              }
+            />
+
+            <AppText
+              variant="caption"
+              weight="semibold"
+              style={
+                styles.statusText
+              }
+            >
+              GPS
+            </AppText>
+          </View>
+        </View>
 
         <AppText
           variant="caption"
@@ -114,13 +145,14 @@ function BookingCurrentLocation({
         accessibilityState={{
           disabled:
             loading,
+
           busy:
             loading,
         }}
         disabled={
           loading
         }
-        hitSlop={6}
+        hitSlop={8}
         onPress={
           onRefresh
         }
@@ -166,11 +198,11 @@ function BookingCurrentLocation({
 const styles =
   StyleSheet.create({
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       minHeight:
-        FixxamTokens.size
-          .cardMinHeight,
+        82,
 
       flexDirection:
         "row",
@@ -181,8 +213,17 @@ const styles =
       marginTop:
         FixxamTokens.spacing.sm,
 
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.md,
+
+      borderColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     /* ========================================================
@@ -191,14 +232,13 @@ const styles =
 
     iconBox: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        52,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        52,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -207,8 +247,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
         CustomerColors.primarySoft,
@@ -219,17 +258,86 @@ const styles =
     ======================================================== */
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      marginHorizontal:
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      marginRight:
         FixxamTokens.spacing.sm,
+    },
+
+    titleRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      flexShrink:
+        1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    statusBadge: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    statusDot: {
+      width:
+        6,
+
+      height:
+        6,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    statusText: {
+      color:
+        CustomerColors.primary,
     },
 
     address: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens.spacing.xs,
+
+      lineHeight:
+        18,
 
       color:
         Colors.textSecondary,
@@ -241,14 +349,13 @@ const styles =
 
     refreshButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        42,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        42,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -256,43 +363,28 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    refreshPressed: {
-      borderColor:
-        CustomerColors.primary,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         CustomerColors.primarySoft,
+    },
 
+    refreshPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
 
     refreshDisabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
   });
 

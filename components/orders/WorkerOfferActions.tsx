@@ -86,22 +86,34 @@ function WorkerOfferActions({
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
       {/* =====================================================
           ACCEPT
       ===================================================== */}
 
       <Pressable
-        disabled={loading}
-        onPress={onAccept}
+        disabled={
+          loading
+        }
+        onPress={
+          onAccept
+        }
         accessibilityRole="button"
         accessibilityLabel={`Accept ₦${formattedAmount}`}
+        accessibilityHint="Accept the customer's offer"
         accessibilityState={{
-          disabled: loading,
-          busy: loading,
+          disabled:
+            loading,
+
+          busy:
+            loading,
         }}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.acceptButton,
 
           pressed &&
@@ -123,20 +135,14 @@ function WorkerOfferActions({
           />
         ) : (
           <>
-            <View
-              style={
-                styles.acceptIcon
+            <AppIcon
+              name="check"
+              role="worker"
+              size="xs"
+              color={
+                Colors.textInverse
               }
-            >
-              <AppIcon
-                name="check"
-                role="worker"
-                size="sm"
-                color={
-                  Colors.textInverse
-                }
-              />
-            </View>
+            />
 
             <AppText
               variant="caption"
@@ -146,7 +152,7 @@ function WorkerOfferActions({
                 styles.acceptText
               }
             >
-              ACCEPT ₦
+              Accept ₦
               {formattedAmount}
             </AppText>
           </>
@@ -158,21 +164,29 @@ function WorkerOfferActions({
       ===================================================== */}
 
       <View
-        style={styles.bottomRow}
+        style={
+          styles.bottomRow
+        }
       >
-        {/* ===================================================
-            COUNTER
-        =================================================== */}
+        {/* COUNTER */}
 
         <Pressable
-          disabled={loading}
-          onPress={onCounter}
+          disabled={
+            loading
+          }
+          onPress={
+            onCounter
+          }
           accessibilityRole="button"
           accessibilityLabel="Send counter offer"
+          accessibilityHint="Send a different price to the customer"
           accessibilityState={{
-            disabled: loading,
+            disabled:
+              loading,
           }}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.counterButton,
 
             pressed &&
@@ -185,20 +199,14 @@ function WorkerOfferActions({
               : null,
           ]}
         >
-          <View
-            style={
-              styles.counterIcon
+          <AppIcon
+            name="refresh"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
             }
-          >
-            <AppIcon
-              name="refresh"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
+          />
 
           <AppText
             variant="caption"
@@ -208,23 +216,29 @@ function WorkerOfferActions({
               styles.counterText
             }
           >
-            COUNTER
+            Counter
           </AppText>
         </Pressable>
 
-        {/* ===================================================
-            DECLINE
-        =================================================== */}
+        {/* DECLINE */}
 
         <Pressable
-          disabled={loading}
-          onPress={onDecline}
+          disabled={
+            loading
+          }
+          onPress={
+            onDecline
+          }
           accessibilityRole="button"
           accessibilityLabel="Decline offer"
+          accessibilityHint="Decline the customer's offer"
           accessibilityState={{
-            disabled: loading,
+            disabled:
+              loading,
           }}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.declineButton,
 
             pressed &&
@@ -237,19 +251,13 @@ function WorkerOfferActions({
               : null,
           ]}
         >
-          <View
-            style={
-              styles.declineIcon
+          <AppIcon
+            name="close"
+            size="xs"
+            color={
+              Colors.error
             }
-          >
-            <AppIcon
-              name="error"
-              size="sm"
-              color={
-                Colors.error
-              }
-            />
-          </View>
+          />
 
           <AppText
             variant="caption"
@@ -259,13 +267,20 @@ function WorkerOfferActions({
               styles.declineText
             }
           >
-            DECLINE
+            Decline
           </AppText>
         </Pressable>
       </View>
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerOfferActions.displayName =
+  "WorkerOfferActions";
 
 export default memo(
   WorkerOfferActions,
@@ -278,10 +293,11 @@ export default memo(
 const styles =
   StyleSheet.create({
     container: {
-      width: "100%",
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
@@ -289,19 +305,27 @@ const styles =
     ======================================================== */
 
     acceptButton: {
+      width:
+        "100%",
+
       minHeight:
         FixxamTokens.size
-          .buttonHeight,
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
 
       borderRadius:
         FixxamTokens.radius.button,
@@ -310,30 +334,9 @@ const styles =
         WorkerColors.primary,
     },
 
-    acceptIcon: {
-      width: 38,
-
-      height: 38,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        "rgba(255,255,255,0.18)",
-    },
-
     acceptText: {
-      flexShrink: 1,
-
-      letterSpacing: 0.2,
+      flexShrink:
+        1,
 
       color:
         Colors.textInverse,
@@ -344,13 +347,20 @@ const styles =
     ======================================================== */
 
     bottomRow: {
-      marginTop:
-        FixxamTokens.spacing.sm,
+      width:
+        "100%",
 
-      flexDirection: "row",
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
     },
 
     /* ========================================================
@@ -358,23 +368,33 @@ const styles =
     ======================================================== */
 
     counterButton: {
-      flex: 1,
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       minHeight:
         FixxamTokens.size
-          .buttonHeight,
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         WorkerColors.primary,
@@ -386,32 +406,9 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    counterIcon: {
-      width: 38,
-
-      height: 38,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      flexShrink: 0,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
     counterText: {
-      flexShrink: 1,
-
-      letterSpacing: 0.2,
+      flexShrink:
+        1,
 
       color:
         WorkerColors.primary,
@@ -422,23 +419,33 @@ const styles =
     ======================================================== */
 
     declineButton: {
-      flex: 1,
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       minHeight:
         FixxamTokens.size
-          .buttonHeight,
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.error,
@@ -447,35 +454,12 @@ const styles =
         FixxamTokens.radius.button,
 
       backgroundColor:
-        Colors.errorSoft,
-    },
-
-    declineIcon: {
-      width: 38,
-
-      height: 38,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      flexShrink: 0,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
         Colors.surface,
     },
 
     declineText: {
-      flexShrink: 1,
-
-      letterSpacing: 0.2,
+      flexShrink:
+        1,
 
       color:
         Colors.error,

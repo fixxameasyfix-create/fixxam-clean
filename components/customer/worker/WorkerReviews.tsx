@@ -1,17 +1,43 @@
 import React, {
   memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import {
+  ActivityIndicator,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  AppCard,
+  router,
+} from "expo-router";
+
+import {
+  collection,
+  doc,
+  getDoc,
+  limit,
+  onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
+  Timestamp,
+  where,
+} from "firebase/firestore";
+
+import {
   AppIcon,
   AppText,
 } from "@/components/ui";
+
+import {
+  auth,
+  db,
+} from "@/firebase/config";
 
 import {
   Colors,
@@ -19,370 +45,901 @@ import {
   FixxamTokens,
 } from "@/theme";
 
+import WorkerReviewSummary from "./reviews/WorkerReviewSummary";
+import WorkerReviewForm from "./reviews/WorkerReviewForm";
+import WorkerReviewsList from "./reviews/WorkerReviewsList";
+
+import {
+  cleanString,
+  getFirestoreCode,
+  MAX_COMMENT_LENGTH,
+  MAX_VISIBLE_REVIEWS,
+  MIN_COMMENT_LENGTH,
+  normalizeCount,
+  normalizeRating,
+  STAR_COUNT,
+  type ReviewEligibility,
+  type WorkerReview,
+} from "./reviews/reviewUtils";
+
 /* ==============================================================
    TYPES
 ============================================================== */
 
-type Review = {
-  id: string;
-
-  customerName: string;
-
-  rating: number;
-
-  comment: string;
-
-  date: string;
-};
-
 type Props = {
+  workerId: string;
+
+  workerName: string;
+
   rating: number;
 
   totalReviews: number;
-
-  reviews: Review[];
 };
 
 /* ==============================================================
-   CONSTANTS
+   CUSTOMER NAME
 ============================================================== */
 
-const MAX_VISIBLE_REVIEWS =
-  3;
+async function resolveCustomerName(
+  customerId: string,
+): Promise<string> {
+  const user =
+    auth.currentUser;
 
-const STAR_COUNT =
-  5;
-
-/* ==============================================================
-   HELPERS
-============================================================== */
-
-function cleanString(
-  value: unknown,
-): string {
-  if (
-    typeof value !==
-    "string"
-  ) {
-    return "";
-  }
-
-  return value.trim();
-}
-
-function normalizeRating(
-  value: number,
-): number {
-  if (
-    !Number.isFinite(
-      value,
-    )
-  ) {
-    return 0;
-  }
-
-  return Math.min(
-    5,
-    Math.max(
-      0,
-      value,
-    ),
-  );
-}
-
-function normalizeCount(
-  value: number,
-): number {
-  if (
-    !Number.isFinite(
-      value,
-    )
-  ) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    Math.floor(
-      value,
-    ),
-  );
-}
-
-function getRatingLabel(
-  rating: number,
-): string {
-  if (
-    rating >= 4.5
-  ) {
-    return "Excellent";
-  }
-
-  if (
-    rating >= 4
-  ) {
-    return "Very Good";
-  }
-
-  if (
-    rating >= 3
-  ) {
-    return "Good";
-  }
-
-  if (
-    rating >= 2
-  ) {
-    return "Fair";
-  }
-
-  if (
-    rating > 0
-  ) {
-    return "Needs Improvement";
-  }
-
-  return "New";
-}
-
-function getInitial(
-  name: string,
-): string {
-  const cleanName =
+  const authName =
     cleanString(
-      name,
+      user?.displayName,
     );
 
   if (
-    !cleanName
+    authName
   ) {
-    return "C";
+    return authName;
   }
 
-  return cleanName
-    .charAt(0)
-    .toUpperCase();
-}
-
-/* ==============================================================
-   REVIEW STARS
-============================================================== */
-
-const ReviewStars =
-  memo(function ReviewStars({
-    rating,
-  }: {
-    rating: number;
-  }) {
-    const normalizedRating =
-      normalizeRating(
-        rating,
+  try {
+    const userSnapshot =
+      await getDoc(
+        doc(
+          db,
+          "users",
+          customerId,
+        ),
       );
 
-    const activeStars =
-      Math.round(
-        normalizedRating,
-      );
+    if (
+      userSnapshot.exists()
+    ) {
+      const data =
+        userSnapshot.data();
 
-    return (
-      <View
-        style={
-          styles.ratingRow
-        }
-        accessibilityLabel={`${normalizedRating.toFixed(
-          1,
-        )} out of 5 stars`}
-      >
-        {Array.from({
-          length:
-            STAR_COUNT,
-        }).map(
-          (
-            _,
-            index,
-          ) => (
-            <View
-              key={
-                index
-              }
-              style={
-                styles.starItem
-              }
-            >
-              <AppIcon
-                name="star"
-                role="customer"
-                size="xs"
-                color={
-                  index <
-                  activeStars
-                    ? Colors.warning
-                    : Colors.disabled
-                }
-              />
-            </View>
+      const fullName =
+        cleanString(
+          data.fullName,
+        );
+
+      if (
+        fullName
+      ) {
+        return fullName;
+      }
+
+      const joinedName =
+        [
+          cleanString(
+            data.firstName,
           ),
-        )}
-      </View>
+
+          cleanString(
+            data.otherName,
+          ),
+
+          cleanString(
+            data.surname,
+          ),
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(
+            " ",
+          )
+          .trim();
+
+      if (
+        joinedName
+      ) {
+        return joinedName;
+      }
+
+      const fallbackName =
+        cleanString(
+          data.name,
+        );
+
+      if (
+        fallbackName
+      ) {
+        return fallbackName;
+      }
+    }
+  } catch (
+    error
+  ) {
+    console.warn(
+      "RESOLVE_REVIEW_CUSTOMER_NAME_ERROR:",
+      error,
     );
-  });
+  }
 
-/* ==============================================================
-   REVIEW CARD
-============================================================== */
-
-const ReviewCard =
-  memo(function ReviewCard({
-    review,
-  }: {
-    review: Review;
-  }) {
-    const customerName =
-      cleanString(
-        review.customerName,
-      ) ||
-      "Customer";
-
-    const comment =
-      cleanString(
-        review.comment,
-      );
-
-    const date =
-      cleanString(
-        review.date,
-      );
-
-    return (
-      <AppCard
-        role="customer"
-        variant="outlined"
-        style={
-          styles.card
-        }
-      >
-        <View
-          style={
-            styles.row
-          }
-        >
-          {/* ==================================================
-              AVATAR
-          ================================================== */}
-
-          <View
-            style={
-              styles.avatar
-            }
-          >
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.avatarText
-              }
-            >
-              {getInitial(
-                customerName,
-              )}
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              CUSTOMER
-          ================================================== */}
-
-          <View
-            style={
-              styles.customerInfo
-            }
-          >
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              numberOfLines={1}
-            >
-              {customerName}
-            </AppText>
-
-            <ReviewStars
-              rating={
-                review.rating
-              }
-            />
-          </View>
-
-          {/* ==================================================
-              DATE
-          ================================================== */}
-
-          {date ? (
-            <AppText
-              variant="caption"
-              tone="muted"
-              numberOfLines={1}
-              style={
-                styles.date
-              }
-            >
-              {date}
-            </AppText>
-          ) : null}
-        </View>
-
-        {/* ====================================================
-            COMMENT
-        ==================================================== */}
-
-        {comment ? (
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={3}
-            style={
-              styles.comment
-            }
-          >
-            {comment}
-          </AppText>
-        ) : null}
-      </AppCard>
-    );
-  });
+  return "Customer";
+}
 
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
 function WorkerReviews({
+  workerId,
+  workerName,
   rating,
   totalReviews,
-  reviews,
 }: Props) {
+  /* ============================================================
+     REVIEWS
+  ============================================================ */
+
+  const [
+    reviews,
+    setReviews,
+  ] =
+    useState<WorkerReview[]>(
+      [],
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
+
+  /* ============================================================
+     ELIGIBILITY
+  ============================================================ */
+
+  const [
+    eligibility,
+    setEligibility,
+  ] =
+    useState<ReviewEligibility>(
+      "checking",
+    );
+
+  /* ============================================================
+     FORM
+  ============================================================ */
+
+  const [
+    selectedRating,
+    setSelectedRating,
+  ] =
+    useState(0);
+
+  const [
+    comment,
+    setComment,
+  ] =
+    useState("");
+
+  const [
+    submitting,
+    setSubmitting,
+  ] =
+    useState(false);
+
+  const [
+    submitError,
+    setSubmitError,
+  ] =
+    useState<string | null>(
+      null,
+    );
+
+  const [
+    submittedRating,
+    setSubmittedRating,
+  ] =
+    useState<number | null>(
+      null,
+    );
+
+  /* ============================================================
+     NORMALIZED VALUES
+  ============================================================ */
+
+  const cleanWorkerId =
+    useMemo(
+      () =>
+        cleanString(
+          workerId,
+        ),
+      [
+        workerId,
+      ],
+    );
+
+  const cleanWorkerName =
+    useMemo(
+      () =>
+        cleanString(
+          workerName,
+        ) ||
+        "Worker",
+      [
+        workerName,
+      ],
+    );
+
   const safeRating =
-    normalizeRating(
-      rating,
+    useMemo(
+      () =>
+        normalizeRating(
+          rating,
+        ),
+      [
+        rating,
+      ],
     );
 
   const safeTotalReviews =
-    normalizeCount(
-      totalReviews,
+    useMemo(
+      () =>
+        normalizeCount(
+          totalReviews,
+        ),
+      [
+        totalReviews,
+      ],
     );
 
-  const ratingLabel =
-    getRatingLabel(
-      safeRating,
+  const customerId =
+    cleanString(
+      auth.currentUser?.uid,
     );
 
-  const visibleReviews =
-    Array.isArray(
-      reviews,
-    )
-      ? reviews.slice(
-          0,
-          MAX_VISIBLE_REVIEWS,
+  /* ============================================================
+     DISPLAY SUMMARY
+  ============================================================ */
+
+  const displayTotalReviews =
+    submittedRating !==
+    null
+      ? safeTotalReviews +
+        1
+      : safeTotalReviews;
+
+  const displayRating =
+    submittedRating !==
+    null
+      ? (
+          safeRating *
+            safeTotalReviews +
+          submittedRating
+        ) /
+        Math.max(
+          1,
+          safeTotalReviews +
+            1,
         )
-      : [];
+      : safeRating;
+
+  /* ============================================================
+     FORM VALIDATION
+  ============================================================ */
+
+  const cleanComment =
+    comment.trim();
+
+  const canSubmit =
+    eligibility ===
+      "eligible" &&
+    !submitting &&
+    selectedRating >=
+      1 &&
+    selectedRating <=
+      STAR_COUNT &&
+    cleanComment.length >=
+      MIN_COMMENT_LENGTH &&
+    cleanComment.length <=
+      MAX_COMMENT_LENGTH;
+
+  /* ============================================================
+     PUBLIC REVIEWS LISTENER
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !cleanWorkerId
+    ) {
+      setReviews(
+        [],
+      );
+
+      setLoading(
+        false,
+      );
+
+      return;
+    }
+
+    setLoading(
+      true,
+    );
+
+    /*
+     * Public worker reviews are intentionally read from the
+     * publicWorkerReviews mirror collection.
+     *
+     * The original "reviews" collection remains protected because
+     * it contains customerId and other protected review data.
+     *
+     * publicWorkerReviews must contain only safe public fields.
+     *
+     * We intentionally avoid Firestore orderBy here.
+     *
+     * The full Reviews screen already uses this pattern because
+     * where(workerId) + orderBy(createdAt) requires a composite
+     * Firestore index.
+     *
+     * Fetch the worker's public reviews and sort locally instead.
+     */
+
+    const reviewsQuery =
+      query(
+        collection(
+          db,
+          "publicWorkerReviews",
+        ),
+
+        where(
+          "workerId",
+          "==",
+          cleanWorkerId,
+        ),
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        reviewsQuery,
+
+        (
+          snapshot,
+        ) => {
+          const nextReviews =
+            snapshot.docs
+              .map(
+                (
+                  snapshotDoc,
+                ): WorkerReview => {
+                  const data =
+                    snapshotDoc.data();
+
+                  return {
+                    id:
+                      snapshotDoc.id,
+
+                    /*
+                     * customerId is intentionally not exposed by
+                     * the public mirror.
+                     *
+                     * The existing WorkerReview type expects this
+                     * property, so an empty value is used here.
+                     */
+                    customerId:
+                      "",
+
+                    customerName:
+                      cleanString(
+                        data.customerName,
+                      ) ||
+                      "Customer",
+
+                    workerId:
+                      cleanString(
+                        data.workerId,
+                      ),
+
+                    workerName:
+                      cleanString(
+                        data.workerName,
+                      ) ||
+                      "Worker",
+
+                    rating:
+                      normalizeRating(
+                        data.rating,
+                      ),
+
+                    comment:
+                      cleanString(
+                        data.comment,
+                      ),
+
+                    createdAt:
+                      data.createdAt instanceof
+                      Timestamp
+                        ? data.createdAt
+                        : null,
+                  };
+                },
+              )
+              .filter(
+                (
+                  review,
+                ) =>
+                  review.rating >
+                  0,
+              )
+              .sort(
+                (
+                  first,
+                  second,
+                ) => {
+                  const firstTime =
+                    first.createdAt?.toMillis() ??
+                    0;
+
+                  const secondTime =
+                    second.createdAt?.toMillis() ??
+                    0;
+
+                  return (
+                    secondTime -
+                    firstTime
+                  );
+                },
+              )
+              .slice(
+                0,
+                MAX_VISIBLE_REVIEWS,
+              );
+
+          setReviews(
+            nextReviews,
+          );
+
+          setLoading(
+            false,
+          );
+        },
+
+        (
+          listenerError,
+        ) => {
+          console.error(
+            "WORKER_PUBLIC_REVIEWS_LISTENER_ERROR:",
+            listenerError,
+          );
+
+          setReviews(
+            [],
+          );
+
+          setLoading(
+            false,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, [
+    cleanWorkerId,
+  ]);
+
+  /* ============================================================
+     PREPARE REVIEW FORM
+
+     Multiple reviews are now supported.
+
+     We no longer check whether this customer has already reviewed
+     this worker. A signed-in customer may create another review.
+  ============================================================ */
+
+  useEffect(() => {
+    const customer =
+      auth.currentUser;
+
+    if (
+      !customer
+    ) {
+      setEligibility(
+        "ineligible",
+      );
+
+      setSubmitError(
+        "Please sign in before leaving a review.",
+      );
+
+      return;
+    }
+
+    if (
+      !cleanWorkerId
+    ) {
+      setEligibility(
+        "ineligible",
+      );
+
+      setSubmitError(
+        "Worker information is unavailable.",
+      );
+
+      return;
+    }
+
+    if (
+      customer.uid ===
+      cleanWorkerId
+    ) {
+      setEligibility(
+        "ineligible",
+      );
+
+      setSubmitError(
+        "You cannot review your own worker profile.",
+      );
+
+      return;
+    }
+
+    setEligibility(
+      "eligible",
+    );
+
+    setSubmitError(
+      null,
+    );
+  }, [
+    cleanWorkerId,
+    customerId,
+  ]);
+
+  /* ============================================================
+     SELECT RATING
+  ============================================================ */
+
+  const handleSelectRating =
+    useCallback(
+      (
+        value: number,
+      ) => {
+        if (
+          submitting ||
+          value <
+            1 ||
+          value >
+            STAR_COUNT
+        ) {
+          return;
+        }
+
+        setSelectedRating(
+          value,
+        );
+
+        setSubmitError(
+          null,
+        );
+      },
+      [
+        submitting,
+      ],
+    );
+
+  /* ============================================================
+     COMMENT
+  ============================================================ */
+
+  const handleCommentChange =
+    useCallback(
+      (
+        value: string,
+      ) => {
+        if (
+          submitting
+        ) {
+          return;
+        }
+
+        setComment(
+          value.slice(
+            0,
+            MAX_COMMENT_LENGTH,
+          ),
+        );
+
+        setSubmitError(
+          null,
+        );
+      },
+      [
+        submitting,
+      ],
+    );
+
+  /* ============================================================
+     SUBMIT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(async () => {
+      if (
+        submitting ||
+        eligibility !==
+          "eligible"
+      ) {
+        return;
+      }
+
+      const customer =
+        auth.currentUser;
+
+      if (
+        !customer
+      ) {
+        setSubmitError(
+          "Please sign in before leaving a review.",
+        );
+
+        return;
+      }
+
+      if (
+        !cleanWorkerId
+      ) {
+        setSubmitError(
+          "Worker information is unavailable.",
+        );
+
+        return;
+      }
+
+      if (
+        customer.uid ===
+        cleanWorkerId
+      ) {
+        setSubmitError(
+          "You cannot review your own worker profile.",
+        );
+
+        return;
+      }
+
+      if (
+        selectedRating <
+          1 ||
+        selectedRating >
+          STAR_COUNT
+      ) {
+        setSubmitError(
+          "Please select a rating from 1 to 5 stars.",
+        );
+
+        return;
+      }
+
+      const reviewComment =
+        comment.trim();
+
+      if (
+        reviewComment.length <
+        MIN_COMMENT_LENGTH
+      ) {
+        setSubmitError(
+          "Please write a short review about this provider.",
+        );
+
+        return;
+      }
+
+      if (
+        reviewComment.length >
+        MAX_COMMENT_LENGTH
+      ) {
+        setSubmitError(
+          `Your review must be ${MAX_COMMENT_LENGTH} characters or less.`,
+        );
+
+        return;
+      }
+
+      try {
+        setSubmitting(
+          true,
+        );
+
+        setSubmitError(
+          null,
+        );
+
+        const customerName =
+          await resolveCustomerName(
+            customer.uid,
+          );
+
+        /*
+         * Firestore generates a unique document ID.
+         *
+         * This allows:
+         *
+         * Review 1
+         * Review 2
+         * Review 3
+         *
+         * from the same customer to the same worker.
+         */
+
+        const reviewRef =
+          doc(
+            collection(
+              db,
+              "reviews",
+            ),
+          );
+
+        await runTransaction(
+          db,
+
+          async (
+            transaction,
+          ) => {
+            transaction.set(
+              reviewRef,
+              {
+                customerId:
+                  customer.uid,
+
+                customerName,
+
+                workerId:
+                  cleanWorkerId,
+
+                workerName:
+                  cleanWorkerName,
+
+                targetId:
+                  cleanWorkerId,
+
+                targetType:
+                  "worker",
+
+                rating:
+                  selectedRating,
+
+                comment:
+                  reviewComment,
+
+                createdAt:
+                  serverTimestamp(),
+
+                updatedAt:
+                  serverTimestamp(),
+              },
+            );
+          },
+        );
+
+        setSubmittedRating(
+          selectedRating,
+        );
+
+        /*
+         * After the first submission from this profile section,
+         * keep the existing submitted confirmation.
+         *
+         * Additional reviews will later be created through
+         * "Say again" from the customer's own review card.
+         */
+
+        setEligibility(
+          "already-reviewed",
+        );
+
+        setSelectedRating(
+          0,
+        );
+
+        setComment(
+          "",
+        );
+
+        setSubmitError(
+          null,
+        );
+      } catch (
+        submitReviewError
+      ) {
+        console.error(
+          "SUBMIT_WORKER_REVIEW_ERROR:",
+          submitReviewError,
+        );
+
+        const firestoreCode =
+          getFirestoreCode(
+            submitReviewError,
+          );
+
+        if (
+          firestoreCode ===
+          "permission-denied"
+        ) {
+          setSubmitError(
+            "You don't have permission to submit this review.",
+          );
+
+          return;
+        }
+
+        if (
+          firestoreCode ===
+          "unavailable"
+        ) {
+          setSubmitError(
+            "Network connection is unavailable. Please try again.",
+          );
+
+          return;
+        }
+
+        setSubmitError(
+          "We couldn't submit your review. Please try again.",
+        );
+      } finally {
+        setSubmitting(
+          false,
+        );
+      }
+    }, [
+      cleanWorkerId,
+      cleanWorkerName,
+      comment,
+      eligibility,
+      selectedRating,
+      submitting,
+    ]);
+
+  /* ============================================================
+     VIEW ALL REVIEWS
+  ============================================================ */
+
+  const handleViewAllReviews =
+    useCallback(() => {
+      if (
+        !cleanWorkerId
+      ) {
+        return;
+      }
+
+      router.push({
+        pathname:
+          "/(customer)/worker/[worker]/reviews",
+
+        params: {
+          worker:
+            cleanWorkerId,
+
+          workerName:
+            cleanWorkerName,
+        },
+      } as never);
+    }, [
+      cleanWorkerId,
+      cleanWorkerName,
+    ]);
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <View
@@ -390,9 +947,7 @@ function WorkerReviews({
         styles.container
       }
     >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+      {/* HEADER */}
 
       <View
         style={
@@ -419,131 +974,187 @@ function WorkerReviews({
         </AppText>
       </View>
 
-      {/* ======================================================
-          SUMMARY
-      ====================================================== */}
+      {/* SUMMARY */}
 
-      <AppCard
-        role="customer"
-        variant="outlined"
-        style={
-          styles.summary
+      <WorkerReviewSummary
+        rating={
+          displayRating
         }
-      >
-        <AppText
-          variant="heading2"
-          weight="bold"
-          style={
-            styles.bigRating
-          }
-        >
-          {safeRating.toFixed(
-            1,
-          )}
-        </AppText>
+        totalReviews={
+          displayTotalReviews
+        }
+      />
 
+      {/* ELIGIBILITY CHECK */}
+
+      {eligibility ===
+      "checking" ? (
         <View
           style={
-            styles.summaryText
+            styles.reviewCheck
           }
         >
-          <AppText
-            variant="bodyMedium"
-            weight="bold"
-          >
-            {ratingLabel}
-          </AppText>
+          <ActivityIndicator
+            size="small"
+            color={
+              CustomerColors.primary
+            }
+          />
 
           <AppText
             variant="caption"
             tone="secondary"
             style={
-              styles.summarySub
+              styles.reviewCheckText
             }
           >
-            {safeTotalReviews}{" "}
-            {safeTotalReviews ===
-            1
-              ? "Review"
-              : "Reviews"}
+            Preparing review form...
           </AppText>
         </View>
-      </AppCard>
+      ) : null}
 
-      {/* ======================================================
-          REVIEWS
-      ====================================================== */}
+      {/* REVIEW FORM */}
 
-      {visibleReviews.length >
-      0 ? (
-        <View
-          style={
-            styles.reviewList
+      {eligibility ===
+      "eligible" ? (
+        <WorkerReviewForm
+          workerName={
+            cleanWorkerName
           }
-        >
-          {visibleReviews.map(
-            (
-              item,
-            ) => (
-              <ReviewCard
-                key={
-                  item.id
-                }
-                review={
-                  item
-                }
-              />
-            ),
-          )}
-        </View>
-      ) : (
+          selectedRating={
+            selectedRating
+          }
+          comment={
+            comment
+          }
+          submitting={
+            submitting
+          }
+          canSubmit={
+            canSubmit
+          }
+          submitError={
+            submitError
+          }
+          onSelectRating={
+            handleSelectRating
+          }
+          onCommentChange={
+            handleCommentChange
+          }
+          onSubmit={
+            handleSubmitReview
+          }
+        />
+      ) : null}
+
+      {/* REVIEW SUBMITTED */}
+
+      {eligibility ===
+      "already-reviewed" ? (
         <View
           style={
-            styles.empty
+            styles.reviewSubmitted
           }
         >
           <View
             style={
-              styles.emptyIcon
+              styles.reviewSubmittedIcon
             }
           >
             <AppIcon
               name="star"
               role="customer"
-              size="md"
-              state="muted"
+              size="sm"
+              color={
+                Colors.warning
+              }
             />
           </View>
 
           <View
             style={
-              styles.emptyContent
+              styles.reviewSubmittedContent
             }
           >
             <AppText
               variant="bodyMedium"
               weight="bold"
             >
-              No reviews yet
+              Review submitted
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
               style={
-                styles.emptyText
+                styles.reviewSubmittedText
               }
             >
-              Customer reviews will
-              appear here after
-              completed services.
+              Your review for {cleanWorkerName} has been submitted.
             </AppText>
           </View>
         </View>
-      )}
+      ) : null}
+
+      {/* INELIGIBLE */}
+
+      {eligibility ===
+        "ineligible" &&
+      submitError ? (
+        <View
+          style={
+            styles.reviewUnavailable
+          }
+        >
+          <AppIcon
+            name="info"
+            role="customer"
+            size="sm"
+            color={
+              Colors.textMuted
+            }
+          />
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.reviewUnavailableText
+            }
+          >
+            {submitError}
+          </AppText>
+        </View>
+      ) : null}
+
+      {/* REVIEWS */}
+
+      <WorkerReviewsList
+        totalReviews={
+          displayTotalReviews
+        }
+        onViewAll={
+          handleViewAllReviews
+        }
+      />
     </View>
   );
 }
+
+/* ==============================================================
+   EXPORT
+============================================================== */
+
+const MemoizedWorkerReviews =
+  memo(
+    WorkerReviews,
+  );
+
+MemoizedWorkerReviews.displayName =
+  "WorkerReviews";
+
+export default MemoizedWorkerReviews;
 
 /* ==============================================================
    STYLES
@@ -580,83 +1191,66 @@ const styles =
     title: {
       marginLeft:
         FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
 
     /* ========================================================
-       SUMMARY
+       CHECKING
     ======================================================== */
 
-    summary: {
-      minHeight:
-        FixxamTokens.size
-          .cardMinHeight,
+    reviewCheck: {
+      minHeight: 48,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
+
+      justifyContent:
+        "center",
+
+      marginTop: 6,
+    },
+
+    reviewCheckText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       SUBMITTED
+    ======================================================== */
+
+    reviewSubmitted: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
-    },
-
-    bigRating: {
-      color:
-        Colors.warning,
-    },
-
-    summaryText: {
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    summarySub: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       REVIEW LIST
-    ======================================================== */
-
-    reviewList: {
-      gap:
         FixxamTokens.spacing.sm,
 
-      marginTop:
-        FixxamTokens.spacing.sm,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
-    /* ========================================================
-       REVIEW CARD
-    ======================================================== */
+    reviewSubmittedIcon: {
+      width: 36,
 
-    card: {
-      padding:
-        FixxamTokens.spacing.md,
-    },
-
-    row: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    /* ========================================================
-       AVATAR
-    ======================================================== */
-
-    avatar: {
-      width:
-        FixxamTokens.size
-          .avatarXs,
-
-      height:
-        FixxamTokens.size
-          .avatarXs,
+      height: 36,
 
       flexShrink: 0,
 
@@ -665,140 +1259,43 @@ const styles =
 
       justifyContent:
         "center",
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        CustomerColors.primary,
     },
 
-    avatarText: {
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       CUSTOMER
-    ======================================================== */
-
-    customerInfo: {
+    reviewSubmittedContent: {
       flex: 1,
 
       minWidth: 0,
-    },
-
-    ratingRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    starItem: {
-      marginRight:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       DATE
-    ======================================================== */
-
-    date: {
-      maxWidth: 92,
 
       marginLeft:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
+    },
+
+    reviewSubmittedText: {
+      marginTop: 1,
     },
 
     /* ========================================================
-       COMMENT
+       INELIGIBLE
     ======================================================== */
 
-    comment: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       EMPTY
-    ======================================================== */
-
-    empty: {
-      minHeight:
-        FixxamTokens.size
-          .cardMinHeight,
-
+    reviewUnavailable: {
       flexDirection:
         "row",
 
       alignItems:
-        "center",
+        "flex-start",
 
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    emptyIcon: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    emptyContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
         FixxamTokens.spacing.sm,
     },
 
-    emptyText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+    reviewUnavailableText: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.xs,
     },
   });
-
-export default memo(
-  WorkerReviews,
-);

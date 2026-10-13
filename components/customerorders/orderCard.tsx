@@ -1,34 +1,32 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+  useMemo,
+} from "react";
 
 import {
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 import {
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
-
-import {
-  AppBadge,
-  AppDivider,
-} from "@/components/common";
 
 import type {
   Order,
 } from "./orders.types";
 
 import {
-  formatOrderNumber,
   STATUS_CONFIG,
 } from "./orders.utils";
 
 import {
   Colors,
   CustomerColors,
-  FixxamTokens,
 } from "@/theme";
 
 /* ==============================================================
@@ -48,8 +46,22 @@ type StatusBadgeVariant =
   | "error"
   | "info";
 
+type OfferInfo = {
+  label: string;
+  amount: number;
+  success: boolean;
+};
+
+type ServiceLocationInfo = {
+  label: string;
+  icon:
+    | "home-outline"
+    | "store-outline";
+  color: string;
+};
+
 /* ==============================================================
-   HELPERS
+   STATUS VARIANT
 ============================================================== */
 
 function getStatusVariant(
@@ -77,315 +89,30 @@ function getStatusVariant(
   }
 }
 
+/* ==============================================================
+   CURRENCY
+============================================================== */
+
 function formatCurrency(
   amount: number,
 ): string {
-  return `₦${amount.toLocaleString(
+  const safeAmount =
+    Number.isFinite(amount)
+      ? Math.max(0, amount)
+      : 0;
+
+  return `₦${safeAmount.toLocaleString(
     "en-NG",
   )}`;
 }
 
 /* ==============================================================
-   ORDER CARD
+   OFFER
 ============================================================== */
 
-function OrderCard({
-  order,
-  onPress,
-}: Props) {
-  const status =
-    STATUS_CONFIG[
-      order.status
-    ];
-
-  const statusVariant =
-    getStatusVariant(
-      order.status,
-    );
-
-  const showSchedule =
-    Boolean(order.time) &&
-    order.status !==
-      "pending";
-
-  const dateLabel =
-    showSchedule
-      ? order.date
-      : order.status ===
-          "pending"
-        ? "Waiting for response"
-        : order.date;
-
-  return (
-    <AppCard
-      role="customer"
-      variant="outlined"
-      onPress={onPress}
-      accessibilityLabel={`Open ${order.serviceName} order`}
-      style={styles.card}
-    >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
-
-      <View style={styles.header}>
-        <AppBadge
-          role="customer"
-          variant={statusVariant}
-          label={status.label}
-        />
-
-        <AppText
-          variant="caption"
-          tone="muted"
-          numberOfLines={1}
-        >
-          {formatOrderNumber(
-            order.id,
-          )}
-        </AppText>
-      </View>
-
-      {/* ======================================================
-          MAIN SERVICE
-      ====================================================== */}
-
-      <View style={styles.mainRow}>
-        <View
-          style={
-            styles.serviceIcon
-          }
-        >
-          <AppIcon
-            name={
-              order.serviceIcon ??
-              "service"
-            }
-            role="customer"
-            size="lg"
-            state="active"
-          />
-        </View>
-
-        <View
-          style={
-            styles.serviceContent
-          }
-        >
-          <AppText
-            variant="bodyLarge"
-            weight="semibold"
-            numberOfLines={1}
-          >
-            {order.serviceName}
-          </AppText>
-
-          <View
-            style={
-              styles.workerRow
-            }
-          >
-            <View
-              style={
-                styles.workerAvatar
-              }
-            >
-              <AppIcon
-                name="profile"
-                role="customer"
-                size="xs"
-                state="muted"
-              />
-            </View>
-
-            <View
-              style={
-                styles.workerContent
-              }
-            >
-              <AppText
-                variant="bodyMedium"
-                numberOfLines={1}
-              >
-                {order.workerName}
-              </AppText>
-
-              {order.workerCategory ? (
-                <AppText
-                  variant="caption"
-                  tone="muted"
-                  numberOfLines={1}
-                  style={
-                    styles.workerCategory
-                  }
-                >
-                  {order.workerCategory}
-                </AppText>
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        <View
-          style={
-            styles.chevronContainer
-          }
-        >
-          <AppIcon
-            name="next"
-            role="customer"
-            size="sm"
-            state="muted"
-          />
-        </View>
-      </View>
-
-      <AppDivider
-        style={styles.divider}
-      />
-
-      {/* ======================================================
-          ORDER DETAILS
-      ====================================================== */}
-
-      <View style={styles.details}>
-        <DetailItem
-          icon="location"
-          text={
-            order.location ||
-            "Location unavailable"
-          }
-        />
-
-        <DetailItem
-          icon={
-            showSchedule
-              ? "calendar"
-              : "clock"
-          }
-          text={dateLabel}
-        />
-
-        {showSchedule &&
-        order.time ? (
-          <DetailItem
-            icon="clock"
-            text={order.time}
-          />
-        ) : null}
-      </View>
-
-      {/* ======================================================
-          OFFER
-      ====================================================== */}
-
-      <LatestOfferRow
-        order={order}
-      />
-
-      <AppDivider
-        style={styles.footerDivider}
-      />
-
-      {/* ======================================================
-          FOOTER
-      ====================================================== */}
-
-      <View style={styles.footer}>
-        <View
-          style={
-            styles.requested
-          }
-        >
-          <AppText
-            variant="caption"
-            tone="muted"
-          >
-            Requested on
-          </AppText>
-
-          <AppText
-            variant="caption"
-            weight="semibold"
-            tone="secondary"
-            style={
-              styles.requestedDate
-            }
-          >
-            {order.date}
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.viewDetails
-          }
-        >
-          <AppText
-            variant="bodyMedium"
-            role="customer"
-            tone="primary"
-          >
-            View details
-          </AppText>
-
-          <AppIcon
-            name="next"
-            role="customer"
-            size="xs"
-            state="active"
-          />
-        </View>
-      </View>
-    </AppCard>
-  );
-}
-
-/* ==============================================================
-   DETAIL ITEM
-============================================================== */
-
-function DetailItem({
-  icon,
-  text,
-}: {
-  icon:
-    | "location"
-    | "calendar"
-    | "clock";
-
-  text: string;
-}) {
-  return (
-    <View style={styles.detailItem}>
-      <AppIcon
-        name={icon}
-        role="customer"
-        size="xs"
-        state="muted"
-      />
-
-      <AppText
-        variant="caption"
-        tone="secondary"
-        numberOfLines={1}
-        style={styles.detailText}
-      >
-        {text}
-      </AppText>
-    </View>
-  );
-}
-
-/* ==============================================================
-   LATEST OFFER
-============================================================== */
-
-function LatestOfferRow({
-  order,
-}: {
-  order: Order;
-}) {
+function getLatestOffer(
+  order: Order,
+): OfferInfo | null {
   if (
     order.counterOfferStatus ===
       "sent" &&
@@ -395,133 +122,456 @@ function LatestOfferRow({
       order.counterOfferAmount,
     )
   ) {
-    const label =
-      order.counterOfferBy ===
-      "customer"
-        ? "Your counter offer"
-        : "Worker counter offer";
+    return {
+      label:
+        order.counterOfferBy ===
+        "customer"
+          ? "Your counter offer"
+          : "Worker counter offer",
 
-    return (
-      <OfferRow
-        label={label}
-        amount={
-          order.counterOfferAmount
-        }
-      />
-    );
+      amount: Math.max(
+        0,
+        order.counterOfferAmount,
+      ),
+
+      success: false,
+    };
   }
 
   if (
-    order.offerStatus ===
-      "sent" &&
+    order.offerStatus === "sent" &&
     typeof order.offerAmount ===
       "number" &&
     Number.isFinite(
       order.offerAmount,
     )
   ) {
-    return (
-      <OfferRow
-        label="Worker offer"
-        amount={
-          order.offerAmount
-        }
-      />
-    );
+    return {
+      label: "Worker offer",
+
+      amount: Math.max(
+        0,
+        order.offerAmount,
+      ),
+
+      success: false,
+    };
   }
 
   if (
-    order.status ===
-      "accepted" &&
+    (
+      order.status === "accepted" ||
+      order.status === "in-progress" ||
+      order.status === "completed"
+    ) &&
     typeof order.agreedPrice ===
       "number" &&
     Number.isFinite(
       order.agreedPrice,
     )
   ) {
-    return (
-      <OfferRow
-        label="Agreed price"
-        amount={
-          order.agreedPrice
-        }
-        success
-      />
-    );
+    return {
+      label: "Agreed price",
+
+      amount: Math.max(
+        0,
+        order.agreedPrice,
+      ),
+
+      success: true,
+    };
   }
 
   return null;
 }
 
 /* ==============================================================
-   OFFER ROW
+   SERVICE LOCATION
 ============================================================== */
 
-function OfferRow({
-  label,
-  amount,
-  success = false,
-}: {
-  label: string;
-  amount: number;
-  success?: boolean;
-}) {
-  return (
-    <View
-      style={[
-        styles.offerRow,
+function getServiceLocationInfo(
+  order: Order,
+): ServiceLocationInfo | null {
+  switch (
+    order.fulfillmentMode
+  ) {
+    case "worker_visits_customer":
+      return {
+        label:
+          "Worker will come to your location",
 
-        {
-          backgroundColor:
-            success
-              ? Colors.successSoft
-              : CustomerColors
-                  .primarySoft,
-        },
-      ]}
-    >
-      <View style={styles.offerLeft}>
-        <AppIcon
-          name={
-            success
-              ? "success"
-              : "wallet"
-          }
-          role="customer"
-          size="xs"
-          state={
-            success
-              ? "success"
-              : "active"
-          }
+        icon:
+          "home-outline",
+
+        color:
+          CustomerColors.primary,
+      };
+
+    case "customer_visits_worker":
+      return {
+        label:
+          "You’ll go to the worker shop",
+
+        icon:
+          "store-outline",
+
+        color:
+          Colors.warning,
+      };
+
+    case "remote":
+    default:
+      return null;
+  }
+}
+
+/* ==============================================================
+   STATUS BADGE
+============================================================== */
+
+const StatusBadge = memo(
+  function StatusBadge({
+    status,
+  }: {
+    status: Order["status"];
+  }) {
+    const config =
+      STATUS_CONFIG[status];
+
+    const variant =
+      getStatusVariant(status);
+
+    const backgroundColor =
+      variant === "success"
+        ? Colors.successSoft
+        : variant === "warning"
+          ? Colors.warningSoft
+          : variant === "error"
+            ? Colors.errorSoft
+            : variant === "info"
+              ? Colors.infoSoft
+              : variant === "primary"
+                ? Colors.infoSoft
+                : Colors.disabledBackground;
+
+    const textColor =
+      variant === "success"
+        ? Colors.success
+        : variant === "warning"
+          ? Colors.warning
+          : variant === "error"
+            ? Colors.error
+            : variant === "info"
+              ? Colors.info
+              : variant === "primary"
+                ? Colors.info
+                : Colors.textSecondary;
+
+    return (
+      <View
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={
+          config.label
+        }
+        style={[
+          styles.statusBadge,
+          {
+            backgroundColor,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.statusDot,
+            {
+              backgroundColor:
+                textColor,
+            },
+          ]}
         />
 
         <AppText
           variant="caption"
-          weight="semibold"
-          tone={
-            success
-              ? "success"
-              : "primary"
-          }
+          weight="bold"
           numberOfLines={1}
+          style={[
+            styles.statusText,
+            {
+              color: textColor,
+            },
+          ]}
         >
-          {label}
+          {config.label}
         </AppText>
       </View>
+    );
+  },
+);
 
-      <AppText
-        variant="bodyMedium"
-        weight="semibold"
-        tone={
-          success
-            ? "success"
-            : "primary"
-        }
+StatusBadge.displayName =
+  "OrderStatusBadge";
+
+/* ==============================================================
+   ORDER CARD
+============================================================== */
+
+function OrderCard({
+  order,
+  onPress,
+}: Props) {
+  const offer =
+    useMemo(
+      () =>
+        getLatestOffer(order),
+      [order],
+    );
+
+  const serviceLocation =
+    useMemo(
+      () =>
+        getServiceLocationInfo(
+          order,
+        ),
+      [
+        order.fulfillmentMode,
+      ],
+    );
+
+  const serviceName =
+    order.serviceName?.trim() ||
+    "Service";
+
+  const workerName =
+    order.workerName?.trim() ||
+    "Worker";
+
+  const serviceIcon =
+    order.serviceIcon ||
+    "tools";
+
+  const serviceColor =
+    order.serviceColor?.trim() ||
+    CustomerColors.primary;
+
+  const serviceBackgroundColor =
+    order.serviceBackgroundColor?.trim() ||
+    CustomerColors.primarySoft;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${serviceName}, ${workerName}`}
+      accessibilityHint="Opens order details"
+      style={({ pressed }) => [
+        styles.pressable,
+
+        pressed &&
+          styles.cardPressed,
+      ]}
+    >
+      <View
+        style={styles.card}
       >
-        {formatCurrency(amount)}
-      </AppText>
-    </View>
+        {/* ====================================================
+            TOP ROW
+        ==================================================== */}
+
+        <View
+          style={styles.topRow}
+        >
+          <StatusBadge
+            status={
+              order.status
+            }
+          />
+        </View>
+
+        {/* ====================================================
+            MAIN CONTENT
+        ==================================================== */}
+
+        <View
+          style={styles.contentRow}
+        >
+          {/* ==================================================
+              SERVICE ICON
+          ================================================== */}
+
+          <View
+            style={[
+              styles.serviceIcon,
+              {
+                backgroundColor:
+                  serviceBackgroundColor,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={
+                serviceIcon
+              }
+              size={25}
+              color={
+                serviceColor
+              }
+            />
+          </View>
+
+          {/* ==================================================
+              DETAILS
+          ================================================== */}
+
+          <View
+            style={styles.details}
+          >
+            {/* SERVICE NAME */}
+
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={
+                styles.serviceName
+              }
+            >
+              {serviceName}
+            </AppText>
+
+            {/* WORKER */}
+
+            <View
+              style={
+                styles.workerRow
+              }
+            >
+              <AppIcon
+                name="person"
+                role="customer"
+                size="xs"
+                state="muted"
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={
+                  styles.workerName
+                }
+              >
+                {workerName}
+              </AppText>
+            </View>
+
+            {/* FULFILLMENT */}
+
+            {serviceLocation ? (
+              <View
+                style={
+                  styles.locationRow
+                }
+              >
+                <MaterialCommunityIcons
+                  name={
+                    serviceLocation.icon
+                  }
+                  size={14}
+                  color={
+                    serviceLocation.color
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="medium"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.locationText,
+                    {
+                      color:
+                        serviceLocation.color,
+                    },
+                  ]}
+                >
+                  {
+                    serviceLocation.label
+                  }
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          {/* ==================================================
+              TRAILING
+          ================================================== */}
+
+          <View
+            style={
+              styles.trailing
+            }
+          >
+            {offer ? (
+              <View
+                style={
+                  styles.priceBlock
+                }
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.price,
+                    offer.success &&
+                      styles.successPrice,
+                  ]}
+                >
+                  {formatCurrency(
+                    offer.amount,
+                  )}
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.offerLabel,
+                    offer.success &&
+                      styles.offerLabelSuccess,
+                  ]}
+                >
+                  {
+                    offer.label
+                  }
+                </AppText>
+              </View>
+            ) : null}
+
+            {/* CHEVRON */}
+
+            <View
+              style={
+                styles.chevron
+              }
+            >
+              <AppIcon
+                name="next"
+                role="customer"
+                size="sm"
+                state="muted"
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -529,217 +579,364 @@ function OfferRow({
    STYLES
 ============================================================== */
 
-const styles = StyleSheet.create({
-  card: {
-    width: "100%",
+const styles =
+  StyleSheet.create({
+    /* ========================================================
+       PRESSABLE
+    ======================================================== */
 
-    padding:
-      FixxamTokens.spacing.lg,
-  },
+    pressable: {
+      width: "100%",
+    },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
+    cardPressed: {
+      opacity: 0.9,
 
-    gap:
-      FixxamTokens.spacing.sm,
-  },
+      transform: [
+        {
+          scale: 0.985,
+        },
+      ],
+    },
 
-  mainRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    /* ========================================================
+       CARD
+    ======================================================== */
 
-    marginTop:
-      FixxamTokens.spacing.md,
-  },
+    card: {
+      width: "100%",
 
-  serviceIcon: {
-    width:
-      FixxamTokens.size.iconBox,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
 
-    height:
-      FixxamTokens.size.iconBox,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
-    flexShrink: 0,
+      borderColor:
+        Colors.border,
 
-    alignItems: "center",
-    justifyContent: "center",
+      borderRadius: 18,
 
-    borderRadius:
-      FixxamTokens.radius.iconButton,
+      backgroundColor:
+        Colors.surface,
 
-    backgroundColor:
-      CustomerColors.primarySoft,
-  },
+      shadowColor:
+        "#0F172A",
 
-  serviceContent: {
-    flex: 1,
-    minWidth: 0,
+      shadowOpacity:
+        0.06,
 
-    marginLeft:
-      FixxamTokens.spacing.md,
-  },
+      shadowRadius:
+        10,
 
-  workerRow: {
-    flexDirection: "row",
-    alignItems: "center",
+      shadowOffset: {
+        width: 0,
+        height: 4,
+      },
 
-    marginTop:
-      FixxamTokens.spacing.sm,
-  },
+      elevation: 2,
+    },
 
-  workerAvatar: {
-    width:
-      FixxamTokens.size.avatarXs,
+    /* ========================================================
+       TOP ROW
+    ======================================================== */
 
-    height:
-      FixxamTokens.size.avatarXs,
+    topRow: {
+      minHeight: 26,
 
-    flexShrink: 0,
+      flexDirection:
+        "row",
 
-    alignItems: "center",
-    justifyContent: "center",
+      alignItems:
+        "center",
 
-    borderRadius:
-      FixxamTokens.radius.avatar,
+      justifyContent:
+        "flex-start",
+    },
 
-    backgroundColor:
-      Colors.iconBackground,
-  },
+    /* ========================================================
+       STATUS BADGE
+    ======================================================== */
 
-  workerContent: {
-    flex: 1,
-    minWidth: 0,
+    statusBadge: {
+      minHeight: 26,
 
-    marginLeft:
-      FixxamTokens.spacing.sm,
-  },
+      paddingHorizontal: 9,
 
-  workerCategory: {
-    marginTop:
-      FixxamTokens.spacing.xxs,
-  },
+      flexDirection:
+        "row",
 
-  chevronContainer: {
-    width:
-      FixxamTokens.size
-        .minimumTouchTarget,
+      alignItems:
+        "center",
 
-    height:
-      FixxamTokens.size
-        .minimumTouchTarget,
+      justifyContent:
+        "center",
 
-    flexShrink: 0,
+      borderRadius: 999,
 
-    alignItems: "center",
-    justifyContent: "center",
+      gap: 6,
+    },
 
-    marginLeft:
-      FixxamTokens.spacing.xs,
+    statusDot: {
+      width: 6,
 
-    borderRadius:
-      FixxamTokens.radius
-        .iconButton,
+      height: 6,
 
-    backgroundColor:
-      Colors.iconBackground,
-  },
+      borderRadius: 3,
 
-  divider: {
-    marginVertical:
-      FixxamTokens.spacing.md,
-  },
+      flexShrink: 0,
+    },
 
-  details: {
-    gap:
-      FixxamTokens.spacing.sm,
-  },
+    statusText: {
+      fontSize: 10,
 
-  detailItem: {
-    minWidth: 0,
+      lineHeight: 13,
 
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      letterSpacing: 0.15,
 
-  detailText: {
-    flex: 1,
-    minWidth: 0,
+      includeFontPadding:
+        false,
+    },
 
-    marginLeft:
-      FixxamTokens.spacing.sm,
-  },
+    /* ========================================================
+       CONTENT ROW
+    ======================================================== */
 
-  offerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
+    contentRow: {
+      marginTop: 10,
 
-    gap:
-      FixxamTokens.spacing.md,
+      minHeight: 52,
 
-    marginTop:
-      FixxamTokens.spacing.md,
+      flexDirection:
+        "row",
 
-    paddingHorizontal:
-      FixxamTokens.spacing.md,
+      alignItems:
+        "center",
 
-    paddingVertical:
-      FixxamTokens.spacing.sm,
+      gap: 10,
+    },
 
-    borderRadius:
-      FixxamTokens.radius.md,
-  },
+    /* ========================================================
+       SERVICE ICON
+    ======================================================== */
 
-  offerLeft: {
-    flex: 1,
-    minWidth: 0,
+    serviceIcon: {
+      width: 50,
 
-    flexDirection: "row",
-    alignItems: "center",
+      height: 50,
 
-    gap:
-      FixxamTokens.spacing.sm,
-  },
+      flexShrink: 0,
 
-  footerDivider: {
-    marginTop:
-      FixxamTokens.spacing.md,
+      alignItems:
+        "center",
 
-    marginBottom:
-      FixxamTokens.spacing.sm,
-  },
+      justifyContent:
+        "center",
 
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
+      borderRadius: 15,
+    },
 
-    gap:
-      FixxamTokens.spacing.md,
-  },
+    /* ========================================================
+       DETAILS
+    ======================================================== */
 
-  requested: {
-    flex: 1,
-    minWidth: 0,
-  },
+    details: {
+      flex: 1,
 
-  requestedDate: {
-    marginTop:
-      FixxamTokens.spacing.xxs,
-  },
+      minWidth: 0,
 
-  viewDetails: {
-    flexDirection: "row",
-    alignItems: "center",
+      justifyContent:
+        "center",
+    },
 
-    gap:
-      FixxamTokens.spacing.xs,
-  },
-});
+    serviceName: {
+      color:
+        Colors.textPrimary,
 
-export default memo(OrderCard);
+      fontSize: 15,
+
+      lineHeight: 19,
+
+      letterSpacing: -0.15,
+
+      includeFontPadding:
+        false,
+    },
+
+    /* ========================================================
+       WORKER
+    ======================================================== */
+
+    workerRow: {
+      marginTop: 4,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      minWidth: 0,
+
+      gap: 5,
+    },
+
+    workerName: {
+      flex: 1,
+
+      minWidth: 0,
+
+      fontSize: 12,
+
+      lineHeight: 16,
+
+      color:
+        Colors.textSecondary,
+
+      includeFontPadding:
+        false,
+    },
+
+    /* ========================================================
+       LOCATION
+    ======================================================== */
+
+    locationRow: {
+      marginTop: 4,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      minWidth: 0,
+
+      gap: 5,
+    },
+
+    locationText: {
+      flex: 1,
+
+      minWidth: 0,
+
+      fontSize: 11,
+
+      lineHeight: 14,
+
+      letterSpacing: -0.05,
+
+      includeFontPadding:
+        false,
+    },
+
+    /* ========================================================
+       TRAILING
+    ======================================================== */
+
+    trailing: {
+      flexShrink: 0,
+
+      minHeight: 52,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap: 4,
+    },
+
+    /* ========================================================
+       PRICE
+    ======================================================== */
+
+    priceBlock: {
+      width: 82,
+
+      alignItems:
+        "flex-end",
+
+      justifyContent:
+        "center",
+    },
+
+    price: {
+      color:
+        CustomerColors.primary,
+
+      fontSize: 14,
+
+      lineHeight: 18,
+
+      letterSpacing: -0.1,
+
+      includeFontPadding:
+        false,
+    },
+
+    successPrice: {
+      color:
+        Colors.success,
+    },
+
+    offerLabel: {
+      maxWidth: 82,
+
+      marginTop: 3,
+
+      fontSize: 9,
+
+      lineHeight: 12,
+
+      color:
+        CustomerColors.primary,
+
+      includeFontPadding:
+        false,
+    },
+
+    offerLabelSuccess: {
+      color:
+        Colors.success,
+    },
+
+    /* ========================================================
+       CHEVRON
+    ======================================================== */
+
+    chevron: {
+      width: 38,
+
+      height: 42,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius: 12,
+
+      backgroundColor:
+        Colors.iconBackground,
+    },
+  });
+
+/* ==============================================================
+   DISPLAY NAME
+============================================================== */
+
+OrderCard.displayName =
+  "OrderCard";
+
+/* ==============================================================
+   EXPORT
+============================================================== */
+
+export default memo(
+  OrderCard,
+);

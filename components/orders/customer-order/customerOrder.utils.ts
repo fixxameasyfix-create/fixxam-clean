@@ -5,8 +5,17 @@ import type {
 } from "@/types/booking";
 
 import type {
+  BookingPriority,
+} from "@/types/bookingPriority";
+
+import {
+  isBookingFulfillmentMode,
+} from "@/types/bookingFulfillment";
+
+import type {
   BookingLocation,
   BookingTimestamp,
+  BookingTiming,
   CounterOfferStatus,
   CustomerBooking,
   LiveLocation,
@@ -111,14 +120,21 @@ export function normalizeStatus(
     case "accepted":
       return "accepted";
 
+    case "awaiting_start_confirmation":
+      return "awaiting_start_confirmation";
+
     case "in-progress":
     case "in_progress":
       return "in-progress";
+
+    case "awaiting_completion_confirmation":
+      return "awaiting_completion_confirmation";
 
     case "completed":
       return "completed";
 
     case "cancelled":
+    case "canceled":
       return "cancelled";
 
     case "expired":
@@ -213,6 +229,50 @@ export function normalizeRound(
 }
 
 /* ============================================================
+   BOOKING PRIORITY
+============================================================ */
+
+function normalizeBookingPriority(
+  value: unknown,
+): BookingPriority | null {
+  switch (value) {
+    case "immediate":
+      return "immediate";
+
+    case "normal":
+      return "normal";
+
+    case "urgent":
+      return "urgent";
+
+    default:
+      return null;
+  }
+}
+
+/* ============================================================
+   BOOKING TIMING
+============================================================ */
+
+function normalizeBookingTiming(
+  value: unknown,
+): BookingTiming | null {
+  if (
+    value === "asap"
+  ) {
+    return "asap";
+  }
+
+  if (
+    value === "schedule"
+  ) {
+    return "schedule";
+  }
+
+  return null;
+}
+
+/* ============================================================
    TIMESTAMP
 ============================================================ */
 
@@ -262,10 +322,6 @@ function normalizeBookingTimestamp(
 
   /*
    * Firestore Timestamp.
-   *
-   * We use structural validation here so this
-   * remains compatible with Firestore timestamp
-   * instances received from snapshot data.
    */
   if (
     typeof value === "object" &&
@@ -285,7 +341,9 @@ function normalizeBookingTimestamp(
       ).toMillis();
 
       if (
-        Number.isFinite(millis)
+        Number.isFinite(
+          millis,
+        )
       ) {
         return value as BookingTimestamp;
       }
@@ -313,7 +371,7 @@ export function resolveTimestampMillis(
 
   if (
     typeof normalized ===
-      "number"
+    "number"
   ) {
     return normalized;
   }
@@ -324,19 +382,25 @@ export function resolveTimestampMillis(
     const millis =
       normalized.getTime();
 
-    return Number.isFinite(millis)
+    return Number.isFinite(
+      millis,
+    )
       ? millis
       : null;
   }
 
   if (
     typeof normalized ===
-      "string"
+    "string"
   ) {
     const millis =
-      Date.parse(normalized);
+      Date.parse(
+        normalized,
+      );
 
-    return Number.isFinite(millis)
+    return Number.isFinite(
+      millis,
+    )
       ? millis
       : null;
   }
@@ -345,7 +409,9 @@ export function resolveTimestampMillis(
     const millis =
       normalized.toMillis();
 
-    return Number.isFinite(millis)
+    return Number.isFinite(
+      millis,
+    )
       ? millis
       : null;
   } catch {
@@ -411,6 +477,13 @@ function mapBookingLocation(
       ? raw.longitude
       : null;
 
+  /*
+   * Remote bookings intentionally persist:
+   *
+   * address: ""
+   * latitude: null
+   * longitude: null
+   */
   if (
     !address &&
     latitude === null &&
@@ -526,10 +599,30 @@ export function mapBooking(
     unknown
   >,
 ): CustomerBooking {
+
+  /* ==========================================================
+     FULFILLMENT
+  ========================================================== */
+
+  const fulfillmentMode =
+    isBookingFulfillmentMode(
+      data.fulfillmentMode,
+    )
+      ? data.fulfillmentMode
+      : "worker_visits_customer";
+
+  /* ==========================================================
+     LOCATION OBJECT
+  ========================================================== */
+
   const location =
     mapBookingLocation(
       data.location,
     );
+
+  /* ==========================================================
+     PHOTOS
+  ========================================================== */
 
   const photos =
     Array.isArray(
@@ -539,9 +632,7 @@ export function mapBooking(
           new Set(
             data.photos
               .map(
-                (
-                  photo,
-                ) =>
+                photo =>
                   cleanString(
                     photo,
                   ),
@@ -553,10 +644,173 @@ export function mapBooking(
         )
       : [];
 
+  /* ==========================================================
+     PRIORITY / TIMING
+  ========================================================== */
+
+  const rawBookingPriority =
+    normalizeBookingPriority(
+      data.bookingPriority,
+    );
+
+  const rawTiming =
+    normalizeBookingTiming(
+      data.timing,
+    );
+
+  const legacyUrgent =
+    data.urgent === true;
+
+  const legacyDate =
+    cleanString(
+      data.date,
+    );
+
+  const legacyTime =
+    cleanString(
+      data.time,
+    );
+
+  const storedBookingDate =
+    cleanString(
+      data.bookingDate,
+    );
+
+  const storedBookingTime =
+    cleanString(
+      data.bookingTime,
+    );
+
+  const hasStoredSchedule =
+    Boolean(
+      storedBookingDate ||
+        storedBookingTime ||
+        legacyDate ||
+        legacyTime,
+    );
+
+  let timing:
+    | BookingTiming
+    | null =
+    rawTiming;
+
+  let bookingPriority:
+    | BookingPriority
+    | null =
+    rawBookingPriority;
+
+  /*
+   * Legacy documents may not contain timing.
+   */
+  if (!timing) {
+    if (
+      hasStoredSchedule
+    ) {
+      timing =
+        "schedule";
+
+      bookingPriority =
+        null;
+    } else if (
+      bookingPriority
+    ) {
+      timing =
+        "asap";
+    } else if (
+      legacyUrgent
+    ) {
+      timing =
+        "asap";
+
+      bookingPriority =
+        "urgent";
+    }
+  }
+
+  /*
+   * Scheduled bookings never expose an ASAP priority.
+   */
+  if (
+    timing ===
+    "schedule"
+  ) {
+    bookingPriority =
+      null;
+  }
+
+  if (
+    !timing &&
+    bookingPriority
+  ) {
+    timing =
+      "asap";
+  }
+
+  const bookingDate =
+    timing ===
+      "schedule"
+      ? storedBookingDate ||
+        legacyDate ||
+        null
+      : null;
+
+  const bookingTime =
+    timing ===
+      "schedule"
+      ? storedBookingTime ||
+        legacyTime ||
+        null
+      : null;
+
+  const urgent =
+    bookingPriority ===
+      "urgent" ||
+    (
+      !rawBookingPriority &&
+      legacyUrgent &&
+      timing !==
+        "schedule"
+    );
+
+  /* ==========================================================
+     WORKER LIVE LOCATION
+
+     Canonical:
+       workerLiveLocation
+
+     Existing compatibility:
+       liveLocation
+  ========================================================== */
+
   const workerLiveLocation =
     mapLiveLocation(
       data.workerLiveLocation,
+    ) ??
+    mapLiveLocation(
+      data.liveLocation,
     );
+
+  /* ==========================================================
+     CUSTOMER LIVE LOCATION
+
+     customerLiveSharingEnabled is explicit customer consent.
+
+     A valid customerLiveLocation by itself does NOT mean
+     that sharing is active.
+  ========================================================== */
+
+  const customerLiveSharingEnabled =
+    data.customerLiveSharingEnabled ===
+    true;
+
+  const customerLiveLocation =
+    mapLiveLocation(
+      data.customerLiveLocation,
+    );
+
+  /* ==========================================================
+     ROOT COORDINATES
+  ========================================================== */
 
   const rootLatitude =
     isValidLatitude(
@@ -573,27 +827,49 @@ export function mapBooking(
       : null;
 
   const latitude =
-    rootLatitude ??
-    location?.latitude ??
-    null;
+    fulfillmentMode ===
+    "remote"
+      ? null
+      : rootLatitude ??
+        location?.latitude ??
+        null;
 
   const longitude =
-    rootLongitude ??
-    location?.longitude ??
-    null;
+    fulfillmentMode ===
+    "remote"
+      ? null
+      : rootLongitude ??
+        location?.longitude ??
+        null;
 
+  /*
+   * Physical legacy bookings retain the old
+   * "Location unavailable" fallback.
+   *
+   * Remote bookings intentionally have no
+   * physical address.
+   */
   const address =
-    cleanString(
-      data.address,
-    ) ||
-    cleanString(
-      location?.address,
-    ) ||
-    "Location unavailable";
+    fulfillmentMode ===
+    "remote"
+      ? ""
+      : cleanString(
+          data.address,
+        ) ||
+        cleanString(
+          location?.address,
+        ) ||
+        "Location unavailable";
+
+  /* ==========================================================
+     RESULT
+  ========================================================== */
 
   return {
     id:
-      cleanString(id),
+      cleanString(
+        id,
+      ),
 
     /* ========================================================
        CUSTOMER
@@ -676,6 +952,8 @@ export function mapBooking(
       ) ||
       null,
 
+    fulfillmentMode,
+
     description:
       cleanString(
         data.description,
@@ -684,7 +962,7 @@ export function mapBooking(
     photos,
 
     /* ========================================================
-       LOCATION
+       FIXED SERVICE LOCATION
     ======================================================== */
 
     address,
@@ -693,22 +971,36 @@ export function mapBooking(
 
     longitude,
 
-    location,
+    location:
+      fulfillmentMode ===
+      "remote"
+        ? undefined
+        : location,
 
     /* ========================================================
-       SCHEDULE
+       PRIORITY / TIMING
+    ======================================================== */
+
+    bookingPriority,
+
+    timing,
+
+    bookingDate,
+
+    bookingTime,
+
+    /* ========================================================
+       LEGACY SCHEDULE
     ======================================================== */
 
     date:
-      cleanString(
-        data.date,
-      ) ||
+      legacyDate ||
+      bookingDate ||
       null,
 
     time:
-      cleanString(
-        data.time,
-      ) ||
+      legacyTime ||
+      bookingTime ||
       null,
 
     /* ========================================================
@@ -725,8 +1017,7 @@ export function mapBooking(
         data.agreedPrice,
       ),
 
-    urgent:
-      data.urgent === true,
+    urgent,
 
     urgentFee:
       normalizeFiniteNumber(
@@ -823,25 +1114,77 @@ export function mapBooking(
         data.counterOfferRespondedAt,
       ),
 
+   /* ========================================================
+   SERVICE CONFIRMATIONS
+======================================================== */
+
+startConfirmationRequestedAt:
+  normalizeBookingTimestamp(
+    data.startConfirmationRequestedAt,
+  ),
+
+serviceStartedAt:
+  normalizeBookingTimestamp(
+    data.serviceStartedAt,
+  ),
+
+workerMarkedCompletedAt:
+  normalizeBookingTimestamp(
+    data.workerMarkedCompletedAt,
+  ),
+
+serviceCompletedAt:
+  normalizeBookingTimestamp(
+    data.serviceCompletedAt,
+  ),
+
+completedAt:
+  normalizeBookingTimestamp(
+    data.completedAt,
+  ),
+
+customerStartedConfirmedAt:
+  normalizeBookingTimestamp(
+    data.customerStartedConfirmedAt,
+  ),
+
+customerCompletedConfirmedAt:
+  normalizeBookingTimestamp(
+    data.customerCompletedConfirmedAt,
+  ),
+
     /* ========================================================
-       SERVICE CONFIRMATIONS
+       REALTIME LOCATION
+
+       workerLiveLocation:
+         Worker GPS -> Customer Track Worker
+
+       customerLiveLocation:
+         Customer GPS -> Worker Track Customer
+
+       customerLiveSharingEnabled:
+         Explicit customer consent.
+
+       Realtime travel tracking is only relevant when
+       the worker travels to the customer.
     ======================================================== */
 
-    customerStartedConfirmedAt:
-      normalizeBookingTimestamp(
-        data.customerStartedConfirmedAt,
-      ),
+    workerLiveLocation:
+      fulfillmentMode ===
+      "worker_visits_customer"
+        ? workerLiveLocation
+        : null,
 
-    customerCompletedConfirmedAt:
-      normalizeBookingTimestamp(
-        data.customerCompletedConfirmedAt,
-      ),
+    customerLiveLocation:
+      fulfillmentMode ===
+      "worker_visits_customer"
+        ? customerLiveLocation
+        : null,
 
-    /* ========================================================
-       LIVE LOCATION
-    ======================================================== */
-
-    workerLiveLocation,
+    customerLiveSharingEnabled:
+      fulfillmentMode ===
+        "worker_visits_customer" &&
+      customerLiveSharingEnabled,
 
     /* ========================================================
        META

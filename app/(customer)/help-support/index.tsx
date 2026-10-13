@@ -47,10 +47,19 @@ const WHATSAPP_SUPPORT_NUMBERS = [
 ] as const;
 
 const SUPPORT_EMAIL =
-  "support@fixxam.com";
+  "fixxameasyfix@gmail.com";
+
+const SUPPORT_PHONE_NUMBER =
+  "+2349121350789";
+
+const SUPPORT_PHONE_DISPLAY =
+  "+234 912 1350 789";
 
 const WHATSAPP_BRAND_COLOR =
   "#25D366";
+
+const WHATSAPP_MESSAGE =
+  "Hello Fixxam Support, I need help with my customer account.";
 
 /* ============================================================
    TYPES
@@ -151,10 +160,8 @@ export default function CustomerHelpSupportScreen() {
           );
 
         if (
-          cleanNumber.length <
-            10 ||
-          cleanNumber.length >
-            15
+          cleanNumber.length < 10 ||
+          cleanNumber.length > 15
         ) {
           Toast.show({
             type: "error",
@@ -167,11 +174,16 @@ export default function CustomerHelpSupportScreen() {
           return;
         }
 
+        const encodedMessage =
+          encodeURIComponent(
+            WHATSAPP_MESSAGE,
+          );
+
         const whatsappUrl =
-          `whatsapp://send?phone=${cleanNumber}`;
+          `whatsapp://send?phone=${cleanNumber}&text=${encodedMessage}`;
 
         const webUrl =
-          `https://wa.me/${cleanNumber}`;
+          `https://wa.me/${cleanNumber}?text=${encodedMessage}`;
 
         try {
           const supported =
@@ -218,27 +230,25 @@ export default function CustomerHelpSupportScreen() {
 
   const handleEmailSupport =
     useCallback(async () => {
+      const subject =
+        encodeURIComponent(
+          "Fixxam Customer Support",
+        );
+
+      const body =
+        encodeURIComponent(
+          [
+            "Hello Fixxam Support,",
+            "",
+            "I need help with my customer account.",
+            "",
+          ].join("\n"),
+        );
+
       const url =
-        `mailto:${SUPPORT_EMAIL}`;
+        `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
 
       try {
-        const supported =
-          await Linking.canOpenURL(
-            url,
-          );
-
-        if (!supported) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Email unavailable",
-            text2:
-              "No email application is available on this device.",
-          });
-
-          return;
-        }
-
         closeModal();
 
         await Linking.openURL(
@@ -255,7 +265,7 @@ export default function CustomerHelpSupportScreen() {
           text1:
             "Unable to open email",
           text2:
-            "Please try again later.",
+            "Please make sure an email application is installed.",
         });
       }
     }, [
@@ -267,21 +277,27 @@ export default function CustomerHelpSupportScreen() {
   ========================================================== */
 
   const handleCallSupport =
-    useCallback(() => {
-      closeModal();
+    useCallback(async () => {
+      try {
+        closeModal();
 
-      /*
-       * No dedicated support-call number
-       * exists in the current source.
-       * Do not invent one.
-       */
-      Toast.show({
-        type: "info",
-        text1:
-          "Call support unavailable",
-        text2:
-          "Please use WhatsApp or email support.",
-      });
+        await Linking.openURL(
+          `tel:${SUPPORT_PHONE_NUMBER}`,
+        );
+      } catch (error) {
+        console.error(
+          "CALL_SUPPORT_ERROR:",
+          error,
+        );
+
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to make call",
+          text2:
+            "Unable to open your phone app.",
+        });
+      }
     }, [
       closeModal,
     ]);
@@ -483,7 +499,9 @@ export default function CustomerHelpSupportScreen() {
           <SupportRow
             icon="phone"
             title="Call Support"
-            subtitle="Call Fixxam support"
+            subtitle={
+              SUPPORT_PHONE_DISPLAY
+            }
             onPress={
               handleCallSupport
             }
@@ -865,7 +883,9 @@ function ContactSupportModal({
           <ModalAction
             icon="phone"
             title="Call Support"
-            subtitle="Currently unavailable"
+            subtitle={
+              SUPPORT_PHONE_DISPLAY
+            }
             onPress={
               onCall
             }

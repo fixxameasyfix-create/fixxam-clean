@@ -1,49 +1,39 @@
-import React from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   ActivityIndicator,
-  FlatList,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
-  useWindowDimensions,
   View,
 } from "react-native";
 
-import {
-  Image,
-} from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
-import {
-  AppButton,
-  AppIcon,
-  AppText,
-} from "@/components/ui";
-
-import type {
-  AppIconName,
-} from "@/components/ui/AppIcon";
-
-import type {
-  UseWorkerProfileReturn,
-} from "@/hooks/useWorkerProfile";
+import { auth } from "@/firebase/config";
+import { AppText } from "@/components/ui";
+import WorkerLocationSection from "@/components/worker/profile/WorkerLocationSection";
 
 import {
   MAX_GALLERY_PHOTOS,
+  WorkerProfile,
+  WorkerProfileField,
 } from "@/types/workerProfile";
 
 import {
-  isHttpsUrl,
-  sanitizeDecimalInput,
-} from "@/utils/workerProfile";
-
-import {
   Colors,
-  FixxamTokens,
-  Typography,
   WorkerColors,
 } from "@/theme";
 
@@ -51,35 +41,142 @@ import {
    TYPES
 ============================================================ */
 
-type WorkerProfileFormProps =
-  Pick<
-    UseWorkerProfileReturn,
-    | "profile"
-    | "saving"
-    | "uploadingPhoto"
-    | "uploadingGallery"
-    | "updateField"
-    | "pickProfilePhoto"
-    | "addGalleryPhoto"
-    | "removeGalleryPhoto"
-    | "saveProfile"
-  >;
+type UpdateField = <
+  K extends WorkerProfileField,
+>(
+  field: K,
+  value: WorkerProfile[K],
+) => void;
 
-type SectionTitleProps = {
-  icon: AppIconName;
-  title: string;
+type WorkerProfileFormProps = {
+  profile: WorkerProfile;
+
+  saving: boolean;
+
+  uploadingPhoto: boolean;
+
+  uploadingGallery: boolean;
+
+  updateField: UpdateField;
+
+  pickProfilePhoto: () =>
+    | void
+    | Promise<void>;
+
+  addGalleryPhoto: () =>
+    | void
+    | Promise<void>;
+
+  replaceGalleryPhoto: (
+    index: number,
+  ) =>
+    | void
+    | Promise<void>;
+
+  removeGalleryPhoto: (
+    index: number,
+  ) =>
+    | void
+    | Promise<void>;
+
+  saveProfile: () =>
+    | void
+    | Promise<void>;
 };
 
-type FieldLabelProps = {
-  label: string;
-  required?: boolean;
-};
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function isHttpsUrl(
+  value: unknown,
+): value is string {
+  if (
+    typeof value !== "string"
+  ) {
+    return false;
+  }
+
+  const normalized =
+    value.trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    return (
+      new URL(normalized).protocol ===
+      "https:"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeDecimalInput(
+  value: string,
+): string {
+  const cleaned =
+    value.replace(
+      /[^0-9.]/g,
+      "",
+    );
+
+  const parts =
+    cleaned.split(".");
+
+  if (parts.length === 1) {
+    return parts[0] ?? "";
+  }
+
+  const whole =
+    parts.shift() ?? "";
+
+  const decimal =
+    parts
+      .join("")
+      .slice(0, 2);
+
+  return `${whole}.${decimal}`;
+}
+
+function cloneProfile(
+  profile: WorkerProfile,
+): WorkerProfile {
+  return {
+    ...profile,
+
+    selectedServices: [
+      ...(profile.selectedServices ?? []),
+    ],
+
+    workGallery: [
+      ...(profile.workGallery ?? []),
+    ],
+
+    serviceLocation:
+      profile.serviceLocation
+        ? {
+            ...profile.serviceLocation,
+          }
+        : profile.serviceLocation,
+  };
+}
 
 /* ============================================================
    COMPONENT
 ============================================================ */
 
-export function WorkerProfileForm({
+function WorkerProfileForm({
   profile,
   saving,
   uploadingPhoto,
@@ -87,34 +184,126 @@ export function WorkerProfileForm({
   updateField,
   pickProfilePhoto,
   addGalleryPhoto,
+  replaceGalleryPhoto,
   removeGalleryPhoto,
   saveProfile,
 }: WorkerProfileFormProps) {
-  const {
-    width: screenWidth,
-  } =
-    useWindowDimensions();
+  const router =
+    useRouter();
 
   /* ==========================================================
-     GALLERY SIZE
+     LOCAL DRAFT
+
+     The form keeps its own editable draft so realtime Firestore
+     updates cannot erase text while the user is typing.
   ========================================================== */
 
-  const galleryWidth =
-    Math.min(
-      560,
-      Math.max(
-        240,
-        screenWidth -
-          FixxamTokens.spacing.lg *
-            2,
-      ),
+  const [
+    draft,
+    setDraft,
+  ] = useState<WorkerProfile>(
+    () => cloneProfile(profile),
+  );
+
+  const draftRef =
+    useRef<WorkerProfile>(
+      cloneProfile(profile),
     );
 
-  const galleryHeight =
-    Math.floor(
-      galleryWidth *
-        (9 / 16),
+  const hasLocalChangesRef =
+    useRef(false);
+
+  const lastSavedProfileRef =
+    useRef<WorkerProfile>(
+      cloneProfile(profile),
     );
+
+  /* ==========================================================
+     SYNC SERVER PROFILE
+
+     Important:
+     - Do not replace the local draft while the user is editing.
+     - Allow persisted photo/gallery changes to come from the
+       latest profile received from the hook.
+     - This prevents realtime Firestore updates from wiping text
+       inputs while typing.
+  ========================================================== */
+
+  useEffect(() => {
+    const nextProfile =
+      cloneProfile(profile);
+
+    if (
+      hasLocalChangesRef.current
+    ) {
+      setDraft((current) => {
+        const merged: WorkerProfile = {
+          ...nextProfile,
+
+          /*
+           * Preserve locally edited values.
+           */
+          fullName:
+            current.fullName,
+
+          phoneNumber:
+            current.phoneNumber,
+
+          experience:
+            current.experience,
+
+          hourlyRate:
+            current.hourlyRate,
+
+          aboutMe:
+            current.aboutMe,
+
+          location:
+            current.location,
+
+          serviceLocation:
+            current.serviceLocation,
+
+          /*
+           * Media follows the latest persisted profile.
+           */
+          photoUrl:
+            nextProfile.photoUrl,
+
+          workGallery: [
+            ...(nextProfile.workGallery ?? []),
+          ],
+        };
+
+        draftRef.current =
+          merged;
+
+        return merged;
+      });
+
+      return;
+    }
+
+    draftRef.current =
+      nextProfile;
+
+    lastSavedProfileRef.current =
+      cloneProfile(nextProfile);
+
+    setDraft(nextProfile);
+  }, [profile]);
+
+  /* ==========================================================
+     ACCOUNT
+  ========================================================== */
+
+  const email =
+    auth.currentUser?.email ??
+    "";
+
+  /* ==========================================================
+     ACTION STATE
+  ========================================================== */
 
   const actionsDisabled =
     saving ||
@@ -122,13 +311,364 @@ export function WorkerProfileForm({
     uploadingGallery;
 
   /* ==========================================================
-     UI
+     UPDATE DRAFT
   ========================================================== */
+
+  const handleUpdateField =
+    useCallback(
+      <
+        K extends WorkerProfileField,
+      >(
+        field: K,
+        value: WorkerProfile[K],
+      ) => {
+        hasLocalChangesRef.current =
+          true;
+
+        setDraft((current) => {
+          const next: WorkerProfile = {
+            ...current,
+            [field]: value,
+          };
+
+          draftRef.current =
+            next;
+
+          return next;
+        });
+
+        /*
+         * Keep the existing hook architecture synchronized.
+         *
+         * The form itself remains controlled by the local draft,
+         * so a realtime profile update cannot visually erase the
+         * value currently being typed.
+         */
+        updateField(
+          field,
+          value,
+        );
+      },
+      [updateField],
+    );
+
+  /* ==========================================================
+     PROFILE PHOTO
+  ========================================================== */
+
+  const profilePhoto =
+    isHttpsUrl(
+      draft.photoUrl,
+    )
+      ? draft.photoUrl
+      : null;
+
+  const profileInitial =
+    cleanString(
+      draft.fullName,
+    )
+      .charAt(0)
+      .toUpperCase() || "W";
+
+  const handlePickProfilePhoto =
+    useCallback(async () => {
+      if (
+        actionsDisabled
+      ) {
+        return;
+      }
+
+      await pickProfilePhoto();
+    }, [
+      actionsDisabled,
+      pickProfilePhoto,
+    ]);
+
+  /* ==========================================================
+     GALLERY
+
+     Keep original indexes so filtered gallery items never
+     mutate the wrong original photo.
+  ========================================================== */
+
+  const galleryItems =
+    useMemo(
+      () =>
+        (
+          draft.workGallery ??
+          []
+        )
+          .map(
+            (
+              photoUrl,
+              originalIndex,
+            ) => ({
+              photoUrl,
+              originalIndex,
+            }),
+          )
+          .filter(
+            ({
+              photoUrl,
+            }) =>
+              isHttpsUrl(
+                photoUrl,
+              ),
+          ),
+      [
+        draft.workGallery,
+      ],
+    );
+
+  const galleryCount =
+    galleryItems.length;
+
+  const galleryFull =
+    galleryCount >=
+    MAX_GALLERY_PHOTOS;
+
+  /* ==========================================================
+     REMOVE GALLERY PHOTO
+  ========================================================== */
+
+  const handleRemoveGalleryPhoto =
+    useCallback(
+      (originalIndex: number) => {
+        const gallery =
+          draftRef.current
+            .workGallery ?? [];
+
+        if (
+          originalIndex < 0 ||
+          originalIndex >=
+            gallery.length
+        ) {
+          return;
+        }
+
+        if (
+          actionsDisabled
+        ) {
+          return;
+        }
+
+        Alert.alert(
+          "Remove photo",
+          "Are you sure you want to remove this photo from your work gallery?",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "Remove",
+              style: "destructive",
+              onPress: () => {
+                void removeGalleryPhoto(
+                  originalIndex,
+                );
+              },
+            },
+          ],
+        );
+      },
+      [
+        actionsDisabled,
+        removeGalleryPhoto,
+      ],
+    );
+
+  /* ==========================================================
+     CHANGE GALLERY PHOTO
+  ========================================================== */
+
+  const handleReplaceGalleryPhoto =
+    useCallback(
+      (originalIndex: number) => {
+        const gallery =
+          draftRef.current
+            .workGallery ?? [];
+
+        if (
+          originalIndex < 0 ||
+          originalIndex >=
+            gallery.length
+        ) {
+          return;
+        }
+
+        if (
+          actionsDisabled
+        ) {
+          return;
+        }
+
+        Alert.alert(
+          "Change photo",
+          "Choose a new photo to replace this work photo.",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+            {
+              text: "Choose Photo",
+              onPress: () => {
+                void replaceGalleryPhoto(
+                  originalIndex,
+                );
+              },
+            },
+          ],
+        );
+      },
+      [
+        actionsDisabled,
+        replaceGalleryPhoto,
+      ],
+    );
+
+  /* ==========================================================
+     SAVE
+
+     IMPORTANT:
+     Do not call updateField() repeatedly immediately before
+     saveProfile(). React state updates are asynchronous and
+     doing so can cause saveProfile() to receive stale state.
+
+     Every editable field is already synchronized through
+     handleUpdateField().
+  ========================================================== */
+
+  const handleSave =
+    useCallback(
+      async () => {
+        if (
+          saving ||
+          uploadingPhoto ||
+          uploadingGallery
+        ) {
+          return;
+        }
+
+        const current =
+          cloneProfile(
+            draftRef.current,
+          );
+
+        /* ------------------------------------------------------
+           FULL NAME VALIDATION
+        ------------------------------------------------------ */
+
+        if (
+          !cleanString(
+            current.fullName,
+          )
+        ) {
+          Alert.alert(
+            "Missing information",
+            "Please enter your full name.",
+          );
+
+          return;
+        }
+
+        /* ------------------------------------------------------
+           HOURLY RATE VALIDATION
+
+           Empty values are rejected instead of accidentally
+           being treated as 0.
+        ------------------------------------------------------ */
+
+        const hourlyRateText =
+          cleanString(
+            current.hourlyRate,
+          );
+
+        if (
+          !hourlyRateText
+        ) {
+          Alert.alert(
+            "Invalid hourly rate",
+            "Please enter your hourly rate.",
+          );
+
+          return;
+        }
+
+        const hourlyRate =
+          Number(
+            hourlyRateText,
+          );
+
+        if (
+          !Number.isFinite(
+            hourlyRate,
+          ) ||
+          hourlyRate <= 0
+        ) {
+          Alert.alert(
+            "Invalid hourly rate",
+            "Please enter a valid hourly rate greater than 0.",
+          );
+
+          return;
+        }
+
+        /* ------------------------------------------------------
+           SAVE
+        ------------------------------------------------------ */
+
+        try {
+          await saveProfile();
+
+          /*
+           * Only mark the draft clean after save succeeds.
+           */
+          hasLocalChangesRef.current =
+            false;
+
+          const saved =
+            cloneProfile(
+              draftRef.current,
+            );
+
+          lastSavedProfileRef.current =
+            saved;
+
+          setDraft(saved);
+        } catch {
+          /*
+           * Keep the user's local values protected if saving
+           * fails.
+           */
+          hasLocalChangesRef.current =
+            true;
+        }
+      },
+      [
+        saving,
+        uploadingPhoto,
+        uploadingGallery,
+        saveProfile,
+      ],
+    );
+
+  /* ==========================================================
+     ABOUT COUNT
+  ========================================================== */
+
+  const aboutLength =
+    draft.aboutMe.length;
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <KeyboardAvoidingView
       style={
-        styles.flex
+        styles.keyboardContainer
       }
       behavior={
         Platform.OS === "ios"
@@ -137,17 +677,15 @@ export function WorkerProfileForm({
       }
     >
       <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={
-          Platform.OS === "ios"
-            ? "interactive"
-            : "on-drag"
+        style={
+          styles.container
         }
         contentContainerStyle={
-          styles.container
+          styles.content
+        }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={
+          false
         }
       >
         {/* ==================================================
@@ -159,812 +697,1070 @@ export function WorkerProfileForm({
             styles.header
           }
         >
-          <AppText
-            variant="heading1"
-            weight="bold"
-            style={
-              styles.title
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() =>
+              router.back()
             }
+            style={
+              styles.backButton
+            }
+            hitSlop={8}
           >
-            Build Your Profile
-          </AppText>
+            <Ionicons
+              name="chevron-back"
+              size={25}
+              color={
+                Colors.textPrimary
+              }
+            />
+          </Pressable>
 
-          <AppText
-            variant="body"
-            tone="secondary"
+          <View
             style={
-              styles.subtitle
+              styles.headerText
             }
           >
-            Complete your professional profile so customers can know you better.
-          </AppText>
+            <AppText
+              variant="heading2"
+              style={
+                styles.headerTitle
+              }
+            >
+              Edit Profile
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.headerSubtitle
+              }
+            >
+              Update your worker information
+            </AppText>
+          </View>
         </View>
 
         {/* ==================================================
-            PROFILE PHOTO
+            PROFILE CARD
         ================================================== */}
-
-        <SectionTitle
-          icon="camera"
-          title="Profile Photo"
-        />
 
         <View
           style={
-            styles.photoSection
+            styles.profileCard
           }
         >
           <View
             style={
-              styles.photoWrapper
+              styles.profileRow
             }
           >
-            {profile.photoUrl &&
-            isHttpsUrl(
-              profile.photoUrl,
-            ) ? (
-              <Image
-                source={{
-                  uri:
-                    profile.photoUrl,
-                }}
+            <View
+              style={
+                styles.profilePhotoWrap
+              }
+            >
+              <View
                 style={
                   styles.profilePhoto
                 }
-                contentFit="cover"
-                transition={150}
-                recyclingKey={
-                  profile.photoUrl
-                }
-                accessibilityLabel="Worker profile photo"
-              />
-            ) : (
-              <View
-                style={
-                  styles.photoPlaceholder
-                }
               >
-                <AppIcon
-                  name="profile"
-                  role="worker"
-                  size="xl"
-                  color={
-                    WorkerColors.primary
-                  }
-                />
+                {profilePhoto ? (
+                  <Image
+                    source={{
+                      uri: profilePhoto,
+                    }}
+                    style={
+                      styles.profilePhotoImage
+                    }
+                  />
+                ) : (
+                  <AppText
+                    variant="heading2"
+                    style={
+                      styles.profileInitial
+                    }
+                  >
+                    {
+                      profileInitial
+                    }
+                  </AppText>
+                )}
               </View>
-            )}
 
-            {uploadingPhoto ? (
-              <View
-                style={
-                  styles.photoLoading
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Change profile photo"
+                disabled={
+                  actionsDisabled
                 }
+                onPress={
+                  handlePickProfilePhoto
+                }
+                style={[
+                  styles.cameraButton,
+                  actionsDisabled &&
+                    styles.disabled,
+                ]}
               >
-                <ActivityIndicator
-                  color={
-                    Colors.textInverse
-                  }
-                />
-              </View>
-            ) : null}
-          </View>
+                {uploadingPhoto ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFFFFF"
+                  />
+                ) : (
+                  <Ionicons
+                    name="camera-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                )}
+              </Pressable>
+            </View>
 
-          <Pressable
-            onPress={
-              pickProfilePhoto
-            }
-            disabled={
-              actionsDisabled
-            }
-            accessibilityRole="button"
-            accessibilityLabel={
-              profile.photoUrl
-                ? "Change profile photo"
-                : "Add profile photo"
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.photoButton,
-
-              pressed &&
-              !actionsDisabled
-                ? styles.pressed
-                : null,
-
-              actionsDisabled
-                ? styles.disabled
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="camera"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
+            <View
               style={
-                styles.photoButtonText
+                styles.profileInfo
               }
             >
-              {profile.photoUrl
-                ? "Change Photo"
-                : "Add Photo"}
+              <AppText
+                variant="heading3"
+                numberOfLines={1}
+                style={
+                  styles.profileName
+                }
+              >
+                {cleanString(
+                  draft.fullName,
+                ) ||
+                  "Worker"}
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                numberOfLines={1}
+                style={
+                  styles.profileEmail
+                }
+              >
+                {email ||
+                  cleanString(
+                    draft.phoneNumber,
+                  ) ||
+                  "Worker account"}
+              </AppText>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Change photo"
+                disabled={
+                  actionsDisabled
+                }
+                onPress={
+                  handlePickProfilePhoto
+                }
+                style={
+                  styles.changePhotoButton
+                }
+              >
+                <AppText
+                  variant="body"
+                  style={
+                    styles.changePhotoText
+                  }
+                >
+                  Change photo
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        {/* ==================================================
+            PERSONAL INFORMATION
+        ================================================== */}
+
+        <View
+          style={
+            styles.card
+          }
+        >
+          <AppText
+            variant="heading3"
+            style={
+              styles.cardTitle
+            }
+          >
+            Personal Information
+          </AppText>
+
+          {/* FULL NAME */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Full Name
             </AppText>
-          </Pressable>
+
+            <View
+              style={
+                styles.inputRow
+              }
+            >
+              <Ionicons
+                name="person-outline"
+                size={21}
+                color={
+                  Colors.textSecondary
+                }
+                style={
+                  styles.inputIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  draft.fullName
+                }
+                onChangeText={(
+                  value,
+                ) =>
+                  handleUpdateField(
+                    "fullName",
+                    value,
+                  )
+                }
+                placeholder="Enter full name"
+                placeholderTextColor={
+                  Colors.textSecondary
+                }
+                autoCapitalize="words"
+                autoCorrect={false}
+                returnKeyType="next"
+                textContentType="name"
+                editable={
+                  !actionsDisabled
+                }
+                style={
+                  styles.inputText
+                }
+              />
+            </View>
+          </View>
+
+          {/* PHONE */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Phone Number
+            </AppText>
+
+            <View
+              style={
+                styles.inputRow
+              }
+            >
+              <Ionicons
+                name="call-outline"
+                size={21}
+                color={
+                  Colors.textSecondary
+                }
+                style={
+                  styles.inputIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  draft.phoneNumber
+                }
+                onChangeText={(
+                  value,
+                ) =>
+                  handleUpdateField(
+                    "phoneNumber",
+                    value,
+                  )
+                }
+                placeholder="Enter phone number"
+                placeholderTextColor={
+                  Colors.textSecondary
+                }
+                keyboardType="phone-pad"
+                autoCorrect={false}
+                returnKeyType="next"
+                textContentType="telephoneNumber"
+                editable={
+                  !actionsDisabled
+                }
+                style={
+                  styles.inputText
+                }
+              />
+            </View>
+          </View>
+
+          {/* EXPERIENCE */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Experience
+            </AppText>
+
+            <View
+              style={
+                styles.inputRow
+              }
+            >
+              <Ionicons
+                name="briefcase-outline"
+                size={21}
+                color={
+                  Colors.textSecondary
+                }
+                style={
+                  styles.inputIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  draft.experience
+                }
+                onChangeText={(
+                  value,
+                ) =>
+                  handleUpdateField(
+                    "experience",
+                    value.replace(
+                      /[^0-9]/g,
+                      "",
+                    ),
+                  )
+                }
+                placeholder="Years of experience"
+                placeholderTextColor={
+                  Colors.textSecondary
+                }
+                keyboardType="number-pad"
+                autoCorrect={false}
+                returnKeyType="next"
+                editable={
+                  !actionsDisabled
+                }
+                style={
+                  styles.inputText
+                }
+              />
+            </View>
+          </View>
+
+          {/* HOURLY RATE */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Hourly Rate
+            </AppText>
+
+            <View
+              style={
+                styles.inputRow
+              }
+            >
+              <AppText
+                variant="body"
+                style={
+                  styles.currencyIcon
+                }
+              >
+                ₦
+              </AppText>
+
+              <TextInput
+                value={
+                  draft.hourlyRate
+                }
+                onChangeText={(
+                  value,
+                ) =>
+                  handleUpdateField(
+                    "hourlyRate",
+                    sanitizeDecimalInput(
+                      value,
+                    ),
+                  )
+                }
+                placeholder="Enter hourly rate"
+                placeholderTextColor={
+                  Colors.textSecondary
+                }
+                keyboardType="decimal-pad"
+                autoCorrect={false}
+                returnKeyType="next"
+                editable={
+                  !actionsDisabled
+                }
+                style={
+                  styles.inputText
+                }
+              />
+            </View>
+          </View>
         </View>
 
         {/* ==================================================
-            NAME
+            PROFESSIONAL INFORMATION
         ================================================== */}
-
-        <FieldLabel
-          label="Name"
-          required
-        />
-
-        <TextInput
-          value={
-            profile.fullName
-          }
-          onChangeText={
-            value =>
-              updateField(
-                "fullName",
-                value,
-              )
-          }
-          placeholder="Enter your full name"
-          placeholderTextColor={
-            Colors.textMuted
-          }
-          selectionColor={
-            WorkerColors.primary
-          }
-          cursorColor={
-            WorkerColors.primary
-          }
-          maxLength={100}
-          autoCapitalize="words"
-          autoComplete="name"
-          returnKeyType="next"
-          accessibilityLabel="Full name"
-          style={
-            styles.input
-          }
-        />
-
-        {/* ==================================================
-            PHONE
-        ================================================== */}
-
-        <FieldLabel
-          label="Phone Number"
-          required
-        />
 
         <View
           style={
-            styles.inputIconWrapper
+            styles.card
           }
         >
-          <AppIcon
-            name="phone"
-            size="sm"
-            color={
-              Colors.textMuted
-            }
-          />
-
-          <TextInput
-            value={
-              profile.phoneNumber
-            }
-            onChangeText={
-              value =>
-                updateField(
-                  "phoneNumber",
-                  value.replace(
-                    /[^\d+()\-\s]/g,
-                    "",
-                  ),
-                )
-            }
-            placeholder="e.g. 08012345678"
-            placeholderTextColor={
-              Colors.textMuted
-            }
-            selectionColor={
-              WorkerColors.primary
-            }
-            cursorColor={
-              WorkerColors.primary
-            }
-            keyboardType="phone-pad"
-            maxLength={20}
-            autoComplete="tel"
-            textContentType="telephoneNumber"
-            returnKeyType="next"
-            accessibilityLabel="Phone number"
+          <AppText
+            variant="heading3"
             style={
-              styles.iconInput
+              styles.cardTitle
             }
-          />
-        </View>
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.phoneHelper
-          }
-        >
-          Customers can use this number to contact you about a job.
-        </AppText>
-
-        {/* ==================================================
-            EXPERIENCE
-        ================================================== */}
-
-        <FieldLabel
-          label="Experience"
-          required
-        />
-
-        <View
-          style={
-            styles.inputWithSuffix
-          }
-        >
-          <TextInput
-            value={
-              profile.experience
-            }
-            onChangeText={
-              value =>
-                updateField(
-                  "experience",
-                  value.replace(
-                    /[^0-9]/g,
-                    "",
-                  ),
-                )
-            }
-            placeholder="e.g. 5"
-            placeholderTextColor={
-              Colors.textMuted
-            }
-            selectionColor={
-              WorkerColors.primary
-            }
-            cursorColor={
-              WorkerColors.primary
-            }
-            keyboardType="number-pad"
-            maxLength={2}
-            accessibilityLabel="Years of experience"
-            style={
-              styles.suffixInput
-            }
-          />
+          >
+            Professional Information
+          </AppText>
 
           <AppText
             variant="body"
             tone="secondary"
             style={
-              styles.suffix
+              styles.cardDescription
             }
           >
-            Years
+            Your professional details are managed from
+            your worker registration information.
           </AppText>
+
+          {/* CATEGORY */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Category
+            </AppText>
+
+            <View
+              style={
+                styles.readOnlyInputRow
+              }
+            >
+              <Ionicons
+                name="grid-outline"
+                size={23}
+                color={
+                  Colors.textMuted
+                }
+                style={
+                  styles.inputIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  cleanString(
+                    draft.category,
+                  )
+                }
+                editable={
+                  false
+                }
+                selectTextOnFocus={
+                  false
+                }
+                placeholder="No category"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
+                style={
+                  styles.readOnlyInputText
+                }
+              />
+            </View>
+          </View>
+
+          {/* SUBCATEGORY */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Subcategory
+            </AppText>
+
+            <View
+              style={
+                styles.readOnlyInputRow
+              }
+            >
+              <Ionicons
+                name="list-outline"
+                size={23}
+                color={
+                  Colors.textMuted
+                }
+                style={
+                  styles.inputIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  cleanString(
+                    draft.subcategory,
+                  )
+                }
+                editable={
+                  false
+                }
+                selectTextOnFocus={
+                  false
+                }
+                placeholder="No subcategory"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
+                style={
+                  styles.readOnlyInputText
+                }
+              />
+            </View>
+          </View>
+
+          {/* SERVICES */}
+
+          <View
+            style={
+              styles.field
+            }
+          >
+            <AppText
+              variant="label"
+              style={
+                styles.label
+              }
+            >
+              Services
+            </AppText>
+
+            <View
+              style={[
+                styles.readOnlyInputRow,
+                styles.readOnlyMultilineRow,
+              ]}
+            >
+              <Ionicons
+                name="construct-outline"
+                size={23}
+                color={
+                  Colors.textMuted
+                }
+                style={
+                  styles.readOnlyMultilineIcon
+                }
+              />
+
+              <TextInput
+                value={
+                  (
+                    draft.selectedServices ??
+                    []
+                  ).join(", ")
+                }
+                editable={
+                  false
+                }
+                selectTextOnFocus={
+                  false
+                }
+                multiline
+                textAlignVertical="top"
+                placeholder="No services"
+                placeholderTextColor={
+                  Colors.textMuted
+                }
+                style={
+                  styles.readOnlyMultilineText
+                }
+              />
+            </View>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.helperText
+              }
+            >
+              Professional services cannot be changed here.
+            </AppText>
+          </View>
         </View>
 
         {/* ==================================================
-            HOURLY RATE
+            SERVICE LOCATION
         ================================================== */}
 
-        <FieldLabel
-          label="Hourly Rate"
-          required
-        />
-
-        <View
-          style={
-            styles.inputWithPrefix
+        <WorkerLocationSection
+          profile={
+            draft
           }
-        >
-          <AppText
-            variant="bodyLarge"
-            weight="bold"
-            style={
-              styles.prefix
-            }
-          >
-            ₦
-          </AppText>
-
-          <TextInput
-            value={
-              profile.hourlyRate
-            }
-            onChangeText={
-              value =>
-                updateField(
-                  "hourlyRate",
-                  sanitizeDecimalInput(
-                    value,
-                  ),
-                )
-            }
-            placeholder="e.g. 5000"
-            placeholderTextColor={
-              Colors.textMuted
-            }
-            selectionColor={
-              WorkerColors.primary
-            }
-            cursorColor={
-              WorkerColors.primary
-            }
-            keyboardType="decimal-pad"
-            maxLength={12}
-            accessibilityLabel="Hourly rate"
-            style={
-              styles.prefixInput
-            }
-          />
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.rateSuffix
-            }
-          >
-            / hour
-          </AppText>
-        </View>
-
-        {/* ==================================================
-            LOCATION
-        ================================================== */}
-
-        <FieldLabel
-          label="Location"
-          required
-        />
-
-        <View
-          style={
-            styles.inputIconWrapper
+          updateField={
+            handleUpdateField
           }
-        >
-          <AppIcon
-            name="location"
-            size="sm"
-            color={
-              Colors.textMuted
-            }
-          />
-
-          <TextInput
-            value={
-              profile.location
-            }
-            onChangeText={
-              value =>
-                updateField(
-                  "location",
-                  value,
-                )
-            }
-            placeholder="Enter your service location"
-            placeholderTextColor={
-              Colors.textMuted
-            }
-            selectionColor={
-              WorkerColors.primary
-            }
-            cursorColor={
-              WorkerColors.primary
-            }
-            maxLength={200}
-            autoCapitalize="words"
-            accessibilityLabel="Service location"
-            style={
-              styles.iconInput
-            }
-          />
-        </View>
+        />
 
         {/* ==================================================
             WORK GALLERY
         ================================================== */}
 
-        <SectionTitle
-          icon="image"
-          title="Work Gallery"
-        />
-
-        <AppText
-          variant="body"
-          tone="secondary"
-          style={
-            styles.helper
-          }
-        >
-          Add photos of work you have completed. Customers will see these photos on your profile.
-        </AppText>
-
         <View
           style={
-            styles.gallerySection
+            styles.card
           }
         >
-          {profile.workGallery.length >
-          0 ? (
-            <FlatList
-              data={
-                profile.workGallery
+          <View
+            style={
+              styles.galleryHeader
+            }
+          >
+            <View
+              style={
+                styles.galleryTitleWrap
               }
+            >
+              <AppText
+                variant="heading3"
+                style={
+                  styles.cardTitle
+                }
+              >
+                Work Gallery
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                style={
+                  styles.cardDescription
+                }
+              >
+                Show examples of your work.
+              </AppText>
+            </View>
+
+            <View
+              style={
+                styles.galleryCount
+              }
+            >
+              <AppText
+                variant="button"
+                style={
+                  styles.galleryCountText
+                }
+              >
+                {galleryCount}/
+                {MAX_GALLERY_PHOTOS}
+              </AppText>
+            </View>
+          </View>
+
+          {galleryItems.length >
+          0 ? (
+            <ScrollView
               horizontal
               showsHorizontalScrollIndicator={
                 false
               }
-              decelerationRate="fast"
-              snapToInterval={
-                galleryWidth +
-                FixxamTokens.spacing.md
-              }
-              snapToAlignment="start"
-              keyExtractor={
-                photo =>
-                  photo
-              }
               contentContainerStyle={
-                styles.galleryList
+                styles.galleryScroll
               }
-              ItemSeparatorComponent={
-                GallerySeparator
-              }
-              renderItem={({
-                item: photo,
-                index,
-              }) => (
-                <View
-                  style={[
-                    styles.galleryItem,
-
-                    {
-                      width:
-                        galleryWidth,
-
-                      height:
-                        galleryHeight,
-                    },
-                  ]}
-                >
-                  <Image
-                    source={{
-                      uri:
-                        photo,
-                    }}
-                    style={
-                      styles.galleryImage
-                    }
-                    contentFit="cover"
-                    transition={150}
-                    recyclingKey={
-                      photo
-                    }
-                    accessibilityLabel={`Work gallery photo ${index + 1}`}
-                  />
-
+            >
+              {galleryItems.map(
+                ({
+                  photoUrl,
+                  originalIndex,
+                }) => (
                   <View
-                    pointerEvents="none"
+                    key={`${photoUrl}-${originalIndex}`}
                     style={
-                      styles.galleryOverlay
+                      styles.galleryItem
                     }
-                  />
-
-                  <Pressable
-                    onPress={() =>
-                      removeGalleryPhoto(
-                        index,
-                      )
-                    }
-                    disabled={
-                      uploadingGallery ||
-                      saving
-                    }
-                    hitSlop={6}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove gallery photo ${index + 1}`}
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.removePhoto,
-
-                      pressed
-                        ? styles.pressed
-                        : null,
-                    ]}
                   >
-                    <AppIcon
-                      name="close"
-                      size="sm"
-                      color={
-                        Colors.textInverse
+                    <Image
+                      source={{
+                        uri: photoUrl,
+                      }}
+                      style={
+                        styles.galleryImage
                       }
                     />
-                  </Pressable>
 
-                  <View
-                    style={
-                      styles.photoNumber
-                    }
-                  >
-                    <AppText
-                      variant="caption"
-                      weight="bold"
-                      style={
-                        styles.photoNumberText
-                      }
-                    >
-                      {index + 1}/
-                      {
-                        profile
-                          .workGallery
-                          .length
-                      }
-                    </AppText>
-                  </View>
-                </View>
-              )}
-              ListFooterComponent={
-                profile.workGallery.length <
-                MAX_GALLERY_PHOTOS ? (
-                  <View
-                    style={
-                      styles.footerAddWrapper
-                    }
-                  >
                     <Pressable
-                      onPress={
-                        addGalleryPhoto
-                      }
-                      disabled={
-                        uploadingGallery ||
-                        saving
-                      }
                       accessibilityRole="button"
-                      accessibilityLabel="Add another work photo"
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.addGallery,
-
-                        {
-                          width:
-                            galleryWidth,
-
-                          height:
-                            galleryHeight,
-                        },
-
-                        pressed
-                          ? styles.pressed
-                          : null,
+                      accessibilityLabel={`Change gallery photo ${
+                        originalIndex + 1
+                      }`}
+                      disabled={
+                        actionsDisabled
+                      }
+                      onPress={() =>
+                        handleReplaceGalleryPhoto(
+                          originalIndex,
+                        )
+                      }
+                      style={[
+                        styles.changeGalleryButton,
+                        actionsDisabled &&
+                          styles.disabled,
                       ]}
                     >
                       {uploadingGallery ? (
                         <ActivityIndicator
-                          color={
-                            WorkerColors.primary
-                          }
+                          size="small"
+                          color="#FFFFFF"
                         />
                       ) : (
                         <>
-                          <View
-                            style={
-                              styles.addGalleryIcon
-                            }
-                          >
-                            <AppIcon
-                              name="add"
-                              role="worker"
-                              size="md"
-                              color={
-                                WorkerColors.primary
-                              }
-                            />
-                          </View>
+                          <Ionicons
+                            name="camera-outline"
+                            size={13}
+                            color="#FFFFFF"
+                          />
 
                           <AppText
-                            variant="bodyMedium"
-                            weight="bold"
+                            variant="button"
                             style={
-                              styles.addGalleryText
+                              styles.galleryButtonText
                             }
                           >
-                            Add Photo
-                          </AppText>
-
-                          <AppText
-                            variant="caption"
-                            tone="secondary"
-                            style={
-                              styles.galleryRatio
-                            }
-                          >
-                            Add another
+                            Change
                           </AppText>
                         </>
                       )}
                     </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove gallery photo ${
+                        originalIndex + 1
+                      }`}
+                      disabled={
+                        actionsDisabled
+                      }
+                      onPress={() =>
+                        handleRemoveGalleryPhoto(
+                          originalIndex,
+                        )
+                      }
+                      style={[
+                        styles.removeButton,
+                        actionsDisabled &&
+                          styles.disabled,
+                      ]}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={13}
+                        color="#FFFFFF"
+                      />
+
+                      <AppText
+                        variant="button"
+                        style={
+                          styles.galleryButtonText
+                        }
+                      >
+                        Remove
+                      </AppText>
+                    </Pressable>
                   </View>
-                ) : null
-              }
-            />
+                ),
+              )}
+            </ScrollView>
           ) : (
+            <View
+              style={
+                styles.emptyGallery
+              }
+            >
+              <Ionicons
+                name="images-outline"
+                size={28}
+                color={
+                  Colors.textSecondary
+                }
+              />
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.emptyGalleryText
+                }
+              >
+                No work photos added yet.
+              </AppText>
+            </View>
+          )}
+
+          <View
+            style={
+              styles.galleryBottom
+            }
+          >
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.gallerySwipeText
+              }
+            >
+              Swipe to view photos
+            </AppText>
+
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                galleryFull
+                  ? "Gallery full"
+                  : "Add work photos"
+              }
+              disabled={
+                actionsDisabled ||
+                galleryFull
+              }
               onPress={
                 addGalleryPhoto
               }
-              disabled={
-                uploadingGallery ||
-                saving
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Add work photos"
-              style={({
-                pressed,
-              }) => [
-                styles.emptyGallery,
-
-                {
-                  width:
-                    galleryWidth,
-
-                  height:
-                    galleryHeight,
-                },
-
-                pressed
-                  ? styles.pressed
-                  : null,
+              style={[
+                styles.galleryAction,
+                (actionsDisabled ||
+                  galleryFull) &&
+                  styles.disabled,
               ]}
             >
               {uploadingGallery ? (
                 <ActivityIndicator
+                  size="small"
                   color={
                     WorkerColors.primary
                   }
                 />
               ) : (
                 <>
-                  <View
-                    style={
-                      styles.addGalleryIcon
+                  <Ionicons
+                    name="add"
+                    size={17}
+                    color={
+                      WorkerColors.primary
                     }
-                  >
-                    <AppIcon
-                      name="image"
-                      role="worker"
-                      size="md"
-                      color={
-                        WorkerColors.primary
-                      }
-                    />
-                  </View>
+                  />
 
                   <AppText
-                    variant="bodyMedium"
-                    weight="bold"
+                    variant="button"
                     style={
-                      styles.addGalleryText
+                      styles.galleryActionText
                     }
                   >
-                    Add Work Photos
-                  </AppText>
-
-                  <AppText
-                    variant="caption"
-                    tone="secondary"
-                    style={
-                      styles.galleryRatio
-                    }
-                  >
-                    Up to{" "}
-                    {MAX_GALLERY_PHOTOS}{" "}
-                    photos · Landscape
+                    {galleryFull
+                      ? "Gallery Full"
+                      : "Add Photos"}
                   </AppText>
                 </>
               )}
             </Pressable>
-          )}
+          </View>
         </View>
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          center
-          style={
-            styles.swipeHint
-          }
-        >
-          {profile.workGallery.length >
-          1
-            ? "Swipe left or right to view photos"
-            : `You can add up to ${MAX_GALLERY_PHOTOS} work photos`}
-        </AppText>
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.galleryCount
-          }
-        >
-          {profile.workGallery.length}/
-          {MAX_GALLERY_PHOTOS} photos
-        </AppText>
 
         {/* ==================================================
             ABOUT ME
         ================================================== */}
 
-        <SectionTitle
-          icon="profile"
-          title="About Me"
-        />
-
-        <TextInput
-          value={
-            profile.aboutMe
-          }
-          onChangeText={
-            value =>
-              updateField(
-                "aboutMe",
-                value,
-              )
-          }
-          placeholder="Tell customers about your skills, experience and the type of work you do..."
-          placeholderTextColor={
-            Colors.textMuted
-          }
-          selectionColor={
-            WorkerColors.primary
-          }
-          cursorColor={
-            WorkerColors.primary
-          }
-          multiline
-          textAlignVertical="top"
-          maxLength={1000}
-          accessibilityLabel="About me"
+        <View
           style={
-            styles.textArea
-          }
-        />
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.characterCount
+            styles.card
           }
         >
-          {profile.aboutMe.length}/1000
-        </AppText>
+          <AppText
+            variant="heading3"
+            style={
+              styles.cardTitle
+            }
+          >
+            About Me
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            style={
+              styles.cardDescription
+            }
+          >
+            Tell customers about your experience and service.
+          </AppText>
+
+          <View
+            style={[
+              styles.inputRow,
+              styles.aboutRow,
+            ]}
+          >
+            <TextInput
+              value={
+                draft.aboutMe
+              }
+              onChangeText={(
+                value,
+              ) =>
+                handleUpdateField(
+                  "aboutMe",
+                  value,
+                )
+              }
+              placeholder="Tell customers about your professional experience..."
+              placeholderTextColor={
+                Colors.textSecondary
+              }
+              multiline
+              maxLength={1000}
+              autoCorrect
+              textAlignVertical="top"
+              editable={
+                !actionsDisabled
+              }
+              style={
+                styles.aboutText
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.characterCount
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+            >
+              {aboutLength}/1000
+            </AppText>
+          </View>
+        </View>
+
+        {/* ==================================================
+            SECURITY
+        ================================================== */}
+
+        <View
+          style={
+            styles.securityCard
+          }
+        >
+          <View
+            style={
+              styles.securityIconBox
+            }
+          >
+            <Ionicons
+              name="shield-outline"
+              size={24}
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+
+          <View
+            style={
+              styles.securityContent
+            }
+          >
+            <AppText
+              variant="body"
+              style={
+                styles.securityTitle
+              }
+            >
+              Worker profile security
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              style={
+                styles.securityDescription
+              }
+            >
+              Your worker information is securely
+              stored and shown to customers through
+              Fixxam.
+            </AppText>
+          </View>
+        </View>
 
         {/* ==================================================
             SAVE
@@ -972,135 +1768,51 @@ export function WorkerProfileForm({
 
         <View
           style={
-            styles.saveAction
+            styles.saveSection
           }
         >
-          <AppButton
-            title="Save & Publish"
-            role="worker"
-            variant="primary"
-            leftIconName="check"
-            loading={
-              saving
-            }
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save worker profile"
             disabled={
               actionsDisabled
             }
             onPress={
-              saveProfile
+              handleSave
             }
-          />
-        </View>
+            style={[
+              styles.saveButton,
+              actionsDisabled &&
+                styles.disabled,
+            ]}
+          >
+            {saving ? (
+              <ActivityIndicator
+                size="small"
+                color="#FFFFFF"
+              />
+            ) : (
+              <>
+                <Ionicons
+                  name="checkmark"
+                  size={23}
+                  color="#FFFFFF"
+                />
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          center
-          style={
-            styles.bottomNote
-          }
-        >
-          Your professional profile information is stored securely. Profile photos are uploaded before they are published.
-        </AppText>
+                <AppText
+                  variant="button"
+                  style={
+                    styles.saveButtonText
+                  }
+                >
+                  Save Changes
+                </AppText>
+              </>
+            )}
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-/* ============================================================
-   GALLERY SEPARATOR
-============================================================ */
-
-function GallerySeparator() {
-  return (
-    <View
-      style={
-        styles.galleryGap
-      }
-    />
-  );
-}
-
-/* ============================================================
-   FIELD LABEL
-============================================================ */
-
-function FieldLabel({
-  label,
-  required = false,
-}: FieldLabelProps) {
-  return (
-    <View
-      style={
-        styles.labelRow
-      }
-    >
-      <AppText
-        variant="bodyMedium"
-        weight="bold"
-        style={
-          styles.label
-        }
-      >
-        {label}
-      </AppText>
-
-      {required ? (
-        <AppText
-          variant="bodyMedium"
-          weight="bold"
-          style={
-            styles.required
-          }
-        >
-          *
-        </AppText>
-      ) : null}
-    </View>
-  );
-}
-
-/* ============================================================
-   SECTION TITLE
-============================================================ */
-
-function SectionTitle({
-  icon,
-  title,
-}: SectionTitleProps) {
-  return (
-    <View
-      style={
-        styles.sectionTitle
-      }
-    >
-      <View
-        style={
-          styles.sectionIcon
-        }
-      >
-        <AppIcon
-          name={
-            icon
-          }
-          role="worker"
-          size="sm"
-          color={
-            WorkerColors.primary
-          }
-        />
-      </View>
-
-      <AppText
-        variant="heading3"
-        weight="bold"
-        style={
-          styles.sectionText
-        }
-      >
-        {title}
-      </AppText>
-    </View>
   );
 }
 
@@ -1110,19 +1822,20 @@ function SectionTitle({
 
 const styles =
   StyleSheet.create({
-    flex: {
+    keyboardContainer: {
       flex: 1,
     },
 
     container: {
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+      flex: 1,
+      backgroundColor:
+        Colors.background,
+    },
 
-      paddingTop:
-        FixxamTokens.spacing.md,
-
-      paddingBottom:
-        FixxamTokens.spacing.xxxl,
+    content: {
+      paddingHorizontal: 7,
+      paddingTop: 3,
+      paddingBottom: 10,
     },
 
     /* ========================================================
@@ -1130,718 +1843,518 @@ const styles =
     ======================================================== */
 
     header: {
-      marginBottom:
-        FixxamTokens.spacing.xl,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 5,
     },
 
-    title: {
-      color:
-        Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 21,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       SECTION
-    ======================================================== */
-
-    sectionTitle: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    sectionIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
+    backButton: {
+      width: 38,
+      height: 36,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
       backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    sectionText: {
-      color:
-        Colors.textPrimary,
-    },
-
-    /* ========================================================
-       PROFILE PHOTO
-    ======================================================== */
-
-    photoSection: {
-      alignItems:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.xl,
-    },
-
-    photoWrapper: {
-      width: 116,
-
-      height: 116,
-
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      overflow:
-        "hidden",
-
-      borderWidth: 2,
-
+        Colors.surface,
+      borderWidth: 1,
       borderColor:
-        WorkerColors.primarySoft,
+        Colors.border,
+      elevation: 1,
+    },
 
-      borderRadius: 58,
+    headerText: {
+      flex: 1,
+      marginLeft: 7,
+    },
 
+    headerTitle: {
+      color:
+        Colors.textPrimary,
+      fontWeight: "900",
+      fontSize: 19,
+      lineHeight: 22,
+      letterSpacing: -0.3,
+    },
+
+    headerSubtitle: {
+      marginTop: 0,
+      fontSize: 11,
+      lineHeight: 14,
+    },
+
+    /* ========================================================
+       PROFILE
+    ======================================================== */
+
+    profileCard: {
+      marginBottom: 5,
+      padding: 8,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor:
+        Colors.border,
       backgroundColor:
-        Colors.disabledBackground,
+        Colors.surface,
+      elevation: 1,
+    },
 
-      ...FixxamTokens.shadow.card,
+    profileRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+
+    profilePhotoWrap: {
+      position: "relative",
     },
 
     profilePhoto: {
+      width: 56,
+      height: 56,
+      borderRadius: 15,
+      overflow: "hidden",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    profilePhotoImage: {
       width: "100%",
-
       height: "100%",
-
-      backgroundColor:
-        Colors.disabledBackground,
     },
 
-    photoPlaceholder: {
-      flex: 1,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    photoLoading: {
-      ...StyleSheet.absoluteFillObject,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      backgroundColor:
-        Colors.overlayMedium,
-    },
-
-    photoButton: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    photoButtonText: {
+    profileInitial: {
       color:
         WorkerColors.primary,
+      fontWeight: "900",
+      fontSize: 18,
+    },
+
+    cameraButton: {
+      position: "absolute",
+      right: -3,
+      bottom: -3,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        WorkerColors.primary,
+      borderWidth: 2,
+      borderColor:
+        Colors.surface,
+    },
+
+    profileInfo: {
+      flex: 1,
+      minWidth: 0,
+      marginLeft: 7,
+    },
+
+    profileName: {
+      color:
+        Colors.textPrimary,
+      fontWeight: "800",
+      fontSize: 15,
+      lineHeight: 18,
+    },
+
+    profileEmail: {
+      marginTop: 0,
+      fontSize: 10,
+      lineHeight: 13,
+    },
+
+    changePhotoButton: {
+      alignSelf: "flex-start",
+      marginTop: 1,
+    },
+
+    changePhotoText: {
+      color:
+        WorkerColors.primary,
+      fontWeight: "700",
+      fontSize: 11,
     },
 
     /* ========================================================
-       LABEL
+       CARDS
     ======================================================== */
 
-    labelRow: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
+    card: {
+      marginBottom: 5,
+      padding: 9,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor:
+        Colors.border,
+      backgroundColor:
+        Colors.surface,
+      elevation: 1,
+    },
 
-      flexDirection:
-        "row",
+    cardTitle: {
+      color:
+        Colors.textPrimary,
+      fontWeight: "800",
+      fontSize: 17,
+      lineHeight: 20,
+      letterSpacing: -0.1,
+    },
 
-      alignItems:
-        "center",
+    cardDescription: {
+      marginTop: 1,
+      lineHeight: 14,
+      fontSize: 11,
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       FIELDS
+    ======================================================== */
+
+    field: {
+      marginTop: 6,
     },
 
     label: {
+      marginBottom: 2,
       color:
         Colors.textPrimary,
+      fontWeight: "700",
+      fontSize: 11,
+      lineHeight: 14,
     },
 
-    required: {
-      marginLeft:
-        FixxamTokens.spacing.xxs,
+    inputRow: {
+      minHeight: 40,
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor:
+        Colors.border,
+      borderRadius: 10,
+      backgroundColor:
+        Colors.surface,
+    },
 
+    inputIcon: {
+      marginLeft: 9,
+    },
+
+    currencyIcon: {
+      width: 29,
+      paddingLeft: 9,
       color:
-        Colors.error,
+        Colors.textPrimary,
+      fontWeight: "800",
+      fontSize: 15,
+    },
+
+    inputText: {
+      flex: 1,
+      minHeight: 38,
+      paddingHorizontal: 6,
+      color:
+        Colors.textPrimary,
+      fontSize: 13,
     },
 
     /* ========================================================
-       INPUTS
+       READ ONLY PROFESSIONAL FIELDS
     ======================================================== */
 
-    input: {
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
+    readOnlyInputRow: {
+      minHeight: 52,
+      flexDirection: "row",
+      alignItems: "center",
       borderWidth: 1,
-
       borderColor:
         Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
+      borderRadius: 11,
       backgroundColor:
-        Colors.surface,
-
-      color:
-        Colors.textPrimary,
-
-      fontSize:
-        Typography.fontSize.md,
-
-      includeFontPadding:
-        false,
+        Colors.background,
     },
 
-    inputWithSuffix: {
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      paddingRight:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    suffixInput: {
+    readOnlyInputText: {
       flex: 1,
-
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
-
-      fontSize:
-        Typography.fontSize.md,
-    },
-
-    suffix: {
+      minHeight: 50,
+      paddingHorizontal: 6,
       color:
         Colors.textSecondary,
+      fontSize: 14,
+      fontWeight: "500",
     },
 
-    inputWithPrefix: {
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
+    readOnlyMultilineRow: {
+      minHeight: 82,
+      alignItems: "flex-start",
     },
 
-    prefix: {
-      paddingLeft:
-        FixxamTokens.spacing.md,
-
-      color:
-        WorkerColors.primary,
+    readOnlyMultilineIcon: {
+      marginLeft: 9,
+      marginTop: 13,
     },
 
-    prefixInput: {
+    readOnlyMultilineText: {
       flex: 1,
-
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textPrimary,
-
-      fontSize:
-        Typography.fontSize.md,
-    },
-
-    rateSuffix: {
-      paddingRight:
-        FixxamTokens.spacing.md,
-
+      minHeight: 78,
+      paddingHorizontal: 6,
+      paddingTop: 11,
+      paddingBottom: 8,
       color:
         Colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 19,
     },
 
-    inputIconWrapper: {
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    iconInput: {
-      flex: 1,
-
-      minHeight:
-        FixxamTokens.size.inputHeight,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textPrimary,
-
-      fontSize:
-        Typography.fontSize.md,
-    },
-
-    phoneHelper: {
-      marginTop:
-        -FixxamTokens.spacing.md,
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      lineHeight: 17,
-
-      color:
-        Colors.textMuted,
+    helperText: {
+      marginTop: 2,
+      lineHeight: 13,
+      fontSize: 10,
     },
 
     /* ========================================================
        GALLERY
     ======================================================== */
 
-    helper: {
-      marginBottom:
-        FixxamTokens.spacing.md,
+    galleryHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent:
+        "space-between",
+    },
 
-      lineHeight: 19,
+    galleryTitleWrap: {
+      flex: 1,
+      paddingRight: 4,
+    },
 
+    galleryCount: {
+      minWidth: 39,
+      height: 28,
+      paddingHorizontal: 6,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    galleryCountText: {
       color:
-        Colors.textSecondary,
+        WorkerColors.primary,
+      fontWeight: "900",
+      fontSize: 11,
     },
 
-    gallerySection: {
-      width: "100%",
-
-      overflow:
-        "hidden",
-    },
-
-    galleryList: {
-      paddingRight:
-        FixxamTokens.spacing.lg,
-    },
-
-    galleryGap: {
-      width:
-        FixxamTokens.spacing.md,
+    galleryScroll: {
+      gap: 7,
+      paddingTop: 7,
+      paddingRight: 5,
     },
 
     galleryItem: {
-      position:
-        "relative",
-
-      overflow:
-        "hidden",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
+      width: 118,
+      height: 126,
+      position: "relative",
+      overflow: "hidden",
+      borderRadius: 12,
       backgroundColor:
-        Colors.disabledBackground,
+        Colors.background,
     },
 
     galleryImage: {
       width: "100%",
-
       height: "100%",
+    },
 
+    changeGalleryButton: {
+      position: "absolute",
+      left: 5,
+      right: 5,
+      bottom: 39,
+      minHeight: 29,
+      borderRadius: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
       backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    galleryOverlay: {
-      ...StyleSheet.absoluteFillObject,
-
-      backgroundColor:
-        Colors.overlayLight,
-    },
-
-    removePhoto: {
-      position:
-        "absolute",
-
-      top:
-        FixxamTokens.spacing.sm,
-
-      right:
-        FixxamTokens.spacing.sm,
-
-      zIndex: 10,
-
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.error,
-    },
-
-    photoNumber: {
-      position:
-        "absolute",
-
-      bottom:
-        FixxamTokens.spacing.sm,
-
-      left:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.overlayStrong,
-    },
-
-    photoNumberText: {
-      color:
-        Colors.textInverse,
-    },
-
-    footerAddWrapper: {
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    addGallery: {
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderStyle:
-        "dashed",
-
-      borderColor:
         WorkerColors.primary,
+    },
 
-      borderRadius:
-        FixxamTokens.radius.lg,
-
+    removeButton: {
+      position: "absolute",
+      left: 5,
+      right: 5,
+      bottom: 5,
+      minHeight: 29,
+      borderRadius: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
       backgroundColor:
-        WorkerColors.primarySoft,
+        "rgba(0,0,0,0.72)",
+    },
+
+    galleryButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "800",
+      fontSize: 10,
     },
 
     emptyGallery: {
-      alignSelf:
-        "center",
+      minHeight: 72,
+      marginTop: 6,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        Colors.background,
+    },
 
-      alignItems:
-        "center",
+    emptyGalleryText: {
+      marginTop: 3,
+      fontSize: 10,
+    },
 
+    galleryBottom: {
+      flexDirection: "row",
+      alignItems: "center",
       justifyContent:
-        "center",
+        "space-between",
+      marginTop: 7,
+    },
 
+    gallerySwipeText: {
+      flex: 1,
+      paddingRight: 4,
+      fontSize: 10,
+    },
+
+    galleryAction: {
+      minHeight: 34,
+      paddingHorizontal: 10,
+      borderRadius: 9,
       borderWidth: 1,
-
-      borderStyle:
-        "dashed",
-
       borderColor:
         WorkerColors.primary,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
     },
 
-    addGalleryIcon: {
-      width:
-        FixxamTokens.size.iconBox,
-
-      height:
-        FixxamTokens.size.iconBox,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    addGalleryText: {
+    galleryActionText: {
       color:
         WorkerColors.primary,
-    },
-
-    galleryRatio: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textMuted,
-    },
-
-    swipeHint: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textMuted,
-    },
-
-    galleryCount: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      marginBottom:
-        FixxamTokens.spacing.xl,
-
-      color:
-        Colors.textSecondary,
+      fontWeight: "800",
+      fontSize: 10,
     },
 
     /* ========================================================
        ABOUT
     ======================================================== */
 
-    textArea: {
-      minHeight: 145,
+    aboutRow: {
+      minHeight: 90,
+      marginTop: 6,
+      alignItems: "flex-start",
+    },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.md,
-
-      paddingBottom:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
-
+    aboutText: {
+      flex: 1,
+      width: "100%",
+      minHeight: 84,
+      paddingHorizontal: 9,
+      paddingTop: 7,
+      paddingBottom: 5,
       color:
         Colors.textPrimary,
-
-      fontSize:
-        Typography.fontSize.md,
-
-      lineHeight: 21,
+      fontSize: 13,
+      lineHeight: 16,
     },
 
     characterCount: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+      alignItems: "flex-end",
+      marginTop: 1,
+    },
 
-      marginBottom:
-        FixxamTokens.spacing.xl,
+    /* ========================================================
+       SECURITY
+    ======================================================== */
 
-      textAlign:
-        "right",
+    securityCard: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      marginBottom: 5,
+      padding: 8,
+      borderRadius: 15,
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
 
+    securityIconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 9,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor:
+        Colors.surface,
+    },
+
+    securityContent: {
+      flex: 1,
+      marginLeft: 7,
+    },
+
+    securityTitle: {
       color:
-        Colors.textMuted,
+        WorkerColors.primary,
+      fontWeight: "800",
+      fontSize: 11,
+    },
+
+    securityDescription: {
+      marginTop: 1,
+      lineHeight: 13,
+      fontSize: 10,
     },
 
     /* ========================================================
        SAVE
     ======================================================== */
 
-    saveAction: {
-      width: "100%",
+    saveSection: {
+      marginTop: 0,
+      marginBottom: 5,
     },
 
-    bottomNote: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      lineHeight: 17,
-
-      color:
-        Colors.textMuted,
+    saveButton: {
+      minHeight: 43,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      borderRadius: 11,
+      backgroundColor:
+        WorkerColors.primary,
     },
 
-    /* ========================================================
-       INTERACTION
-    ======================================================== */
+    saveButtonText: {
+      color: "#FFFFFF",
+      fontWeight: "800",
+      fontSize: 13,
+    },
 
     disabled: {
-      opacity: 0.6,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
+      opacity: 0.5,
     },
   });
+
+export default WorkerProfileForm;

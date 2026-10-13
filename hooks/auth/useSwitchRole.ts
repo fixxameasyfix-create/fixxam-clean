@@ -1,5 +1,7 @@
-import { useState } from "react";
-
+import {
+  useCallback,
+  useState,
+} from "react";
 
 import {
   doc,
@@ -16,61 +18,101 @@ import {
   showSuccess,
 } from "@/utils/showToast";
 
-export type UserRole = "customer" | "worker";
+/* ============================================================
+   TYPES
+============================================================ */
+
+export type UserRole =
+  | "customer"
+  | "worker";
+
+/* ============================================================
+   SWITCH ROLE
+============================================================ */
 
 export default function useSwitchRole() {
-  const [loading, setLoading] = useState(false);
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
 
-  const switchRole = async (
-    role: UserRole
-  ): Promise<boolean> => {
-    try {
-      const user = auth.currentUser;
+  const switchRole =
+    useCallback(
+      async (
+        role: UserRole,
+      ): Promise<boolean> => {
+        if (loading) {
+          return false;
+        }
 
-      if (!user) {
-        showError(
-          "Authentication Required",
-          "Please sign in again."
-        );
+        const user =
+          auth.currentUser;
 
-        return false;
-      }
+        if (!user) {
+          showError(
+            "Authentication Required",
+            "Please sign in again.",
+          );
 
-      setLoading(true);
+          return false;
+        }
 
-      const userRef = doc(
-        db,
-        "users",
-        user.uid
-      );
+        /*
+         * IMPORTANT:
+         *
+         * This function only updates activeRole.
+         *
+         * The selected role has already been
+         * validated by SelectAccount.
+         *
+         * Firestore Security Rules MUST still
+         * enforce that the authenticated user
+         * is allowed to set this role.
+         */
+        try {
+          setLoading(true);
 
-      await updateDoc(userRef, {
-        activeRole: role,
-      });
+          const userRef =
+            doc(
+              db,
+              "users",
+              user.uid,
+            );
 
-      showSuccess(
-        "Account Switched",
-        `You are now using your ${role} account.`
-      );
+          await updateDoc(
+            userRef,
+            {
+              activeRole:
+                role,
+            },
+          );
 
-      
-      return true;
-    } catch (error) {
-      console.log(
-        "SWITCH ROLE ERROR:",
-        error
-      );
+          showSuccess(
+            "Account Switched",
+            role === "customer"
+              ? "You are now using your customer account."
+              : "You are now using your worker account.",
+          );
 
-      showError(
-        "Switch Failed",
-        "Unable to switch account."
-      );
+          return true;
+        } catch (error) {
+          console.error(
+            "SWITCH_ROLE_ERROR:",
+            error,
+          );
 
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
+          showError(
+            "Switch Failed",
+            "Unable to switch account. Please try again.",
+          );
+
+          return false;
+        } finally {
+          setLoading(false);
+        }
+      },
+      [loading],
+    );
 
   return {
     loading,

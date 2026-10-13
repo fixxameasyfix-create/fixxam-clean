@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
-  StyleSheet,
   View,
   type ListRenderItemInfo,
 } from "react-native";
@@ -18,10 +17,14 @@ import {
 } from "@/components/ui";
 
 import {
-  Colors,
-  FixxamTokens,
   WorkerColors,
 } from "@/theme";
+
+import WorkerMarketMessageBubble from "./WorkerMarketMessageBubble";
+
+import {
+  styles,
+} from "./workerMarketChatStyles";
 
 /* ==============================================================
    TYPES
@@ -63,43 +66,9 @@ type Props = {
    HELPERS
 ============================================================== */
 
-function formatTime(
-  timestamp: number,
-): string {
-  if (
-    !timestamp ||
-    !Number.isFinite(
-      timestamp,
-    )
-  ) {
-    return "";
-  }
-
-  const date =
-    new Date(
-      timestamp,
-    );
-
-  if (
-    Number.isNaN(
-      date.getTime(),
-    )
-  ) {
-    return "";
-  }
-
-  return date.toLocaleTimeString(
-    "en-NG",
-    {
-      hour: "numeric",
-
-      minute: "2-digit",
-    },
-  );
-}
-
 function keyExtractor(
-  item: WorkerMarketChatMessage,
+  item:
+    WorkerMarketChatMessage,
 ): string {
   return item.id;
 }
@@ -124,14 +93,17 @@ function WorkerMarketMessageList({
       ({
         item,
       }: ListRenderItemInfo<WorkerMarketChatMessage>) => {
+        const isMine =
+          item.senderId ===
+          currentUserId;
+
         return (
-          <MessageBubble
+          <WorkerMarketMessageBubble
             message={
               item
             }
             isMine={
-              item.senderId ===
-              currentUserId
+              isMine
             }
           />
         );
@@ -166,7 +138,9 @@ function WorkerMarketMessageList({
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <View
         style={
@@ -178,23 +152,16 @@ function WorkerMarketMessageList({
             styles.center
           }
         >
-          <View
-            style={
-              styles.loadingIcon
+          <ActivityIndicator
+            size="small"
+            color={
+              WorkerColors.primary
             }
-          >
-            <ActivityIndicator
-              size="small"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
+          />
 
           <AppText
-            variant="body"
+            variant="caption"
             tone="secondary"
-            center
             style={
               styles.loadingText
             }
@@ -229,15 +196,6 @@ function WorkerMarketMessageList({
         renderItem={
           renderMessage
         }
-        initialNumToRender={
-          20
-        }
-        maxToRenderPerBatch={
-          12
-        }
-        windowSize={
-          9
-        }
         contentContainerStyle={[
           styles.messagesContent,
 
@@ -256,11 +214,24 @@ function WorkerMarketMessageList({
         showsVerticalScrollIndicator={
           false
         }
+        initialNumToRender={
+          20
+        }
+        maxToRenderPerBatch={
+          20
+        }
+        windowSize={
+          9
+        }
+        removeClippedSubviews={
+          Platform.OS ===
+          "android"
+        }
         onContentSizeChange={
           handleContentSizeChange
         }
         ListEmptyComponent={
-          EmptyChat
+          <EmptyChat />
         }
       />
     </View>
@@ -272,92 +243,7 @@ export default memo(
 );
 
 /* ==============================================================
-   MESSAGE
-============================================================== */
-
-const MessageBubble =
-  memo(
-    function MessageBubble({
-      message,
-      isMine,
-    }: {
-      message:
-        WorkerMarketChatMessage;
-
-      isMine: boolean;
-    }) {
-      const messageTime =
-        formatTime(
-          message.createdAt,
-        );
-
-      return (
-        <View
-          style={[
-            styles.messageRow,
-
-            isMine
-              ? styles.messageRowMine
-              : null,
-          ]}
-        >
-          <View
-            accessible
-            accessibilityLabel={`${
-              isMine
-                ? "You"
-                : "Customer"
-            }: ${message.text}${
-              messageTime
-                ? `. ${messageTime}`
-                : ""
-            }`}
-            style={[
-              styles.messageBubble,
-
-              isMine
-                ? styles.myBubble
-                : styles.customerBubble,
-            ]}
-          >
-            <AppText
-              variant="body"
-              style={[
-                styles.messageText,
-
-                isMine
-                  ? styles.myMessageText
-                  : styles.customerMessageText,
-              ]}
-            >
-              {message.text}
-            </AppText>
-
-            {messageTime ? (
-              <AppText
-                variant="caption"
-                style={[
-                  styles.messageTime,
-
-                  isMine
-                    ? styles.myMessageTime
-                    : styles.customerMessageTime,
-                ]}
-              >
-                {messageTime}
-              </AppText>
-            ) : null}
-          </View>
-        </View>
-      );
-    },
-  );
-
-MessageBubble.displayName =
-  "WorkerMarketMessageBubble";
-
-/* ==============================================================
-   EMPTY
+   EMPTY STATE
 ============================================================== */
 
 const EmptyChat =
@@ -392,7 +278,7 @@ const EmptyChat =
               styles.emptyTitle
             }
           >
-            Start a conversation
+            No messages yet
           </AppText>
 
           <AppText
@@ -412,227 +298,3 @@ const EmptyChat =
 
 EmptyChat.displayName =
   "WorkerMarketEmptyChat";
-
-/* ==============================================================
-   STYLES
-============================================================== */
-
-const styles =
-  StyleSheet.create({
-    chatContainer: {
-      flex: 1,
-
-      minHeight: 0,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    /* ==========================================================
-       LIST
-    ========================================================== */
-
-    messagesContent: {
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.lg,
-
-      paddingBottom:
-        FixxamTokens.spacing.xl,
-    },
-
-    emptyMessages: {
-      flexGrow: 1,
-    },
-
-    /* ==========================================================
-       MESSAGE
-    ========================================================== */
-
-    messageRow: {
-      width: "100%",
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      alignItems:
-        "flex-start",
-    },
-
-    messageRowMine: {
-      alignItems:
-        "flex-end",
-    },
-
-    messageBubble: {
-      maxWidth: "80%",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-    },
-
-    customerBubble: {
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderBottomLeftRadius:
-        FixxamTokens.radius.xs,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    myBubble: {
-      borderBottomRightRadius:
-        FixxamTokens.radius.xs,
-
-      backgroundColor:
-        WorkerColors.primary,
-    },
-
-    messageText: {
-      lineHeight: 20,
-    },
-
-    customerMessageText: {
-      color:
-        Colors.textPrimary,
-    },
-
-    myMessageText: {
-      color:
-        Colors.textInverse,
-    },
-
-    messageTime: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      alignSelf:
-        "flex-end",
-    },
-
-    customerMessageTime: {
-      color:
-        Colors.textMuted,
-    },
-
-    myMessageTime: {
-      color:
-        Colors.textInverse,
-
-      opacity: 0.72,
-    },
-
-    /* ==========================================================
-       EMPTY
-    ========================================================== */
-
-    emptyContainer: {
-      flex: 1,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    emptyIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
-
-      height:
-        FixxamTokens.size.avatarLg,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    emptyTitle: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    emptyText: {
-      maxWidth: 290,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 20,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ==========================================================
-       LOADING
-    ========================================================== */
-
-    center: {
-      flex: 1,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    loadingIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
-
-      height:
-        FixxamTokens.size.avatarLg,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    loadingText: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textSecondary,
-    },
-  });

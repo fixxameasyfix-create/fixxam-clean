@@ -82,10 +82,6 @@ type OrderData = {
   workerPhone?: string;
   workerPhoto?: string;
 
-  storeId?: string;
-  storeName?: string;
-  storePhone?: string;
-
   receiverName?: string;
   receiverPhone?: string;
 
@@ -93,13 +89,6 @@ type OrderData = {
   deliveryAddress?: string;
   location?: string;
   deliveryLocation?: string;
-
-  paymentMethod?: string;
-  paymentStatus?: string;
-
-  subtotal?: number;
-  deliveryFee?: number;
-  total?: number;
 
   acceptedAt?: unknown;
   onTheWayAt?: unknown;
@@ -133,7 +122,7 @@ const STEPS: readonly TimelineStep[] =
       title: "Order placed",
 
       description:
-        "Your order has been placed successfully.",
+        "Your order was placed successfully.",
 
       icon: "package",
     },
@@ -144,7 +133,7 @@ const STEPS: readonly TimelineStep[] =
       title: "Seller accepted",
 
       description:
-        "The seller has accepted your order.",
+        "The seller accepted your order.",
 
       icon: "success",
     },
@@ -155,7 +144,7 @@ const STEPS: readonly TimelineStep[] =
       title: "On the way",
 
       description:
-        "The worker is delivering your order.",
+        "Your order is being delivered.",
 
       icon: "navigation",
     },
@@ -163,24 +152,25 @@ const STEPS: readonly TimelineStep[] =
     {
       key: "completed",
 
-      title: "Completed",
+      title: "Delivered",
 
       description:
-        "Your order has been completed.",
+        "Your order was delivered successfully.",
 
       icon: "success",
     },
   ];
 
 /* ============================================================
-   STRING HELPERS
+   HELPERS
 ============================================================ */
 
 function normalizeStatus(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -216,92 +206,37 @@ function getString(
   return "";
 }
 
-/* ============================================================
-   NUMBER
-============================================================ */
-
-function getNumber(
-  ...values: unknown[]
-): number {
-  for (
-    const value of values
-  ) {
-    if (
-      typeof value ===
-        "number" &&
-      Number.isFinite(value)
-    ) {
-      return Math.max(
-        0,
-        value,
-      );
-    }
-
-    if (
-      typeof value ===
-        "string" &&
-      value.trim()
-    ) {
-      const parsed =
-        Number(value);
-
-      if (
-        Number.isFinite(
-          parsed,
-        )
-      ) {
-        return Math.max(
-          0,
-          parsed,
-        );
-      }
-    }
-  }
-
-  return 0;
-}
-
-/* ============================================================
-   FORMATTERS
-============================================================ */
-
-function formatMoney(
-  amount: number,
-): string {
-  const safeAmount =
-    Number.isFinite(amount)
-      ? Math.max(
-          0,
-          amount,
-        )
-      : 0;
-
-  return `₦${safeAmount.toLocaleString(
-    "en-NG",
-  )}`;
-}
-
-function formatReadableValue(
+function normalizePhone(
   value: string,
 ): string {
-  const normalized =
-    value
-      .trim()
-      .replace(
-        /[_-]+/g,
-        " ",
-      );
+  const trimmed =
+    value.trim();
 
-  if (!normalized) {
+  if (!trimmed) {
     return "";
   }
 
-  return normalized.replace(
-    /\b\w/g,
-    (character) =>
-      character.toUpperCase(),
-  );
+  const hasLeadingPlus =
+    trimmed.startsWith("+");
+
+  const digits =
+    trimmed.replace(
+      /\D/g,
+      "",
+    );
+
+  if (!digits) {
+    return "";
+  }
+
+  return hasLeadingPlus
+    ? `+${digits}`
+    : digits;
 }
+
+/* ============================================================
+   DATE
+============================================================ */
 
 function formatTimestamp(
   value: unknown,
@@ -333,27 +268,33 @@ function formatTimestamp(
           resolved instanceof
             Date
         ) {
-          date = resolved;
+          date =
+            resolved;
         }
       }
     } else if (
       value instanceof Date
     ) {
-      date = value;
+      date =
+        value;
     } else if (
       typeof value ===
         "number" &&
       Number.isFinite(value)
     ) {
       date =
-        new Date(value);
+        new Date(
+          value,
+        );
     } else if (
       typeof value ===
         "string" &&
       value.trim()
     ) {
       date =
-        new Date(value);
+        new Date(
+          value,
+        );
     }
 
     if (
@@ -368,22 +309,25 @@ function formatTimestamp(
     return date.toLocaleString(
       "en-NG",
       {
-        day: "2-digit",
+        day:
+          "numeric",
 
-        month: "short",
+        month:
+          "short",
 
-        hour: "2-digit",
+        hour:
+          "2-digit",
 
         minute:
           "2-digit",
       },
     );
   } catch (
-    formatError
+    error
   ) {
     console.error(
       "FIXXAM_FORMAT_TRACK_TIMESTAMP_ERROR:",
-      formatError,
+      error,
     );
 
     return "";
@@ -398,7 +342,9 @@ function normalizeTrackStatus(
   value: unknown,
 ): TrackStatus {
   const status =
-    normalizeStatus(value);
+    normalizeStatus(
+      value,
+    );
 
   switch (status) {
     case "accepted":
@@ -444,7 +390,6 @@ function getStatusIndex(
     case "pending":
     case "cancelled":
     case "expired":
-    default:
       return 0;
   }
 }
@@ -469,7 +414,6 @@ function getStatusIcon(
       return "success";
 
     case "pending":
-    default:
       return "package";
   }
 }
@@ -533,7 +477,8 @@ export default function MarketOrderTrackScreen() {
       }
 
       return (
-        orderId ?? ""
+        orderId ??
+        ""
       ).trim();
     }, [
       orderId,
@@ -574,9 +519,13 @@ export default function MarketOrderTrackScreen() {
       auth.currentUser;
 
     if (!user) {
-      setOrder(null);
+      setOrder(
+        null,
+      );
 
-      setLoading(false);
+      setLoading(
+        false,
+      );
 
       setError(
         "Please sign in again to track this order.",
@@ -586,9 +535,13 @@ export default function MarketOrderTrackScreen() {
     }
 
     if (!cleanOrderId) {
-      setOrder(null);
+      setOrder(
+        null,
+      );
 
-      setLoading(false);
+      setLoading(
+        false,
+      );
 
       setError(
         "Order ID is missing.",
@@ -597,9 +550,13 @@ export default function MarketOrderTrackScreen() {
       return;
     }
 
-    setLoading(true);
+    setLoading(
+      true,
+    );
 
-    setError(null);
+    setError(
+      null,
+    );
 
     const orderRef =
       doc(
@@ -618,7 +575,9 @@ export default function MarketOrderTrackScreen() {
           if (
             !snapshot.exists()
           ) {
-            setOrder(null);
+            setOrder(
+              null,
+            );
 
             setLoading(
               false,
@@ -635,7 +594,7 @@ export default function MarketOrderTrackScreen() {
             snapshot.data();
 
           /* ==================================================
-             CUSTOMER OWNERSHIP
+             OWNERSHIP
           ================================================== */
 
           const customerId =
@@ -643,17 +602,13 @@ export default function MarketOrderTrackScreen() {
               data.customerId,
             );
 
-          /*
-           * Missing customerId is also denied.
-           *
-           * Firestore Security Rules must enforce
-           * the same ownership server-side.
-           */
           if (
             customerId !==
             user.uid
           ) {
-            setOrder(null);
+            setOrder(
+              null,
+            );
 
             setLoading(
               false,
@@ -686,7 +641,9 @@ export default function MarketOrderTrackScreen() {
             type !==
               "market"
           ) {
-            setOrder(null);
+            setOrder(
+              null,
+            );
 
             setLoading(
               false,
@@ -700,7 +657,7 @@ export default function MarketOrderTrackScreen() {
           }
 
           /* ==================================================
-             SAFE ORDER MAPPING
+             SAFE MAPPING
           ================================================== */
 
           const mappedOrder: OrderData =
@@ -721,9 +678,13 @@ export default function MarketOrderTrackScreen() {
             mappedOrder,
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
-          setError(null);
+          setError(
+            null,
+          );
         },
 
         (
@@ -734,9 +695,13 @@ export default function MarketOrderTrackScreen() {
             listenerError,
           );
 
-          setOrder(null);
+          setOrder(
+            null,
+          );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
 
           setError(
             "Unable to track this order. Please try again.",
@@ -750,52 +715,38 @@ export default function MarketOrderTrackScreen() {
   ]);
 
   /* ==========================================================
-     CALL WORKER
+     CALL DELIVERY WORKER
   ========================================================== */
 
   const handleCallWorker =
     useCallback(async () => {
-      const workerPhone =
+      const rawPhone =
         getString(
           order?.workerPhone,
         );
 
-      if (!workerPhone) {
-        Toast.show({
-          type: "info",
-
-          text1:
-            "Worker phone unavailable",
-
-          text2:
-            "This worker does not have a phone number.",
-        });
-
-        return;
-      }
-
-      const safePhone =
-        workerPhone.replace(
-          /[^+\d]/g,
-          "",
+      const workerPhone =
+        normalizePhone(
+          rawPhone,
         );
 
-      if (!safePhone) {
+      if (!workerPhone) {
         Toast.show({
-          type: "error",
+          type:
+            "info",
 
           text1:
-            "Invalid phone number",
+            "Phone unavailable",
 
           text2:
-            "The worker's phone number is not valid.",
+            "The delivery worker's phone number is unavailable.",
         });
 
         return;
       }
 
       const phoneUrl =
-        `tel:${safePhone}`;
+        `tel:${workerPhone}`;
 
       try {
         const supported =
@@ -830,7 +781,8 @@ export default function MarketOrderTrackScreen() {
         );
 
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
             "Unable to call worker",
@@ -963,13 +915,13 @@ export default function MarketOrderTrackScreen() {
             />
 
             <AppText
-              variant="caption"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.backButtonText
               }
             >
-              GO BACK
+              Go back
             </AppText>
           </Pressable>
         </View>
@@ -1003,6 +955,11 @@ export default function MarketOrderTrackScreen() {
     status ===
     "completed";
 
+  const isActive =
+    !isCancelled &&
+    !isExpired &&
+    !isCompleted;
+
   const workerId =
     getString(
       order.workerId,
@@ -1011,7 +968,7 @@ export default function MarketOrderTrackScreen() {
   const workerName =
     getString(
       order.workerName,
-      "Delivery Worker",
+      "Delivery worker",
     );
 
   const workerPhone =
@@ -1022,21 +979,6 @@ export default function MarketOrderTrackScreen() {
   const workerPhoto =
     getString(
       order.workerPhoto,
-    );
-
-  const storeName =
-    getString(
-      order.storeName,
-      "Market Store",
-    );
-
-  const address =
-    getString(
-      order.address,
-      order.deliveryAddress,
-      order.location,
-      order.deliveryLocation,
-      "Delivery address unavailable",
     );
 
   const receiverName =
@@ -1050,37 +992,13 @@ export default function MarketOrderTrackScreen() {
       order.receiverPhone,
     );
 
-  const paymentMethod =
-    formatReadableValue(
-      getString(
-        order.paymentMethod,
-        "cash",
-      ),
-    );
-
-  const paymentStatus =
-    formatReadableValue(
-      getString(
-        order.paymentStatus,
-        "pending",
-      ),
-    );
-
-  const subtotal =
-    getNumber(
-      order.subtotal,
-    );
-
-  const deliveryFee =
-    getNumber(
-      order.deliveryFee,
-    );
-
-  const total =
-    getNumber(
-      order.total,
-      subtotal +
-        deliveryFee,
+  const address =
+    getString(
+      order.address,
+      order.deliveryAddress,
+      order.location,
+      order.deliveryLocation,
+      "Delivery address unavailable",
     );
 
   const statusIcon =
@@ -1165,7 +1083,7 @@ export default function MarketOrderTrackScreen() {
                 styles.headerTitle
               }
             >
-              Track Order
+              Track order
             </AppText>
 
             <AppText
@@ -1180,28 +1098,37 @@ export default function MarketOrderTrackScreen() {
             </AppText>
           </View>
 
-          <View
-            style={
-              styles.liveBadge
-            }
-            accessibilityLabel="Live order updates enabled"
-          >
+          {isActive ? (
             <View
+              accessible
+              accessibilityLabel="Live order updates enabled"
               style={
-                styles.liveDot
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.liveText
+                styles.liveBadge
               }
             >
-              LIVE
-            </AppText>
-          </View>
+              <View
+                style={
+                  styles.liveDot
+                }
+              />
+
+              <AppText
+                variant="caption"
+                weight="semibold"
+                style={
+                  styles.liveText
+                }
+              >
+                Live
+              </AppText>
+            </View>
+          ) : (
+            <View
+              style={
+                styles.headerSpacer
+              }
+            />
+          )}
         </View>
 
         {/* ====================================================
@@ -1212,41 +1139,29 @@ export default function MarketOrderTrackScreen() {
           style={[
             styles.currentStatus,
 
-            isCompleted
-              ? styles.completedStatus
-              : null,
-
-            isCancelled
-              ? styles.cancelledStatus
-              : null,
-
-            isExpired
-              ? styles.expiredStatus
-              : null,
+            {
+              backgroundColor:
+                isCompleted
+                  ? Colors.successSoft
+                  : isCancelled
+                    ? Colors.errorSoft
+                    : isExpired
+                      ? Colors.warningSoft
+                      : CustomerColors.primarySoft,
+            },
           ]}
         >
           <View
-            style={[
-              styles.currentStatusIcon,
-
-              {
-                backgroundColor:
-                  isCompleted
-                    ? Colors.successSoft
-                    : isCancelled
-                      ? Colors.errorSoft
-                      : isExpired
-                        ? Colors.warningSoft
-                        : CustomerColors.primarySoft,
-              },
-            ]}
+            style={
+              styles.currentStatusIcon
+            }
           >
             <AppIcon
               name={
                 statusIcon
               }
               role="customer"
-              size="lg"
+              size="sm"
               color={
                 statusColor
               }
@@ -1259,24 +1174,24 @@ export default function MarketOrderTrackScreen() {
             }
           >
             <AppText
-              variant="body"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.currentStatusTitle
               }
             >
               {isCompleted
-                ? "Order completed"
+                ? "Order delivered"
                 : isCancelled
                   ? "Order cancelled"
                   : isExpired
                     ? "Order expired"
                     : status ===
                         "in-progress"
-                      ? "Your order is on the way"
+                      ? "On the way"
                       : status ===
                           "accepted"
-                        ? "Order accepted"
+                        ? "Seller accepted"
                         : "Order placed"}
             </AppText>
 
@@ -1288,17 +1203,17 @@ export default function MarketOrderTrackScreen() {
               }
             >
               {isCompleted
-                ? "Your market order has been completed."
+                ? "Your order has been delivered."
                 : isCancelled
                   ? "This order has been cancelled."
                   : isExpired
                     ? "This order is no longer active."
                     : status ===
                         "in-progress"
-                      ? "The worker is delivering your order."
+                      ? "Your order is being delivered."
                       : status ===
                           "accepted"
-                        ? "The seller has accepted your order."
+                        ? "Your order is being prepared for delivery."
                         : "Waiting for the seller to accept your order."}
             </AppText>
           </View>
@@ -1316,8 +1231,8 @@ export default function MarketOrderTrackScreen() {
             }
           >
             <AppText
-              variant="body"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.cardTitle
               }
@@ -1376,17 +1291,14 @@ export default function MarketOrderTrackScreen() {
                           style={[
                             styles.timelineCircle,
 
-                            completed
+                            completed ||
+                            finalCompleted
                               ? styles.timelineCircleCompleted
                               : null,
 
                             active &&
                             !finalCompleted
                               ? styles.timelineCircleActive
-                              : null,
-
-                            finalCompleted
-                              ? styles.timelineCircleCompleted
                               : null,
                           ]}
                         >
@@ -1439,7 +1351,7 @@ export default function MarketOrderTrackScreen() {
                           weight={
                             active ||
                             completed
-                              ? "bold"
+                              ? "semibold"
                               : undefined
                           }
                           style={[
@@ -1483,35 +1395,31 @@ export default function MarketOrderTrackScreen() {
         ) : (
           <View
             style={
-              styles.card
+              styles.closedCard
             }
           >
-            <View
-              style={[
-                styles.closedBox,
-
+            <AppIcon
+              name={
                 isCancelled
-                  ? styles.cancelledClosedBox
-                  : styles.expiredClosedBox,
-              ]}
-            >
-              <AppIcon
-                name={
-                  isCancelled
-                    ? "error"
-                    : "clock"
-                }
-                size="lg"
-                color={
-                  isCancelled
-                    ? Colors.error
-                    : Colors.warning
-                }
-              />
+                  ? "error"
+                  : "clock"
+              }
+              size="md"
+              color={
+                isCancelled
+                  ? Colors.error
+                  : Colors.warning
+              }
+            />
 
+            <View
+              style={
+                styles.closedContent
+              }
+            >
               <AppText
-                variant="body"
-                weight="bold"
+                variant="bodyMedium"
+                weight="semibold"
                 style={
                   styles.closedTitle
                 }
@@ -1520,12 +1428,24 @@ export default function MarketOrderTrackScreen() {
                   ? "Order cancelled"
                   : "Order expired"}
               </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.closedText
+                }
+              >
+                {isCancelled
+                  ? "Tracking is no longer available for this order."
+                  : "This order is no longer active."}
+              </AppText>
             </View>
           </View>
         )}
 
         {/* ====================================================
-            WORKER
+            DELIVERY WORKER
         ==================================================== */}
 
         {workerId ? (
@@ -1535,8 +1455,8 @@ export default function MarketOrderTrackScreen() {
             }
           >
             <AppText
-              variant="body"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.cardTitle
               }
@@ -1564,8 +1484,8 @@ export default function MarketOrderTrackScreen() {
                 }
               >
                 <AppText
-                  variant="body"
-                  weight="bold"
+                  variant="bodyMedium"
+                  weight="semibold"
                   numberOfLines={1}
                   style={
                     styles.workerName
@@ -1583,17 +1503,6 @@ export default function MarketOrderTrackScreen() {
                 >
                   Delivery worker
                 </AppText>
-
-                {workerPhone ? (
-                  <AppText
-                    variant="caption"
-                    style={
-                      styles.workerPhone
-                    }
-                  >
-                    {workerPhone}
-                  </AppText>
-                ) : null}
               </View>
 
               {workerPhone ? (
@@ -1619,7 +1528,7 @@ export default function MarketOrderTrackScreen() {
                     role="customer"
                     size="sm"
                     color={
-                      Colors.textInverse
+                      CustomerColors.primary
                     }
                   />
                 </Pressable>
@@ -1630,19 +1539,20 @@ export default function MarketOrderTrackScreen() {
             "in-progress" ? (
               <View
                 style={
-                  styles.trackingNotice
+                  styles.workerTrackingRow
                 }
               >
                 <View
                   style={
-                    styles.trackingDot
+                    styles.workerTrackingDot
                   }
                 />
 
                 <AppText
                   variant="caption"
+                  tone="secondary"
                   style={
-                    styles.trackingText
+                    styles.workerTrackingText
                   }
                 >
                   Your order is currently with the delivery worker.
@@ -1653,7 +1563,7 @@ export default function MarketOrderTrackScreen() {
         ) : null}
 
         {/* ====================================================
-            DELIVERY DETAILS
+            DELIVERY
         ==================================================== */}
 
         <View
@@ -1662,14 +1572,28 @@ export default function MarketOrderTrackScreen() {
           }
         >
           <AppText
-            variant="body"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
             style={
               styles.cardTitle
             }
           >
-            Delivery details
+            Delivery
           </AppText>
+
+          <DetailRow
+            icon="location"
+            label="Delivery address"
+            value={
+              address
+            }
+          />
+
+          <View
+            style={
+              styles.detailDivider
+            }
+          />
 
           <DetailRow
             icon="profile"
@@ -1681,165 +1605,33 @@ export default function MarketOrderTrackScreen() {
               receiverPhone
             }
           />
-
-          <View
-            style={
-              styles.detailDivider
-            }
-          />
-
-          <DetailRow
-            icon="location"
-            label="Delivery address"
-            value={
-              address
-            }
-          />
         </View>
 
         {/* ====================================================
-            ORDER INFORMATION
+            LIVE UPDATE
         ==================================================== */}
 
-        <View
-          style={
-            styles.card
-          }
-        >
-          <AppText
-            variant="body"
-            weight="bold"
-            style={
-              styles.cardTitle
-            }
-          >
-            Order information
-          </AppText>
-
-          <InfoRow
-            label="Order ID"
-            value={`#${cleanOrderId}`}
-          />
-
-          <InfoRow
-            label="Store"
-            value={
-              storeName
-            }
-          />
-
-          <InfoRow
-            label="Payment"
-            value={
-              paymentMethod
-            }
-          />
-
-          <InfoRow
-            label="Payment status"
-            value={
-              paymentStatus
-            }
-          />
-
-          <InfoRow
-            label="Subtotal"
-            value={
-              formatMoney(
-                subtotal,
-              )
-            }
-          />
-
-          <InfoRow
-            label="Delivery fee"
-            value={
-              formatMoney(
-                deliveryFee,
-              )
-            }
-          />
-
+        {isActive ? (
           <View
             style={
-              styles.totalRow
-            }
-          >
-            <AppText
-              variant="body"
-              weight="bold"
-              style={
-                styles.totalLabel
-              }
-            >
-              Total
-            </AppText>
-
-            <AppText
-              variant="heading3"
-              weight="bold"
-              style={
-                styles.totalValue
-              }
-            >
-              {formatMoney(
-                total,
-              )}
-            </AppText>
-          </View>
-        </View>
-
-        {/* ====================================================
-            LIVE INFO
-        ==================================================== */}
-
-        {status ===
-        "in-progress" ? (
-          <View
-            style={
-              styles.liveInfo
+              styles.liveUpdateRow
             }
           >
             <View
               style={
-                styles.liveInfoIcon
+                styles.liveUpdateDot
               }
-            >
-              <AppIcon
-                name="info"
-                role="customer"
-                size="sm"
-                color={
-                  CustomerColors.primary
-                }
-              />
-            </View>
+            />
 
-            <View
+            <AppText
+              variant="caption"
+              tone="secondary"
               style={
-                styles.liveInfoContent
+                styles.liveUpdateText
               }
             >
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.liveInfoTitle
-                }
-              >
-                Live order tracking
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.liveInfoText
-                }
-              >
-                This page updates automatically when the worker changes the order status.
-              </AppText>
-            </View>
+              Updates appear here automatically.
+            </AppText>
           </View>
         ) : null}
 
@@ -1892,7 +1684,10 @@ const WorkerAvatar =
                 photoURL,
             }}
             contentFit="cover"
-            transition={150}
+            cachePolicy="memory-disk"
+            transition={
+              FixxamTokens.motion.fast
+            }
             accessibilityLabel={`${name} profile photo`}
             onError={() => {
               setImageFailed(
@@ -1925,6 +1720,9 @@ const WorkerAvatar =
     },
   );
 
+WorkerAvatar.displayName =
+  "WorkerAvatar";
+
 /* ============================================================
    DETAIL ROW
 ============================================================ */
@@ -1947,6 +1745,12 @@ const DetailRow =
     }) {
       return (
         <View
+          accessible
+          accessibilityLabel={`${label}. ${value}${
+            subValue
+              ? `. ${subValue}`
+              : ""
+          }`}
           style={
             styles.detailRow
           }
@@ -1957,7 +1761,9 @@ const DetailRow =
             }
           >
             <AppIcon
-              name={icon}
+              name={
+                icon
+              }
               role="customer"
               size="sm"
               color={
@@ -1973,6 +1779,7 @@ const DetailRow =
           >
             <AppText
               variant="caption"
+              tone="secondary"
               style={
                 styles.detailLabel
               }
@@ -1982,7 +1789,7 @@ const DetailRow =
 
             <AppText
               variant="caption"
-              weight="bold"
+              weight="semibold"
               style={
                 styles.detailValue
               }
@@ -2007,50 +1814,8 @@ const DetailRow =
     },
   );
 
-/* ============================================================
-   INFO ROW
-============================================================ */
-
-const InfoRow =
-  memo(
-    function InfoRow({
-      label,
-      value,
-    }: {
-      label: string;
-
-      value: string;
-    }) {
-      return (
-        <View
-          style={
-            styles.infoRow
-          }
-        >
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.infoLabel
-            }
-          >
-            {label}
-          </AppText>
-
-          <AppText
-            variant="caption"
-            weight="bold"
-            numberOfLines={2}
-            style={
-              styles.infoValue
-            }
-          >
-            {value}
-          </AppText>
-        </View>
-      );
-    },
-  );
+DetailRow.displayName =
+  "DetailRow";
 
 /* ============================================================
    STYLES
@@ -2063,15 +1828,20 @@ const styles =
     ======================================================== */
 
     screen: {
-      flex: 1,
+      flex:
+        1,
 
-      width: "100%",
+      width:
+        "100%",
 
-      paddingHorizontal: 0,
+      paddingHorizontal:
+        0,
 
-      paddingTop: 0,
+      paddingTop:
+        0,
 
-      paddingBottom: 0,
+      paddingBottom:
+        0,
 
       backgroundColor:
         Colors.background,
@@ -2110,7 +1880,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -2118,7 +1889,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -2128,14 +1900,14 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginHorizontal:
         FixxamTokens.spacing.md,
@@ -2148,14 +1920,17 @@ const styles =
 
     headerSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
+    },
 
-      color:
-        Colors.textSecondary,
+    headerSpacer: {
+      width:
+        FixxamTokens.size.minimumTouchTarget,
     },
 
     liveBadge: {
-      minHeight: 32,
+      minHeight:
+        30,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -2169,11 +1944,6 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.success,
-
       borderRadius:
         FixxamTokens.radius.chip,
 
@@ -2182,9 +1952,11 @@ const styles =
     },
 
     liveDot: {
-      width: 7,
+      width:
+        7,
 
-      height: 7,
+      height:
+        7,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -2203,6 +1975,9 @@ const styles =
     ======================================================== */
 
     currentStatus: {
+      minHeight:
+        64,
+
       marginTop:
         FixxamTokens.spacing.sm,
 
@@ -2215,50 +1990,19 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
-
-      borderColor:
-        CustomerColors.primary,
-
       borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    completedStatus: {
-      borderColor:
-        Colors.success,
-
-      backgroundColor:
-        Colors.successSoft,
-    },
-
-    cancelledStatus: {
-      borderColor:
-        Colors.error,
-
-      backgroundColor:
-        Colors.errorSoft,
-    },
-
-    expiredStatus: {
-      borderColor:
-        Colors.warning,
-
-      backgroundColor:
-        Colors.warningSoft,
+        FixxamTokens.radius.xl,
     },
 
     currentStatusIcon: {
       width:
-        FixxamTokens.size.iconBox,
+        40,
 
       height:
-        FixxamTokens.size.iconBox,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -2267,16 +2011,21 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
     currentStatusContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     currentStatusTitle: {
@@ -2286,12 +2035,10 @@ const styles =
 
     currentStatusText: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        2,
 
-      lineHeight: 16,
-
-      color:
-        Colors.textSecondary,
+      lineHeight:
+        18,
     },
 
     /* ========================================================
@@ -2299,24 +2046,26 @@ const styles =
     ======================================================== */
 
     card: {
+      width:
+        "100%",
+
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     cardTitle: {
@@ -2330,29 +2079,34 @@ const styles =
 
     timeline: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
     },
 
     timelineRow: {
-      minHeight: 76,
+      minHeight:
+        70,
 
       flexDirection:
         "row",
     },
 
     timelineLeft: {
-      width: 38,
+      width:
+        34,
 
       alignItems:
         "center",
     },
 
     timelineCircle: {
-      width: 30,
+      width:
+        28,
 
-      height: 30,
+      height:
+        28,
 
-      zIndex: 2,
+      zIndex:
+        2,
 
       alignItems:
         "center",
@@ -2360,7 +2114,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 2,
+      borderWidth:
+        1.5,
 
       borderColor:
         Colors.disabled,
@@ -2392,11 +2147,14 @@ const styles =
       position:
         "absolute",
 
-      top: 30,
+      top:
+        28,
 
-      bottom: 0,
+      bottom:
+        0,
 
-      width: 2,
+      width:
+        2,
 
       backgroundColor:
         Colors.divider,
@@ -2408,15 +2166,17 @@ const styles =
     },
 
     timelineContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
 
       paddingBottom:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
     },
 
     timelineTitle: {
@@ -2431,12 +2191,10 @@ const styles =
 
     timelineDescription: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
 
-      lineHeight: 15,
-
-      color:
-        Colors.textSecondary,
+      lineHeight:
+        16,
     },
 
     timelineDate: {
@@ -2448,41 +2206,63 @@ const styles =
     },
 
     /* ========================================================
-       CLOSED
+       CLOSED ORDER
     ======================================================== */
 
-    closedBox: {
-      minHeight: 100,
+    closedCard: {
+      width:
+        "100%",
+
+      minHeight:
+        72,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
+      flexDirection:
+        "row",
+
       alignItems:
         "center",
 
-      justifyContent:
-        "center",
+      borderWidth:
+        1,
+
+      borderColor:
+        Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    cancelledClosedBox: {
-      backgroundColor:
-        Colors.errorSoft,
-    },
+    closedContent: {
+      flex:
+        1,
 
-    expiredClosedBox: {
-      backgroundColor:
-        Colors.warningSoft,
+      minWidth:
+        0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
     },
 
     closedTitle: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
       color:
         Colors.textPrimary,
+    },
+
+    closedText: {
+      marginTop:
+        2,
+
+      lineHeight:
+        17,
     },
 
     /* ========================================================
@@ -2507,16 +2287,17 @@ const styles =
       height:
         FixxamTokens.size.avatarMd,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
+
+      overflow:
+        "hidden",
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
-
-      overflow:
-        "hidden",
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -2526,12 +2307,14 @@ const styles =
     },
 
     workerInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     workerName: {
@@ -2541,18 +2324,7 @@ const styles =
 
     workerRole: {
       marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    workerPhone: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textMuted,
+        2,
     },
 
     callButton: {
@@ -2562,7 +2334,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -2570,18 +2343,27 @@ const styles =
       justifyContent:
         "center",
 
+      borderWidth:
+        1,
+
+      borderColor:
+        CustomerColors.primary,
+
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        CustomerColors.primary,
+        Colors.surface,
     },
 
-    trackingNotice: {
-      marginTop:
-        FixxamTokens.spacing.md,
+    workerTrackingRow: {
+      minHeight:
+        36,
 
-      padding:
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
         FixxamTokens.spacing.sm,
 
       flexDirection:
@@ -2600,12 +2382,15 @@ const styles =
         CustomerColors.primarySoft,
     },
 
-    trackingDot: {
-      width: 8,
+    workerTrackingDot: {
+      width:
+        7,
 
-      height: 8,
+      height:
+        7,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -2614,15 +2399,13 @@ const styles =
         CustomerColors.primary,
     },
 
-    trackingText: {
-      flex: 1,
-
-      color:
-        CustomerColors.primary,
+    workerTrackingText: {
+      flex:
+        1,
     },
 
     /* ========================================================
-       DELIVERY DETAILS
+       DELIVERY
     ======================================================== */
 
     detailRow: {
@@ -2638,12 +2421,13 @@ const styles =
 
     detailIcon: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -2659,9 +2443,11 @@ const styles =
     },
 
     detailContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -2674,9 +2460,10 @@ const styles =
 
     detailValue: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
 
-      lineHeight: 16,
+      lineHeight:
+        18,
 
       color:
         Colors.textPrimary,
@@ -2684,14 +2471,12 @@ const styles =
 
     detailSubValue: {
       marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
+        2,
     },
 
     detailDivider: {
-      height: 1,
+      height:
+        StyleSheet.hairlineWidth,
 
       marginTop:
         FixxamTokens.spacing.md,
@@ -2701,12 +2486,18 @@ const styles =
     },
 
     /* ========================================================
-       INFO
+       LIVE UPDATE
     ======================================================== */
 
-    infoRow: {
+    liveUpdateRow: {
       minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+        44,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -2715,139 +2506,32 @@ const styles =
         "center",
 
       justifyContent:
-        "space-between",
+        "center",
 
       gap:
-        FixxamTokens.spacing.md,
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        Colors.divider,
+        FixxamTokens.spacing.xs,
     },
 
-    infoLabel: {
-      color:
-        Colors.textSecondary,
-    },
-
-    infoValue: {
-      flex: 1,
-
-      minWidth: 0,
-
-      textAlign:
-        "right",
-
-      color:
-        Colors.textPrimary,
-    },
-
-    totalRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        Colors.border,
-    },
-
-    totalLabel: {
-      color:
-        Colors.textPrimary,
-    },
-
-    totalValue: {
-      color:
-        CustomerColors.primary,
-    },
-
-    /* ========================================================
-       LIVE INFO
-    ======================================================== */
-
-    liveInfo: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        CustomerColors.primary,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    liveInfoIcon: {
+    liveUpdateDot: {
       width:
-        FixxamTokens.size.iconBox,
+        7,
 
       height:
-        FixxamTokens.size.iconBox,
+        7,
 
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+      flexShrink:
+        0,
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.surface,
+        Colors.success,
     },
 
-    liveInfoContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    liveInfoTitle: {
-      color:
-        CustomerColors.primary,
-    },
-
-    liveInfoText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 15,
-
-      color:
-        Colors.textSecondary,
+    liveUpdateText: {
+      flexShrink:
+        1,
     },
 
     /* ========================================================
@@ -2855,9 +2539,11 @@ const styles =
     ======================================================== */
 
     centerState: {
-      flex: 1,
+      flex:
+        1,
 
-      minHeight: 500,
+      minHeight:
+        500,
 
       paddingHorizontal:
         FixxamTokens.spacing.xl,
@@ -2878,21 +2564,22 @@ const styles =
     },
 
     stateText: {
-      maxWidth: 320,
+      maxWidth:
+        320,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 18,
-
-      color:
-        Colors.textSecondary,
+      lineHeight:
+        18,
     },
 
     errorIcon: {
-      width: 68,
+      width:
+        68,
 
-      height: 68,
+      height:
+        68,
 
       alignItems:
         "center",
@@ -2909,7 +2596,7 @@ const styles =
 
     backButton: {
       minHeight:
-        FixxamTokens.size.buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       marginTop:
         FixxamTokens.spacing.lg,
@@ -2946,20 +2633,14 @@ const styles =
         FixxamTokens.spacing.xl,
     },
 
-    /* ========================================================
-       PRESS
-    ======================================================== */
-
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

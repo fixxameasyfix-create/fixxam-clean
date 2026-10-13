@@ -1,13 +1,14 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
   useMemo,
+  useState,
 } from "react";
 
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Modal,
   Pressable,
   StyleSheet,
@@ -25,11 +26,6 @@ import {
 import Toast from "react-native-toast-message";
 
 import {
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-
-import {
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -44,11 +40,6 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import {
-  auth,
-  db,
-} from "@/firebase/config";
-
 import type {
   WorkerNotification,
 } from "@/hooks/notifications/useWorkerNotifications";
@@ -62,16 +53,32 @@ type Props = {
 
   loading: boolean;
 
-  notifications: WorkerNotification[];
+  notifications:
+    WorkerNotification[];
 
-  onClose: () => void;
+  onClose:
+    () => void;
+
+  onMarkAsRead:
+    (
+      notificationId: string,
+    ) => Promise<void>;
 };
 
 type InfoRowProps = {
-  icon: AppIconName;
+  icon:
+    AppIconName;
 
-  value: string;
+  value:
+    string;
 };
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const STAR_COUNT =
+  5;
 
 /* ============================================================
    HELPERS
@@ -80,37 +87,271 @@ type InfoRowProps = {
 function getSafeString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
 
-function getNotificationIcon(
-  notification: WorkerNotification,
-): AppIconName {
+function getSafeRating(
+  value: unknown,
+): number | null {
   if (
-    notification.type ===
-    "market_order"
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
   ) {
-    return "cart";
+    return null;
   }
 
   if (
-    notification.type ===
-    "booking"
+    value < 1 ||
+    value > 5
   ) {
-    return "jobs";
+    return null;
   }
 
-  if (
-    notification.type ===
-    "service_request"
-  ) {
-    return "professional";
-  }
-
-  return "notifications";
+  return Math.round(
+    value,
+  );
 }
+
+function getNotificationType(
+  notification:
+    WorkerNotification,
+): string {
+  return getSafeString(
+    notification.type,
+  );
+}
+
+function isCallNotification(
+  notification:
+    WorkerNotification,
+): boolean {
+  const type =
+    getNotificationType(
+      notification,
+    );
+
+  return (
+    type ===
+      "incoming_call" ||
+    type ===
+      "missed_call" ||
+    type ===
+      "call_update"
+  );
+}
+
+function isShopRequest(
+  notification:
+    WorkerNotification,
+): boolean {
+  return (
+    getNotificationType(
+      notification,
+    ) ===
+    "shop_request"
+  );
+}
+
+/* ============================================================
+   NOTIFICATION ICON
+============================================================ */
+
+function getNotificationIcon(
+  notification:
+    WorkerNotification,
+): AppIconName {
+  const type =
+    getNotificationType(
+      notification,
+    );
+
+  switch (type) {
+    case "market_order":
+      return "cart";
+
+    case "shop_request":
+      return "service";
+
+    case "booking":
+      return "jobs";
+
+    case "service_request":
+      return "professional";
+
+    case "incoming_call":
+    case "missed_call":
+    case "call_update":
+      return "phone";
+
+    case "worker_review":
+      return "star";
+
+    case "message":
+    case "system":
+    default:
+      return "notifications";
+  }
+}
+
+/* ============================================================
+   ACTION LABEL
+============================================================ */
+
+function getNotificationActionLabel(
+  notification:
+    WorkerNotification,
+): string {
+  const type =
+    getNotificationType(
+      notification,
+    );
+
+  switch (type) {
+    case "market_order":
+      return notification.action ===
+        "order_created"
+        ? "View order"
+        : "View order update";
+
+    case "message":
+      return "View message";
+
+    case "booking":
+      return "View booking";
+
+    case "service_request":
+      return "View request";
+
+    case "shop_request":
+      return "View request";
+
+    case "worker_review":
+      return "View review";
+
+    case "incoming_call":
+      return "Open call";
+
+    case "call_update":
+      return "Open call";
+
+    case "missed_call":
+      return "";
+
+    case "system":
+    default:
+      return "View details";
+  }
+}
+
+/* ============================================================
+   MARKET
+============================================================ */
+
+function isNewMarketOrder(
+  notification:
+    WorkerNotification,
+): boolean {
+  return (
+    getNotificationType(
+      notification,
+    ) ===
+      "market_order" &&
+    notification.action ===
+      "order_created"
+  );
+}
+
+/* ============================================================
+   REVIEW STARS
+============================================================ */
+
+const NotificationReviewStars =
+  memo(
+    function NotificationReviewStars({
+      rating,
+    }: {
+      rating: number;
+    }) {
+      const safeRating =
+        Math.min(
+          5,
+          Math.max(
+            1,
+            Math.round(
+              rating,
+            ),
+          ),
+        );
+
+      return (
+        <View
+          style={
+            styles.reviewRatingRow
+          }
+          accessible
+          accessibilityLabel={`${safeRating} out of 5 stars`}
+        >
+          <View
+            style={
+              styles.reviewStars
+            }
+          >
+            {Array.from({
+              length:
+                STAR_COUNT,
+            }).map(
+              (
+                _,
+                index,
+              ) => (
+                <View
+                  key={
+                    index
+                  }
+                  style={
+                    styles.reviewStar
+                  }
+                >
+                  <AppIcon
+                    name="star"
+                    role="worker"
+                    size="xs"
+                    color={
+                      index <
+                      safeRating
+                        ? Colors.warning
+                        : Colors.disabled
+                    }
+                  />
+                </View>
+              ),
+            )}
+          </View>
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.reviewRatingText
+            }
+          >
+            {safeRating.toFixed(
+              1,
+            )}
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+NotificationReviewStars.displayName =
+  "NotificationReviewStars";
 
 /* ============================================================
    COMPONENT
@@ -121,9 +362,34 @@ function WorkerNotificationModal({
   loading,
   notifications,
   onClose,
+  onMarkAsRead,
 }: Props) {
   const insets =
     useSafeAreaInsets();
+
+  const [
+    openingId,
+    setOpeningId,
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
+
+  /* ==========================================================
+     RESET STATE
+  ========================================================== */
+
+  useEffect(() => {
+    if (!visible) {
+      setOpeningId(
+        null,
+      );
+    }
+  }, [
+    visible,
+  ]);
 
   /* ==========================================================
      SAFE NOTIFICATIONS
@@ -150,115 +416,240 @@ function WorkerNotificationModal({
     );
 
   /* ==========================================================
-     MARK AS READ
+     MARK READ
   ========================================================== */
 
   const markAsRead =
     useCallback(
-      async (
-        notificationId: string,
+      (
+        notification:
+          WorkerNotification,
       ) => {
-        const uid =
-          auth.currentUser?.uid;
-
-        const safeId =
-          getSafeString(
-            notificationId,
-          );
-
         if (
-          !uid ||
-          !safeId
+          notification.read
         ) {
           return;
         }
 
-        try {
-          await updateDoc(
-            doc(
-              db,
-              "users",
-              uid,
-              "notifications",
-              safeId,
-            ),
-            {
-              read: true,
-            },
-          );
-        } catch (error) {
-          console.error(
-            "FIXXAM_WORKER_NOTIFICATION_READ_ERROR:",
-            error,
-          );
-        }
+        void onMarkAsRead(
+          notification.id,
+        ).catch(
+          error => {
+            console.error(
+              "FIXXAM_WORKER_NOTIFICATION_MARK_READ_ERROR:",
+              {
+                notificationId:
+                  notification.id,
+
+                error,
+              },
+            );
+
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Unable to update notification",
+
+              text2:
+                "The notification could not be marked as read.",
+            });
+          },
+        );
       },
-      [],
+      [
+        onMarkAsRead,
+      ],
     );
 
   /* ==========================================================
-     OPEN NOTIFICATION
+     ROUTE NOTIFICATION
   ========================================================== */
 
-  const handleNotificationPress =
+  const routeNotification =
     useCallback(
       (
-        notification: WorkerNotification,
+        notification:
+          WorkerNotification,
       ) => {
-        const uid =
-          auth.currentUser?.uid;
+        const notificationType =
+          getNotificationType(
+            notification,
+          );
 
-        if (!uid) {
+        /* ====================================================
+           FIXXAM VOICE — LIVE CALL
+        ==================================================== */
+
+        if (
+          notificationType ===
+            "incoming_call" ||
+          notificationType ===
+            "call_update"
+        ) {
+          const callId =
+            getSafeString(
+              notification.callId,
+            ) ||
+            getSafeString(
+              notification.entityId,
+            );
+
+          if (!callId) {
+            console.error(
+              "FIXXAM_WORKER_CALL_NOTIFICATION_MISSING_CALL_ID:",
+              {
+                notificationId:
+                  notification.id,
+
+                type:
+                  notification.type,
+
+                entityId:
+                  notification.entityId,
+              },
+            );
+
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Call unavailable",
+
+              text2:
+                "This notification does not contain a valid Fixxam Voice call ID.",
+            });
+
+            return;
+          }
+
+          /*
+           * Close Bell before entering
+           * the shared Fixxam Voice screen.
+           */
+          onClose();
+
+          router.push({
+            pathname:
+              "/voice-call/[callId]",
+
+            params: {
+              callId,
+            },
+          } as never);
+
+          return;
+        }
+
+        /* ====================================================
+           FIXXAM VOICE — MISSED CALL
+
+           A missed call is already terminal.
+           Never reopen the LiveKit room.
+        ==================================================== */
+
+        if (
+          notificationType ===
+          "missed_call"
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "info",
+
             text1:
-              "Sign in required",
+              "Missed call",
+
             text2:
-              "Please sign in again.",
+              getSafeString(
+                notification.message,
+              ) ||
+              "This Fixxam Voice call has already ended.",
           });
 
           return;
         }
 
-        const notificationId =
-          getSafeString(
-            notification.id,
-          );
+        /* ====================================================
+           WORKER REVIEW
+        ==================================================== */
 
         if (
-          !notificationId
+          notificationType ===
+          "worker_review"
         ) {
+          const reviewId =
+            getSafeString(
+              notification.reviewId,
+            );
+
+          const customerId =
+            getSafeString(
+              notification.customerId,
+            );
+
+          onClose();
+
+          router.push({
+            pathname:
+              "/(worker)/reviews",
+
+            params: {
+              ...(reviewId
+                ? {
+                    reviewId,
+                  }
+                : {}),
+
+              ...(customerId
+                ? {
+                    customerId,
+                  }
+                : {}),
+            },
+          } as never);
+
           return;
         }
-
-        /*
-         * Do not delay navigation for
-         * a non-critical Firestore write.
-         */
-        if (
-          !notification.read
-        ) {
-          void markAsRead(
-            notificationId,
-          );
-        }
-
-        onClose();
 
         /* ====================================================
            BOOKING
         ==================================================== */
 
         if (
-          notification.bookingId
+          notificationType ===
+          "booking"
         ) {
+          const bookingId =
+            getSafeString(
+              notification.bookingId,
+            );
+
+          if (!bookingId) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Booking unavailable",
+
+              text2:
+                "This notification does not contain a valid booking ID.",
+            });
+
+            return;
+          }
+
+          onClose();
+
           router.push({
             pathname:
-              "/(worker)/notifications",
+              "/(worker)/orders/[orderId]",
 
             params: {
-              bookingId:
-                notification.bookingId,
+              orderId:
+                bookingId,
             },
           } as never);
 
@@ -270,19 +661,43 @@ function WorkerNotificationModal({
         ==================================================== */
 
         if (
-          notification.orderId
+          notificationType ===
+          "market_order"
         ) {
+          const orderId =
+            getSafeString(
+              notification.orderId,
+            );
+
+          if (!orderId) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Order unavailable",
+
+              text2:
+                "This notification does not contain a valid Market order ID.",
+            });
+
+            return;
+          }
+
+          onClose();
+
           router.push({
             pathname:
-              "/(worker)/notifications",
+              "/(worker)/orders/market/[market]",
 
             params: {
-              orderId:
-                notification.orderId,
+              market:
+                orderId,
 
-              action:
-                notification.action ??
-                "",
+              orderId,
+
+              orderType:
+                "market",
             },
           } as never);
 
@@ -294,15 +709,68 @@ function WorkerNotificationModal({
         ==================================================== */
 
         if (
-          notification.requestId
+          notificationType ===
+          "service_request"
         ) {
+          onClose();
+
+          router.push(
+            "/(worker)/new-job" as never,
+          );
+
+          return;
+        }
+
+        /* ====================================================
+           SHOP REQUEST
+        ==================================================== */
+
+        if (
+          notificationType ===
+          "shop_request"
+        ) {
+          const requestId =
+            getSafeString(
+              notification.requestId,
+            );
+
+          if (!requestId) {
+            console.error(
+              "FIXXAM_WORKER_SHOP_NOTIFICATION_MISSING_REQUEST_ID:",
+              {
+                notificationId:
+                  notification.id,
+
+                action:
+                  notification.action,
+
+                type:
+                  notification.type,
+              },
+            );
+
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Request unavailable",
+
+              text2:
+                "This notification does not contain a valid Shop request ID.",
+            });
+
+            return;
+          }
+
+          onClose();
+
           router.push({
             pathname:
-              "/(worker)/notifications",
+              "/(worker)/orders/shop-request/[requestId]",
 
             params: {
-              requestId:
-                notification.requestId,
+              requestId,
             },
           } as never);
 
@@ -310,94 +778,151 @@ function WorkerNotificationModal({
         }
 
         /* ====================================================
-           GENERAL
+           MESSAGE
         ==================================================== */
 
-        router.push(
-          "/(worker)/notifications" as never,
-        );
-      },
-      [
-        markAsRead,
-        onClose,
-      ],
-    );
+        if (
+          notificationType ===
+          "message"
+        ) {
+          const orderId =
+            getSafeString(
+              notification.orderId,
+            );
 
-  /* ==========================================================
-     CALL CUSTOMER
-  ========================================================== */
+          const customerId =
+            getSafeString(
+              notification.customerId,
+            );
 
-  const handleCallCustomer =
-    useCallback(
-      async (
-        phone?: string,
-      ) => {
-        const cleanPhone =
-          getSafeString(
-            phone,
-          ).replace(
-            /[^0-9+*#,;]/g,
-            "",
-          );
-
-        if (!cleanPhone) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Phone number unavailable",
-            text2:
-              "This customer did not provide a valid phone number.",
-          });
-
-          return;
-        }
-
-        const url =
-          `tel:${cleanPhone}`;
-
-        try {
-          const supported =
-            await Linking.canOpenURL(
-              url,
+          const customerName =
+            getSafeString(
+              notification.customerName,
             );
 
           if (
-            !supported
+            !orderId ||
+            !customerId
           ) {
             Toast.show({
-              type: "error",
+              type:
+                "error",
+
               text1:
-                "Cannot make call",
+                "Chat unavailable",
+
               text2:
-                "Your device cannot open the phone dialer.",
+                "This message does not contain enough information to open the conversation.",
             });
 
             return;
           }
 
-          await Linking.openURL(
-            url,
-          );
-        } catch (error) {
-          console.error(
-            "FIXXAM_CALL_CUSTOMER_ERROR:",
-            error,
-          );
+          onClose();
 
-          Toast.show({
-            type: "error",
-            text1:
-              "Call failed",
-            text2:
-              "Unable to open the phone dialer.",
-          });
+          router.push({
+            pathname:
+              "/(worker)/orders/market/chat",
+
+            params: {
+              orderId,
+
+              customerId,
+
+              customerName:
+                customerName ||
+                "Customer",
+            },
+          } as never);
+
+          return;
         }
+
+        /* ====================================================
+           SYSTEM / GENERAL
+        ==================================================== */
+
+        Toast.show({
+          type:
+            "info",
+
+          text1:
+            getSafeString(
+              notification.title,
+            ) ||
+            "Fixxam Notification",
+
+          text2:
+            getSafeString(
+              notification.message,
+            ) ||
+            "No additional details are available for this notification.",
+        });
       },
-      [],
+      [
+        onClose,
+      ],
     );
 
   /* ==========================================================
-     RENDER ITEM
+     OPEN NOTIFICATION
+  ========================================================== */
+
+  const handleNotificationPress =
+    useCallback(
+      (
+        notification:
+          WorkerNotification,
+      ) => {
+        const notificationId =
+          getSafeString(
+            notification.id,
+          );
+
+        if (
+          !notificationId ||
+          openingId ===
+            notificationId
+        ) {
+          return;
+        }
+
+        setOpeningId(
+          notificationId,
+        );
+
+        /*
+         * Mark as read without blocking
+         * navigation.
+         */
+        markAsRead(
+          notification,
+        );
+
+        /*
+         * Every notification now goes
+         * through the central router.
+         *
+         * Incoming Fixxam Voice can therefore
+         * open the exact call using callId.
+         */
+        routeNotification(
+          notification,
+        );
+
+        setOpeningId(
+          null,
+        );
+      },
+      [
+        markAsRead,
+        openingId,
+        routeNotification,
+      ],
+    );
+
+  /* ==========================================================
+     RENDER NOTIFICATION
   ========================================================== */
 
   const renderNotification =
@@ -406,16 +931,32 @@ function WorkerNotificationModal({
         item:
           notification,
       }: {
-        item: WorkerNotification;
+        item:
+          WorkerNotification;
       }) => {
-        const isMarketOrder =
-          notification.type ===
-          "market_order";
+        const notificationType =
+          getNotificationType(
+            notification,
+          );
 
-        const isNewMarketOrder =
-          isMarketOrder &&
-          notification.action ===
-            "order_created";
+        const newMarketOrder =
+          isNewMarketOrder(
+            notification,
+          );
+
+        const shopRequest =
+          isShopRequest(
+            notification,
+          );
+
+        const isWorkerReview =
+          notificationType ===
+          "worker_review";
+
+        const callNotification =
+          isCallNotification(
+            notification,
+          );
 
         const icon =
           getNotificationIcon(
@@ -426,7 +967,15 @@ function WorkerNotificationModal({
           getSafeString(
             notification.title,
           ) ||
-          "Notification";
+          (
+            shopRequest
+              ? "You have a new shop request"
+              : isWorkerReview
+                ? "New Review"
+                : callNotification
+                  ? "Fixxam Voice"
+                  : "Fixxam Notification"
+          );
 
         const customerName =
           getSafeString(
@@ -443,33 +992,97 @@ function WorkerNotificationModal({
             notification.location,
           );
 
-        const customerPhone =
-          getSafeString(
-            notification.customerPhone,
-          );
-
         const message =
           getSafeString(
             notification.message,
           );
 
+        const reviewComment =
+          getSafeString(
+            notification.reviewComment,
+          );
+
+        const reviewRating =
+          getSafeRating(
+            notification.rating,
+          );
+
+        const actionLabel =
+          getNotificationActionLabel(
+            notification,
+          );
+
+        const isOpening =
+          openingId ===
+          notification.id;
+
         return (
-          <View
-            style={[
+          <Pressable
+            onPress={() => {
+              handleNotificationPress(
+                notification,
+              );
+            }}
+            disabled={
+              isOpening
+            }
+            accessibilityRole="button"
+            accessibilityLabel={
+              message
+                ? `${title}. ${message}`
+                : title
+            }
+            accessibilityHint={
+              notificationType ===
+                "incoming_call" ||
+              notificationType ===
+                "call_update"
+                ? "Marks this notification as read and opens the Fixxam Voice call."
+                : notificationType ===
+                    "missed_call"
+                  ? "Marks this missed call notification as read."
+                  : shopRequest
+                    ? "Marks this notification as read and opens the Shop request."
+                    : isWorkerReview
+                      ? "Marks this review notification as read and opens your reviews."
+                      : "Marks this notification as read and opens the related update."
+            }
+            style={({
+              pressed,
+            }) => [
               styles.card,
+
+              callNotification
+                ? styles.callCard
+                : null,
 
               !notification.read
                 ? styles.unreadCard
                 : null,
 
-              isNewMarketOrder
+              newMarketOrder
                 ? styles.marketOrderCard
+                : null,
+
+              shopRequest
+                ? styles.shopRequestCard
+                : null,
+
+              isWorkerReview
+                ? styles.reviewCard
+                : null,
+
+              pressed &&
+              !isOpening
+                ? styles.pressed
+                : null,
+
+              isOpening
+                ? styles.openingCard
                 : null,
             ]}
           >
-            {/* ================================================
-                ICON
-            ================================================= */}
+            {/* ICON */}
 
             <View
               style={[
@@ -478,23 +1091,44 @@ function WorkerNotificationModal({
                 !notification.read
                   ? styles.unreadIcon
                   : null,
+
+                callNotification
+                  ? styles.callIcon
+                  : null,
+
+                shopRequest
+                  ? styles.shopRequestIcon
+                  : null,
+
+                isWorkerReview
+                  ? styles.reviewIcon
+                  : null,
               ]}
             >
-              <AppIcon
-                name={
-                  icon
-                }
-                role="worker"
-                size="md"
-                color={
-                  WorkerColors.primary
-                }
-              />
+              {isOpening ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              ) : (
+                <AppIcon
+                  name={
+                    icon
+                  }
+                  role="worker"
+                  size="md"
+                  color={
+                    isWorkerReview
+                      ? Colors.warning
+                      : WorkerColors.primary
+                  }
+                />
+              )}
             </View>
 
-            {/* ================================================
-                CONTENT
-            ================================================= */}
+            {/* CONTENT */}
 
             <View
               style={
@@ -509,7 +1143,9 @@ function WorkerNotificationModal({
                 <AppText
                   variant="bodyMedium"
                   weight="bold"
-                  numberOfLines={2}
+                  numberOfLines={
+                    2
+                  }
                   style={
                     styles.cardTitle
                   }
@@ -526,11 +1162,32 @@ function WorkerNotificationModal({
                 ) : null}
               </View>
 
-              {/* ==============================================
-                  MARKET LABEL
-              =============================================== */}
+              {/* FIXXAM VOICE */}
 
-              {isNewMarketOrder ? (
+              {callNotification ? (
+                <View
+                  style={
+                    styles.callLabelContainer
+                  }
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    numberOfLines={
+                      1
+                    }
+                    style={
+                      styles.callLabel
+                    }
+                  >
+                    FIXXAM VOICE
+                  </AppText>
+                </View>
+              ) : null}
+
+              {/* MARKET */}
+
+              {newMarketOrder ? (
                 <View
                   style={
                     styles.marketLabelContainer
@@ -539,7 +1196,9 @@ function WorkerNotificationModal({
                   <AppText
                     variant="caption"
                     weight="bold"
-                    numberOfLines={1}
+                    numberOfLines={
+                      1
+                    }
                     style={
                       styles.marketOrderLabel
                     }
@@ -549,15 +1208,62 @@ function WorkerNotificationModal({
                 </View>
               ) : null}
 
-              {/* ==============================================
-                  CUSTOMER
-              =============================================== */}
+              {/* SHOP */}
 
-              {customerName ? (
+              {shopRequest ? (
+                <View
+                  style={
+                    styles.shopLabelContainer
+                  }
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    numberOfLines={
+                      1
+                    }
+                    style={
+                      styles.shopRequestLabel
+                    }
+                  >
+                    NEW SHOP REQUEST
+                  </AppText>
+                </View>
+              ) : null}
+
+              {/* REVIEW */}
+
+              {isWorkerReview ? (
+                <View
+                  style={
+                    styles.reviewLabelContainer
+                  }
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    numberOfLines={
+                      1
+                    }
+                    style={
+                      styles.reviewLabel
+                    }
+                  >
+                    NEW REVIEW
+                  </AppText>
+                </View>
+              ) : null}
+
+              {/* CUSTOMER */}
+
+              {!callNotification &&
+              customerName ? (
                 <AppText
                   variant="body"
                   weight="bold"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                   style={
                     styles.customerName
                   }
@@ -566,11 +1272,47 @@ function WorkerNotificationModal({
                 </AppText>
               ) : null}
 
-              {/* ==============================================
-                  SERVICE
-              =============================================== */}
+              {/* REVIEW RATING */}
 
-              {service ? (
+              {isWorkerReview &&
+              reviewRating !==
+                null ? (
+                <NotificationReviewStars
+                  rating={
+                    reviewRating
+                  }
+                />
+              ) : null}
+
+              {/* REVIEW COMMENT */}
+
+              {isWorkerReview &&
+              reviewComment ? (
+                <View
+                  style={
+                    styles.reviewCommentContainer
+                  }
+                >
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    numberOfLines={
+                      4
+                    }
+                    style={
+                      styles.reviewComment
+                    }
+                  >
+                    {reviewComment}
+                  </AppText>
+                </View>
+              ) : null}
+
+              {/* SERVICE */}
+
+              {!isWorkerReview &&
+              !callNotification &&
+              service ? (
                 <InfoRow
                   icon="jobs"
                   value={
@@ -579,11 +1321,11 @@ function WorkerNotificationModal({
                 />
               ) : null}
 
-              {/* ==============================================
-                  LOCATION
-              =============================================== */}
+              {/* LOCATION */}
 
-              {location ? (
+              {!isWorkerReview &&
+              !callNotification &&
+              location ? (
                 <InfoRow
                   icon="location"
                   value={
@@ -592,57 +1334,10 @@ function WorkerNotificationModal({
                 />
               ) : null}
 
-              {/* ==============================================
-                  PHONE
-              =============================================== */}
+              {/* MESSAGE */}
 
-              {customerPhone ? (
-                <Pressable
-                  onPress={() => {
-                    void handleCallCustomer(
-                      customerPhone,
-                    );
-                  }}
-                  hitSlop={6}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Call ${customerName || "customer"}`}
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.callRow,
-
-                    pressed
-                      ? styles.pressed
-                      : null,
-                  ]}
-                >
-                  <AppIcon
-                    name="phone"
-                    role="worker"
-                    size="xs"
-                    color={
-                      WorkerColors.primary
-                    }
-                  />
-
-                  <AppText
-                    variant="caption"
-                    weight="bold"
-                    numberOfLines={1}
-                    style={
-                      styles.phone
-                    }
-                  >
-                    {customerPhone}
-                  </AppText>
-                </Pressable>
-              ) : null}
-
-              {/* ==============================================
-                  MESSAGE
-              =============================================== */}
-
-              {message ? (
+              {!isWorkerReview &&
+              message ? (
                 <AppText
                   variant="caption"
                   tone="secondary"
@@ -654,56 +1349,57 @@ function WorkerNotificationModal({
                 </AppText>
               ) : null}
 
-              {/* ==============================================
-                  ACTION
-              =============================================== */}
+              {/* REVIEW MESSAGE FALLBACK */}
 
-              <Pressable
-                onPress={() => {
-                  handleNotificationPress(
-                    notification,
-                  );
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`View ${title}`}
-                style={({
-                  pressed,
-                }) => [
-                  styles.openRow,
-
-                  pressed
-                    ? styles.pressed
-                    : null,
-                ]}
-              >
+              {isWorkerReview &&
+              !reviewComment &&
+              message ? (
                 <AppText
                   variant="caption"
-                  weight="bold"
+                  tone="secondary"
                   style={
-                    styles.openText
+                    styles.message
                   }
                 >
-                  {isNewMarketOrder
-                    ? "View order"
-                    : "View details"}
+                  {message}
                 </AppText>
+              ) : null}
 
-                <AppIcon
-                  name="next"
-                  role="worker"
-                  size="xs"
-                  color={
-                    WorkerColors.primary
+              {/* ACTION */}
+
+              {actionLabel ? (
+                <View
+                  style={
+                    styles.openRow
                   }
-                />
-              </Pressable>
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    style={
+                      styles.openText
+                    }
+                  >
+                    {actionLabel}
+                  </AppText>
+
+                  <AppIcon
+                    name="next"
+                    role="worker"
+                    size="xs"
+                    color={
+                      WorkerColors.primary
+                    }
+                  />
+                </View>
+              ) : null}
             </View>
-          </View>
+          </Pressable>
         );
       },
       [
-        handleCallCustomer,
         handleNotificationPress,
+        openingId,
       ],
     );
 
@@ -728,10 +1424,6 @@ function WorkerNotificationModal({
           styles.overlay
         }
       >
-        {/* ====================================================
-            BACKDROP
-        ==================================================== */}
-
         <Pressable
           style={
             StyleSheet.absoluteFill
@@ -743,11 +1435,8 @@ function WorkerNotificationModal({
           accessibilityLabel="Close notifications"
         />
 
-        {/* ====================================================
-            SHEET
-        ==================================================== */}
-
         <View
+          accessibilityViewIsModal
           style={[
             styles.sheet,
 
@@ -755,24 +1444,17 @@ function WorkerNotificationModal({
               paddingBottom:
                 Math.max(
                   insets.bottom,
-                  FixxamTokens.spacing.lg,
+                  FixxamTokens
+                    .spacing.lg,
                 ),
             },
           ]}
         >
-          {/* ==================================================
-              HANDLE
-          ================================================== */}
-
           <View
             style={
               styles.handle
             }
           />
-
-          {/* ==================================================
-              HEADER
-          ================================================== */}
 
           <View
             style={
@@ -801,7 +1483,7 @@ function WorkerNotificationModal({
                   styles.subtitle
                 }
               >
-                New jobs and updates from your customers.
+                Jobs, Shop requests, orders, messages, reviews and Fixxam Voice updates.
               </AppText>
             </View>
 
@@ -809,7 +1491,9 @@ function WorkerNotificationModal({
               onPress={
                 onClose
               }
-              hitSlop={6}
+              hitSlop={
+                8
+              }
               accessibilityRole="button"
               accessibilityLabel="Close notifications"
               style={({
@@ -831,10 +1515,6 @@ function WorkerNotificationModal({
               />
             </Pressable>
           </View>
-
-          {/* ==================================================
-              LOADING
-          ================================================== */}
 
           {loading ? (
             <View
@@ -876,15 +1556,11 @@ function WorkerNotificationModal({
                   styles.stateText
                 }
               >
-                Please wait a moment.
+                Getting your latest Fixxam updates.
               </AppText>
             </View>
           ) : safeNotifications.length ===
             0 ? (
-            /* ================================================
-               EMPTY
-            ================================================= */
-
             <View
               style={
                 styles.stateContainer
@@ -923,23 +1599,17 @@ function WorkerNotificationModal({
                   styles.stateText
                 }
               >
-                New jobs and customer updates will appear here.
+                New jobs, Shop requests, orders, messages, reviews and Fixxam Voice updates will appear here.
               </AppText>
             </View>
           ) : (
-            /* ================================================
-               LIST
-            ================================================= */
-
             <FlatList
               data={
                 safeNotifications
               }
               keyExtractor={
                 item =>
-                  getSafeString(
-                    item.id,
-                  )
+                  item.id
               }
               renderItem={
                 renderNotification
@@ -988,7 +1658,9 @@ const InfoRow =
           <AppText
             variant="caption"
             tone="secondary"
-            numberOfLines={2}
+            numberOfLines={
+              2
+            }
             style={
               styles.infoValue
             }
@@ -1003,10 +1675,6 @@ const InfoRow =
 InfoRow.displayName =
   "WorkerNotificationInfoRow";
 
-/* ============================================================
-   MEMO
-============================================================ */
-
 WorkerNotificationModal.displayName =
   "WorkerNotificationModal";
 
@@ -1020,10 +1688,6 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       OVERLAY
-    ======================================================== */
-
     overlay: {
       flex: 1,
 
@@ -1034,14 +1698,12 @@ const styles =
         Colors.overlayMedium,
     },
 
-    /* ========================================================
-       SHEET
-    ======================================================== */
-
     sheet: {
-      width: "100%",
+      width:
+        "100%",
 
-      maxHeight: "84%",
+      maxHeight:
+        "84%",
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1076,10 +1738,6 @@ const styles =
       backgroundColor:
         Colors.divider,
     },
-
-    /* ========================================================
-       HEADER
-    ======================================================== */
 
     modalHeader: {
       marginBottom:
@@ -1116,10 +1774,12 @@ const styles =
 
     closeButton: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -1139,18 +1799,10 @@ const styles =
         Colors.disabledBackground,
     },
 
-    /* ========================================================
-       LIST
-    ======================================================== */
-
     list: {
       paddingBottom:
         FixxamTokens.spacing.sm,
     },
-
-    /* ========================================================
-       STATE
-    ======================================================== */
 
     stateContainer: {
       minHeight: 300,
@@ -1167,10 +1819,12 @@ const styles =
 
     stateIcon: {
       width:
-        FixxamTokens.size.avatarLg,
+        FixxamTokens.size
+          .avatarLg,
 
       height:
-        FixxamTokens.size.avatarLg,
+        FixxamTokens.size
+          .avatarLg,
 
       marginBottom:
         FixxamTokens.spacing.md,
@@ -1205,10 +1859,6 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ========================================================
-       CARD
-    ======================================================== */
-
     card: {
       marginBottom:
         FixxamTokens.spacing.sm,
@@ -1231,6 +1881,11 @@ const styles =
         Colors.background,
     },
 
+    callCard: {
+      borderColor:
+        Colors.border,
+    },
+
     unreadCard: {
       borderColor:
         WorkerColors.primary,
@@ -1244,16 +1899,30 @@ const styles =
         WorkerColors.primary,
     },
 
-    /* ========================================================
-       ICON
-    ======================================================== */
+    shopRequestCard: {
+      borderColor:
+        WorkerColors.primary,
+    },
+
+    reviewCard: {
+      borderColor:
+        Colors.warning,
+    },
+
+    openingCard: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
 
     cardIcon: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       marginRight:
         FixxamTokens.spacing.sm,
@@ -1278,9 +1947,20 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    /* ========================================================
-       CONTENT
-    ======================================================== */
+    callIcon: {
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    shopRequestIcon: {
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    reviewIcon: {
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
     cardContent: {
       flex: 1,
@@ -1324,9 +2004,32 @@ const styles =
         WorkerColors.primary,
     },
 
-    /* ========================================================
-       MARKET LABEL
-    ======================================================== */
+    callLabelContainer: {
+      alignSelf:
+        "flex-start",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    callLabel: {
+      letterSpacing: 0.5,
+
+      color:
+        WorkerColors.primary,
+    },
 
     marketLabelContainer: {
       alignSelf:
@@ -1355,9 +2058,59 @@ const styles =
         WorkerColors.primary,
     },
 
-    /* ========================================================
-       CUSTOMER
-    ======================================================== */
+    shopLabelContainer: {
+      alignSelf:
+        "flex-start",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    shopRequestLabel: {
+      letterSpacing: 0.5,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    reviewLabelContainer: {
+      alignSelf:
+        "flex-start",
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
+
+    reviewLabel: {
+      letterSpacing: 0.5,
+
+      color:
+        Colors.warning,
+    },
 
     customerName: {
       marginBottom:
@@ -1367,9 +2120,57 @@ const styles =
         Colors.textPrimary,
     },
 
-    /* ========================================================
-       INFO
-    ======================================================== */
+    reviewRatingRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    reviewStars: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    reviewStar: {
+      marginRight:
+        FixxamTokens.spacing.xxs,
+    },
+
+    reviewRatingText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    reviewCommentContainer: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingLeft:
+        FixxamTokens.spacing.sm,
+
+      borderLeftWidth: 2,
+
+      borderLeftColor:
+        Colors.warning,
+    },
+
+    reviewComment: {
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
 
     infoRow: {
       marginTop:
@@ -1394,39 +2195,6 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ========================================================
-       CALL
-    ======================================================== */
-
-    callRow: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      alignSelf:
-        "flex-start",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-    },
-
-    phone: {
-      color:
-        WorkerColors.primary,
-
-      textDecorationLine:
-        "underline",
-    },
-
-    /* ========================================================
-       MESSAGE
-    ======================================================== */
-
     message: {
       marginTop:
         FixxamTokens.spacing.xs,
@@ -1437,13 +2205,13 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ========================================================
-       OPEN ACTION
-    ======================================================== */
-
     openRow: {
       minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       alignSelf:
         "flex-start",
@@ -1462,10 +2230,6 @@ const styles =
       color:
         WorkerColors.primary,
     },
-
-    /* ========================================================
-       INTERACTION
-    ======================================================== */
 
     pressed: {
       opacity:

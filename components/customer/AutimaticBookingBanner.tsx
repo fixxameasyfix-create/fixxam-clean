@@ -42,23 +42,18 @@ function AutomaticBookingBanner({
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-
         pressed
           ? styles.pressed
           : null,
       ]}
     >
       {/* ========================================================
-          ICON
+          SPARKLES ICON
       ======================================================== */}
 
-      <View
-        style={
-          styles.iconBox
-        }
-      >
+      <View style={styles.iconBox}>
         <AppIcon
-          name="professional"
+          name="sparkles"
           role="customer"
           size="lg"
           state="active"
@@ -69,18 +64,12 @@ function AutomaticBookingBanner({
           CONTENT
       ======================================================== */}
 
-      <View
-        style={
-          styles.content
-        }
-      >
+      <View style={styles.content}>
         <AppText
           variant="bodyLarge"
           weight="bold"
           numberOfLines={1}
-          style={
-            styles.title
-          }
+          style={styles.title}
         >
           Book Automatically
         </AppText>
@@ -89,9 +78,7 @@ function AutomaticBookingBanner({
           variant="body"
           tone="secondary"
           numberOfLines={2}
-          style={
-            styles.description
-          }
+          style={styles.description}
         >
           Let Fixxam find the right worker nearby.
         </AppText>
@@ -101,11 +88,7 @@ function AutomaticBookingBanner({
           ARROW
       ======================================================== */}
 
-      <View
-        style={
-          styles.arrow
-        }
-      >
+      <View style={styles.arrow}>
         <AppIcon
           name="next"
           role="customer"
@@ -125,122 +108,121 @@ export default memo(
    STYLES
 ============================================================== */
 
-const styles =
-  StyleSheet.create({
-    card: {
-      width: "100%",
+const styles = StyleSheet.create({
+  card: {
+    width: "100%",
 
-      minHeight: 104,
+    minHeight: 104,
 
-      marginBottom:
-        FixxamTokens.spacing.md,
+    marginBottom:
+      FixxamTokens.spacing.md,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
 
-      paddingVertical:
-        FixxamTokens.spacing.md,
+    paddingVertical:
+      FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+    flexDirection:
+      "row",
 
-      alignItems:
-        "center",
+    alignItems:
+      "center",
 
-      borderWidth: 1,
+    borderWidth: 1,
 
-      borderColor:
-        Colors.border,
+    borderColor:
+      Colors.border,
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+    borderRadius:
+      FixxamTokens.radius.lg,
 
-      backgroundColor:
-        Colors.surface,
+    backgroundColor:
+      Colors.surface,
 
-      ...FixxamTokens.shadow.card,
-    },
+    ...FixxamTokens.shadow.card,
+  },
 
-    pressed: {
-      opacity:
-        FixxamTokens.motion.pressedOpacity,
+  pressed: {
+    opacity:
+      FixxamTokens.motion.pressedOpacity,
 
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion.scalePressed,
-        },
-      ],
-    },
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion.scalePressed,
+      },
+    ],
+  },
 
-    iconBox: {
-      width:
-        FixxamTokens.size.avatarLg,
+  iconBox: {
+    width:
+      FixxamTokens.size.avatarLg,
 
-      height:
-        FixxamTokens.size.avatarLg,
+    height:
+      FixxamTokens.size.avatarLg,
 
-      flexShrink: 0,
+    flexShrink: 0,
 
-      marginRight:
-        FixxamTokens.spacing.md,
+    marginRight:
+      FixxamTokens.spacing.md,
 
-      alignItems:
-        "center",
+    alignItems:
+      "center",
 
-      justifyContent:
-        "center",
+    justifyContent:
+      "center",
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+    borderRadius:
+      FixxamTokens.radius.lg,
 
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
+    backgroundColor:
+      CustomerColors.primarySoft,
+  },
 
-    content: {
-      flex: 1,
+  content: {
+    flex: 1,
 
-      minWidth: 0,
+    minWidth: 0,
 
-      paddingRight:
-        FixxamTokens.spacing.sm,
-    },
+    paddingRight:
+      FixxamTokens.spacing.sm,
+  },
 
-    title: {
-      color:
-        Colors.textPrimary,
-    },
+  title: {
+    color:
+      Colors.textPrimary,
+  },
 
-    description: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+  description: {
+    marginTop:
+      FixxamTokens.spacing.xs,
 
-      lineHeight: 19,
+    lineHeight: 19,
 
-      color:
-        Colors.textSecondary,
-    },
+    color:
+      Colors.textSecondary,
+  },
 
-    arrow: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
+  arrow: {
+    width:
+      FixxamTokens.size.minimumTouchTarget,
 
-      height:
-        FixxamTokens.size.minimumTouchTarget,
+    height:
+      FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+    flexShrink: 0,
 
-      alignItems:
-        "center",
+    alignItems:
+      "center",
 
-      justifyContent:
-        "center",
+    justifyContent:
+      "center",
 
-      borderRadius:
-        FixxamTokens.radius.full,
+    borderRadius:
+      FixxamTokens.radius.full,
 
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-  });
+    backgroundColor:
+      CustomerColors.primarySoft,
+  },
+});

@@ -1,22 +1,19 @@
 import {
-  getDeals,
+  getActiveProductDeals,
 } from "@/firebase/queries/deals";
 
 import {
-  getProducts,
+  getActiveProducts,
 } from "@/firebase/queries/products";
 
 import {
-  getWorkers,
-} from "@/firebase/queries/workers";
+  getPublicWorker,
+  type WorkerPublicProfile,
+} from "@/firebase/queries/workerPublicProfiles";
 
 import {
   dealMapper,
 } from "@/firebase/mappers/dealMapper";
-
-import {
-  workerMapper,
-} from "@/firebase/mappers/workerMapper";
 
 import {
   calculateDistance,
@@ -30,61 +27,77 @@ import type {
   ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
 
-/*
- * ============================================================
- * TYPES
- * ============================================================
- */
+/* ==============================================================
+   TYPES
+============================================================== */
 
 export type DiscountedProduct = {
   product: Product;
+
   deal: ActiveProductDeal;
+
   distance: number;
+
+  workerRating: number;
 };
 
 type CustomerLocation = {
   latitude: number;
+
   longitude: number;
 };
 
-/*
- * ============================================================
- * CONFIG
- * ============================================================
- */
+/* ==============================================================
+   CONFIG
+============================================================== */
 
-const DISCOUNTED_PRODUCT_LIMIT = 20;
+const DISCOUNTED_PRODUCT_LIMIT =
+  20;
 
-/*
- * ============================================================
- * HELPERS
- * ============================================================
- */
+/* ==============================================================
+   HELPERS
+============================================================== */
 
 function toFiniteNumber(
   value: unknown,
 ): number | null {
-  const number = Number(value);
+  const number =
+    Number(value);
 
-  return Number.isFinite(number)
+  return Number.isFinite(
+    number,
+  )
     ? number
     : null;
 }
 
-/*
- * ------------------------------------------------------------
- * FIREBASE DATE NORMALIZER
- * ------------------------------------------------------------
- *
- * Supports:
- *
- * - Firestore Timestamp
- * - JavaScript Date
- * - null / undefined
- *
- * We intentionally accept unknown here because the mapper
- * currently exposes the date fields too broadly for TypeScript.
- */
+function normalizeWorkerRating(
+  value: unknown,
+): number {
+  const rating =
+    toFiniteNumber(
+      value,
+    );
+
+  if (
+    rating === null ||
+    rating <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      rating,
+    ),
+  );
+}
+
+/* ==============================================================
+   FIREBASE DATE NORMALIZER
+============================================================== */
 
 function toDate(
   value: unknown,
@@ -101,20 +114,24 @@ function toDate(
 
   if (
     value &&
-    typeof value === "object" &&
+    typeof value ===
+      "object" &&
     "toDate" in value &&
     typeof (
       value as {
         toDate?: unknown;
       }
-    ).toDate === "function"
+    ).toDate ===
+      "function"
   ) {
     try {
-      const date = (
-        value as {
-          toDate: () => unknown;
-        }
-      ).toDate();
+      const date =
+        (
+          value as {
+            toDate:
+              () => unknown;
+          }
+        ).toDate();
 
       if (
         date instanceof Date &&
@@ -132,11 +149,9 @@ function toDate(
   return null;
 }
 
-/*
- * ------------------------------------------------------------
- * VALID DISCOUNT
- * ------------------------------------------------------------
- */
+/* ==============================================================
+   VALID DISCOUNT
+============================================================== */
 
 function isValidDiscount(
   product: Product,
@@ -160,32 +175,178 @@ function isValidDiscount(
     );
 
   return (
-    originalPrice !== null &&
-    originalPrice > 0 &&
-    discountedPrice !== null &&
-    discountedPrice > 0 &&
+    originalPrice !==
+      null &&
+    originalPrice >
+      0 &&
+    discountedPrice !==
+      null &&
+    discountedPrice >
+      0 &&
     discountedPrice <
       originalPrice &&
-    discountPercentage !== null &&
-    discountPercentage > 0 &&
-    discountPercentage < 100
+    discountPercentage !==
+      null &&
+    discountPercentage >
+      0 &&
+    discountPercentage <
+      100
   );
 }
 
-/*
- * ============================================================
- * GET NEARBY DISCOUNTED PRODUCTS
- * ============================================================
- */
+/* ==============================================================
+   VALID LOCATION
+============================================================== */
+
+function hasValidCoordinates(
+  profile:
+    WorkerPublicProfile | null,
+): profile is WorkerPublicProfile {
+  if (!profile) {
+    return false;
+  }
+
+  const latitude =
+    profile.workerProfile
+      ?.latitude;
+
+  const longitude =
+    profile.workerProfile
+      ?.longitude;
+
+  return (
+    typeof latitude ===
+      "number" &&
+    Number.isFinite(
+      latitude,
+    ) &&
+    typeof longitude ===
+      "number" &&
+    Number.isFinite(
+      longitude,
+    )
+  );
+}
+
+/* ==============================================================
+   LOAD PUBLIC WORKER PROFILES
+============================================================== */
+
+async function loadPublicWorkers(
+  workerIds: string[],
+): Promise<
+  Map<
+    string,
+    WorkerPublicProfile
+  >
+> {
+  const uniqueWorkerIds =
+    Array.from(
+      new Set(
+        workerIds
+          .map(
+            (workerId) =>
+              workerId.trim(),
+          )
+          .filter(
+            Boolean,
+          ),
+      ),
+    );
+
+  const workerMap =
+    new Map<
+      string,
+      WorkerPublicProfile
+    >();
+
+  if (
+    uniqueWorkerIds.length ===
+    0
+  ) {
+    return workerMap;
+  }
+
+  /*
+   * Public profiles are intentionally
+   * used here instead of /users.
+   *
+   * /users contains private account
+   * data and cannot be queried by
+   * customers under Firestore rules.
+   */
+
+  const snapshots =
+    await Promise.all(
+      uniqueWorkerIds.map(
+        async (
+          workerId,
+        ) => {
+          try {
+            const snapshot =
+              await getPublicWorker(
+                workerId,
+              );
+
+            return {
+              workerId,
+              snapshot,
+            };
+          } catch (
+            error: unknown
+          ) {
+            if (__DEV__) {
+              console.warn(
+                "DISCOUNT_PUBLIC_WORKER_LOAD_ERROR:",
+                {
+                  workerId,
+                  error,
+                },
+              );
+            }
+
+            return null;
+          }
+        },
+      ),
+    );
+
+  for (
+    const result of snapshots
+  ) {
+    if (
+      !result ||
+      !result.snapshot.exists()
+    ) {
+      continue;
+    }
+
+    const data =
+      result.snapshot.data() as
+        WorkerPublicProfile;
+
+    workerMap.set(
+      result.workerId,
+      data,
+    );
+  }
+
+  return workerMap;
+}
+
+/* ==============================================================
+   GET NEARBY DISCOUNTED PRODUCTS
+============================================================== */
 
 export async function getNearbyDiscountedProducts(
-  customerLocation: CustomerLocation,
-): Promise<DiscountedProduct[]> {
-  /*
-   * ----------------------------------------------------------
-   * VALIDATE CUSTOMER LOCATION
-   * ----------------------------------------------------------
-   */
+  customerLocation:
+    CustomerLocation,
+): Promise<
+  DiscountedProduct[]
+> {
+  /* ============================================================
+     VALIDATE CUSTOMER LOCATION
+  ============================================================ */
 
   if (
     !Number.isFinite(
@@ -201,33 +362,32 @@ export async function getNearbyDiscountedProducts(
   }
 
   try {
-    /*
-     * --------------------------------------------------------
-     * LOAD DATA IN PARALLEL
-     * --------------------------------------------------------
-     */
+    /* ==========================================================
+       LOAD PUBLIC PRODUCT DATA
+    ========================================================== */
 
     const [
       dealsSnapshot,
       productsSnapshot,
-      workersSnapshot,
-    ] = await Promise.all([
-      getDeals(),
-      getProducts(),
-      getWorkers(),
-    ]);
+    ] =
+      await Promise.all([
+        getActiveProductDeals(),
+        getActiveProducts(),
+      ]);
 
-    /*
-     * --------------------------------------------------------
-     * ACTIVE PRODUCT DEALS
-     * --------------------------------------------------------
-     */
+    /* ==========================================================
+       ACTIVE PRODUCT DEALS
+    ========================================================== */
 
     const deals =
       dealsSnapshot.docs
-        .map(dealMapper)
+        .map(
+          dealMapper,
+        )
         .filter(
-          (deal) => {
+          (
+            deal,
+          ) => {
             if (
               deal.type !==
               "product"
@@ -242,130 +402,171 @@ export async function getNearbyDiscountedProducts(
               return false;
             }
 
+            const productId =
+              deal.productId?.trim();
+
             if (
-              !deal.productId
+              !productId
             ) {
               return false;
             }
 
-            return isValidDiscount(
-              {
-                id:
-                  deal.productId,
-                name: "",
-                price:
-                  deal.originalPrice,
-                thumbnail: "",
-                stock: 1,
-                status: "active",
-                workerId:
-                  deal.workerId,
-              } as Product,
-              deal,
-            );
+            return true;
           },
         );
 
-    /*
-     * --------------------------------------------------------
-     * PRODUCTS
-     * --------------------------------------------------------
-     */
+    if (
+      deals.length ===
+      0
+    ) {
+      return [];
+    }
+
+    /* ==========================================================
+       ACTIVE PRODUCTS
+    ========================================================== */
 
     const products =
       productsSnapshot.docs
         .map(
-          (doc) =>
+          (
+            document,
+          ) =>
             ({
-              id: doc.id,
-              ...doc.data(),
+              id:
+                document.id,
+
+              ...document.data(),
             } as Product),
         )
         .filter(
-          (product) =>
+          (
+            product,
+          ) =>
             product.status ===
               "active" &&
             Number(
               product.stock,
-            ) > 0,
+            ) >
+              0 &&
+            typeof product.workerId ===
+              "string" &&
+            product.workerId.trim()
+              .length >
+              0,
         );
 
-    /*
-     * --------------------------------------------------------
-     * WORKERS
-     * --------------------------------------------------------
-     */
+    if (
+      products.length ===
+      0
+    ) {
+      return [];
+    }
 
-    const workers =
-      workersSnapshot.docs.map(
-        workerMapper,
-      );
-
-    /*
-     * --------------------------------------------------------
-     * LOOKUP MAPS
-     * --------------------------------------------------------
-     */
+    /* ==========================================================
+       PRODUCT LOOKUP
+    ========================================================== */
 
     const productMap =
-      new Map(
+      new Map<
+        string,
+        Product
+      >(
         products.map(
-          (product) => [
+          (
+            product,
+          ) => [
             product.id,
             product,
           ],
         ),
       );
 
-    const workerMap =
-      new Map(
-        workers.map(
-          (worker) => [
-            worker.id,
-            worker,
-          ],
-        ),
-      );
+    /* ==========================================================
+       REQUIRED WORKER IDS
+    ========================================================== */
 
-    /*
-     * --------------------------------------------------------
-     * MATCH:
-     *
-     * DEAL → PRODUCT → WORKER
-     * --------------------------------------------------------
-     */
-
-    const results =
+    const workerIds =
       deals
         .map(
-          (deal) => {
+          (
+            deal,
+          ) => {
             const productId =
               deal.productId?.trim();
 
-            if (!productId) {
-              return null;
+            if (
+              !productId
+            ) {
+              return "";
             }
-
-            /*
-             * ------------------------------------------------
-             * PRODUCT
-             * ------------------------------------------------
-             */
 
             const product =
               productMap.get(
                 productId,
               );
 
-            if (!product) {
+            return (
+              product?.workerId?.trim() ??
+              ""
+            );
+          },
+        )
+        .filter(
+          Boolean,
+        );
+
+    /* ==========================================================
+       PUBLIC WORKER PROFILES
+    ========================================================== */
+
+    const workerMap =
+      await loadPublicWorkers(
+        workerIds,
+      );
+
+    /* ==========================================================
+       MATCH DEAL → PRODUCT → PUBLIC WORKER
+    ========================================================== */
+
+    const results =
+      deals
+        .map(
+          (
+            deal,
+          ):
+            DiscountedProduct | null => {
+            /* --------------------------------------------------
+               PRODUCT ID
+            -------------------------------------------------- */
+
+            const productId =
+              deal.productId?.trim();
+
+            if (
+              !productId
+            ) {
               return null;
             }
 
-            /*
-             * ------------------------------------------------
-             * VALIDATE DISCOUNT AGAINST REAL PRODUCT
-             * ------------------------------------------------
-             */
+            /* --------------------------------------------------
+               PRODUCT
+            -------------------------------------------------- */
+
+            const product =
+              productMap.get(
+                productId,
+              );
+
+            if (
+              !product
+            ) {
+              return null;
+            }
+
+            /* --------------------------------------------------
+               VALIDATE DISCOUNT
+            -------------------------------------------------- */
 
             if (
               !isValidDiscount(
@@ -376,33 +577,36 @@ export async function getNearbyDiscountedProducts(
               return null;
             }
 
-            /*
-             * ------------------------------------------------
-             * WORKER
-             * ------------------------------------------------
-             */
+            /* --------------------------------------------------
+               WORKER ID
+            -------------------------------------------------- */
 
             const workerId =
               product.workerId?.trim();
 
-            if (!workerId) {
+            if (
+              !workerId
+            ) {
               return null;
             }
+
+            /* --------------------------------------------------
+               PUBLIC WORKER
+            -------------------------------------------------- */
 
             const worker =
               workerMap.get(
                 workerId,
-              );
+              ) ??
+              null;
 
-            if (!worker) {
+            if (
+              !hasValidCoordinates(
+                worker,
+              )
+            ) {
               return null;
             }
-
-            /*
-             * ------------------------------------------------
-             * WORKER LOCATION
-             * ------------------------------------------------
-             */
 
             const latitude =
               worker.workerProfile
@@ -416,22 +620,14 @@ export async function getNearbyDiscountedProducts(
               typeof latitude !==
                 "number" ||
               typeof longitude !==
-                "number" ||
-              !Number.isFinite(
-                latitude,
-              ) ||
-              !Number.isFinite(
-                longitude,
-              )
+                "number"
             ) {
               return null;
             }
 
-            /*
-             * ------------------------------------------------
-             * DISTANCE
-             * ------------------------------------------------
-             */
+            /* --------------------------------------------------
+               DISTANCE
+            -------------------------------------------------- */
 
             const distance =
               calculateDistance(
@@ -449,11 +645,48 @@ export async function getNearbyDiscountedProducts(
               return null;
             }
 
-            /*
-             * ------------------------------------------------
-             * NORMALIZE FIREBASE DATES
-             * ------------------------------------------------
-             */
+            /* --------------------------------------------------
+               WORKER RATING
+            -------------------------------------------------- */
+
+            const workerRating =
+              normalizeWorkerRating(
+                worker.rating,
+              );
+
+            /* --------------------------------------------------
+               PRICES
+            -------------------------------------------------- */
+
+            const originalPrice =
+              toFiniteNumber(
+                product.price,
+              );
+
+            const discountedPrice =
+              toFiniteNumber(
+                deal.discountedPrice,
+              );
+
+            const discountPercentage =
+              toFiniteNumber(
+                deal.discountPercentage,
+              );
+
+            if (
+              originalPrice ===
+                null ||
+              discountedPrice ===
+                null ||
+              discountPercentage ===
+                null
+            ) {
+              return null;
+            }
+
+            /* --------------------------------------------------
+               DATES
+            -------------------------------------------------- */
 
             const startsAt =
               toDate(
@@ -465,43 +698,33 @@ export async function getNearbyDiscountedProducts(
                 deal.expiresAt,
               );
 
-            /*
-             * ------------------------------------------------
-             * ACTIVE DEAL
-             * ------------------------------------------------
-             */
+            /* --------------------------------------------------
+               ACTIVE DEAL
+            -------------------------------------------------- */
 
-            const activeDeal: ActiveProductDeal =
-              {
-                id:
-                  deal.id,
+            const activeDeal:
+              ActiveProductDeal =
+                {
+                  id:
+                    deal.id,
 
-                productId,
+                  productId,
 
-                workerId,
+                  workerId,
 
-                originalPrice:
-                  Number(
-                    deal.originalPrice,
-                  ),
+                  originalPrice,
 
-                discountedPrice:
-                  Number(
-                    deal.discountedPrice,
-                  ),
+                  discountedPrice,
 
-                discountPercentage:
-                  Number(
-                    deal.discountPercentage,
-                  ),
+                  discountPercentage,
 
-                status:
-                  "active",
+                  status:
+                    "active",
 
-                startsAt,
+                  startsAt,
 
-                expiresAt,
-              };
+                  expiresAt,
+                };
 
             return {
               product,
@@ -510,6 +733,8 @@ export async function getNearbyDiscountedProducts(
                 activeDeal,
 
               distance,
+
+              workerRating,
             };
           },
         )
@@ -517,29 +742,35 @@ export async function getNearbyDiscountedProducts(
           (
             item,
           ): item is DiscountedProduct =>
-            item !== null,
+            item !==
+            null,
         )
         .sort(
-          (a, b) =>
+          (
+            a,
+            b,
+          ) =>
             a.distance -
             b.distance,
         );
 
-    /*
-     * --------------------------------------------------------
-     * LIMIT RESULTS
-     * --------------------------------------------------------
-     */
+    /* ==========================================================
+       LIMIT RESULTS
+    ========================================================== */
 
     return results.slice(
       0,
       DISCOUNTED_PRODUCT_LIMIT,
     );
-  } catch (error) {
-    console.error(
-      "getNearbyDiscountedProducts ERROR:",
-      error,
-    );
+  } catch (
+    error: unknown
+  ) {
+    if (__DEV__) {
+      console.warn(
+        "getNearbyDiscountedProducts ERROR:",
+        error,
+      );
+    }
 
     throw error;
   }

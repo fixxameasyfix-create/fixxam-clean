@@ -1,0 +1,204 @@
+/* ============================================================
+   USERS
+============================================================ */
+
+match /users/{userId} {
+
+  /* ----------------------------------------------------------
+     CREATE USER PROFILE
+
+     A newly authenticated user may create only their own
+     customer or worker profile.
+
+     CUSTOMER:
+       - authenticated owner
+       - valid role state
+       - customer role
+       - customer activeRole
+
+     WORKER:
+       - authenticated owner
+       - valid role state
+       - worker role
+       - worker activeRole
+  ---------------------------------------------------------- */
+
+  allow create:
+    if isOwner(userId)
+    && validUserRoleState(
+      request.resource.data
+    )
+    && (
+      (
+        request.resource.data.roles.hasAny([
+          "customer"
+        ])
+        && request.resource.data.activeRole
+          == "customer"
+      )
+      ||
+      (
+        request.resource.data.roles.hasAny([
+          "worker"
+        ])
+        && request.resource.data.activeRole
+          == "worker"
+      )
+    );
+
+
+  /* ----------------------------------------------------------
+     READ
+  ---------------------------------------------------------- */
+
+  allow read:
+    if isOwner(userId);
+
+
+  /* ----------------------------------------------------------
+     UPDATE
+  ---------------------------------------------------------- */
+
+  allow update:
+    if isOwner(userId)
+    && validUserRoleState(
+      request.resource.data
+    );
+
+
+  /* ----------------------------------------------------------
+     DELETE
+  ---------------------------------------------------------- */
+
+  allow delete:
+    if false;
+
+
+  /* ----------------------------------------------------------
+     USER NOTIFICATIONS
+  ---------------------------------------------------------- */
+
+  match /notifications/{notificationId} {
+
+    allow read:
+      if signedIn()
+      && request.auth.uid == userId;
+
+    allow create:
+      if false;
+
+    allow update:
+      if signedIn()
+      && request.auth.uid == userId
+      && request.resource.data.diff(
+        resource.data
+      ).affectedKeys().hasOnly([
+        "read"
+      ])
+      && request.resource.data.read
+        is bool;
+
+    allow delete:
+      if false;
+  }
+
+
+  /* ----------------------------------------------------------
+     PAYMENT METHODS
+  ---------------------------------------------------------- */
+
+  match /paymentMethods/{methodId} {
+
+    allow read:
+      if isOwner(userId);
+
+    allow create, update, delete:
+      if false;
+  }
+}
+
+
+/* ============================================================
+   CUSTOMER WALLET
+============================================================ */
+
+match /wallets/{userId} {
+
+  allow read:
+    if isOwner(userId);
+
+  allow create, update, delete:
+    if false;
+
+
+  match /transactions/{transactionId} {
+
+    allow read:
+      if isOwner(userId);
+
+    allow create, update, delete:
+      if false;
+  }
+}
+
+
+/* ============================================================
+   WORKER PUBLIC PROFILES
+============================================================ */
+
+match /workerPublicProfiles/{workerId} {
+
+  allow read:
+    if true;
+
+  allow create:
+    if isOwner(workerId);
+
+  allow update:
+    if isOwner(workerId);
+
+  allow delete:
+    if false;
+}
+
+
+/* ============================================================
+   CATEGORIES
+============================================================ */
+
+match /categories/{categoryId} {
+
+  allow read:
+    if true;
+
+  allow create, update, delete:
+    if false;
+}
+
+
+/* ============================================================
+   SUBCATEGORIES
+============================================================ */
+
+match /subcategories/{subcategoryId} {
+
+  allow read:
+    if true;
+
+  allow create, update, delete:
+    if false;
+}
+
+
+/* ============================================================
+   SERVICES
+============================================================ */
+
+match /services/{serviceId} {
+
+  allow read:
+    if true;
+
+  allow create, update, delete:
+    if false;
+}

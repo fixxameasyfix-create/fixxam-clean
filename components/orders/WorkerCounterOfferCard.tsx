@@ -19,10 +19,6 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import WorkerOfferHeader from "./WorkerOfferHeader";
-import WorkerOfferAmount from "./WorkerOfferAmount";
-import WorkerOfferMessage from "./WorkerOfferMessage";
-
 /* ==============================================================
    TYPES
 ============================================================== */
@@ -30,7 +26,9 @@ import WorkerOfferMessage from "./WorkerOfferMessage";
 type Props = {
   amount: number;
 
-  message?: string | null;
+  message?:
+    | string
+    | null;
 };
 
 /* ==============================================================
@@ -43,7 +41,7 @@ function normalizeAmount(
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    value < 0
+    value <= 0
   ) {
     return 0;
   }
@@ -76,91 +74,134 @@ function WorkerCounterOfferCard({
       [amount],
     );
 
+  const formattedAmount =
+    useMemo(
+      () =>
+        `₦${safeAmount.toLocaleString(
+          "en-NG",
+        )}`,
+      [safeAmount],
+    );
+
   const safeMessage =
     useMemo(() => {
       const value =
-        cleanText(message);
+        cleanText(
+          message,
+        );
 
       if (value) {
         return value;
       }
 
-      return `I can pay ₦${safeAmount.toLocaleString(
-        "en-NG",
-      )}.`;
+      return `I can pay ${formattedAmount}.`;
     }, [
+      formattedAmount,
       message,
-      safeAmount,
     ]);
 
   return (
     <View
-      style={styles.card}
       accessible
-      accessibilityRole="summary"
-      accessibilityLabel={`Customer counter offer received. ₦${safeAmount.toLocaleString(
-        "en-NG",
-      )}.`}
+      accessibilityLabel={`Customer counter offer ${formattedAmount}. ${safeMessage}`}
+      style={
+        styles.container
+      }
     >
       {/* ======================================================
-          HEADER
+          TOP ROW
       ====================================================== */}
 
-      <WorkerOfferHeader
-        title="COUNTER OFFER RECEIVED"
-        subtitle="Customer has responded to your offer."
-        icon="swap-horizontal-outline"
-      />
+      <View
+        style={
+          styles.topRow
+        }
+      >
+        <View
+          style={
+            styles.icon
+          }
+        >
+          <AppIcon
+            name="swap"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
+            }
+          />
+        </View>
 
-      {/* ======================================================
-          AMOUNT
-      ====================================================== */}
+        <View
+          style={
+            styles.content
+          }
+        >
+          <AppText
+            variant="caption"
+            weight="semibold"
+            numberOfLines={1}
+            style={
+              styles.label
+            }
+          >
+            CUSTOMER OFFER
+          </AppText>
 
-      <WorkerOfferAmount
-        label="CUSTOMER COUNTER OFFER"
-        amount={safeAmount}
-      />
+          <AppText
+            variant="heading3"
+            weight="bold"
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={
+              0.8
+            }
+            style={
+              styles.amount
+            }
+          >
+            {formattedAmount}
+          </AppText>
+        </View>
+      </View>
 
       {/* ======================================================
           MESSAGE
       ====================================================== */}
 
-      <WorkerOfferMessage
-        message={safeMessage}
-      />
-
-      {/* ======================================================
-          INFO
-      ====================================================== */}
-
       <View
-        style={styles.info}
+        style={
+          styles.messageRow
+        }
       >
-        <View
-          style={
-            styles.infoIcon
+        <AppIcon
+          name="messages"
+          size="xs"
+          color={
+            Colors.textMuted
           }
-        >
-          <AppIcon
-            name="info"
-            size="xs"
-            color={
-              Colors.textSecondary
-            }
-          />
-        </View>
+        />
 
         <AppText
           variant="caption"
           tone="secondary"
-          style={styles.infoText}
+          style={
+            styles.message
+          }
         >
-          You can accept the customer's price, send another counter offer, or decline.
+          “{safeMessage}”
         </AppText>
       </View>
     </View>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+WorkerCounterOfferCard.displayName =
+  "WorkerCounterOfferCard";
 
 export default memo(
   WorkerCounterOfferCard,
@@ -172,37 +213,18 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    card: {
-      padding:
-        FixxamTokens.spacing.md,
+    container: {
+      width:
+        "100%",
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    info: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-      alignItems:
-        "flex-start",
-
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -214,32 +236,118 @@ const styles =
         Colors.surface,
     },
 
-    infoIcon: {
-      width: 28,
+    /* ========================================================
+       TOP ROW
+    ======================================================== */
 
-      height: 28,
+    topRow: {
+      width:
+        "100%",
 
-      flexShrink: 0,
+      minHeight:
+        40,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
 
-      justifyContent: "center",
+      alignItems:
+        "center",
+    },
+
+    icon: {
+      width:
+        34,
+
+      height:
+        34,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabledBackground,
+        WorkerColors.primarySoft,
     },
 
-    infoText: {
-      flex: 1,
+    content: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
+    },
 
-      lineHeight: 16,
+    label: {
+      fontSize:
+        10,
+
+      letterSpacing:
+        0.35,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    amount: {
+      marginTop:
+        1,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       MESSAGE
+    ======================================================== */
+
+    messageRow: {
+      width:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
+    },
+
+    message: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      lineHeight:
+        17,
+
+      color:
+        Colors.textSecondary,
     },
   });

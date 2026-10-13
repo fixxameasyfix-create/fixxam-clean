@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useState,
@@ -17,13 +18,14 @@ import {
 
 import * as Location from "expo-location";
 
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
 import {
   AppButton,
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -91,12 +93,8 @@ function isValidCoordinates(
   longitude: number,
 ): boolean {
   return (
-    Number.isFinite(
-      latitude,
-    ) &&
-    Number.isFinite(
-      longitude,
-    ) &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
     latitude >= -90 &&
     latitude <= 90 &&
     longitude >= -180 &&
@@ -108,7 +106,7 @@ function isValidCoordinates(
    COMPONENT
 ============================================================== */
 
-export default function RequestLocation({
+function RequestLocation({
   selected,
   address,
   onPress,
@@ -121,10 +119,6 @@ export default function RequestLocation({
 }: Props) {
   const insets =
     useSafeAreaInsets();
-
-  /* ============================================================
-     MODAL
-  ============================================================ */
 
   const [
     visible,
@@ -141,18 +135,6 @@ export default function RequestLocation({
     );
 
   const [
-    selectedLocationType,
-    setSelectedLocationType,
-  ] =
-    useState<LocationType | null>(
-      null,
-    );
-
-  /* ============================================================
-     MANUAL LOCATION
-  ============================================================ */
-
-  const [
     manualAddress,
     setManualAddress,
   ] =
@@ -165,10 +147,6 @@ export default function RequestLocation({
     useState<Coordinates | null>(
       null,
     );
-
-  /* ============================================================
-     LOADING
-  ============================================================ */
 
   const [
     selectingCurrent,
@@ -187,12 +165,14 @@ export default function RequestLocation({
     confirmingManual;
 
   /* ============================================================
-     OPEN
+     OPEN / CLOSE
   ============================================================ */
 
   const openModal =
     useCallback(() => {
-      if (disabled) {
+      if (
+        disabled
+      ) {
         return;
       }
 
@@ -223,13 +203,11 @@ export default function RequestLocation({
       onSearchLocation,
     ]);
 
-  /* ============================================================
-     CLOSE
-  ============================================================ */
-
   const closeModal =
     useCallback(() => {
-      if (busy) {
+      if (
+        busy
+      ) {
         return;
       }
 
@@ -254,7 +232,9 @@ export default function RequestLocation({
       (
         type: LocationType,
       ) => {
-        if (busy) {
+        if (
+          busy
+        ) {
           return;
         }
 
@@ -291,7 +271,9 @@ export default function RequestLocation({
           | Location.LocationGeocodedAddress
           | undefined,
       ): string => {
-        if (!place) {
+        if (
+          !place
+        ) {
           return "";
         }
 
@@ -333,7 +315,7 @@ export default function RequestLocation({
           [
             ...new Set(
               parts.map(
-                (part) =>
+                part =>
                   part.trim(),
               ),
             ),
@@ -347,7 +329,7 @@ export default function RequestLocation({
     );
 
   /* ============================================================
-     LOCATION PERMISSION
+     PERMISSION
   ============================================================ */
 
   const ensureLocationPermission =
@@ -406,172 +388,179 @@ export default function RequestLocation({
   ============================================================ */
 
   const handleCurrentLocation =
-    useCallback(async () => {
-      if (
-        selectingCurrent
-      ) {
-        return;
-      }
-
-      setSelectingCurrent(
-        true,
-      );
-
-      try {
-        const hasPermission =
-          await ensureLocationPermission();
-
+    useCallback(
+      async () => {
         if (
-          !hasPermission
+          selectingCurrent
         ) {
           return;
         }
 
-        let coordinates:
-          | Coordinates
-          | null = null;
+        setSelectingCurrent(
+          true,
+        );
 
         try {
-          const position =
-            await Location
-              .getCurrentPositionAsync({
-                accuracy:
-                  Location.Accuracy.High,
-              });
-
-          const {
-            latitude,
-            longitude,
-          } =
-            position.coords;
+          const hasPermission =
+            await ensureLocationPermission();
 
           if (
-            isValidCoordinates(
+            !hasPermission
+          ) {
+            return;
+          }
+
+          let coordinates:
+            | Coordinates
+            | null = null;
+
+          try {
+            const position =
+              await Location
+                .getCurrentPositionAsync({
+                  accuracy:
+                    Location.Accuracy.High,
+                });
+
+            const {
               latitude,
               longitude,
-            )
+            } =
+              position.coords;
+
+            if (
+              isValidCoordinates(
+                latitude,
+                longitude,
+              )
+            ) {
+              coordinates = {
+                latitude,
+                longitude,
+              };
+            }
+          } catch (
+            error
           ) {
-            coordinates = {
-              latitude,
-              longitude,
-            };
-          }
-        } catch (error) {
-          console.warn(
-            "FRESH_LOCATION_ERROR:",
-            error,
-          );
-
-          /*
-           * Use parent location only
-           * when it is valid.
-           */
-          if (
-            currentLocation &&
-            isValidCoordinates(
-              currentLocation.latitude,
-              currentLocation.longitude,
-            )
-          ) {
-            coordinates = {
-              latitude:
-                currentLocation.latitude,
-
-              longitude:
-                currentLocation.longitude,
-            };
-          }
-        }
-
-        if (
-          !coordinates
-        ) {
-          Alert.alert(
-            "Location unavailable",
-            "We couldn't determine your current location. Please check your GPS and try again.",
-          );
-
-          return;
-        }
-
-        let currentAddress =
-          "Current location";
-
-        try {
-          const results =
-            await Location
-              .reverseGeocodeAsync(
-                coordinates,
+            if (
+              __DEV__
+            ) {
+              console.warn(
+                "FRESH_LOCATION_ERROR",
+                error,
               );
+            }
 
-          const readableAddress =
-            buildAddress(
-              results[0],
+            if (
+              currentLocation &&
+              isValidCoordinates(
+                currentLocation.latitude,
+                currentLocation.longitude,
+              )
+            ) {
+              coordinates = {
+                latitude:
+                  currentLocation.latitude,
+
+                longitude:
+                  currentLocation.longitude,
+              };
+            }
+          }
+
+          if (
+            !coordinates
+          ) {
+            Alert.alert(
+              "Location unavailable",
+              "We couldn't determine your current location. Please check your GPS and try again.",
             );
 
-          if (
-            readableAddress
-              .trim()
-          ) {
-            currentAddress =
-              readableAddress;
+            return;
           }
-        } catch (error) {
-          /*
-           * Coordinates are still
-           * usable if reverse geocoding
-           * fails.
-           */
-          console.warn(
-            "CURRENT_LOCATION_GEOCODING_ERROR:",
-            error,
+
+          let currentAddress =
+            "Current location";
+
+          try {
+            const results =
+              await Location
+                .reverseGeocodeAsync(
+                  coordinates,
+                );
+
+            const readableAddress =
+              buildAddress(
+                results[0],
+              );
+
+            if (
+              readableAddress.trim()
+            ) {
+              currentAddress =
+                readableAddress;
+            }
+          } catch (
+            error
+          ) {
+            if (
+              __DEV__
+            ) {
+              console.warn(
+                "CURRENT_LOCATION_GEOCODING_ERROR",
+                error,
+              );
+            }
+          }
+
+          onLocationSelected?.({
+            ...coordinates,
+
+            address:
+              currentAddress,
+          });
+
+          onSearchLocation?.(
+            "",
+          );
+
+          setVisible(
+            false,
+          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "SELECT_CURRENT_LOCATION_ERROR",
+              error,
+            );
+          }
+
+          Alert.alert(
+            "Location error",
+            "We couldn't select your current location. Please try again.",
+          );
+        } finally {
+          setSelectingCurrent(
+            false,
           );
         }
-
-        setSelectedLocationType(
-          "current",
-        );
-
-        onLocationSelected?.({
-          ...coordinates,
-
-          address:
-            currentAddress,
-        });
-
-        onSearchLocation?.(
-          "",
-        );
-
-        setVisible(
-          false,
-        );
-      } catch (error) {
-        console.error(
-          "SELECT_CURRENT_LOCATION_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Location error",
-          "We couldn't select your current location. Please try again.",
-        );
-      } finally {
-        setSelectingCurrent(
-          false,
-        );
-      }
-    }, [
-      buildAddress,
-      currentLocation,
-      ensureLocationPermission,
-      onLocationSelected,
-      onSearchLocation,
-      selectingCurrent,
-    ]);
+      },
+      [
+        buildAddress,
+        currentLocation,
+        ensureLocationPermission,
+        onLocationSelected,
+        onSearchLocation,
+        selectingCurrent,
+      ],
+    );
 
   /* ============================================================
-     MANUAL ADDRESS
+     MANUAL LOCATION
   ============================================================ */
 
   const handleManualChange =
@@ -583,21 +572,12 @@ export default function RequestLocation({
           text,
         );
 
-        /*
-         * Once text changes, previously
-         * selected coordinates may no
-         * longer represent that address.
-         */
         setManualCoordinates(
           null,
         );
       },
       [],
     );
-
-  /* ============================================================
-     SEARCH
-  ============================================================ */
 
   const handleSearchLocation =
     useCallback(
@@ -612,10 +592,6 @@ export default function RequestLocation({
         onSearchLocation,
       ],
     );
-
-  /* ============================================================
-     SELECT SUGGESTION
-  ============================================================ */
 
   const handleSuggestionSelected =
     useCallback(
@@ -637,8 +613,12 @@ export default function RequestLocation({
           return;
         }
 
+        const selectedAddress =
+          suggestion.subtitle?.trim() ||
+          suggestion.title.trim();
+
         setManualAddress(
-          suggestion.title.trim(),
+          selectedAddress,
         );
 
         setManualCoordinates({
@@ -648,153 +628,160 @@ export default function RequestLocation({
           longitude:
             suggestion.longitude,
         });
+
+        onSearchLocation?.(
+          "",
+        );
       },
-      [],
+      [
+        onSearchLocation,
+      ],
     );
 
   /* ============================================================
-     CONFIRM MANUAL LOCATION
+     CONFIRM MANUAL
   ============================================================ */
 
   const handleConfirmManual =
-    useCallback(async () => {
-      if (
-        confirmingManual
-      ) {
-        return;
-      }
-
-      const cleanAddress =
-        manualAddress.trim();
-
-      if (
-        !cleanAddress
-      ) {
-        Alert.alert(
-          "Enter your location",
-          "Please enter the address or area where the worker should come.",
-        );
-
-        return;
-      }
-
-      setConfirmingManual(
-        true,
-      );
-
-      try {
-        let coordinates =
-          manualCoordinates;
-
-        /*
-         * Never create a booking with
-         * fake 0,0 coordinates.
-         *
-         * If user typed an address
-         * instead of selecting a result,
-         * resolve it before continuing.
-         */
+    useCallback(
+      async () => {
         if (
-          !coordinates
+          confirmingManual
         ) {
-          const geocoded =
-            await Location
-              .geocodeAsync(
-                cleanAddress,
-              );
-
-          const first =
-            geocoded.find(
-              (item) =>
-                isValidCoordinates(
-                  item.latitude,
-                  item.longitude,
-                ),
-            );
-
-          if (!first) {
-            Alert.alert(
-              "Choose a valid location",
-              "We couldn't find this address. Please select one of the suggested locations and try again.",
-            );
-
-            return;
-          }
-
-          coordinates = {
-            latitude:
-              first.latitude,
-
-            longitude:
-              first.longitude,
-          };
+          return;
         }
 
+        const cleanManualAddress =
+          manualAddress.trim();
+
         if (
-          !isValidCoordinates(
-            coordinates.latitude,
-            coordinates.longitude,
-          )
+          !cleanManualAddress
         ) {
           Alert.alert(
-            "Invalid location",
-            "Please select a valid service location.",
+            "Enter your location",
+            "Please enter the address or area where the provider should come.",
           );
 
           return;
         }
 
-        setSelectedLocationType(
-          "manual",
-        );
-
-        onLocationSelected?.({
-          latitude:
-            coordinates.latitude,
-
-          longitude:
-            coordinates.longitude,
-
-          address:
-            cleanAddress,
-        });
-
-        onSearchLocation?.(
-          "",
-        );
-
-        setVisible(
-          false,
-        );
-      } catch (error) {
-        console.error(
-          "CONFIRM_MANUAL_LOCATION_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Location unavailable",
-          "We couldn't verify this address. Please select one of the suggested locations and try again.",
-        );
-      } finally {
         setConfirmingManual(
-          false,
+          true,
         );
-      }
-    }, [
-      confirmingManual,
-      manualAddress,
-      manualCoordinates,
-      onLocationSelected,
-      onSearchLocation,
-    ]);
+
+        try {
+          let coordinates =
+            manualCoordinates;
+
+          if (
+            !coordinates
+          ) {
+            const geocoded =
+              await Location
+                .geocodeAsync(
+                  cleanManualAddress,
+                );
+
+            const first =
+              geocoded.find(
+                item =>
+                  isValidCoordinates(
+                    item.latitude,
+                    item.longitude,
+                  ),
+              );
+
+            if (
+              !first
+            ) {
+              Alert.alert(
+                "Choose a valid location",
+                "We couldn't find this address. Please choose one of the suggested locations and try again.",
+              );
+
+              return;
+            }
+
+            coordinates = {
+              latitude:
+                first.latitude,
+
+              longitude:
+                first.longitude,
+            };
+          }
+
+          if (
+            !isValidCoordinates(
+              coordinates.latitude,
+              coordinates.longitude,
+            )
+          ) {
+            Alert.alert(
+              "Invalid location",
+              "Please select a valid service location.",
+            );
+
+            return;
+          }
+
+          onLocationSelected?.({
+            latitude:
+              coordinates.latitude,
+
+            longitude:
+              coordinates.longitude,
+
+            address:
+              cleanManualAddress,
+          });
+
+          onSearchLocation?.(
+            "",
+          );
+
+          setVisible(
+            false,
+          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "CONFIRM_MANUAL_LOCATION_ERROR",
+              error,
+            );
+          }
+
+          Alert.alert(
+            "Location unavailable",
+            "We couldn't verify this address. Please select one of the suggested locations and try again.",
+          );
+        } finally {
+          setConfirmingManual(
+            false,
+          );
+        }
+      },
+      [
+        confirmingManual,
+        manualAddress,
+        manualCoordinates,
+        onLocationSelected,
+        onSearchLocation,
+      ],
+    );
 
   /* ============================================================
-     RESET BUSY STATE
+     RESET BUSY
   ============================================================ */
 
   useEffect(() => {
-    if (visible) {
+    if (
+      visible
+    ) {
       return;
     }
 
@@ -810,21 +797,12 @@ export default function RequestLocation({
   ]);
 
   /* ============================================================
-     DISPLAY DATA
+     DISPLAY
   ============================================================ */
 
   const cleanAddress =
     address?.trim() ??
     "";
-
-  const locationLabel =
-    selectedLocationType ===
-    "manual"
-      ? "Manual location"
-      : selectedLocationType ===
-          "current"
-        ? "Current location"
-        : "Selected location";
 
   const manualCanConfirm =
     Boolean(
@@ -840,7 +818,7 @@ export default function RequestLocation({
   return (
     <>
       {/* ========================================================
-          SERVICE LOCATION CARD
+          LOCATION SELECTOR
       ======================================================== */}
 
       <Pressable
@@ -863,114 +841,79 @@ export default function RequestLocation({
         style={({
           pressed,
         }) => [
-          styles.card,
+          styles.locationField,
 
-          selected
-            ? styles.cardSelected
-            : null,
-
-          disabled
-            ? styles.cardDisabled
-            : null,
+          selected &&
+            styles.locationFieldSelected,
 
           pressed &&
-          !disabled
-            ? styles.cardPressed
-            : null,
+            !disabled &&
+            styles.pressed,
+
+          disabled &&
+            styles.disabled,
         ]}
       >
-        {/* ====================================================
-            ICON
-        ==================================================== */}
-
         <View
           style={
-            styles.iconContainer
+            styles.locationIcon
           }
         >
-          <AppIcon
-            name="location"
-            role="customer"
-            size="sm"
-            state="active"
+          <MaterialCommunityIcons
+            name={
+              selected
+                ? "map-marker-check-outline"
+                : "map-marker-outline"
+            }
+            size={25}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
 
-        {/* ====================================================
-            CONTENT
-        ==================================================== */}
-
         <View
           style={
-            styles.cardContent
+            styles.locationContent
           }
         >
           <AppText
             variant="bodyMedium"
-            weight="bold"
-            numberOfLines={1}
+            weight="semibold"
+            numberOfLines={
+              selected
+                ? 2
+                : 1
+            }
+            ellipsizeMode="tail"
           >
-            Service location
+            {selected
+              ? cleanAddress ||
+                "Service location selected"
+              : "Choose service location"}
           </AppText>
 
-          {selected ? (
-            <>
-              <AppText
-                variant="caption"
-                weight="semibold"
-                numberOfLines={1}
-                style={
-                  styles.locationType
-                }
-              >
-                {locationLabel}
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                style={
-                  styles.address
-                }
-              >
-                {cleanAddress ||
-                  "Location selected"}
-              </AppText>
-            </>
-          ) : (
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={2}
-              ellipsizeMode="tail"
-              style={
-                styles.address
-              }
-            >
-              Choose where the worker
-              should come
-            </AppText>
-          )}
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.locationHint
+            }
+          >
+            {selected
+              ? "Tap to change location"
+              : "Use your current location or enter an address"}
+          </AppText>
         </View>
 
-        {/* ====================================================
-            NEXT
-        ==================================================== */}
-
-        <View
-          style={
-            styles.chevronContainer
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={25}
+          color={
+            Colors.textSecondary
           }
-        >
-          <AppIcon
-            name="next"
-            role="customer"
-            size="sm"
-            state="muted"
-          />
-        </View>
+        />
       </Pressable>
 
       {/* ========================================================
@@ -999,10 +942,6 @@ export default function RequestLocation({
             styles.modalRoot
           }
         >
-          {/* ==================================================
-              BACKDROP
-          ================================================== */}
-
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close location options"
@@ -1014,30 +953,20 @@ export default function RequestLocation({
             }
           />
 
-          {/* ==================================================
-              SHEET
-          ================================================== */}
-
           <View
             style={[
-              styles.modalCard,
+              styles.sheet,
 
               {
                 paddingBottom:
                   Math.max(
                     insets.bottom,
-                    FixxamTokens
-                      .spacing.lg,
+                    FixxamTokens.spacing.lg,
                   ) +
-                  FixxamTokens
-                    .spacing.sm,
+                  FixxamTokens.spacing.sm,
               },
             ]}
           >
-            {/* ================================================
-                HANDLE
-            ================================================ */}
-
             <View
               style={
                 styles.handle
@@ -1058,11 +987,12 @@ export default function RequestLocation({
                   styles.modalHeaderIcon
                 }
               >
-                <AppIcon
-                  name="location"
-                  role="customer"
-                  size="sm"
-                  state="active"
+                <MaterialCommunityIcons
+                  name="map-marker-outline"
+                  size={26}
+                  color={
+                    CustomerColors.primary
+                  }
                 />
               </View>
 
@@ -1072,10 +1002,10 @@ export default function RequestLocation({
                 }
               >
                 <AppText
-                  variant="heading3"
+                  variant="heading2"
                   weight="bold"
                 >
-                  Service location
+                  Service Location
                 </AppText>
 
                 <AppText
@@ -1085,8 +1015,7 @@ export default function RequestLocation({
                     styles.modalSubtitle
                   }
                 >
-                  Where should the
-                  worker come?
+                  Where should the provider come?
                 </AppText>
               </View>
 
@@ -1110,20 +1039,19 @@ export default function RequestLocation({
                   styles.closeButton,
 
                   pressed &&
-                  !busy
-                    ? styles.closeButtonPressed
-                    : null,
+                    !busy &&
+                    styles.closeButtonPressed,
 
-                  busy
-                    ? styles.controlDisabled
-                    : null,
+                  busy &&
+                    styles.disabled,
                 ]}
               >
-                <AppIcon
+                <MaterialCommunityIcons
                   name="close"
-                  role="customer"
-                  size="sm"
-                  state="muted"
+                  size={23}
+                  color={
+                    Colors.textSecondary
+                  }
                 />
               </Pressable>
             </View>
@@ -1132,30 +1060,38 @@ export default function RequestLocation({
                 LOCATION TYPE
             ================================================ */}
 
-           <BookingLocationType
-  value={
-    locationType
-  }
-  onChange={
-    handleTypeChange
-  }
-  disabled={
-    busy
-  }
-/>
+            <View
+              style={
+                styles.typeSection
+              }
+            >
+              <BookingLocationType
+                value={
+                  locationType
+                }
+                onChange={
+                  handleTypeChange
+                }
+                disabled={
+                  busy
+                }
+              />
+            </View>
 
-            {/* ==================================================
+            {/* ================================================
                 CURRENT LOCATION
-            ================================================== */}
+            ================================================ */}
 
             {locationType ===
             "current" ? (
-              <>
-                <AppCard
-                  role="customer"
-                  variant="outlined"
+              <View
+                style={
+                  styles.currentSection
+                }
+              >
+                <View
                   style={
-                    styles.currentPanel
+                    styles.currentCard
                   }
                 >
                   <View
@@ -1163,11 +1099,12 @@ export default function RequestLocation({
                       styles.currentIcon
                     }
                   >
-                    <AppIcon
-                      name="locate"
-                      role="customer"
-                      size="sm"
-                      state="active"
+                    <MaterialCommunityIcons
+                      name="crosshairs-gps"
+                      size={25}
+                      color={
+                        CustomerColors.primary
+                      }
                     />
                   </View>
 
@@ -1180,7 +1117,7 @@ export default function RequestLocation({
                       variant="bodyMedium"
                       weight="bold"
                     >
-                      Use my current location
+                      Use Current Location
                     </AppText>
 
                     <AppText
@@ -1190,14 +1127,10 @@ export default function RequestLocation({
                         styles.currentText
                       }
                     >
-                      Fixxam will use
-                      your latest GPS
-                      position to set
-                      the service
-                      location.
+                      Fixxam will use your device location for this service request.
                     </AppText>
                   </View>
-                </AppCard>
+                </View>
 
                 <AppButton
                   title={
@@ -1210,7 +1143,7 @@ export default function RequestLocation({
                     selectingCurrent
                   }
                   disabled={
-                    selectingCurrent
+                    busy
                   }
                   leftIconName={
                     selectingCurrent
@@ -1224,16 +1157,20 @@ export default function RequestLocation({
                     styles.primaryButton
                   }
                 />
-              </>
+              </View>
             ) : null}
 
-            {/* ==================================================
+            {/* ================================================
                 MANUAL LOCATION
-            ================================================== */}
+            ================================================ */}
 
             {locationType ===
             "manual" ? (
-              <>
+              <View
+                style={
+                  styles.manualSection
+                }
+              >
                 <BookingManualLocation
                   value={
                     manualAddress
@@ -1269,7 +1206,8 @@ export default function RequestLocation({
                     confirmingManual
                   }
                   disabled={
-                    !manualCanConfirm
+                    !manualCanConfirm ||
+                    busy
                   }
                   leftIconName={
                     confirmingManual
@@ -1283,7 +1221,7 @@ export default function RequestLocation({
                     styles.primaryButton
                   }
                 />
-              </>
+              </View>
             ) : null}
           </View>
         </KeyboardAvoidingView>
@@ -1299,13 +1237,15 @@ export default function RequestLocation({
 const styles =
   StyleSheet.create({
     /* ========================================================
-       CARD
+       LOCATION FIELD
     ======================================================== */
 
-    card: {
+    locationField: {
+      width:
+        "100%",
+
       minHeight:
-        FixxamTokens.size
-          .cardMinHeight,
+        72,
 
       flexDirection:
         "row",
@@ -1313,134 +1253,96 @@ const styles =
       alignItems:
         "center",
 
-      padding:
-        FixxamTokens.spacing.md,
+      paddingHorizontal:
+        14,
 
-      borderWidth: 1,
+      paddingVertical:
+        12,
+
+      borderWidth:
+        1,
 
       borderColor:
-        Colors.border,
+        "#DDE5EF",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        14,
 
       backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+        "#FFFFFF",
     },
 
-    cardSelected: {
+    locationFieldSelected: {
       borderColor:
-        CustomerColors.primary,
+        "#93C5FD",
 
       backgroundColor:
-        Colors.surface,
+        "#FFFFFF",
     },
 
-    cardPressed: {
-      borderColor:
-        CustomerColors.primary,
+    locationIcon: {
+      width:
+        46,
+
+      height:
+        46,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        12,
+
+      borderRadius:
+        10,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EAF3FF",
+    },
 
+    locationContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginRight:
+        10,
+    },
+
+    locationHint: {
+      marginTop:
+        3,
+
+      lineHeight:
+        18,
+
+      color:
+        "#64748B",
+    },
+
+    pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
 
-    cardDisabled: {
+    disabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    /* ========================================================
-       ICON
-    ======================================================== */
-
-    iconContainer: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius
-          .iconButton,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    /* ========================================================
-       CONTENT
-    ======================================================== */
-
-    cardContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginHorizontal:
-        FixxamTokens.spacing.sm,
-    },
-
-    locationType: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        CustomerColors.primary,
-    },
-
-    address: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       CHEVRON
-    ======================================================== */
-
-    chevronContainer: {
-      width: 34,
-
-      height: 34,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     /* ========================================================
@@ -1448,7 +1350,8 @@ const styles =
     ======================================================== */
 
     modalRoot: {
-      flex: 1,
+      flex:
+        1,
 
       justifyContent:
         "flex-end",
@@ -1461,49 +1364,53 @@ const styles =
         Colors.overlayMedium,
     },
 
-    modalCard: {
-      width: "100%",
+    sheet: {
+      width:
+        "100%",
 
-      maxHeight: "90%",
+      maxHeight:
+        "90%",
 
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        20,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        10,
 
       borderTopLeftRadius:
-        FixxamTokens.radius.xl,
+        24,
 
       borderTopRightRadius:
-        FixxamTokens.radius.xl,
+        24,
 
       backgroundColor:
-        Colors.surface,
+        "#FFFFFF",
 
       ...FixxamTokens.shadow.modal,
     },
 
     handle: {
-      width: 42,
+      width:
+        42,
 
-      height: 4,
+      height:
+        5,
 
       alignSelf:
         "center",
 
       marginBottom:
-        FixxamTokens.spacing.lg,
+        20,
 
       borderRadius:
         FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabled,
+        "#CBD5E1",
     },
 
     /* ========================================================
-       MODAL HEADER
+       HEADER
     ======================================================== */
 
     modalHeader: {
@@ -1516,14 +1423,13 @@ const styles =
 
     modalHeaderIcon: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        48,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        48,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1532,37 +1438,43 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        12,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EAF3FF",
     },
 
     modalHeaderContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      marginLeft:
-        FixxamTokens.spacing.sm,
+      marginHorizontal:
+        12,
     },
 
     modalSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        3,
+
+      lineHeight:
+        18,
+
+      color:
+        "#64748B",
     },
 
     closeButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        40,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1571,56 +1483,66 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        20,
 
       backgroundColor:
-        Colors.background,
+        "#F8FAFC",
     },
 
     closeButtonPressed: {
       backgroundColor:
-        CustomerColors.primarySoft,
-
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        "#EAF3FF",
     },
 
-    controlDisabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+    typeSection: {
+      marginTop:
+        20,
     },
 
     /* ========================================================
        CURRENT LOCATION
     ======================================================== */
 
-    currentPanel: {
+    currentSection: {
+      marginTop:
+        20,
+    },
+
+    currentCard: {
+      minHeight:
+        82,
+
       flexDirection:
         "row",
 
       alignItems:
         "center",
 
-      marginTop:
-        FixxamTokens.spacing.md,
-
       padding:
-        FixxamTokens.spacing.md,
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        "#DDE5EF",
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        "#FFFFFF",
     },
 
     currentIcon: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        48,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        48,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1628,36 +1550,57 @@ const styles =
       justifyContent:
         "center",
 
+      marginRight:
+        12,
+
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        10,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EAF3FF",
     },
 
     currentContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
+      minWidth:
+        0,
     },
 
     currentText: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        3,
+
+      lineHeight:
+        18,
+
+      color:
+        "#64748B",
     },
 
     /* ========================================================
-       ACTION
+       MANUAL LOCATION
+    ======================================================== */
+
+    manualSection: {
+      marginTop:
+        20,
+    },
+
+    /* ========================================================
+       PRIMARY BUTTON
     ======================================================== */
 
     primaryButton: {
-      width: "100%",
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.md,
+        20,
     },
   });
+
+export default memo(
+  RequestLocation,
+);

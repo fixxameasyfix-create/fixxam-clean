@@ -43,6 +43,8 @@ type StatusChipProps = {
   iconBackground: string;
 
   label: string;
+
+  labelColor?: string;
 };
 
 /* ============================================================
@@ -56,6 +58,7 @@ const StatusChip =
       iconColor,
       iconBackground,
       label,
+      labelColor = Colors.textPrimary,
     }: StatusChipProps) {
       return (
         <View
@@ -88,9 +91,13 @@ const StatusChip =
             weight="bold"
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={
-              styles.label
-            }
+            style={[
+              styles.label,
+              {
+                color:
+                  labelColor,
+              },
+            ]}
           >
             {label}
           </AppText>
@@ -107,7 +114,7 @@ StatusChip.displayName =
 ============================================================ */
 
 function HeaderStatus({
-  available = true,
+  available = false,
   rating = 0,
   location = "",
 }: Props) {
@@ -171,6 +178,18 @@ function HeaderStatus({
     >
       {/* ======================================================
           AVAILABILITY
+
+          ONLINE:
+          - Available
+          - Green icon
+          - Green text
+          - Green soft background
+
+          OFFLINE:
+          - Offline
+          - Grey icon
+          - Grey text
+          - Grey background
       ====================================================== */}
 
       <StatusChip
@@ -193,6 +212,11 @@ function HeaderStatus({
           available
             ? "Available"
             : "Offline"
+        }
+        labelColor={
+          available
+            ? Colors.success
+            : Colors.textMuted
         }
       />
 
@@ -326,8 +350,5 @@ const styles =
 
       marginLeft:
         FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
     },
   });

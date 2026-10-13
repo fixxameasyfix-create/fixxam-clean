@@ -11,7 +11,6 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   TextInput,
@@ -36,6 +35,10 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
 import Toast from "react-native-toast-message";
 
 import {
@@ -51,15 +54,14 @@ import {
 import {
   Colors,
   CustomerColors,
+  FixxamTokens,
 } from "@/theme";
 
-import MarketOrderSummary from "@/components/market/chat/MarketOrderSummary";
 import MarketChatMessageBubble from "@/components/market/chat/MarketChatMessageBubble";
 import MarketChatMenu from "@/components/market/chat/MarketChatMenu";
 import MarketChatEmpty from "@/components/market/chat/MarketChatEmpty";
 
 import {
-  getNumber,
   getParamString,
   getString,
   getTimestampMillis,
@@ -111,29 +113,21 @@ type OrderDocument = {
 
   storePhone?: unknown;
 
+  orderType?: unknown;
+
+  type?: unknown;
+
+  status?: unknown;
+
   items?: unknown;
 
   products?: unknown;
 
   orderItems?: unknown;
-
-  subtotal?: unknown;
-
-  deliveryFee?: unknown;
-
-  total?: unknown;
 };
 
 type ChatParams = {
   orderId?:
-    | string
-    | string[];
-
-  storeId?:
-    | string
-    | string[];
-
-  sellerId?:
     | string
     | string[];
 
@@ -153,6 +147,25 @@ const DELETE_BATCH_SIZE =
   450;
 
 /* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeValue(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value
+    .trim()
+    .toLowerCase();
+}
+
+/* ============================================================
    TOAST
 ============================================================ */
 
@@ -162,9 +175,7 @@ function showErrorToast(
 ) {
   Toast.show({
     type: "error",
-
     text1: title,
-
     text2: message,
   });
 }
@@ -175,9 +186,7 @@ function showInfoToast(
 ) {
   Toast.show({
     type: "info",
-
     text1: title,
-
     text2: message,
   });
 }
@@ -188,12 +197,12 @@ function showSuccessToast(
 ) {
   Toast.show({
     type: "success",
-
     text1: title,
 
     ...(message
       ? {
-          text2: message,
+          text2:
+            message,
         }
       : {}),
   });
@@ -207,6 +216,9 @@ export default function MarketOrderChatRoom() {
   const params =
     useLocalSearchParams<ChatParams>();
 
+  const insets =
+    useSafeAreaInsets();
+
   /* ==========================================================
      PARAMS
   ========================================================== */
@@ -219,28 +231,6 @@ export default function MarketOrderChatRoom() {
         ),
       [
         params.orderId,
-      ],
-    );
-
-  const paramStoreId =
-    useMemo(
-      () =>
-        getParamString(
-          params.storeId,
-        ),
-      [
-        params.storeId,
-      ],
-    );
-
-  const paramSellerId =
-    useMemo(
-      () =>
-        getParamString(
-          params.sellerId,
-        ),
-      [
-        params.sellerId,
       ],
     );
 
@@ -285,7 +275,8 @@ export default function MarketOrderChatRoom() {
   const [
     text,
     setText,
-  ] = useState("");
+  ] =
+    useState("");
 
   const [
     messagesLoading,
@@ -311,18 +302,12 @@ export default function MarketOrderChatRoom() {
   ] =
     useState(false);
 
-  /*
-   * Fatal order/access error.
-   */
   const [
     orderError,
     setOrderError,
   ] =
     useState("");
 
-  /*
-   * Non-fatal realtime chat error.
-   */
   const [
     chatError,
     setChatError,
@@ -341,7 +326,7 @@ export default function MarketOrderChatRoom() {
     >(null);
 
   /* ==========================================================
-     DERIVED ORDER VALUES
+     ORDER VALUES
   ========================================================== */
 
   const storeName =
@@ -369,20 +354,14 @@ export default function MarketOrderChatRoom() {
       ],
     );
 
-  /*
-   * Prefer Firestore order data over route params.
-   * Route params must not be treated as trusted ownership data.
-   */
   const resolvedStoreId =
     useMemo(
       () =>
         getString(
           order?.storeId,
-          paramStoreId,
         ),
       [
         order?.storeId,
-        paramStoreId,
       ],
     );
 
@@ -391,11 +370,9 @@ export default function MarketOrderChatRoom() {
       () =>
         getString(
           order?.sellerId,
-          paramSellerId,
         ),
       [
         order?.sellerId,
-        paramSellerId,
       ],
     );
 
@@ -411,17 +388,6 @@ export default function MarketOrderChatRoom() {
         order?.items,
         order?.products,
         order?.orderItems,
-      ],
-    );
-
-  const orderTotal =
-    useMemo(
-      () =>
-        getNumber(
-          order?.total,
-        ),
-      [
-        order?.total,
       ],
     );
 
@@ -456,7 +422,9 @@ export default function MarketOrderChatRoom() {
       !orderId ||
       !currentUserId
     ) {
-      setOrder(null);
+      setOrder(
+        null,
+      );
 
       setOrderLoading(
         false,
@@ -475,7 +443,9 @@ export default function MarketOrderChatRoom() {
       true,
     );
 
-    setOrderError("");
+    setOrderError(
+      "",
+    );
 
     const orderRef =
       doc(
@@ -494,7 +464,9 @@ export default function MarketOrderChatRoom() {
           if (
             !snapshot.exists()
           ) {
-            setOrder(null);
+            setOrder(
+              null,
+            );
 
             setOrderLoading(
               false,
@@ -515,20 +487,14 @@ export default function MarketOrderChatRoom() {
               data.customerId,
             );
 
-          /*
-           * Strict ownership check.
-           *
-           * Missing customerId is denied too.
-           *
-           * Firestore Security Rules must
-           * independently enforce this.
-           */
           if (
             !customerId ||
             customerId !==
               currentUserId
           ) {
-            setOrder(null);
+            setOrder(
+              null,
+            );
 
             setOrderLoading(
               false,
@@ -541,13 +507,48 @@ export default function MarketOrderChatRoom() {
             return;
           }
 
-          setOrder(data);
+          const orderType =
+            normalizeValue(
+              data.orderType,
+            );
+
+          const type =
+            normalizeValue(
+              data.type,
+            );
+
+          if (
+            orderType !==
+              "market" &&
+            type !==
+              "market"
+          ) {
+            setOrder(
+              null,
+            );
+
+            setOrderLoading(
+              false,
+            );
+
+            setOrderError(
+              "This chat is not associated with a market order.",
+            );
+
+            return;
+          }
+
+          setOrder(
+            data,
+          );
 
           setOrderLoading(
             false,
           );
 
-          setOrderError("");
+          setOrderError(
+            "",
+          );
         },
 
         (
@@ -558,7 +559,9 @@ export default function MarketOrderChatRoom() {
             listenerError,
           );
 
-          setOrder(null);
+          setOrder(
+            null,
+          );
 
           setOrderLoading(
             false,
@@ -581,19 +584,15 @@ export default function MarketOrderChatRoom() {
   ========================================================== */
 
   useEffect(() => {
-    /*
-     * Important:
-     * Do not subscribe to messages until the
-     * order has been loaded and ownership has
-     * been successfully verified.
-     */
     if (
       !chatRoomId ||
       !currentUserId ||
       orderLoading ||
       !order
     ) {
-      setMessages([]);
+      setMessages(
+        [],
+      );
 
       if (
         !orderLoading
@@ -615,7 +614,9 @@ export default function MarketOrderChatRoom() {
       customerId !==
       currentUserId
     ) {
-      setMessages([]);
+      setMessages(
+        [],
+      );
 
       setMessagesLoading(
         false,
@@ -628,7 +629,9 @@ export default function MarketOrderChatRoom() {
       true,
     );
 
-    setChatError("");
+    setChatError(
+      "",
+    );
 
     const messagesRef =
       collection(
@@ -708,7 +711,9 @@ export default function MarketOrderChatRoom() {
             false,
           );
 
-          setChatError("");
+          setChatError(
+            "",
+          );
 
           if (
             nextMessages.length >
@@ -732,7 +737,9 @@ export default function MarketOrderChatRoom() {
             listenerError,
           );
 
-          setMessages([]);
+          setMessages(
+            [],
+          );
 
           setMessagesLoading(
             false,
@@ -754,7 +761,7 @@ export default function MarketOrderChatRoom() {
   ]);
 
   /* ==========================================================
-     SEND MESSAGE
+     SEND
   ========================================================== */
 
   const handleSend =
@@ -823,9 +830,13 @@ export default function MarketOrderChatRoom() {
           return;
         }
 
-        setSending(true);
+        setSending(
+          true,
+        );
 
-        setChatError("");
+        setChatError(
+          "",
+        );
 
         try {
           const chatRef =
@@ -843,18 +854,15 @@ export default function MarketOrderChatRoom() {
               "messages",
             );
 
-          /*
-           * Generate the message ID before
-           * committing so chat metadata and
-           * message creation can be atomic.
-           */
           const messageRef =
             doc(
               messagesRef,
             );
 
           const batch =
-            writeBatch(db);
+            writeBatch(
+              db,
+            );
 
           batch.set(
             chatRef,
@@ -904,7 +912,8 @@ export default function MarketOrderChatRoom() {
             },
 
             {
-              merge: true,
+              merge:
+                true,
             },
           );
 
@@ -927,7 +936,9 @@ export default function MarketOrderChatRoom() {
 
           await batch.commit();
 
-          setText("");
+          setText(
+            "",
+          );
 
           requestAnimationFrame(
             () => {
@@ -970,82 +981,90 @@ export default function MarketOrderChatRoom() {
     );
 
   /* ==========================================================
-     CALL STORE
+     VOICE CALL
   ========================================================== */
 
   const handleCallStore =
-    useCallback(
-      async () => {
-        setMenuVisible(
-          false,
+    useCallback(() => {
+      setMenuVisible(
+        false,
+      );
+
+      if (
+        !currentUserId
+      ) {
+        showErrorToast(
+          "Sign in required",
+          "Please sign in again before starting a call.",
         );
 
-        if (!storePhone) {
-          showInfoToast(
-            "Phone unavailable",
-            "The store phone number is not available for this order.",
-          );
+        return;
+      }
 
-          return;
-        }
+      if (
+        !order
+      ) {
+        showErrorToast(
+          "Order unavailable",
+          "Order information could not be loaded.",
+        );
 
-        const safePhone =
-          storePhone.replace(
-            /[^+\d]/g,
-            "",
-          );
+        return;
+      }
 
-        if (!safePhone) {
-          showErrorToast(
-            "Invalid phone number",
-            "The store phone number is not valid.",
-          );
+      const customerId =
+        getString(
+          order.customerId,
+        );
 
-          return;
-        }
+      if (
+        customerId !==
+        currentUserId
+      ) {
+        showErrorToast(
+          "Access denied",
+          "You do not have permission to call the store for this order.",
+        );
 
-        try {
-          const phoneUrl =
-            `tel:${safePhone}`;
+        return;
+      }
 
-          const supported =
-            await Linking.canOpenURL(
-              phoneUrl,
-            );
+      const sellerId =
+        resolvedSellerId.trim();
 
-          if (!supported) {
-            showErrorToast(
-              "Unable to call",
-              "Your device cannot make phone calls.",
-            );
+      if (
+        !sellerId
+      ) {
+        showInfoToast(
+          "Store unavailable",
+          "The store could not be identified for this call.",
+        );
 
-            return;
-          }
+        return;
+      }
 
-          await Linking.openURL(
-            phoneUrl,
-          );
-        } catch (
-          callError
-        ) {
-          console.error(
-            "FIXXAM_MARKET_CHAT_CALL_ERROR:",
-            callError,
-          );
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
 
-          showErrorToast(
-            "Unable to call",
-            "Something went wrong while trying to call the store.",
-          );
-        }
-      },
-      [
-        storePhone,
-      ],
-    );
+        params: {
+          workerId:
+            sellerId,
+
+          name:
+            storeName ||
+            "Store",
+        },
+      } as never);
+    }, [
+      currentUserId,
+      order,
+      resolvedSellerId,
+      storeName,
+    ]);
 
   /* ==========================================================
-     DELETE OWN MESSAGES
+     DELETE MESSAGES
   ========================================================== */
 
   const deleteMyMessages =
@@ -1078,7 +1097,9 @@ export default function MarketOrderChatRoom() {
           return;
         }
 
-        setDeleting(true);
+        setDeleting(
+          true,
+        );
 
         setMenuVisible(
           false,
@@ -1128,7 +1149,9 @@ export default function MarketOrderChatRoom() {
               DELETE_BATCH_SIZE
           ) {
             const batch =
-              writeBatch(db);
+              writeBatch(
+                db,
+              );
 
             snapshot.docs
               .slice(
@@ -1149,11 +1172,6 @@ export default function MarketOrderChatRoom() {
             await batch.commit();
           }
 
-          /*
-           * Snapshot listener will also update
-           * this state, but local filtering makes
-           * the UI respond immediately.
-           */
           setMessages(
             (
               currentMessages,
@@ -1167,7 +1185,9 @@ export default function MarketOrderChatRoom() {
               ),
           );
 
-          setText("");
+          setText(
+            "",
+          );
 
           showSuccessToast(
             "Messages deleted",
@@ -1200,10 +1220,6 @@ export default function MarketOrderChatRoom() {
       ],
     );
 
-  /* ==========================================================
-     DELETE CONFIRMATION
-  ========================================================== */
-
   const handleDeleteChat =
     useCallback(() => {
       if (
@@ -1218,17 +1234,20 @@ export default function MarketOrderChatRoom() {
       );
 
       Alert.alert(
-        "Delete My Messages?",
+        "Delete my messages?",
         "Only the messages you sent will be permanently deleted. The store's messages will remain.",
         [
           {
-            text: "Cancel",
+            text:
+              "Cancel",
 
-            style: "cancel",
+            style:
+              "cancel",
           },
 
           {
-            text: "Delete",
+            text:
+              "Delete",
 
             style:
               "destructive",
@@ -1246,7 +1265,7 @@ export default function MarketOrderChatRoom() {
     ]);
 
   /* ==========================================================
-     BACK
+     NAVIGATION
   ========================================================== */
 
   const handleBack =
@@ -1264,9 +1283,29 @@ export default function MarketOrderChatRoom() {
       sending,
     ]);
 
-  /* ==========================================================
-     INPUT FOCUS
-  ========================================================== */
+  const handleOpenMenu =
+    useCallback(() => {
+      if (
+        sending ||
+        deleting
+      ) {
+        return;
+      }
+
+      setMenuVisible(
+        true,
+      );
+    }, [
+      deleting,
+      sending,
+    ]);
+
+  const handleCloseMenu =
+    useCallback(() => {
+      setMenuVisible(
+        false,
+      );
+    }, []);
 
   const handleInputFocus =
     useCallback(() => {
@@ -1282,7 +1321,7 @@ export default function MarketOrderChatRoom() {
     ]);
 
   /* ==========================================================
-     RENDER MESSAGE
+     LIST
   ========================================================== */
 
   const renderMessage =
@@ -1293,7 +1332,9 @@ export default function MarketOrderChatRoom() {
         item: ChatMessage;
       }) => (
         <MarketChatMessageBubble
-          message={item}
+          message={
+            item
+          }
           isMine={
             item.senderId ===
             currentUserId
@@ -1310,15 +1351,18 @@ export default function MarketOrderChatRoom() {
       (
         item:
           ChatMessage,
-      ) => item.id,
+      ) =>
+        item.id,
       [],
     );
 
   /* ==========================================================
-     INVALID ORDER ID
+     INVALID ORDER
   ========================================================== */
 
-  if (!orderId) {
+  if (
+    !orderId
+  ) {
     return (
       <>
         <Stack.Screen
@@ -1373,13 +1417,13 @@ export default function MarketOrderChatRoom() {
             }
           >
             <AppText
-              variant="caption"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.backButtonText
               }
             >
-              GO BACK
+              Go back
             </AppText>
           </Pressable>
         </View>
@@ -1456,13 +1500,13 @@ export default function MarketOrderChatRoom() {
             }
           >
             <AppText
-              variant="caption"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               style={
                 styles.backButtonText
               }
             >
-              GO BACK
+              Go back
             </AppText>
           </Pressable>
         </View>
@@ -1478,7 +1522,8 @@ export default function MarketOrderChatRoom() {
     <>
       <Stack.Screen
         options={{
-          headerShown: false,
+          headerShown:
+            false,
         }}
       />
 
@@ -1487,9 +1532,16 @@ export default function MarketOrderChatRoom() {
           styles.screen
         }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
             : "height"
+        }
+        keyboardVerticalOffset={
+          Platform.OS ===
+          "ios"
+            ? insets.top
+            : 0
         }
       >
         {/* ====================================================
@@ -1497,9 +1549,17 @@ export default function MarketOrderChatRoom() {
         ==================================================== */}
 
         <View
-          style={
-            styles.header
-          }
+          style={[
+            styles.header,
+
+            {
+              paddingTop:
+                Math.max(
+                  insets.top,
+                  FixxamTokens.spacing.sm,
+                ),
+            },
+          ]}
         >
           <Pressable
             onPress={
@@ -1509,11 +1569,17 @@ export default function MarketOrderChatRoom() {
               sending ||
               deleting
             }
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            style={
-              styles.headerButton
-            }
+            style={[
+              styles.headerButton,
+
+              sending ||
+              deleting
+                ? styles.disabled
+                : null,
+            ]}
           >
             <AppIcon
               name="back"
@@ -1530,8 +1596,8 @@ export default function MarketOrderChatRoom() {
             }
           >
             <AppText
-              variant="body"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
               numberOfLines={1}
               style={
                 styles.headerTitle
@@ -1545,14 +1611,10 @@ export default function MarketOrderChatRoom() {
                 styles.onlineRow
               }
             >
-              <View
-                style={
-                  styles.onlineDot
-                }
-              />
-
               <AppText
                 variant="caption"
+                tone="secondary"
+                numberOfLines={1}
                 style={
                   styles.onlineText
                 }
@@ -1565,36 +1627,25 @@ export default function MarketOrderChatRoom() {
             </View>
           </View>
 
-          <View
-            style={
-              styles.headerIcon
-            }
-          >
-            <AppIcon
-              name="cart"
-              role="customer"
-              size="sm"
-              color={
-                CustomerColors.primary
-              }
-            />
-          </View>
-
           <Pressable
-            onPress={() =>
-              setMenuVisible(
-                true,
-              )
+            onPress={
+              handleOpenMenu
             }
             disabled={
               sending ||
               deleting
             }
+            hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Open chat options"
-            style={
-              styles.menuButton
-            }
+            style={[
+              styles.menuButton,
+
+              sending ||
+              deleting
+                ? styles.disabled
+                : null,
+            ]}
           >
             <AppIcon
               name="more"
@@ -1607,7 +1658,7 @@ export default function MarketOrderChatRoom() {
         </View>
 
         {/* ====================================================
-            CHAT
+            MESSAGES
         ==================================================== */}
 
         <View
@@ -1615,21 +1666,6 @@ export default function MarketOrderChatRoom() {
             styles.chatContainer
           }
         >
-          {!orderLoading &&
-          order ? (
-            <MarketOrderSummary
-              orderId={
-                orderId
-              }
-              items={
-                orderItems
-              }
-              total={
-                orderTotal
-              }
-            />
-          ) : null}
-
           {messagesLoading ? (
             <View
               style={
@@ -1691,7 +1727,13 @@ export default function MarketOrderChatRoom() {
               maxToRenderPerBatch={
                 20
               }
-              windowSize={9}
+              windowSize={
+                9
+              }
+              removeClippedSubviews={
+                Platform.OS ===
+                "android"
+              }
               onContentSizeChange={() => {
                 if (
                   messages.length >
@@ -1710,7 +1752,7 @@ export default function MarketOrderChatRoom() {
         </View>
 
         {/* ====================================================
-            REALTIME ERROR
+            ERROR
         ==================================================== */}
 
         {chatError ? (
@@ -1743,9 +1785,17 @@ export default function MarketOrderChatRoom() {
         ==================================================== */}
 
         <View
-          style={
-            styles.inputArea
-          }
+          style={[
+            styles.inputArea,
+
+            {
+              paddingBottom:
+                Math.max(
+                  insets.bottom,
+                  FixxamTokens.spacing.sm,
+                ),
+            },
+          ]}
         >
           <View
             style={
@@ -1774,8 +1824,11 @@ export default function MarketOrderChatRoom() {
                 !sending &&
                 !deleting &&
                 !orderLoading &&
-                Boolean(order)
+                Boolean(
+                  order,
+                )
               }
+              textAlignVertical="center"
               accessibilityLabel="Message"
               accessibilityHint="Type a message to the store"
               style={
@@ -1830,7 +1883,7 @@ export default function MarketOrderChatRoom() {
       </KeyboardAvoidingView>
 
       {/* ======================================================
-          MENU
+          OPTIONS
       ====================================================== */}
 
       <MarketChatMenu
@@ -1844,15 +1897,16 @@ export default function MarketOrderChatRoom() {
         deleting={
           deleting
         }
-        hasPhone={
+        canCall={
           Boolean(
-            storePhone,
+            resolvedSellerId,
           )
         }
-        onClose={() =>
-          setMenuVisible(
-            false,
-          )
+        items={
+          orderItems
+        }
+        onClose={
+          handleCloseMenu
         }
         onCall={
           handleCallStore

@@ -12,7 +12,6 @@ import {
 } from "react-native";
 
 import {
-  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -42,7 +41,6 @@ type RequestDescriptionProps = {
 ============================================================== */
 
 const MAX_LENGTH = 300;
-
 const WARNING_THRESHOLD = 270;
 
 /* ==============================================================
@@ -101,20 +99,27 @@ function RequestDescription({
   ============================================================ */
 
   const counterColor =
-    useMemo(() => {
-      if (isAtLimit) {
-        return Colors.error;
-      }
+    useMemo(
+      () => {
+        if (
+          isAtLimit
+        ) {
+          return Colors.error;
+        }
 
-      if (isNearLimit) {
-        return Colors.warning;
-      }
+        if (
+          isNearLimit
+        ) {
+          return Colors.warning;
+        }
 
-      return Colors.textMuted;
-    }, [
-      isAtLimit,
-      isNearLimit,
-    ]);
+        return Colors.textMuted;
+      },
+      [
+        isAtLimit,
+        isNearLimit,
+      ],
+    );
 
   /* ============================================================
      UI
@@ -123,98 +128,55 @@ function RequestDescription({
   return (
     <View
       style={[
-        styles.card,
+        styles.container,
 
         focused &&
-        !disabled
-          ? styles.cardFocused
-          : null,
+          !disabled &&
+          styles.focused,
 
-        disabled
-          ? styles.disabled
-          : null,
+        disabled &&
+          styles.disabled,
       ]}
     >
-      {/* ======================================================
-          INPUT ROW
-      ====================================================== */}
-
-      <View
-        style={
-          styles.inputRow
+      <TextInput
+        value={
+          value
         }
-      >
-        {/* ====================================================
-            ICON
-        ==================================================== */}
-
-        <View
-          style={[
-            styles.iconBox,
-
-            focused &&
-            !disabled
-              ? styles.iconBoxFocused
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="file"
-            role="customer"
-            size="sm"
-            state={
-              focused
-                ? "active"
-                : "muted"
-            }
-          />
-        </View>
-
-        {/* ====================================================
-            INPUT
-        ==================================================== */}
-
-        <TextInput
-          value={value}
-          onChangeText={
-            handleChangeText
-          }
-          onFocus={() =>
-            setFocused(
-              true,
-            )
-          }
-          onBlur={() =>
-            setFocused(
-              false,
-            )
-          }
-          editable={
-            !disabled
-          }
-          multiline
-          maxLength={
-            MAX_LENGTH
-          }
-          textAlignVertical="top"
-          placeholder="Describe the service you need..."
-          placeholderTextColor={
-            Colors.textMuted
-          }
-          selectionColor={
-            CustomerColors.primary
-          }
-          accessibilityLabel="Service description"
-          accessibilityHint="Briefly describe what you need the worker to do"
-          style={
-            styles.input
-          }
-        />
-      </View>
-
-      {/* ======================================================
-          FOOTER
-      ====================================================== */}
+        onChangeText={
+          handleChangeText
+        }
+        onFocus={() =>
+          setFocused(
+            true,
+          )
+        }
+        onBlur={() =>
+          setFocused(
+            false,
+          )
+        }
+        editable={
+          !disabled
+        }
+        multiline
+        scrollEnabled
+        maxLength={
+          MAX_LENGTH
+        }
+        textAlignVertical="top"
+        placeholder="Describe the problem, what needs to be done, or any important details..."
+        placeholderTextColor={
+          Colors.textMuted
+        }
+        selectionColor={
+          CustomerColors.primary
+        }
+        accessibilityLabel="Service description"
+        accessibilityHint="Describe what you need the provider to do"
+        style={
+          styles.input
+        }
+      />
 
       <View
         style={
@@ -223,28 +185,12 @@ function RequestDescription({
       >
         <AppText
           variant="caption"
-          tone="muted"
-          style={
-            styles.hint
-          }
+          style={{
+            color:
+              counterColor,
+          }}
         >
-          Tell us briefly what you need
-        </AppText>
-
-        <AppText
-          variant="caption"
-          weight="semibold"
-          style={[
-            styles.counter,
-
-            {
-              color:
-                counterColor,
-            },
-          ]}
-        >
-          {characterCount}/
-          {MAX_LENGTH}
+          {characterCount}/{MAX_LENGTH}
         </AppText>
       </View>
     </View>
@@ -257,135 +203,77 @@ function RequestDescription({
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
+    container: {
+      width:
+        "100%",
 
-    card: {
-      width: "100%",
-
-      minHeight: 132,
+      minHeight:
+        148,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        16,
 
       paddingTop:
-        FixxamTokens.spacing.md,
+        15,
 
       paddingBottom:
-        FixxamTokens.spacing.sm,
+        10,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
-        Colors.border,
+        "#DDE5EF",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        14,
 
       backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+        "#FFFFFF",
     },
 
-    cardFocused: {
+    focused: {
       borderColor:
-        CustomerColors.primary,
+        "#3B82F6",
+
+      borderWidth:
+        1.5,
     },
 
     disabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    /* ========================================================
-       INPUT ROW
-    ======================================================== */
-
-    inputRow: {
-      flex: 1,
-
-      minHeight: 76,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-    },
-
-    /* ========================================================
-       ICON
-    ======================================================== */
-
-    iconBox: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        FixxamTokens.motion.disabledOpacity,
 
       backgroundColor:
-        Colors.disabledBackground,
+        "#F8FAFC",
     },
-
-    iconBoxFocused: {
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    /* ========================================================
-       INPUT
-    ======================================================== */
 
     input: {
-      flex: 1,
+      minHeight:
+        100,
 
-      minHeight: 76,
+      maxHeight:
+        180,
 
-      paddingTop:
-        FixxamTokens.spacing.xs,
-
-      paddingBottom:
-        FixxamTokens.spacing.xs,
-
-      paddingHorizontal: 0,
+      padding:
+        0,
 
       fontSize:
         Typography.fontSize.md,
 
+      lineHeight:
+        22,
+
       color:
-        Colors.textPrimary,
+        "#0F172A",
 
       textAlignVertical:
         "top",
     },
 
-    /* ========================================================
-       FOOTER
-    ======================================================== */
-
     footer: {
-      minHeight: 28,
+      minHeight:
+        22,
 
       flexDirection:
         "row",
@@ -394,29 +282,12 @@ const styles =
         "center",
 
       justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.sm,
+        "flex-end",
 
       marginTop:
-        FixxamTokens.spacing.xs,
-    },
-
-    hint: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    counter: {
-      flexShrink: 0,
-
-      textAlign:
-        "right",
+        6,
     },
   });
-
 export default memo(
   RequestDescription,
 );

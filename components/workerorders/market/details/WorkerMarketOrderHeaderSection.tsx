@@ -9,7 +9,6 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -92,7 +91,15 @@ function WorkerMarketOrderHeaderSection({
     );
 
   return (
-    <>
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          MAIN HEADER
+      ======================================================== */}
+
       <View
         style={
           styles.header
@@ -101,6 +108,7 @@ function WorkerMarketOrderHeaderSection({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
+          accessibilityHint="Return to market orders"
           hitSlop={8}
           onPress={
             onBack
@@ -117,7 +125,7 @@ function WorkerMarketOrderHeaderSection({
         >
           <AppIcon
             name="back"
-            size="md"
+            size="xs"
             color={
               Colors.textPrimary
             }
@@ -130,7 +138,7 @@ function WorkerMarketOrderHeaderSection({
           }
         >
           <AppText
-            variant="heading3"
+            variant="bodyLarge"
             weight="bold"
             center
             numberOfLines={1}
@@ -161,6 +169,7 @@ function WorkerMarketOrderHeaderSection({
               ? "Refreshing order"
               : "Refresh order"
           }
+          accessibilityHint="Reload the latest order information"
           accessibilityState={{
             disabled:
               refreshing,
@@ -190,29 +199,36 @@ function WorkerMarketOrderHeaderSection({
               : null,
           ]}
         >
-          <AppIcon
-            name="refresh"
-            role="worker"
-            size="sm"
-            color={
-              refreshing
-                ? Colors.textMuted
-                : WorkerColors.primary
-            }
-          />
+          {refreshing ? (
+            <AppLoader
+              role="worker"
+              size="sm"
+            />
+          ) : (
+            <AppIcon
+              name="refresh"
+              role="worker"
+              size="xs"
+              color={
+                WorkerColors.primary
+              }
+            />
+          )}
         </Pressable>
       </View>
 
-      <AppCard
-        role="worker"
-        variant="outlined"
+      {/* ========================================================
+          META
+      ======================================================== */}
+
+      <View
         style={
-          styles.card
+          styles.metaSection
         }
       >
         <View
           style={
-            styles.orderHeaderTop
+            styles.metaTop
           }
         >
           <View
@@ -250,7 +266,6 @@ function WorkerMarketOrderHeaderSection({
 
           <AppText
             variant="caption"
-            tone="muted"
             numberOfLines={1}
             style={
               styles.orderId
@@ -260,56 +275,40 @@ function WorkerMarketOrderHeaderSection({
           </AppText>
         </View>
 
-        <AppText
-          variant="heading2"
-          weight="bold"
-          numberOfLines={1}
+        <View
           style={
-            styles.orderTitle
+            styles.dateRow
           }
         >
-          Market Order
-        </AppText>
+          <AppIcon
+            name="clock"
+            size="xs"
+            color={
+              Colors.textMuted
+            }
+          />
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          numberOfLines={2}
-          style={
-            styles.orderDate
-          }
-        >
-          Requested on{" "}
-          {createdDate}
-        </AppText>
-
-        {refreshing ? (
-          <View
-            accessibilityLiveRegion="polite"
+          <AppText
+            variant="caption"
+            numberOfLines={1}
             style={
-              styles.refreshingRow
+              styles.dateText
             }
           >
-            <AppLoader
-              role="worker"
-              size="sm"
-            />
-
-            <AppText
-              variant="caption"
-              weight="medium"
-              style={
-                styles.refreshingText
-              }
-            >
-              Updating...
-            </AppText>
-          </View>
-        ) : null}
-      </AppCard>
-    </>
+            Requested {createdDate}
+          </AppText>
+        </View>
+      </View>
+    </View>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+WorkerMarketOrderHeaderSection.displayName =
+  "WorkerMarketOrderHeaderSection";
 
 export default memo(
   WorkerMarketOrderHeaderSection,
@@ -321,13 +320,43 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    header: {
-      minHeight:
-        FixxamTokens.size
-          .headerHeight,
+    /* ==========================================================
+       CONTAINER
+    ========================================================== */
 
-      marginBottom:
+    container: {
+      width:
+        "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
         FixxamTokens.spacing.sm,
+
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+
+      borderBottomColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    /* ==========================================================
+       HEADER
+    ========================================================== */
+
+    header: {
+      width:
+        "100%",
+
+      minHeight:
+        60,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -345,7 +374,8 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -353,7 +383,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -363,19 +394,22 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     headerCenter: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
       alignItems:
+        "center",
+
+      justifyContent:
         "center",
     },
 
@@ -386,24 +420,33 @@ const styles =
 
     headerSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
+
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,
     },
 
-    card: {
-      width: "100%",
+    /* ==========================================================
+       META
+    ========================================================== */
 
-      marginBottom:
-        FixxamTokens.spacing.md,
+    metaSection: {
+      width:
+        "100%",
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingTop:
+        FixxamTokens.spacing.xs,
     },
 
-    orderHeaderTop: {
-      width: "100%",
+    metaTop: {
+      width:
+        "100%",
+
+      minHeight:
+        26,
 
       flexDirection:
         "row",
@@ -419,15 +462,17 @@ const styles =
     },
 
     statusBadge: {
-      maxWidth: "65%",
+      minHeight:
+        26,
 
-      minHeight: 30,
+      maxWidth:
+        "60%",
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
       paddingVertical:
-        FixxamTokens.spacing.xs,
+        3,
 
       flexDirection:
         "row",
@@ -443,33 +488,19 @@ const styles =
     },
 
     orderId: {
-      flexShrink: 1,
-
-      maxWidth: "45%",
+      flexShrink:
+        1,
 
       color:
         Colors.textMuted,
     },
 
-    orderTitle: {
+    dateRow: {
+      minHeight:
+        22,
+
       marginTop:
-        FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    orderDate: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    refreshingRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.xxs,
 
       flexDirection:
         "row",
@@ -478,13 +509,23 @@ const styles =
         "center",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
     },
 
-    refreshingText: {
+    dateText: {
+      flex:
+        1,
+
+      lineHeight:
+        16,
+
       color:
-        WorkerColors.primary,
+        Colors.textSecondary,
     },
+
+    /* ==========================================================
+       STATES
+    ========================================================== */
 
     disabled: {
       opacity:

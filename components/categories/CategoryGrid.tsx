@@ -24,6 +24,11 @@ import {
 import CategoryCard from "./CategoryCard";
 
 import {
+  categoryMapper,
+  type CategoryData,
+} from "@/firebase/mappers/categoryMapper";
+
+import {
   getCategories,
 } from "@/firebase/queries/categories";
 
@@ -32,22 +37,6 @@ import {
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
-
-/* ==============================================================
-   TYPES
-============================================================== */
-
-type Category = {
-  id: string;
-
-  name: string;
-
-  icon: string;
-
-  color: string;
-
-  backgroundColor: string;
-};
 
 /* ==============================================================
    HELPERS
@@ -90,7 +79,7 @@ export default function CategoryGrid() {
     setCategories,
   ] =
     useState<
-      Category[]
+      CategoryData[]
     >([]);
 
   const [
@@ -126,56 +115,37 @@ export default function CategoryGrid() {
           await getCategories();
 
         const data =
-          snapshot.docs.reduce<
-            Category[]
-          >(
-            (
-              items,
-              document,
-            ) => {
-              const raw =
-                document.data();
-
-              const name =
-                cleanString(
-                  raw.name,
-                );
-
-              if (
-                !name
-              ) {
-                return items;
-              }
-
-              items.push({
-                id:
-                  document.id,
-
-                name,
+          snapshot.docs
+            .map(
+              categoryMapper,
+            )
+            .filter(
+              (
+                item,
+              ) =>
+                Boolean(
+                  item.name,
+                ),
+            )
+            .map(
+              (
+                item,
+              ): CategoryData => ({
+                ...item,
 
                 icon:
-                  cleanString(
-                    raw.icon,
-                  ) ||
+                  item.icon ||
                   "service",
 
                 color:
-                  cleanString(
-                    raw.color,
-                  ) ||
+                  item.color ||
                   CustomerColors.primary,
 
                 backgroundColor:
-                  cleanString(
-                    raw.backgroundColor,
-                  ) ||
+                  item.backgroundColor ||
                   CustomerColors.primarySoft,
-              });
-
-              return items;
-            },
-            [],
-          );
+              }),
+            );
 
         setCategories(
           data,

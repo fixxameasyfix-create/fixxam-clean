@@ -7,6 +7,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   View,
@@ -14,21 +15,45 @@ import {
 } from "react-native";
 
 import {
-  Stack,
   router,
 } from "expo-router";
+
+import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
 
 import {
   AppText,
 } from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
+import ProductReviewModal from "@/components/customer/home/ProductReviewModal";
 
 import useMarket from "@/hooks/market/useMarket";
 
 import getActiveProductDeals, {
   type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
+
+import {
+  subscribeToProductRatingCount,
+  toggleProductRating,
+} from "@/services/productRatingService";
+
+import {
+  createProductReview,
+  subscribeToProductReviewCount,
+} from "@/services/productReviewService";
+
+import {
+  ensureWorkerRated,
+} from "@/services/workerRatingService";
+
+import {
+  auth,
+  db,
+} from "@/firebase/config";
 
 import {
   Colors,
@@ -50,6 +75,8 @@ interface MarketProduct {
   id: string;
 
   workerId?: string;
+
+  workerRating?: number;
 
   storeId?: string;
 
@@ -73,6 +100,23 @@ interface ProductWithDeal
     | null;
 }
 
+type ProductRatingCounts =
+  Record<string, number>;
+
+type ProductRatingLoading =
+  Record<string, boolean>;
+
+type ProductReviewCounts =
+  Record<string, number>;
+
+type SelectedReviewProduct = {
+  id: string;
+
+  name: string;
+
+  workerId: string;
+};
+
 /* ==============================================================
    HELPERS
 ============================================================== */
@@ -81,7 +125,21 @@ function cleanString(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function cleanProfileName(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -136,6 +194,10 @@ export default function PopularMaterialsScreen() {
     products,
   } = useMarket();
 
+  /* ============================================================
+     DEAL STATE
+  ============================================================ */
+
   const [
     dealsByProductId,
     setDealsByProductId,
@@ -152,6 +214,52 @@ export default function PopularMaterialsScreen() {
     dealsLoading,
     setDealsLoading,
   ] = useState(false);
+
+  /* ============================================================
+     RATING STATE
+  ============================================================ */
+
+  const [
+    ratingCounts,
+    setRatingCounts,
+  ] =
+    useState<ProductRatingCounts>(
+      {},
+    );
+
+  const [
+    ratingLoading,
+    setRatingLoading,
+  ] =
+    useState<ProductRatingLoading>(
+      {},
+    );
+
+  /* ============================================================
+     REVIEW STATE
+  ============================================================ */
+
+  const [
+    reviewCounts,
+    setReviewCounts,
+  ] =
+    useState<ProductReviewCounts>(
+      {},
+    );
+
+  const [
+    selectedReviewProduct,
+    setSelectedReviewProduct,
+  ] =
+    useState<
+      SelectedReviewProduct | null
+    >(null);
+
+  const [
+    reviewSubmitting,
+    setReviewSubmitting,
+  ] =
+    useState(false);
 
   /* ============================================================
      NORMALIZE PRODUCTS
@@ -175,18 +283,18 @@ export default function PopularMaterialsScreen() {
             isValidProduct,
           )
           .map(
-            (
-              product,
-            ) => ({
+            product => ({
               ...product,
 
-              id: cleanString(
-                product.id,
-              ),
+              id:
+                cleanString(
+                  product.id,
+                ),
 
-              name: cleanString(
-                product.name,
-              ),
+              name:
+                cleanString(
+                  product.name,
+                ),
 
               thumbnail:
                 cleanString(
@@ -233,9 +341,7 @@ export default function PopularMaterialsScreen() {
           new Set(
             marketProducts
               .map(
-                (
-                  product,
-                ) =>
+                product =>
                   product.id,
               )
               .filter(
@@ -286,7 +392,9 @@ export default function PopularMaterialsScreen() {
               productIds,
             );
 
-          if (cancelled) {
+          if (
+            cancelled
+          ) {
             return;
           }
 
@@ -295,23 +403,29 @@ export default function PopularMaterialsScreen() {
               ? result
               : new Map(),
           );
-        } catch (error) {
-          console.error(
-            "POPULAR_MATERIALS_DEAL_LOAD_ERROR:",
-            error,
-          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "POPULAR_MATERIALS_DEAL_LOAD_ERROR",
+              error,
+            );
+          }
 
-          /*
-           * Product browsing should continue
-           * even when deal retrieval fails.
-           */
-          if (!cancelled) {
+          if (
+            !cancelled
+          ) {
             setDealsByProductId(
               new Map(),
             );
           }
         } finally {
-          if (!cancelled) {
+          if (
+            !cancelled
+          ) {
             setDealsLoading(
               false,
             );
@@ -330,6 +444,224 @@ export default function PopularMaterialsScreen() {
   ]);
 
   /* ============================================================
+     PRODUCT RATING COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setRatingCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        productIds,
+      );
+
+    setRatingCounts(
+      current => {
+        const next:
+          ProductRatingCounts =
+          {};
+
+        for (
+          const productId of
+          productIds
+        ) {
+          next[
+            productId
+          ] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      productIds.map(
+        productId =>
+          subscribeToProductRatingCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setRatingCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            error => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "POPULAR_MATERIALS_RATING_COUNT_ERROR",
+                  {
+                    productId,
+                    error,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
+  ]);
+
+  /* ============================================================
+     PRODUCT REVIEW COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setReviewCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        productIds,
+      );
+
+    setReviewCounts(
+      current => {
+        const next:
+          ProductReviewCounts =
+          {};
+
+        for (
+          const productId of
+          productIds
+        ) {
+          next[
+            productId
+          ] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      productIds.map(
+        productId =>
+          subscribeToProductReviewCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setReviewCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            error => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "POPULAR_MATERIALS_REVIEW_COUNT_ERROR",
+                  {
+                    productId,
+                    error,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
+  ]);
+
+  /* ============================================================
      FILTER PRODUCTS
   ============================================================ */
 
@@ -339,17 +671,17 @@ export default function PopularMaterialsScreen() {
     >(
       () => {
         const normalizedSearch =
-          cleanString(search)
-            .toLowerCase();
+          cleanString(
+            search,
+          ).toLowerCase();
 
         const normalizedCategory =
-          cleanString(category)
-            .toLowerCase();
+          cleanString(
+            category,
+          ).toLowerCase();
 
         return marketProducts.filter(
-          (
-            product,
-          ) => {
+          product => {
             const productName =
               product.name.toLowerCase();
 
@@ -393,15 +725,14 @@ export default function PopularMaterialsScreen() {
     >(
       () =>
         filteredProducts.map(
-          (
-            product,
-          ) => ({
+          product => ({
             ...product,
 
             activeDeal:
               dealsByProductId.get(
                 product.id,
-              ) ?? null,
+              ) ??
+              null,
           }),
         ),
       [
@@ -420,9 +751,13 @@ export default function PopularMaterialsScreen() {
         id: string,
       ) => {
         const productId =
-          cleanString(id);
+          cleanString(
+            id,
+          );
 
-        if (!productId) {
+        if (
+          !productId
+        ) {
           return;
         }
 
@@ -445,9 +780,13 @@ export default function PopularMaterialsScreen() {
         id: string,
       ) => {
         const productId =
-          cleanString(id);
+          cleanString(
+            id,
+          );
 
-        if (!productId) {
+        if (
+          !productId
+        ) {
           return;
         }
 
@@ -465,6 +804,337 @@ export default function PopularMaterialsScreen() {
     );
 
   /* ============================================================
+     PRODUCT RATING
+  ============================================================ */
+
+  const handleProductRating =
+    useCallback(
+      async (
+        productId: string,
+      ) => {
+        const safeProductId =
+          cleanString(
+            productId,
+          );
+
+        if (
+          !safeProductId ||
+          ratingLoading[
+            safeProductId
+          ]
+        ) {
+          return;
+        }
+
+        setRatingLoading(
+          current => ({
+            ...current,
+
+            [safeProductId]:
+              true,
+          }),
+        );
+
+        try {
+          await toggleProductRating(
+            safeProductId,
+          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "POPULAR_MATERIALS_RATING_TOGGLE_ERROR",
+              {
+                productId:
+                  safeProductId,
+
+                error,
+              },
+            );
+          }
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unable to update product rating.";
+
+          Alert.alert(
+            "Rating",
+            message,
+          );
+        } finally {
+          setRatingLoading(
+            current => ({
+              ...current,
+
+              [safeProductId]:
+                false,
+            }),
+          );
+        }
+      },
+      [
+        ratingLoading,
+      ],
+    );
+
+  /* ============================================================
+     OPEN REVIEW
+  ============================================================ */
+
+  const handleReviewPress =
+    useCallback(
+      (
+        product:
+          ProductWithDeal,
+      ) => {
+        const productId =
+          cleanString(
+            product.id,
+          );
+
+        if (
+          !productId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product information is unavailable.",
+          );
+
+          return;
+        }
+
+        const workerId =
+          cleanString(
+            product.workerId,
+          );
+
+        if (
+          !workerId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product owner information is unavailable.",
+          );
+
+          return;
+        }
+
+        setSelectedReviewProduct({
+          id:
+            productId,
+
+          name:
+            product.name,
+
+          workerId,
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     CLOSE REVIEW
+  ============================================================ */
+
+  const handleCloseReview =
+    useCallback(
+      () => {
+        if (
+          reviewSubmitting
+        ) {
+          return;
+        }
+
+        setSelectedReviewProduct(
+          null,
+        );
+      },
+      [
+        reviewSubmitting,
+      ],
+    );
+
+  /* ============================================================
+     SUBMIT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(
+      async (
+        rating: number,
+        comment: string,
+      ) => {
+        if (
+          !selectedReviewProduct ||
+          reviewSubmitting
+        ) {
+          return;
+        }
+
+        const currentUser =
+          auth.currentUser;
+
+        if (
+          !currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "You must be signed in to review this product.",
+          );
+
+          return;
+        }
+
+        setReviewSubmitting(
+          true,
+        );
+
+        try {
+          const profileSnapshot =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                currentUser.uid,
+              ),
+            );
+
+          if (
+            !profileSnapshot.exists()
+          ) {
+            Alert.alert(
+              "Review",
+              "Your customer profile could not be found.",
+            );
+
+            return;
+          }
+
+          const profileData =
+            profileSnapshot.data();
+
+          const savedFullName =
+            cleanProfileName(
+              profileData.fullName,
+            );
+
+          const firstName =
+            cleanProfileName(
+              profileData.firstName,
+            );
+
+          const otherName =
+            cleanProfileName(
+              profileData.otherName,
+            );
+
+          const surname =
+            cleanProfileName(
+              profileData.surname,
+            );
+
+          const customerName =
+            savedFullName ||
+            [
+              firstName,
+              otherName,
+              surname,
+            ]
+              .filter(
+                Boolean,
+              )
+              .join(" ");
+
+          if (
+            !customerName
+          ) {
+            Alert.alert(
+              "Review",
+              "Please complete your profile name before submitting a review.",
+            );
+
+            return;
+          }
+
+          await createProductReview({
+            productId:
+              selectedReviewProduct.id,
+
+            productName:
+              selectedReviewProduct.name,
+
+            workerId:
+              selectedReviewProduct.workerId,
+
+            customerName,
+
+            rating,
+
+            comment,
+          });
+
+          /*
+           * Preserve the same review flow
+           * currently used by NewArrivals.
+           */
+          await ensureWorkerRated(
+            selectedReviewProduct.workerId,
+          );
+
+          setSelectedReviewProduct(
+            null,
+          );
+
+          Alert.alert(
+            "Review submitted",
+            "Your product review has been submitted successfully.",
+          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "POPULAR_MATERIALS_REVIEW_SUBMIT_ERROR",
+              {
+                productId:
+                  selectedReviewProduct.id,
+
+                workerId:
+                  selectedReviewProduct.workerId,
+
+                error,
+              },
+            );
+          }
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Unable to submit your review.";
+
+          Alert.alert(
+            "Review",
+            message,
+          );
+        } finally {
+          setReviewSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        reviewSubmitting,
+        selectedReviewProduct,
+      ],
+    );
+
+  /* ============================================================
      RENDER PRODUCT
   ============================================================ */
 
@@ -474,44 +1144,89 @@ export default function PopularMaterialsScreen() {
     >(
       ({
         item,
-      }) => (
-        <View
-          style={
-            styles.cardWrapper
-          }
-        >
-          <ProductGridCard
-            id={
-              item.id
+      }) => {
+        const productId =
+          cleanString(
+            item.id,
+          );
+
+        const ratingCount =
+          ratingCounts[
+            productId
+          ] ??
+          0;
+
+        const reviewCount =
+          reviewCounts[
+            productId
+          ] ??
+          0;
+
+        return (
+          <View
+            style={
+              styles.cardWrapper
             }
-            name={
-              item.name
-            }
-            price={
-              item.price
-            }
-            image={
-              item.thumbnail
-            }
-            activeDeal={
-              item.activeDeal
-            }
-            onPress={() =>
-              handleProductPress(
-                item.id,
-              )
-            }
-            onBuy={() =>
-              handleBuy(
-                item.id,
-              )
-            }
-          />
-        </View>
-      ),
+          >
+            <ProductGridCard
+              id={
+                item.id
+              }
+              workerId={
+                item.workerId
+              }
+              name={
+                item.name
+              }
+              price={
+                item.price
+              }
+              image={
+                item.thumbnail
+              }
+              rating={
+                item.workerRating
+              }
+              ratingCount={
+                ratingCount
+              }
+              reviewCount={
+                reviewCount
+              }
+              activeDeal={
+                item.activeDeal
+              }
+              onRatingPress={() => {
+                void handleProductRating(
+                  item.id,
+                );
+              }}
+              onReviewPress={() => {
+                handleReviewPress(
+                  item,
+                );
+              }}
+              onPress={() =>
+                handleProductPress(
+                  item.id,
+                )
+              }
+              onBuy={() =>
+                handleBuy(
+                  item.id,
+                )
+              }
+            />
+          </View>
+        );
+      },
       [
         handleBuy,
         handleProductPress,
+        handleProductRating,
+        handleReviewPress,
+        ratingCounts,
+        reviewCounts,
       ],
     );
 
@@ -520,7 +1235,8 @@ export default function PopularMaterialsScreen() {
       (
         item:
           ProductWithDeal,
-      ) => item.id,
+      ) =>
+        item.id,
       [],
     );
 
@@ -593,15 +1309,6 @@ export default function PopularMaterialsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: "",
-
-          headerShown:
-            false,
-        }}
-      />
-
       <FlatList
         data={
           displayProducts
@@ -612,7 +1319,9 @@ export default function PopularMaterialsScreen() {
         renderItem={
           renderProduct
         }
-        numColumns={2}
+        numColumns={
+          2
+        }
         showsVerticalScrollIndicator={
           false
         }
@@ -642,10 +1351,40 @@ export default function PopularMaterialsScreen() {
         }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        initialNumToRender={6}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-        removeClippedSubviews
+        initialNumToRender={
+          6
+        }
+        maxToRenderPerBatch={
+          8
+        }
+        windowSize={
+          7
+        }
+      />
+
+      {/* ======================================================
+          PRODUCT REVIEW MODAL
+      ====================================================== */}
+
+      <ProductReviewModal
+        visible={
+          selectedReviewProduct !==
+          null
+        }
+        productName={
+          selectedReviewProduct
+            ?.name ??
+          ""
+        }
+        submitting={
+          reviewSubmitting
+        }
+        onClose={
+          handleCloseReview
+        }
+        onSubmit={
+          handleSubmitReview
+        }
       />
     </>
   );
@@ -657,31 +1396,26 @@ export default function PopularMaterialsScreen() {
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       SCREEN
-    ======================================================== */
-
     container: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         Colors.background,
     },
 
     content: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       paddingBottom:
         FixxamTokens.spacing.xxl,
     },
 
     emptyContent: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
-
-    /* ========================================================
-       GRID
-    ======================================================== */
 
     columnWrapper: {
       gap:
@@ -695,17 +1429,16 @@ const styles =
     },
 
     cardWrapper: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
-    /* ========================================================
-       DEAL LOADING
-    ======================================================== */
-
     dealsLoading: {
-      minHeight: 30,
+      minHeight:
+        30,
 
       marginBottom:
         FixxamTokens.spacing.sm,

@@ -45,17 +45,17 @@ type TimelineStep = {
 };
 
 /* ============================================================
-   TIMELINE STEPS
+   STEPS
 ============================================================ */
 
 const STEPS: TimelineStep[] = [
   {
     key: "pending",
-    label: "Order placed",
+    label: "Placed",
   },
   {
     key: "accepted",
-    label: "Seller accepted",
+    label: "Accepted",
   },
   {
     key: "in-progress",
@@ -63,7 +63,7 @@ const STEPS: TimelineStep[] = [
   },
   {
     key: "completed",
-    label: "Completed",
+    label: "Delivered",
   },
 ];
 
@@ -81,8 +81,14 @@ function MarketOrderStatus({
     );
 
   const currentIndex =
-    getMarketStatusIndex(
-      status,
+    Math.max(
+      0,
+      Math.min(
+        getMarketStatusIndex(
+          status,
+        ),
+        STEPS.length - 1,
+      ),
     );
 
   const isTerminal =
@@ -94,38 +100,92 @@ function MarketOrderStatus({
       createdAt,
     );
 
+  const progressColor =
+    status === "completed"
+      ? Colors.success
+      : status === "pending"
+        ? Colors.warning
+        : CustomerColors.primary;
+
+  const accessibilityLabel =
+    [
+      `Order status ${config.label}.`,
+      config.message,
+      placedDate
+        ? `Order placed ${placedDate}.`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
   return (
     <View
+      accessible
+      accessibilityLabel={
+        accessibilityLabel
+      }
       style={
         styles.card
       }
-      accessibilityLabel={`Order status ${config.label}. ${config.message}`}
     >
       {/* ======================================================
-          TITLE
+          HEADER
       ====================================================== */}
 
-      <AppText
-        variant="body"
-        weight="bold"
+      <View
         style={
-          styles.title
+          styles.header
         }
       >
-        Order Status
-      </AppText>
+        <AppText
+          variant="bodyMedium"
+          weight="semibold"
+          style={
+            styles.title
+          }
+        >
+          Order status
+        </AppText>
+
+        <View
+          style={[
+            styles.statusBadge,
+
+            {
+              backgroundColor:
+                config.background,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
+
+              {
+                backgroundColor:
+                  config.color,
+              },
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            style={{
+              color:
+                config.color,
+            }}
+          >
+            {config.label}
+          </AppText>
+        </View>
+      </View>
 
       {/* ======================================================
-          TIMELINE / TERMINAL
+          PROGRESS
       ====================================================== */}
 
-      {isTerminal ? (
-        <TerminalStatus
-          config={
-            config
-          }
-        />
-      ) : (
+      {!isTerminal ? (
         <View
           style={
             styles.timeline
@@ -139,23 +199,26 @@ function MarketOrderStatus({
             }
           />
 
-          {/* PROGRESS LINE */}
+          {/* ACTIVE LINE */}
 
-          {currentIndex > 0 ? (
+          {currentIndex >
+          0 ? (
             <View
               style={[
                 styles.timelineProgress,
 
                 {
                   width:
-                    `${Math.min(
-                      currentIndex,
-                      3,
-                    ) * 25}%`,
+                    `${currentIndex * 25}%`,
+
+                  backgroundColor:
+                    progressColor,
                 },
               ]}
             />
           ) : null}
+
+          {/* STEPS */}
 
           <View
             style={
@@ -167,22 +230,22 @@ function MarketOrderStatus({
                 step,
                 index,
               ) => {
+                const reached =
+                  index <=
+                  currentIndex;
+
                 const completed =
                   index <
-                  currentIndex;
+                    currentIndex ||
+                  (status ===
+                    "completed" &&
+                    index ===
+                      currentIndex);
 
                 const active =
                   index ===
-                  currentIndex;
-
-                const activeColor =
-                  status ===
-                  "completed"
-                    ? Colors.success
-                    : status ===
-                        "pending"
-                      ? Colors.warning
-                      : CustomerColors.primary;
+                    currentIndex &&
+                  !completed;
 
                 return (
                   <View
@@ -193,22 +256,24 @@ function MarketOrderStatus({
                       styles.step
                     }
                   >
-                    {/* ========================================
-                        CIRCLE
-                    ======================================== */}
-
                     <View
                       style={[
                         styles.circle,
 
                         completed
-                          ? styles.circleCompleted
+                          ? {
+                              borderColor:
+                                progressColor,
+
+                              backgroundColor:
+                                progressColor,
+                            }
                           : null,
 
                         active
                           ? {
                               borderColor:
-                                activeColor,
+                                progressColor,
 
                               backgroundColor:
                                 Colors.surface,
@@ -231,58 +296,39 @@ function MarketOrderStatus({
 
                             {
                               backgroundColor:
-                                activeColor,
+                                progressColor,
                             },
                           ]}
                         />
                       ) : null}
                     </View>
 
-                    {/* ========================================
-                        LABEL
-                    ======================================== */}
-
                     <AppText
                       variant="caption"
                       weight={
-                        active
-                          ? "bold"
+                        active ||
+                        completed
+                          ? "semibold"
                           : undefined
                       }
                       numberOfLines={2}
                       style={[
                         styles.stepLabel,
 
-                        active
-                          ? styles.stepLabelActive
+                        reached
+                          ? styles.stepLabelReached
                           : null,
                       ]}
                     >
                       {step.label}
                     </AppText>
-
-                    {/* ========================================
-                        CREATED DATE
-                    ======================================== */}
-
-                    {index === 0 ? (
-                      <AppText
-                        variant="caption"
-                        numberOfLines={2}
-                        style={
-                          styles.date
-                        }
-                      >
-                        {placedDate}
-                      </AppText>
-                    ) : null}
                   </View>
                 );
               },
             )}
           </View>
         </View>
-      )}
+      ) : null}
 
       {/* ======================================================
           STATUS MESSAGE
@@ -313,7 +359,7 @@ function MarketOrderStatus({
               config.icon
             }
             role="customer"
-            size="sm"
+            size="xs"
             color={
               config.color
             }
@@ -322,6 +368,7 @@ function MarketOrderStatus({
 
         <AppText
           variant="caption"
+          numberOfLines={3}
           style={
             styles.messageText
           }
@@ -348,77 +395,19 @@ MemoizedMarketOrderStatus.displayName =
 export default MemoizedMarketOrderStatus;
 
 /* ============================================================
-   TERMINAL STATUS
-============================================================ */
-
-function TerminalStatus({
-  config,
-}: {
-  config: ReturnType<
-    typeof getMarketStatusConfig
-  >;
-}) {
-  return (
-    <View
-      style={
-        styles.terminal
-      }
-    >
-      <View
-        style={[
-          styles.terminalIcon,
-
-          {
-            backgroundColor:
-              config.background,
-          },
-        ]}
-      >
-        <AppIcon
-          name={
-            config.icon
-          }
-          size="md"
-          color={
-            config.color
-          }
-        />
-      </View>
-
-      <AppText
-        variant="caption"
-        weight="bold"
-        style={[
-          styles.terminalTitle,
-
-          {
-            color:
-              config.color,
-          },
-        ]}
-      >
-        {config.label}
-      </AppText>
-    </View>
-  );
-}
-
-/* ============================================================
    STYLES
 ============================================================ */
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
-
     card: {
+      width: "100%",
+
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       padding:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
@@ -430,24 +419,67 @@ const styles =
 
       backgroundColor:
         Colors.surface,
+    },
 
-      ...FixxamTokens.shadow.card,
+    header: {
+      minHeight: 28,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
     title: {
+      flex: 1,
+
       color:
         Colors.textPrimary,
     },
 
-    /* ========================================================
-       TIMELINE
-    ======================================================== */
+    statusBadge: {
+      minHeight: 22,
+
+      flexShrink: 0,
+
+      paddingHorizontal: 7,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.chip,
+    },
+
+    statusDot: {
+      width: 5,
+
+      height: 5,
+
+      marginRight: 4,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
 
     timeline: {
-      minHeight: 92,
+      height: 52,
 
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.sm,
 
       position:
         "relative",
@@ -457,13 +489,13 @@ const styles =
       position:
         "absolute",
 
-      top: 13,
+      top: 8,
 
       left: "12.5%",
 
       right: "12.5%",
 
-      height: 2,
+      height: 1,
 
       backgroundColor:
         Colors.divider,
@@ -473,24 +505,21 @@ const styles =
       position:
         "absolute",
 
-      top: 13,
+      top: 8,
 
       left: "12.5%",
 
-      height: 2,
+      height: 1,
 
       maxWidth: "75%",
 
-      backgroundColor:
-        CustomerColors.primary,
+      borderRadius:
+        FixxamTokens.radius.full,
     },
 
     steps: {
       flexDirection:
         "row",
-
-      justifyContent:
-        "space-between",
     },
 
     step: {
@@ -501,9 +530,11 @@ const styles =
     },
 
     circle: {
-      width: 28,
+      width: 17,
 
-      height: 28,
+      height: 17,
+
+      zIndex: 1,
 
       alignItems:
         "center",
@@ -511,7 +542,7 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 2,
+      borderWidth: 1.5,
 
       borderColor:
         Colors.disabled,
@@ -523,67 +554,46 @@ const styles =
         Colors.surface,
     },
 
-    circleCompleted: {
-      borderColor:
-        CustomerColors.primary,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
     activeDot: {
-      width: 10,
+      width: 6,
 
-      height: 10,
+      height: 6,
 
       borderRadius:
         FixxamTokens.radius.full,
     },
 
     stepLabel: {
-      minHeight: 30,
+      minHeight: 20,
 
-      marginTop:
-        FixxamTokens.spacing.xs,
+      marginTop: 3,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.xxs,
+      paddingHorizontal: 1,
 
       textAlign:
         "center",
 
-      lineHeight: 14,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    stepLabelActive: {
-      color:
-        Colors.textPrimary,
-    },
-
-    date: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      textAlign:
-        "center",
+      lineHeight: 12,
 
       color:
         Colors.textMuted,
     },
 
-    /* ========================================================
-       STATUS MESSAGE
-    ======================================================== */
+    stepLabelReached: {
+      color:
+        Colors.textPrimary,
+    },
 
     message: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      minHeight: 34,
 
-      padding:
-        FixxamTokens.spacing.md,
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      paddingVertical: 5,
 
       flexDirection:
         "row",
@@ -591,19 +601,14 @@ const styles =
       alignItems:
         "center",
 
-      gap:
-        FixxamTokens.spacing.sm,
-
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.sm,
     },
 
     messageIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
+      width: 24,
 
-      height:
-        FixxamTokens.size.minimumTouchTarget,
+      height: 24,
 
       flexShrink: 0,
 
@@ -614,63 +619,19 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
     },
 
     messageText: {
       flex: 1,
 
-      lineHeight: 16,
+      minWidth: 0,
+
+      marginLeft: 6,
+
+      lineHeight: 14,
 
       color:
         Colors.textPrimary,
-    },
-
-    /* ========================================================
-       TERMINAL
-    ======================================================== */
-
-    terminal: {
-      minHeight: 92,
-
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    terminalIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-    },
-
-    terminalTitle: {
-      marginTop:
-        FixxamTokens.spacing.sm,
     },
   });

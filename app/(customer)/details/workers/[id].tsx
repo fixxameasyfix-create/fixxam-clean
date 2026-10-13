@@ -2,7 +2,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -51,7 +50,7 @@ import WorkerSortPopup from "@/components/customer/worker/WorkerSortPopup";
 import WorkerCard from "@/components/customer/worker/workercard/WorkerCard";
 
 import {
-  getPublicWorkersByService,
+  subscribeToPublicWorkersByService,
 } from "@/firebase/queries/workerPublicProfiles";
 
 import {
@@ -63,6 +62,11 @@ import {
 } from "@/utils/location/calculateDistance";
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
+
+import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
 
 import {
   Colors,
@@ -106,6 +110,10 @@ type WorkersRouteParams = {
   reward?: string | string[];
 
   categoryId?: string | string[];
+
+  fulfillmentMode?:
+    | string
+    | string[];
 };
 
 /* ==============================================================
@@ -158,7 +166,8 @@ function cleanString(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -365,10 +374,8 @@ export default function WorkersScreen() {
     serviceBackgroundColor,
     reward,
     categoryId,
+    fulfillmentMode,
   } = params;
-
-  const requestIdRef =
-    useRef(0);
 
   /* ============================================================
      ROUTE CONTEXT
@@ -459,6 +466,24 @@ export default function WorkersScreen() {
         categoryId,
       ],
     );
+
+  const resolvedFulfillmentMode =
+    useMemo<
+      ServiceFulfillmentMode
+    >(() => {
+      const value =
+        getParamValue(
+          fulfillmentMode,
+        );
+
+      return isServiceFulfillmentMode(
+        value,
+      )
+        ? value
+        : "needs_review";
+    }, [
+      fulfillmentMode,
+    ]);
 
   /* ============================================================
      STATE
@@ -552,9 +577,6 @@ export default function WorkersScreen() {
 
   /* ============================================================
      MAP FIRESTORE WORKERS
-
-     Location is intentionally NOT used here.
-     This prevents a GPS update from fetching Firestore again.
   ============================================================ */
 
   const mapWorkers =
@@ -580,10 +602,6 @@ export default function WorkersScreen() {
                 data.workerProfile,
               );
 
-            /* ==================================================
-               FULL NAME
-            ================================================== */
-
             const resolvedFullName =
               cleanString(
                 data.fullName,
@@ -597,10 +615,6 @@ export default function WorkersScreen() {
               cleanString(
                 worker.fullName,
               );
-
-            /* ==================================================
-               PROFILE PHOTO
-            ================================================== */
 
             const photoUrl =
               cleanString(
@@ -619,10 +633,6 @@ export default function WorkersScreen() {
                 worker.workerProfile
                   .photoUrl,
               );
-
-            /* ==================================================
-               HOURLY RATE
-            ================================================== */
 
             const rawRate =
               Number(
@@ -645,6 +655,16 @@ export default function WorkersScreen() {
                     .workerProfile
                     .hourlyRate;
 
+            /*
+             * Realtime public status.
+             *
+             * This comes directly from:
+             *
+             * workerPublicProfiles/{workerId}.online
+             */
+            const online =
+              data.online === true;
+
             const mergedWorker: WorkerCardData =
               {
                 ...worker,
@@ -652,6 +672,8 @@ export default function WorkersScreen() {
                 fullName:
                   resolvedFullName ||
                   worker.fullName,
+
+                online,
 
                 workerProfile: {
                   ...worker.workerProfile,
@@ -671,6 +693,9 @@ export default function WorkersScreen() {
 
                   workerName:
                     mergedWorker.fullName,
+
+                  online:
+                    mergedWorker.online,
 
                   photoURL:
                     mergedWorker
@@ -695,161 +720,139 @@ export default function WorkersScreen() {
     );
 
   /* ============================================================
-     LOAD WORKERS
-  ============================================================ */
-
-  const loadWorkers =
-    useCallback(
-      async (
-        isRefresh = false,
-      ) => {
-        const requestId =
-          ++requestIdRef.current;
-
-        if (
-          !selectedServiceId
-        ) {
-          setWorkers([]);
-
-          setLoadError(
-            "The selected service could not be identified.",
-          );
-
-          setLoading(false);
-
-          setRefreshing(false);
-
-          return;
-        }
-
-        if (
-          isRefresh
-        ) {
-          setRefreshing(
-            true,
-          );
-        } else {
-          setLoading(
-            true,
-          );
-
-          /*
-           * Prevent workers from a previous
-           * service flashing on this service.
-           */
-          setWorkers([]);
-        }
-
-        setLoadError(
-          null,
-        );
-
-        try {
-          const snapshot =
-            await getPublicWorkersByService(
-              selectedServiceId,
-            );
-
-          if (
-            requestId !==
-            requestIdRef.current
-          ) {
-            return;
-          }
-
-          const mapped =
-            mapWorkers(
-              snapshot,
-            );
-
-          setWorkers(
-            mapped,
-          );
-        } catch (error) {
-          console.error(
-            "LOAD_PUBLIC_WORKERS_ERROR",
-            error,
-          );
-
-          if (
-            requestId !==
-            requestIdRef.current
-          ) {
-            return;
-          }
-
-          setLoadError(
-            "We could not load workers right now. Please try again.",
-          );
-
-          /*
-           * Do not destroy the current list
-           * when only pull-to-refresh fails.
-           */
-          if (
-            !isRefresh
-          ) {
-            setWorkers([]);
-          }
-
-          Toast.show({
-            type: "error",
-
-            text1:
-              isRefresh
-                ? "Refresh failed"
-                : "Unable to load workers",
-
-            text2:
-              "Please check your connection and try again.",
-          });
-        } finally {
-          if (
-            requestId !==
-            requestIdRef.current
-          ) {
-            return;
-          }
-
-          if (
-            isRefresh
-          ) {
-            setRefreshing(
-              false,
-            );
-          } else {
-            setLoading(
-              false,
-            );
-          }
-        }
-      },
-      [
-        mapWorkers,
-        selectedServiceId,
-      ],
-    );
-
-  /* ============================================================
-     LOAD WHEN SERVICE CHANGES
+     REALTIME WORKERS
   ============================================================ */
 
   useEffect(() => {
-    void loadWorkers();
+    if (
+      !selectedServiceId
+    ) {
+      setWorkers([]);
+
+      setLoadError(
+        "The selected service could not be identified.",
+      );
+
+      setLoading(false);
+      setRefreshing(false);
+
+      return;
+    }
+
+    setLoading(true);
+    setLoadError(null);
+
+    let isActive =
+      true;
+
+    let unsubscribe:
+      (() => void) |
+      undefined;
+
+    try {
+      unsubscribe =
+        subscribeToPublicWorkersByService(
+          selectedServiceId,
+
+          snapshot => {
+            if (!isActive) {
+              return;
+            }
+
+            const mapped =
+              mapWorkers(
+                snapshot,
+              );
+
+            setWorkers(
+              mapped,
+            );
+
+            setLoadError(
+              null,
+            );
+
+            setLoading(
+              false,
+            );
+
+            setRefreshing(
+              false,
+            );
+          },
+
+          error => {
+            if (!isActive) {
+              return;
+            }
+
+            console.error(
+              "LOAD_PUBLIC_WORKERS_ERROR",
+              error,
+            );
+
+            setLoadError(
+              "We could not load workers right now. Please try again.",
+            );
+
+            setLoading(
+              false,
+            );
+
+            setRefreshing(
+              false,
+            );
+
+            Toast.show({
+              type: "error",
+
+              text1:
+                "Unable to load workers",
+
+              text2:
+                "Please check your connection and try again.",
+            });
+          },
+        );
+    } catch (error) {
+      console.error(
+        "SUBSCRIBE_PUBLIC_WORKERS_SETUP_ERROR",
+        error,
+      );
+
+      setWorkers([]);
+
+      setLoadError(
+        "We could not load workers right now. Please try again.",
+      );
+
+      setLoading(false);
+      setRefreshing(false);
+
+      Toast.show({
+        type: "error",
+
+        text1:
+          "Unable to load workers",
+
+        text2:
+          "Please try again.",
+      });
+    }
 
     return () => {
-      requestIdRef.current +=
-        1;
+      isActive =
+        false;
+
+      unsubscribe?.();
     };
   }, [
-    loadWorkers,
+    mapWorkers,
+    selectedServiceId,
   ]);
 
   /* ============================================================
      DISTANCE
-
-     GPS updates only recalculate distance locally.
-     Firestore is not queried again.
   ============================================================ */
 
   const workersWithDistance =
@@ -866,10 +869,6 @@ export default function WorkersScreen() {
         return workers;
       }
 
-      /*
-       * These constants are now guaranteed
-       * to be numbers by the type guards above.
-       */
       const customerLatitude =
         location.latitude;
 
@@ -926,12 +925,26 @@ export default function WorkersScreen() {
 
   const onRefresh =
     useCallback(() => {
-      return loadWorkers(
+      /*
+       * Firestore onSnapshot is already
+       * keeping the workers synchronized.
+       *
+       * We keep RefreshControl for the
+       * existing UI without creating a
+       * second Firestore listener.
+       */
+      setRefreshing(
         true,
       );
-    }, [
-      loadWorkers,
-    ]);
+
+      requestAnimationFrame(
+        () => {
+          setRefreshing(
+            false,
+          );
+        },
+      );
+    }, []);
 
   /* ============================================================
      BOOK WORKER
@@ -1058,7 +1071,7 @@ export default function WorkersScreen() {
           );
 
         /* ======================================================
-           BOOKING PARAMS — PRESERVED
+           BOOKING PARAMS
         ====================================================== */
 
         const bookingParams = {
@@ -1148,6 +1161,9 @@ export default function WorkersScreen() {
           serviceBackgroundColor:
             selectedServiceBackgroundColor,
 
+          fulfillmentMode:
+            resolvedFulfillmentMode,
+
           ...(resolvedCategoryId
             ? {
                 categoryId:
@@ -1183,12 +1199,15 @@ export default function WorkersScreen() {
 
               serviceId:
                 bookingParams.serviceId,
+
+              fulfillmentMode:
+                bookingParams.fulfillmentMode,
             },
           );
         }
 
         /* ======================================================
-           ROUTE — PRESERVED EXACTLY
+           ROUTE
         ====================================================== */
 
         router.push({
@@ -1202,6 +1221,7 @@ export default function WorkersScreen() {
       [
         params,
         resolvedCategoryId,
+        resolvedFulfillmentMode,
         resolvedReward,
         selectedServiceBackgroundColor,
         selectedServiceColor,
@@ -1241,16 +1261,13 @@ export default function WorkersScreen() {
           return;
         }
 
-        /* ======================================================
-           ROUTE — PRESERVED EXACTLY
-        ====================================================== */
-
         router.push({
           pathname:
             "/(customer)/details/worker-profile/[id]",
 
           params: {
-            id: workerId,
+            id:
+              workerId,
           },
         });
       },
@@ -1346,10 +1363,14 @@ export default function WorkersScreen() {
 
               case "priceLow": {
                 const aRate =
-                  getSafeRate(a);
+                  getSafeRate(
+                    a,
+                  );
 
                 const bRate =
-                  getSafeRate(b);
+                  getSafeRate(
+                    b,
+                  );
 
                 if (
                   aRate === null
@@ -1371,10 +1392,14 @@ export default function WorkersScreen() {
 
               case "priceHigh": {
                 const aRate =
-                  getSafeRate(a);
+                  getSafeRate(
+                    a,
+                  );
 
                 const bRate =
-                  getSafeRate(b);
+                  getSafeRate(
+                    b,
+                  );
 
                 if (
                   aRate === null
@@ -1419,12 +1444,6 @@ export default function WorkersScreen() {
                 );
               }
 
-              /*
-               * Preserve Firestore order.
-               * WorkerCardData currently has
-               * no createdAt field to sort
-               * client-side by recency.
-               */
               case "latest":
               default:
                 return 0;
@@ -1482,7 +1501,9 @@ export default function WorkersScreen() {
         item: WorkerCardData;
       }) => (
         <WorkerCard
-          worker={item}
+          worker={
+            item
+          }
           onProfilePress={() =>
             handleWorkerProfile(
               item,
@@ -1782,9 +1803,11 @@ export default function WorkersScreen() {
 
 const styles =
   StyleSheet.create({
-    container: {
-      flex: 1,
+    /* ========================================================
+       SCREEN
+    ======================================================== */
 
+    container: {
       backgroundColor:
         Colors.background,
     },
@@ -1800,8 +1823,7 @@ const styles =
       paddingTop:
         FixxamTokens.spacing.md,
 
-      paddingBottom:
-        FixxamTokens.spacing.xl,
+      paddingBottom: 0,
     },
 
     /* ========================================================
@@ -1811,8 +1833,7 @@ const styles =
     listContent: {
       flexGrow: 1,
 
-      paddingBottom:
-        FixxamTokens.spacing.xxxl,
+      paddingBottom: 0,
     },
 
     sortContainer: {

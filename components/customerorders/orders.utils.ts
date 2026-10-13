@@ -6,6 +6,7 @@ import {
 
 import type {
   FilterType,
+  FulfillmentMode,
   MarketOrder,
   MarketOrderProduct,
   MarketPaymentMethod,
@@ -85,10 +86,7 @@ export const STATUS_CONFIG: Record<
 
 function isRecord(
   value: unknown,
-): value is Record<
-  string,
-  unknown
-> {
+): value is Record<string, unknown> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -203,11 +201,36 @@ export function normalizeStatus(
 }
 
 /* ==============================================================
-   SERVICE ICON
+   FULFILLMENT MODE
+============================================================== */
 
-   IMPORTANT:
-   MaterialCommunityIcons stays here.
-   Existing Firestore/service icon names continue to work.
+export function resolveFulfillmentMode(
+  value: unknown,
+): FulfillmentMode | undefined {
+  const mode =
+    typeof value === "string"
+      ? value
+          .trim()
+          .toLowerCase()
+      : "";
+
+  switch (mode) {
+    case "worker_visits_customer":
+      return "worker_visits_customer";
+
+    case "customer_visits_worker":
+      return "customer_visits_worker";
+
+    case "remote":
+      return "remote";
+
+    default:
+      return undefined;
+  }
+}
+
+/* ==============================================================
+   SERVICE ICON
 ============================================================== */
 
 export function resolveServiceIcon(
@@ -403,10 +426,7 @@ export function formatOrderNumber(
 ============================================================== */
 
 export function resolveLocation(
-  data: Record<
-    string,
-    unknown
-  >,
+  data: Record<string, unknown>,
 ): string {
   const directAddress =
     getString(
@@ -502,10 +522,6 @@ function mapMarketProducts(
           ),
         );
 
-      /*
-       * Support all currently-used
-       * product image fields.
-       */
       const image =
         getString(
           product.image,
@@ -570,10 +586,7 @@ function mapMarketProducts(
 
 export function mapFirestoreOrder(
   id: string,
-  data: Record<
-    string,
-    unknown
-  >,
+  data: Record<string, unknown>,
 ): Order {
   const workerName =
     getString(
@@ -643,22 +656,11 @@ export function mapFirestoreOrder(
 
     serviceName,
 
-    /*
-     * MaterialCommunityIcons service
-     * icon architecture stays intact.
-     */
     serviceIcon:
       resolveServiceIcon(
         data.serviceIcon,
       ),
 
-    /*
-     * Existing Firestore colors still
-     * override these defaults.
-     *
-     * Defaults now come from Fixxam
-     * customer theme instead of raw hex.
-     */
     serviceColor:
       getString(
         data.serviceColor,
@@ -672,7 +674,9 @@ export function mapFirestoreOrder(
       ),
 
     workerName,
+
     workerCategory,
+
     workerPhoto,
 
     location:
@@ -682,6 +686,17 @@ export function mapFirestoreOrder(
       getString(
         data.address,
       ) || undefined,
+
+    /*
+     * IMPORTANT:
+     * This comes directly from the same
+     * fulfillmentMode used by the customer
+     * order detail screen.
+     */
+    fulfillmentMode:
+      resolveFulfillmentMode(
+        data.fulfillmentMode,
+      ),
 
     date:
       formatDate(
@@ -719,10 +734,7 @@ export function mapFirestoreOrder(
 
 export function mapMarketOrder(
   id: string,
-  data: Record<
-    string,
-    unknown
-  >,
+  data: Record<string, unknown>,
 ): MarketOrder {
   const dateValue =
     data.createdAt ??
@@ -733,10 +745,6 @@ export function mapMarketOrder(
       data.products,
     );
 
-  /* ============================================================
-     PRODUCT PREVIEW
-  ============================================================ */
-
   const firstProduct =
     products[0];
 
@@ -746,10 +754,6 @@ export function mapMarketOrder(
   const productName =
     firstProduct?.name ??
     "Market Order";
-
-  /* ============================================================
-     ITEM COUNT
-  ============================================================ */
 
   const itemCount =
     products.reduce(
@@ -766,10 +770,6 @@ export function mapMarketOrder(
         ),
       0,
     );
-
-  /* ============================================================
-     TOTAL
-  ============================================================ */
 
   const total =
     Math.max(
@@ -796,10 +796,6 @@ export function mapMarketOrder(
     )
       ? data.offerAmount
       : undefined;
-
-  /* ============================================================
-     CUSTOMER
-  ============================================================ */
 
   const customerId =
     getString(
@@ -829,16 +825,8 @@ export function mapMarketOrder(
       ),
     ) || undefined;
 
-  /* ============================================================
-     LOCATION
-  ============================================================ */
-
   const location =
     resolveLocation(data);
-
-  /* ============================================================
-     RESULT
-  ============================================================ */
 
   return {
     id,
@@ -850,15 +838,14 @@ export function mapMarketOrder(
 
     products,
 
-    /*
-     * WorkerMarketOrderCard
-     * compatibility fields.
-     */
     productImage,
+
     productName,
 
     customerId,
+
     customerName,
+
     customerPhoto,
 
     itemCount,

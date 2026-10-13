@@ -9,22 +9,23 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  updateDoc,
   where,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
-import { bookingsCollection } from "@/firebase/collections/bookings";
+import {
+  auth,
+  db,
+} from "@/firebase/config";
+
+import {
+  bookingsCollection,
+} from "@/firebase/collections/bookings";
 
 import type {
   Booking,
   BookingStatus,
   CounterOfferBy,
   OfferStatus,
-} from "@/types/booking";
-
-import {
-  MAX_NEGOTIATION_ROUNDS,
 } from "@/types/booking";
 
 /* ============================================================
@@ -34,6 +35,35 @@ import {
 export type OfferAcceptedBy =
   | "customer"
   | "worker";
+
+
+
+export const CUSTOMER_CANCELLATION_REASONS = [
+  "not_ready",
+  "accidental_request",
+  "request_later",
+  "personal_reason",
+  "other",
+] as const;
+
+export type CustomerCancellationReason =
+  (typeof CUSTOMER_CANCELLATION_REASONS)[number];
+  
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const MAX_OFFER_AMOUNT =
+  100_000_000;
+
+const MAX_OFFER_MESSAGE_LENGTH =
+  300;
+
+const MAX_CANCEL_REASON_LENGTH =
+  500;
+
+const MAX_ESTIMATED_ARRIVAL_LENGTH =
+  120;
 
 /* ============================================================
    VALIDATION
@@ -87,7 +117,10 @@ function validateOfferPrice(
     );
   }
 
-  if (price > 100_000_000) {
+  if (
+    price >
+    MAX_OFFER_AMOUNT
+  ) {
     throw new Error(
       "Offer price is too high.",
     );
@@ -105,14 +138,175 @@ function validateOfferMessage(
       : "";
 
   if (
-    normalizedMessage.length > 300
+    normalizedMessage.length >
+    MAX_OFFER_MESSAGE_LENGTH
   ) {
     throw new Error(
-      "Offer message must not exceed 300 characters.",
+      `Offer message must not exceed ${MAX_OFFER_MESSAGE_LENGTH} characters.`,
     );
   }
 
   return normalizedMessage;
+}
+
+function validateEstimatedArrival(
+  value: string,
+): string {
+  const normalizedValue =
+    typeof value === "string"
+      ? value.trim()
+      : "";
+
+  if (!normalizedValue) {
+    throw new Error(
+      "Estimated arrival is required.",
+    );
+  }
+
+  if (
+    normalizedValue.length >
+    MAX_ESTIMATED_ARRIVAL_LENGTH
+  ) {
+    throw new Error(
+      "Estimated arrival is too long.",
+    );
+  }
+
+  return normalizedValue;
+}
+
+function validateCancellationReason(
+  reason?: string,
+): string {
+  const normalizedReason =
+    typeof reason === "string"
+      ? reason.trim()
+      : "";
+
+  if (
+    normalizedReason.length >
+    MAX_CANCEL_REASON_LENGTH
+  ) {
+    throw new Error(
+      `Cancellation reason must not exceed ${MAX_CANCEL_REASON_LENGTH} characters.`,
+    );
+  }
+
+  return normalizedReason;
+}
+
+/* ============================================================
+   FIRESTORE TIMESTAMP HELPER
+============================================================ */
+
+function getTimestampMillis(
+  value: unknown,
+): number | null {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return null;
+  }
+
+  if (
+    !("toMillis" in value)
+  ) {
+    return null;
+  }
+
+  const timestamp =
+    value as {
+      toMillis?: () => unknown;
+    };
+
+  if (
+    typeof timestamp.toMillis !==
+    "function"
+  ) {
+    return null;
+  }
+
+  const millis =
+    timestamp.toMillis();
+
+  if (
+    typeof millis !== "number" ||
+    !Number.isFinite(millis)
+  ) {
+    return null;
+  }
+
+  return millis;
+}
+
+/* ============================================================
+   AUTH
+============================================================ */
+
+function getCurrentUserId(): string {
+  const userId =
+    auth.currentUser
+      ?.uid
+      ?.trim();
+
+  if (!userId) {
+    throw new Error(
+      "You must be signed in to continue.",
+    );
+  }
+
+  return userId;
+}
+
+function assertParticipantAccess(
+  data: {
+    customerId?: unknown;
+    workerId?: unknown;
+  },
+  role: OfferAcceptedBy,
+  currentUserId: string,
+) {
+  const customerId =
+    typeof data.customerId ===
+      "string"
+      ? data.customerId.trim()
+      : "";
+
+  const workerId =
+    typeof data.workerId ===
+      "string"
+      ? data.workerId.trim()
+      : "";
+
+  if (
+    !customerId ||
+    !workerId
+  ) {
+    throw new Error(
+      "Booking participants are unavailable.",
+    );
+  }
+
+  if (
+    role === "customer" &&
+    currentUserId !==
+      customerId
+  ) {
+    throw new Error(
+      "You are not allowed to perform this customer action.",
+    );
+  }
+
+  if (
+    role === "worker" &&
+    currentUserId !==
+      workerId
+  ) {
+    throw new Error(
+      "You are not allowed to perform this worker action.",
+    );
+  }
 }
 
 /* ============================================================
@@ -129,18 +323,29 @@ function isBookingClosed(
   );
 }
 
+/*
+ * Negotiation turn counter.
+ *
+ * 0 = fresh booking
+ * 1 = worker initial offer
+ * 2+ = alternating counter offers
+ *
+ * There is intentionally NO maximum round.
+ */
 function getOfferRound(
   value: unknown,
 ): number {
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    value < 1
+    value < 0
   ) {
-    return 1;
+    return 0;
   }
 
-  return Math.floor(value);
+  return Math.floor(
+    value,
+  );
 }
 
 function getValidCounterBy(
@@ -156,6 +361,30 @@ function getValidCounterBy(
   return null;
 }
 
+function getValidAmount(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function isSameAmount(
+  first: number,
+  second: number,
+): boolean {
+  return (
+    Math.round(first) ===
+    Math.round(second)
+  );
+}
+
 /* ============================================================
    CREATE BOOKING
 ============================================================ */
@@ -163,19 +392,11 @@ function getValidCounterBy(
 export async function createBooking(
   booking: Booking,
 ) {
-  /* ----------------------------------------------------------
-     CUSTOMER
-  ---------------------------------------------------------- */
-
   const customerId =
     validateUserId(
       booking.customerId,
       "Customer ID",
     );
-
-  /* ----------------------------------------------------------
-     WORKER
-  ---------------------------------------------------------- */
 
   const workerId =
     validateUserId(
@@ -183,45 +404,38 @@ export async function createBooking(
       "Worker ID",
     );
 
-  /* ----------------------------------------------------------
-     PREVENT SELF BOOKING
-  ---------------------------------------------------------- */
-
   if (
-    workerId === customerId
+    workerId ===
+    customerId
   ) {
     throw new Error(
       "Customer cannot create a booking for themselves.",
     );
   }
 
-  /* ----------------------------------------------------------
-     SERVICE
-  ---------------------------------------------------------- */
+  const serviceId =
+    typeof booking.serviceId ===
+      "string"
+      ? booking.serviceId.trim()
+      : "";
 
-  if (
-    !booking.serviceId?.trim()
-  ) {
+  if (!serviceId) {
     throw new Error(
       "Service ID is required.",
     );
   }
 
-  /* ----------------------------------------------------------
-     DESCRIPTION
-  ---------------------------------------------------------- */
+  const description =
+    typeof booking.description ===
+      "string"
+      ? booking.description.trim()
+      : "";
 
-  if (
-    !booking.description?.trim()
-  ) {
+  if (!description) {
     throw new Error(
       "Service description is required.",
     );
   }
-
-  /* ----------------------------------------------------------
-     BOOKING DATA
-  ---------------------------------------------------------- */
 
   const bookingData = {
     ...booking,
@@ -230,45 +444,83 @@ export async function createBooking(
 
     workerId,
 
+    serviceId,
+
+    description,
+
     status:
       "pending" as BookingStatus,
 
+    /* ========================================================
+       CANCELLATION
+    ======================================================== */
+
+    cancellationReason:
+      null,
+
+    cancelledBy:
+      null,
+
+    cancelledAt:
+      null,
+
+    /* ========================================================
+       PRICE
+    ======================================================== */
+
     amount:
       typeof booking.amount ===
-      "number"
+        "number" &&
+      Number.isFinite(
+        booking.amount,
+      ) &&
+      booking.amount > 0
         ? booking.amount
         : null,
 
-    agreedPrice: null,
+    agreedPrice:
+      null,
 
     /* ========================================================
        INITIAL OFFER
     ======================================================== */
 
-    offerAmount: null,
+    offerAmount:
+      null,
 
-    offerMessage: null,
+    offerMessage:
+      null,
 
-    offerRound: 1,
+    offerRound:
+      0,
 
     offerStatus:
       "none" as OfferStatus,
 
-    offerExpiresAt: null,
+    offerExpiresAt:
+      null,
 
-    offerSentAt: null,
+    offerSentAt:
+      null,
 
-    offerRespondedAt: null,
+    offerRespondedAt:
+      null,
 
-    offerWorkerId: null,
+    offerAcceptedAt:
+      null,
+
+    offerWorkerId:
+      null,
 
     /* ========================================================
        COUNTER OFFER
     ======================================================== */
 
-    counterOfferAmount: null,
+    counterOfferAmount:
+      null,
 
-    counterOfferMessage: null,
+    counterOfferMessage:
+      null,
 
     counterOfferBy:
       null as CounterOfferBy,
@@ -276,9 +528,11 @@ export async function createBooking(
     counterOfferStatus:
       "none",
 
-    counterOfferSentAt: null,
+    counterOfferSentAt:
+      null,
 
-    counterOfferRespondedAt: null,
+    counterOfferRespondedAt:
+      null,
 
     /* ========================================================
        NEGOTIATION
@@ -321,29 +575,41 @@ export async function sendEstimate(
   message: string = "",
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   const offerAmount =
-    validateOfferPrice(price);
+    validateOfferPrice(
+      price,
+    );
 
   const offerMessage =
-    validateOfferMessage(message);
+    validateOfferMessage(
+      message,
+    );
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const currentWorkerId =
+    getCurrentUserId();
+
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const snapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!snapshot.exists()) {
+      if (
+        !snapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -351,6 +617,12 @@ export async function sendEstimate(
 
       const data =
         snapshot.data();
+
+      assertParticipantAccess(
+        data,
+        "worker",
+        currentWorkerId,
+      );
 
       if (
         isBookingClosed(
@@ -363,37 +635,11 @@ export async function sendEstimate(
       }
 
       if (
-        typeof data.workerId !==
-          "string" ||
-        !data.workerId.trim()
+        data.status !==
+        "pending"
       ) {
         throw new Error(
-          "Worker is not assigned to this booking.",
-        );
-      }
-
-      const counterStatus =
-        data.counterOfferStatus;
-
-      const counterBy =
-        getValidCounterBy(
-          data.counterOfferBy,
-        );
-
-      if (
-        counterStatus === "sent" &&
-        counterBy === "customer"
-      ) {
-        throw new Error(
-          "The customer has an active counter offer. Accept, decline, or counter it first.",
-        );
-      }
-
-      if (
-        data.offerStatus === "sent"
-      ) {
-        throw new Error(
-          "Your offer is already waiting for the customer.",
+          "This booking is not waiting for an offer.",
         );
       }
 
@@ -403,11 +649,56 @@ export async function sendEstimate(
         );
 
       if (
-        currentRound >
-        MAX_NEGOTIATION_ROUNDS
+        currentRound !== 0
       ) {
         throw new Error(
-          "Maximum negotiation rounds reached.",
+          "An initial offer can no longer be sent for this booking.",
+        );
+      }
+
+      if (
+        data.offerStatus !==
+        "none"
+      ) {
+        if (
+          data.offerStatus ===
+          "sent"
+        ) {
+          throw new Error(
+            "Your offer is already waiting for the customer.",
+          );
+        }
+
+        if (
+          data.offerStatus ===
+          "accepted"
+        ) {
+          throw new Error(
+            "This offer has already been accepted.",
+          );
+        }
+
+        throw new Error(
+          "This booking is no longer ready for an initial offer.",
+        );
+      }
+
+      if (
+        data.counterOfferStatus !==
+        "none"
+      ) {
+        throw new Error(
+          "This booking already has negotiation activity.",
+        );
+      }
+
+      if (
+        getValidCounterBy(
+          data.counterOfferBy,
+        ) !== null
+      ) {
+        throw new Error(
+          "This booking has an invalid negotiation state.",
         );
       }
 
@@ -421,8 +712,18 @@ export async function sendEstimate(
 
           offerMessage,
 
+          offerRound:
+            1,
+
           offerStatus:
             "sent" as OfferStatus,
+
+          /*
+           * Backend expiry function populates
+           * the authoritative 24-hour expiry.
+           */
+          offerExpiresAt:
+            null,
 
           offerSentAt:
             serverTimestamp(),
@@ -430,8 +731,11 @@ export async function sendEstimate(
           offerRespondedAt:
             null,
 
+          offerAcceptedAt:
+            null,
+
           offerWorkerId:
-            data.workerId,
+            currentWorkerId,
 
           counterOfferAmount:
             null,
@@ -454,6 +758,15 @@ export async function sendEstimate(
           negotiationStatus:
             "negotiating",
 
+          cancellationReason:
+            null,
+
+          cancelledBy:
+            null,
+
+          cancelledAt:
+            null,
+
           updatedAt:
             serverTimestamp(),
         },
@@ -464,6 +777,22 @@ export async function sendEstimate(
 
 /* ============================================================
    COUNTER OFFER
+
+   Unlimited alternating negotiation.
+
+   Worker
+      ↓
+   Customer counter
+      ↓
+   Worker counter
+      ↓
+   Customer counter
+      ↓
+   ...
+
+   Once an active counter exists, the original
+   24-hour initial offer expiry no longer controls
+   the negotiation.
 ============================================================ */
 
 export async function counterOffer(
@@ -473,13 +802,19 @@ export async function counterOffer(
   by: CounterOfferBy = "customer",
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  const offerAmount =
-    validateOfferPrice(price);
+  const counterAmount =
+    validateOfferPrice(
+      price,
+    );
 
-  const offerMessage =
-    validateOfferMessage(message);
+  const counterMessage =
+    validateOfferMessage(
+      message,
+    );
 
   if (
     by !== "customer" &&
@@ -490,21 +825,27 @@ export async function counterOffer(
     );
   }
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const currentUserId =
+    getCurrentUserId();
+
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const snapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!snapshot.exists()) {
+      if (
+        !snapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -512,6 +853,12 @@ export async function counterOffer(
 
       const data =
         snapshot.data();
+
+      assertParticipantAccess(
+        data,
+        by,
+        currentUserId,
+      );
 
       if (
         isBookingClosed(
@@ -523,98 +870,153 @@ export async function counterOffer(
         );
       }
 
+      if (
+        data.status !==
+        "pending"
+      ) {
+        throw new Error(
+          "This booking is no longer open for negotiation.",
+        );
+      }
+
+      if (
+        data.offerStatus !==
+        "sent"
+      ) {
+        throw new Error(
+          "There is no active offer to negotiate.",
+        );
+      }
+
+      const initialWorkerOffer =
+        getValidAmount(
+          data.offerAmount,
+        );
+
+      if (
+        initialWorkerOffer ===
+        null
+      ) {
+        throw new Error(
+          "The worker offer amount is unavailable.",
+        );
+      }
+
       const currentRound =
         getOfferRound(
           data.offerRound,
         );
 
       if (
-        currentRound >=
-        MAX_NEGOTIATION_ROUNDS
+        currentRound < 1
       ) {
         throw new Error(
-          "Maximum negotiation rounds reached.",
+          "There is no active worker offer to negotiate.",
         );
       }
 
       const currentCounterStatus =
-        data.counterOfferStatus;
+        typeof data.counterOfferStatus ===
+          "string"
+          ? data.counterOfferStatus
+          : "none";
 
       const currentCounterBy =
         getValidCounterBy(
           data.counterOfferBy,
         );
 
-      if (
-        currentCounterStatus ===
-          "sent" &&
-        currentCounterBy === by
-      ) {
-        throw new Error(
-          "Your previous offer is still waiting for a response.",
+      const currentCounterAmount =
+        getValidAmount(
+          data.counterOfferAmount,
         );
-      }
 
-      if (
-        currentCounterStatus ===
-          "sent" &&
-        currentCounterBy ===
-          "customer" &&
-        by === "customer"
-      ) {
-        throw new Error(
-          "The worker must respond to the current customer counter offer.",
-        );
-      }
+      let activeOfferAmount:
+        | number
+        | null =
+        null;
+
+      /* ======================================================
+         ACTIVE COUNTER
+      ====================================================== */
 
       if (
         currentCounterStatus ===
-          "sent" &&
-        currentCounterBy ===
-          "worker" &&
-        by === "worker"
+        "sent"
+      ) {
+        if (
+          currentCounterBy ===
+            null ||
+          currentCounterAmount ===
+            null
+        ) {
+          throw new Error(
+            "This booking has an invalid counter offer state.",
+          );
+        }
+
+        if (
+          currentCounterBy ===
+          by
+        ) {
+          throw new Error(
+            by === "customer"
+              ? "Your previous counter offer is still waiting for the worker."
+              : "Your previous counter offer is still waiting for the customer.",
+          );
+        }
+
+        activeOfferAmount =
+          currentCounterAmount;
+      } else {
+        /* ====================================================
+           NO COUNTER YET
+        ==================================================== */
+
+        if (
+          currentCounterStatus !==
+          "none"
+        ) {
+          throw new Error(
+            "This negotiation is no longer available.",
+          );
+        }
+
+        if (
+          currentCounterBy !==
+          null
+        ) {
+          throw new Error(
+            "This booking has an invalid negotiation state.",
+          );
+        }
+
+        if (
+          by !== "customer"
+        ) {
+          throw new Error(
+            "Worker cannot counter their own initial offer.",
+          );
+        }
+
+        activeOfferAmount =
+          initialWorkerOffer;
+      }
+
+      if (
+        activeOfferAmount ===
+        null
       ) {
         throw new Error(
-          "The customer must respond to the current worker counter offer.",
+          "The current offer amount is unavailable.",
         );
       }
 
       if (
-        by === "customer" &&
-        data.offerStatus !==
-          "sent" &&
-        currentCounterStatus !==
-          "sent"
-      ) {
-        throw new Error(
-          "There is no active worker offer to counter.",
-        );
-      }
-
-      if (
-        by === "worker" &&
-        currentCounterStatus !==
-          "sent"
-      ) {
-        throw new Error(
-          "There is no active customer counter offer to counter.",
-        );
-      }
-
-      const previousAmount =
-        currentCounterStatus ===
-          "sent" &&
-        typeof data.counterOfferAmount ===
-          "number"
-          ? data.counterOfferAmount
-          : typeof data.offerAmount ===
-              "number"
-            ? data.offerAmount
-            : null;
-
-      if (
-        previousAmount !== null &&
-        offerAmount === previousAmount
+        isSameAmount(
+          counterAmount,
+          activeOfferAmount,
+        )
       ) {
         throw new Error(
           "Your counter offer must be different from the current offer.",
@@ -631,10 +1033,10 @@ export async function counterOffer(
             "pending" as BookingStatus,
 
           counterOfferAmount:
-            offerAmount,
+            counterAmount,
 
           counterOfferMessage:
-            offerMessage,
+            counterMessage,
 
           counterOfferBy:
             by,
@@ -667,6 +1069,19 @@ export async function counterOffer(
 
 /* ============================================================
    ACCEPT OFFER
+
+   Initial worker offer:
+     - 24-hour expiry
+     - customer only
+
+   Active counter offer:
+     - original expiry no longer applies
+     - only the other party can accept
+
+   IMPORTANT:
+     Client-side Date.now() is only an additional
+     protection. Firestore Rules must also enforce
+     request.time against offerExpiresAt.
 ============================================================ */
 
 export async function acceptBooking(
@@ -674,7 +1089,9 @@ export async function acceptBooking(
   acceptedBy: OfferAcceptedBy,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   if (
     acceptedBy !== "customer" &&
@@ -685,21 +1102,27 @@ export async function acceptBooking(
     );
   }
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const currentUserId =
+    getCurrentUserId();
+
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const snapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!snapshot.exists()) {
+      if (
+        !snapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -708,38 +1131,75 @@ export async function acceptBooking(
       const data =
         snapshot.data();
 
+      /* ======================================================
+         AUTHORIZATION
+      ====================================================== */
+
+      assertParticipantAccess(
+        data,
+        acceptedBy,
+        currentUserId,
+      );
+
+      /* ======================================================
+         BOOKING STATE
+      ====================================================== */
+
       if (
-        data.status ===
-          "cancelled" ||
-        data.status ===
-          "expired" ||
-        data.status ===
-          "completed"
+        isBookingClosed(
+          data.status,
+        )
       ) {
         throw new Error(
           "This booking is no longer available.",
         );
       }
 
+      if (
+        data.status !==
+        "pending"
+      ) {
+        throw new Error(
+          "This booking is no longer waiting for an offer response.",
+        );
+      }
+
+      /* ======================================================
+         COUNTER OFFER STATE
+      ====================================================== */
+
       const counterAmount =
-        typeof data.counterOfferAmount ===
-        "number"
-          ? data.counterOfferAmount
-          : null;
+        getValidAmount(
+          data.counterOfferAmount,
+        );
 
       const counterBy =
-        data.counterOfferBy;
+        getValidCounterBy(
+          data.counterOfferBy,
+        );
 
       const counterStatus =
         data.counterOfferStatus;
 
       const hasActiveCounter =
-        counterStatus === "sent" &&
-        counterAmount !== null &&
-        (counterBy === "customer" ||
-          counterBy === "worker");
+        counterStatus ===
+          "sent" &&
+        counterAmount !==
+          null &&
+        counterBy !==
+          null;
 
-      if (hasActiveCounter) {
+      /* ======================================================
+         ACCEPT ACTIVE COUNTER
+      ====================================================== */
+
+      if (
+        hasActiveCounter
+      ) {
+        /*
+         * The party who created the counter
+         * cannot accept their own counter.
+         */
         if (
           counterBy ===
           acceptedBy
@@ -787,11 +1247,14 @@ export async function acceptBooking(
         return;
       }
 
+      /* ======================================================
+         ACCEPT INITIAL WORKER OFFER
+      ====================================================== */
+
       const workerOfferAmount =
-        typeof data.offerAmount ===
-        "number"
-          ? data.offerAmount
-          : null;
+        getValidAmount(
+          data.offerAmount,
+        );
 
       if (
         data.offerStatus !==
@@ -804,14 +1267,59 @@ export async function acceptBooking(
         );
       }
 
+      /*
+       * Only customer can accept the
+       * worker's initial offer.
+       */
       if (
-        acceptedBy ===
-        "worker"
+        acceptedBy !==
+        "customer"
       ) {
         throw new Error(
           "Worker cannot accept their own offer.",
         );
       }
+
+      /* ======================================================
+         AUTHORITATIVE OFFER EXPIRY
+      ====================================================== */
+
+      const offerExpiresAt =
+        getTimestampMillis(
+          data.offerExpiresAt,
+        );
+
+      /*
+       * Fail closed if backend has not populated
+       * the expiry timestamp yet.
+       */
+      if (
+        offerExpiresAt ===
+        null
+      ) {
+        throw new Error(
+          "This offer is still being prepared. Please try again shortly.",
+        );
+      }
+
+      /*
+       * Client-side protection.
+       *
+       * Firestore Rules must independently enforce
+       * request.time < offerExpiresAt.
+       */
+      if (
+        Date.now() >=
+        offerExpiresAt
+      ) {
+        throw new Error(
+          "This offer has expired. The booking can no longer be accepted.",
+        );
+      }
+
+      /* ======================================================
+         ACCEPT
+      ====================================================== */
 
       transaction.update(
         bookingRef,
@@ -854,7 +1362,9 @@ export async function declineOffer(
   declinedBy: OfferAcceptedBy,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   if (
     declinedBy !== "customer" &&
@@ -865,21 +1375,27 @@ export async function declineOffer(
     );
   }
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const currentUserId =
+    getCurrentUserId();
+
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const snapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!snapshot.exists()) {
+      if (
+        !snapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -887,6 +1403,12 @@ export async function declineOffer(
 
       const data =
         snapshot.data();
+
+      assertParticipantAccess(
+        data,
+        declinedBy,
+        currentUserId,
+      );
 
       if (
         isBookingClosed(
@@ -898,6 +1420,15 @@ export async function declineOffer(
         );
       }
 
+      if (
+        data.status !==
+        "pending"
+      ) {
+        throw new Error(
+          "This booking is no longer waiting for an offer response.",
+        );
+      }
+
       const counterStatus =
         data.counterOfferStatus;
 
@@ -906,10 +1437,15 @@ export async function declineOffer(
           data.counterOfferBy,
         );
 
+      /* ======================================================
+         DECLINE ACTIVE COUNTER
+      ====================================================== */
+
       if (
         counterStatus ===
           "sent" &&
-        counterBy !== null
+        counterBy !==
+          null
       ) {
         if (
           counterBy ===
@@ -941,6 +1477,12 @@ export async function declineOffer(
             negotiationStatus:
               "completed",
 
+            cancellationReason:
+              declinedBy ===
+              "customer"
+                ? "customer_cancelled"
+                : "worker_cancelled",
+
             cancelledBy:
               declinedBy,
 
@@ -954,6 +1496,10 @@ export async function declineOffer(
 
         return;
       }
+
+      /* ======================================================
+         DECLINE INITIAL WORKER OFFER
+      ====================================================== */
 
       if (
         data.offerStatus !==
@@ -988,6 +1534,9 @@ export async function declineOffer(
           negotiationStatus:
             "completed",
 
+          cancellationReason:
+            "customer_cancelled",
+
           cancelledBy:
             "customer",
 
@@ -1010,7 +1559,9 @@ export async function getBooking(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   return getDoc(
     doc(
@@ -1077,20 +1628,28 @@ export function listenCustomerBookings(
 
   return onSnapshot(
     bookingsQuery,
-    (snapshot) => {
+
+    snapshot => {
       const bookings =
         snapshot.docs.map(
-          (bookingDoc) =>
+          bookingDoc =>
             ({
-              id: bookingDoc.id,
+              id:
+                bookingDoc.id,
+
               ...bookingDoc.data(),
             }) as Booking,
         );
 
-      callback(bookings);
+      callback(
+        bookings,
+      );
     },
-    (error) => {
-      onError?.(error);
+
+    error => {
+      onError?.(
+        error,
+      );
     },
   );
 }
@@ -1151,20 +1710,28 @@ export function listenWorkerBookings(
 
   return onSnapshot(
     bookingsQuery,
-    (snapshot) => {
+
+    snapshot => {
       const bookings =
         snapshot.docs.map(
-          (bookingDoc) =>
+          bookingDoc =>
             ({
-              id: bookingDoc.id,
+              id:
+                bookingDoc.id,
+
               ...bookingDoc.data(),
             }) as Booking,
         );
 
-      callback(bookings);
+      callback(
+        bookings,
+      );
     },
-    (error) => {
-      onError?.(error);
+
+    error => {
+      onError?.(
+        error,
+      );
     },
   );
 }
@@ -1195,29 +1762,60 @@ export async function startJourney(
   estimatedArrival: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   const normalizedArrival =
-    estimatedArrival.trim();
-
-  if (!normalizedArrival) {
-    throw new Error(
-      "Estimated arrival is required.",
+    validateEstimatedArrival(
+      estimatedArrival,
     );
-  }
 
-  return updateDoc(
+  const bookingRef =
     doc(
       db,
       "bookings",
       bookingId,
-    ),
-    {
-      estimatedArrival:
-        normalizedArrival,
+    );
 
-      updatedAt:
-        serverTimestamp(),
+  return runTransaction(
+    db,
+    async transaction => {
+      const snapshot =
+        await transaction.get(
+          bookingRef,
+        );
+
+      if (
+        !snapshot.exists()
+      ) {
+        throw new Error(
+          "Booking not found.",
+        );
+      }
+
+      const data =
+        snapshot.data();
+
+      if (
+        data.status !==
+        "accepted"
+      ) {
+        throw new Error(
+          "Journey can only start after the booking has been accepted.",
+        );
+      }
+
+      transaction.update(
+        bookingRef,
+        {
+          estimatedArrival:
+            normalizedArrival,
+
+          updatedAt:
+            serverTimestamp(),
+        },
+      );
     },
   );
 }
@@ -1230,23 +1828,72 @@ export async function startWork(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  return updateDoc(
+  const bookingRef =
     doc(
       db,
       "bookings",
       bookingId,
-    ),
-    {
-      status:
-        "in-progress" as BookingStatus,
+    );
 
-      startedAt:
-        serverTimestamp(),
+  return runTransaction(
+    db,
+    async transaction => {
+      const snapshot =
+        await transaction.get(
+          bookingRef,
+        );
 
-      updatedAt:
-        serverTimestamp(),
+      if (
+        !snapshot.exists()
+      ) {
+        throw new Error(
+          "Booking not found.",
+        );
+      }
+
+      const data =
+        snapshot.data();
+
+      if (
+        data.status !==
+        "accepted"
+      ) {
+        throw new Error(
+          "This booking is not ready to start.",
+        );
+      }
+
+      const agreedPrice =
+        getValidAmount(
+          data.agreedPrice,
+        );
+
+      if (
+        agreedPrice ===
+        null
+      ) {
+        throw new Error(
+          "The agreed service amount is unavailable.",
+        );
+      }
+
+      transaction.update(
+        bookingRef,
+        {
+          status:
+            "in-progress" as BookingStatus,
+
+          startedAt:
+            serverTimestamp(),
+
+          updatedAt:
+            serverTimestamp(),
+        },
+      );
     },
   );
 }
@@ -1258,7 +1905,9 @@ export async function startWork(
 export async function finishWork(
   id: string,
 ) {
-  return completeBooking(id);
+  return completeBooking(
+    id,
+  );
 }
 
 /* ============================================================
@@ -1270,29 +1919,72 @@ export async function rejectBooking(
   reason?: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  return updateDoc(
+  const cancellationReason =
+    validateCancellationReason(
+      reason,
+    );
+
+  const bookingRef =
     doc(
       db,
       "bookings",
       bookingId,
-    ),
-    {
-      status:
-        "cancelled" as BookingStatus,
+    );
 
-      cancelledReason:
-        reason?.trim() ?? "",
+  return runTransaction(
+    db,
+    async transaction => {
+      const snapshot =
+        await transaction.get(
+          bookingRef,
+        );
 
-      cancelledBy:
-        "customer",
+      if (
+        !snapshot.exists()
+      ) {
+        throw new Error(
+          "Booking not found.",
+        );
+      }
 
-      cancelledAt:
-        serverTimestamp(),
+      const data =
+        snapshot.data();
 
-      updatedAt:
-        serverTimestamp(),
+      if (
+        data.status !==
+          "pending" &&
+        data.status !==
+          "accepted"
+      ) {
+        throw new Error(
+          "This booking can no longer be cancelled.",
+        );
+      }
+
+      transaction.update(
+        bookingRef,
+        {
+          status:
+            "cancelled" as BookingStatus,
+
+          cancellationReason:
+            cancellationReason ||
+            "customer_cancelled",
+
+          cancelledBy:
+            "customer",
+
+          cancelledAt:
+            serverTimestamp(),
+
+          updatedAt:
+            serverTimestamp(),
+        },
+      );
     },
   );
 }
@@ -1305,20 +1997,57 @@ export async function arrivedBooking(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  return updateDoc(
+  const bookingRef =
     doc(
       db,
       "bookings",
       bookingId,
-    ),
-    {
-      workerArrivedAt:
-        serverTimestamp(),
+    );
 
-      updatedAt:
-        serverTimestamp(),
+  return runTransaction(
+    db,
+    async transaction => {
+      const snapshot =
+        await transaction.get(
+          bookingRef,
+        );
+
+      if (
+        !snapshot.exists()
+      ) {
+        throw new Error(
+          "Booking not found.",
+        );
+      }
+
+      const data =
+        snapshot.data();
+
+      if (
+        data.status !==
+          "accepted" &&
+        data.status !==
+          "in-progress"
+      ) {
+        throw new Error(
+          "Worker arrival cannot be recorded for this booking.",
+        );
+      }
+
+      transaction.update(
+        bookingRef,
+        {
+          workerArrivedAt:
+            serverTimestamp(),
+
+          updatedAt:
+            serverTimestamp(),
+        },
+      );
     },
   );
 }
@@ -1330,7 +2059,9 @@ export async function arrivedBooking(
 export async function startBooking(
   id: string,
 ) {
-  return startWork(id);
+  return startWork(
+    id,
+  );
 }
 
 /* ============================================================
@@ -1341,23 +2072,28 @@ export async function completeBooking(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const bookingSnapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!bookingSnapshot.exists()) {
+      if (
+        !bookingSnapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -1373,6 +2109,29 @@ export async function completeBooking(
         return;
       }
 
+      if (
+        booking.status !==
+        "in-progress"
+      ) {
+        throw new Error(
+          "Only an in-progress booking can be completed.",
+        );
+      }
+
+      const agreedPrice =
+        getValidAmount(
+          booking.agreedPrice,
+        );
+
+      if (
+        agreedPrice ===
+        null
+      ) {
+        throw new Error(
+          "The agreed service amount is unavailable.",
+        );
+      }
+
       const serviceId =
         typeof booking.serviceId ===
           "string"
@@ -1385,18 +2144,21 @@ export async function completeBooking(
         );
       }
 
-      const serviceRef = doc(
-        db,
-        "services",
-        serviceId,
-      );
+      const serviceRef =
+        doc(
+          db,
+          "services",
+          serviceId,
+        );
 
       const serviceSnapshot =
         await transaction.get(
           serviceRef,
         );
 
-      if (!serviceSnapshot.exists()) {
+      if (
+        !serviceSnapshot.exists()
+      ) {
         throw new Error(
           "Service associated with this booking was not found.",
         );
@@ -1407,6 +2169,11 @@ export async function completeBooking(
         {
           status:
             "completed" as BookingStatus,
+
+          amount:
+            agreedPrice,
+
+          agreedPrice,
 
           paymentStatus:
             "cash",
@@ -1436,59 +2203,96 @@ export async function completeBooking(
 /* ============================================================
    CANCEL BOOKING
 ============================================================ */
-
 export async function cancelBooking(
   id: string,
+  reason: CustomerCancellationReason,
+  note = "",
 ) {
-  const bookingId =
-    validateBookingId(id);
+  const bookingId = validateBookingId(id);
+  const currentUserId = getCurrentUserId();
 
-  return updateDoc(
-    doc(
-      db,
-      "bookings",
-      bookingId,
-    ),
-    {
-      status:
-        "cancelled" as BookingStatus,
+  if (
+    !CUSTOMER_CANCELLATION_REASONS.includes(reason)
+  ) {
+    throw new Error(
+      "Please select a valid cancellation reason.",
+    );
+  }
 
-      cancelledAt:
-        serverTimestamp(),
+  const normalizedNote =
+    typeof note === "string" ? note.trim() : "";
 
-      updatedAt:
-        serverTimestamp(),
-    },
-  );
-}
+  if (
+    normalizedNote.length > MAX_CANCEL_REASON_LENGTH
+  ) {
+    throw new Error(
+      `Cancellation note must not exceed ${MAX_CANCEL_REASON_LENGTH} characters.`,
+    );
+  }
 
-/* ============================================================
-   CUSTOMER CONFIRM PAYMENT
-============================================================ */
+  if (
+    reason === "other" &&
+    !normalizedNote
+  ) {
+    throw new Error(
+      "Please explain your cancellation reason.",
+    );
+  }
 
-export async function customerConfirmPayment(
-  id: string,
-) {
-  const bookingId =
-    validateBookingId(id);
+  const bookingRef = doc(db, "bookings", bookingId);
 
-  return updateDoc(
-    doc(
-      db,
-      "bookings",
-      bookingId,
-    ),
-    {
-      paymentStatus:
-        "paid",
+  return runTransaction(db, async transaction => {
+    const snapshot = await transaction.get(bookingRef);
 
-      customerPaymentConfirmedAt:
-        serverTimestamp(),
+    if (!snapshot.exists()) {
+      throw new Error("Booking not found.");
+    }
 
-      updatedAt:
-        serverTimestamp(),
-    },
-  );
+    const data = snapshot.data();
+
+    assertParticipantAccess(
+      data,
+      "customer",
+      currentUserId,
+    );
+
+    if (data.status !== "pending") {
+      throw new Error(
+        "This booking can no longer be cancelled.",
+      );
+    }
+
+    if (
+      data.offerStatus === "sent" ||
+      data.counterOfferStatus === "sent"
+    ) {
+      throw new Error(
+        "An offer is in progress. Use Decline to end the negotiation.",
+      );
+    }
+
+    if (
+      data.cancellationReason === "offer_expired"
+    ) {
+      throw new Error(
+        "This offer has already expired.",
+      );
+    }
+
+    transaction.update(bookingRef, {
+      status: "cancelled" as BookingStatus,
+
+      cancellationReason: reason,
+
+      cancellationNote: normalizedNote || null,
+
+      cancelledBy: "customer",
+
+      cancelledAt: serverTimestamp(),
+
+      updatedAt: serverTimestamp(),
+    });
+  });
 }
 
 /* ============================================================
@@ -1499,23 +2303,28 @@ export async function workerConfirmPayment(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
-  const bookingRef = doc(
-    db,
-    "bookings",
-    bookingId,
-  );
+  const bookingRef =
+    doc(
+      db,
+      "bookings",
+      bookingId,
+    );
 
   return runTransaction(
     db,
-    async (transaction) => {
+    async transaction => {
       const bookingSnapshot =
         await transaction.get(
           bookingRef,
         );
 
-      if (!bookingSnapshot.exists()) {
+      if (
+        !bookingSnapshot.exists()
+      ) {
         throw new Error(
           "Booking not found.",
         );
@@ -1545,6 +2354,15 @@ export async function workerConfirmPayment(
         return;
       }
 
+      if (
+        booking.status !==
+        "in-progress"
+      ) {
+        throw new Error(
+          "Payment cannot be confirmed for this booking.",
+        );
+      }
+
       const serviceId =
         typeof booking.serviceId ===
           "string"
@@ -1557,18 +2375,21 @@ export async function workerConfirmPayment(
         );
       }
 
-      const serviceRef = doc(
-        db,
-        "services",
-        serviceId,
-      );
+      const serviceRef =
+        doc(
+          db,
+          "services",
+          serviceId,
+        );
 
       const serviceSnapshot =
         await transaction.get(
           serviceRef,
         );
 
-      if (!serviceSnapshot.exists()) {
+      if (
+        !serviceSnapshot.exists()
+      ) {
         throw new Error(
           "Service associated with this booking was not found.",
         );
@@ -1616,7 +2437,9 @@ export async function deleteBooking(
   id: string,
 ) {
   const bookingId =
-    validateBookingId(id);
+    validateBookingId(
+      id,
+    );
 
   return deleteDoc(
     doc(

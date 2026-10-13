@@ -7,6 +7,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
 
 import {
   router,
+  useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
 
@@ -66,13 +68,9 @@ import type {
 
 type NormalizedProduct = {
   productId: string;
-
   name: string;
-
   image?: string;
-
   price: number;
-
   quantity: number;
 };
 
@@ -83,12 +81,9 @@ type NormalizedProduct = {
 export default function MarketOrderDetailsScreen() {
   const {
     orderId,
-  } =
-    useLocalSearchParams<{
-      orderId:
-        | string
-        | string[];
-    }>();
+  } = useLocalSearchParams<{
+    orderId: string | string[];
+  }>();
 
   /* ==========================================================
      STATE
@@ -97,69 +92,90 @@ export default function MarketOrderDetailsScreen() {
   const [
     order,
     setOrder,
-  ] =
-    useState<MarketOrder | null>(
-      null,
-    );
+  ] = useState<MarketOrder | null>(null);
 
   const [
     loading,
     setLoading,
-  ] =
-    useState(true);
+  ] = useState(true);
 
   const [
     error,
     setError,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<string | null>(null);
 
   /* ==========================================================
      ORDER ID
   ========================================================== */
 
-  const normalizedOrderId =
-    useMemo(() => {
-      if (
-        Array.isArray(
-          orderId,
-        )
-      ) {
-        return (
-          orderId[0] ??
-          ""
-        ).trim();
-      }
+  const normalizedOrderId = useMemo(() => {
+    if (Array.isArray(orderId)) {
+      return (orderId[0] ?? "").trim();
+    }
 
-      return (
-        orderId ?? ""
-      ).trim();
-    }, [
-      orderId,
-    ]);
+    return (orderId ?? "").trim();
+  }, [orderId]);
 
   /* ==========================================================
-     BACK
+     BACK NAVIGATION
+     
+     Priority:
+     1. Go exactly one screen back when history exists.
+     2. Only use Orders fallback when there is no history.
   ========================================================== */
 
-  const handleBack =
-    useCallback(() => {
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
       router.back();
-    }, []);
+      return;
+    }
+
+    router.replace({
+      pathname: "/(customer)/orders",
+      params: {
+        category: "market",
+      },
+    } as never);
+  }, []);
+
+  /* ==========================================================
+     ANDROID HARDWARE BACK
+
+     useFocusEffect ensures this listener is active only while
+     this screen is focused.
+  ========================================================== */
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription =
+        BackHandler.addEventListener(
+          "hardwareBackPress",
+          () => {
+            handleBack();
+
+            return true;
+          },
+        );
+
+      return () => {
+        subscription.remove();
+      };
+    }, [handleBack]),
+  );
 
   /* ==========================================================
      FIRESTORE LISTENER
   ========================================================== */
 
   useEffect(() => {
-    const user =
-      auth.currentUser;
+    const user = auth.currentUser;
+
+    /* --------------------------------------------------------
+       AUTH
+    -------------------------------------------------------- */
 
     if (!user) {
       setOrder(null);
-
       setLoading(false);
 
       setError(
@@ -169,11 +185,12 @@ export default function MarketOrderDetailsScreen() {
       return;
     }
 
-    if (
-      !normalizedOrderId
-    ) {
-      setOrder(null);
+    /* --------------------------------------------------------
+       ORDER ID
+    -------------------------------------------------------- */
 
+    if (!normalizedOrderId) {
+      setOrder(null);
       setLoading(false);
 
       setError(
@@ -183,118 +200,113 @@ export default function MarketOrderDetailsScreen() {
       return;
     }
 
-    setLoading(true);
+    /* --------------------------------------------------------
+       INITIAL STATE
+    -------------------------------------------------------- */
 
+    setLoading(true);
     setError(null);
 
-    const orderRef =
-      doc(
-        db,
-        "orders",
-        normalizedOrderId,
-      );
+    /* --------------------------------------------------------
+       FIRESTORE DOCUMENT
+    -------------------------------------------------------- */
 
-    const unsubscribe =
-      onSnapshot(
-        orderRef,
+    const orderRef = doc(
+      db,
+      "orders",
+      normalizedOrderId,
+    );
 
-        (
-          snapshot,
-        ) => {
-          if (
-            !snapshot.exists()
-          ) {
-            setOrder(null);
+    /* --------------------------------------------------------
+       REALTIME LISTENER
+    -------------------------------------------------------- */
 
-            setLoading(false);
+    const unsubscribe = onSnapshot(
+      orderRef,
 
-            setError(
-              "This order could not be found.",
-            );
+      (snapshot) => {
+        /* ----------------------------------------------------
+           ORDER NOT FOUND
+        ---------------------------------------------------- */
 
-            return;
-          }
-
-          const data =
-            snapshot.data();
-
-          /* ==================================================
-             CUSTOMER OWNERSHIP
-          ================================================== */
-
-          if (
-            data.customerId !==
-            user.uid
-          ) {
-            setOrder(null);
-
-            setLoading(false);
-
-            setError(
-              "You do not have permission to view this order.",
-            );
-
-            return;
-          }
-
-          /* ==================================================
-             MAP ORDER
-          ================================================== */
-
-          try {
-            const mappedOrder =
-              mapMarketOrder(
-                snapshot.id,
-                data,
-              );
-
-            setOrder(
-              mappedOrder,
-            );
-
-            setLoading(false);
-
-            setError(null);
-          } catch (
-            mappingError
-          ) {
-            console.error(
-              "MARKET_ORDER_MAPPING_ERROR:",
-              mappingError,
-            );
-
-            setOrder(null);
-
-            setLoading(false);
-
-            setError(
-              "Unable to read this order.",
-            );
-          }
-        },
-
-        (
-          snapshotError,
-        ) => {
-          console.error(
-            "MARKET_ORDER_DETAILS_ERROR:",
-            snapshotError,
-          );
-
+        if (!snapshot.exists()) {
           setOrder(null);
-
           setLoading(false);
 
           setError(
-            "Unable to load this order. Please try again.",
+            "This order could not be found.",
           );
-        },
-      );
+
+          return;
+        }
+
+        const data = snapshot.data();
+
+        /* ====================================================
+           CUSTOMER OWNERSHIP
+        ==================================================== */
+
+        if (data.customerId !== user.uid) {
+          setOrder(null);
+          setLoading(false);
+
+          setError(
+            "You do not have permission to view this order.",
+          );
+
+          return;
+        }
+
+        /* ====================================================
+           MAP ORDER
+        ==================================================== */
+
+        try {
+          const mappedOrder =
+            mapMarketOrder(
+              snapshot.id,
+              data,
+            );
+
+          setOrder(mappedOrder);
+          setLoading(false);
+          setError(null);
+        } catch (mappingError) {
+          console.error(
+            "MARKET_ORDER_MAPPING_ERROR:",
+            mappingError,
+          );
+
+          setOrder(null);
+          setLoading(false);
+
+          setError(
+            "Unable to read this order.",
+          );
+        }
+      },
+
+      (snapshotError) => {
+        console.error(
+          "MARKET_ORDER_DETAILS_ERROR:",
+          snapshotError,
+        );
+
+        setOrder(null);
+        setLoading(false);
+
+        setError(
+          "Unable to load this order. Please try again.",
+        );
+      },
+    );
+
+    /* --------------------------------------------------------
+       CLEANUP
+    -------------------------------------------------------- */
 
     return unsubscribe;
-  }, [
-    normalizedOrderId,
-  ]);
+  }, [normalizedOrderId]);
 
   /* ==========================================================
      LOADING
@@ -304,28 +316,18 @@ export default function MarketOrderDetailsScreen() {
     return (
       <AppScreen
         role="customer"
-        contentContainerStyle={
-          styles.screen
-        }
+        contentContainerStyle={styles.screen}
       >
-        <View
-          style={
-            styles.centerState
-          }
-        >
+        <View style={styles.centerState}>
           <ActivityIndicator
             size="small"
-            color={
-              CustomerColors.primary
-            }
+            color={CustomerColors.primary}
           />
 
           <AppText
             variant="caption"
             tone="secondary"
-            style={
-              styles.stateText
-            }
+            style={styles.stateText}
           >
             Loading order...
           </AppText>
@@ -338,33 +340,18 @@ export default function MarketOrderDetailsScreen() {
      ERROR
   ========================================================== */
 
-  if (
-    error ||
-    !order
-  ) {
+  if (error || !order) {
     return (
       <AppScreen
         role="customer"
-        contentContainerStyle={
-          styles.screen
-        }
+        contentContainerStyle={styles.screen}
       >
-        <View
-          style={
-            styles.centerState
-          }
-        >
-          <View
-            style={
-              styles.errorIcon
-            }
-          >
+        <View style={styles.centerState}>
+          <View style={styles.errorIcon}>
             <AppIcon
               name="error"
               size="lg"
-              color={
-                Colors.error
-              }
+              color={Colors.error}
             />
           </View>
 
@@ -372,9 +359,7 @@ export default function MarketOrderDetailsScreen() {
             variant="heading3"
             weight="bold"
             center
-            style={
-              styles.stateTitle
-            }
+            style={styles.stateTitle}
           >
             Unable to open order
           </AppText>
@@ -383,44 +368,30 @@ export default function MarketOrderDetailsScreen() {
             variant="body"
             tone="secondary"
             center
-            style={
-              styles.stateText
-            }
+            style={styles.stateText}
           >
-            {error ??
-              "Order not found."}
+            {error ?? "Order not found."}
           </AppText>
 
           <Pressable
-            onPress={
-              handleBack
-            }
+            onPress={handleBack}
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            style={({
-              pressed,
-            }) => [
+            style={({ pressed }) => [
               styles.backButton,
-
-              pressed
-                ? styles.pressed
-                : null,
+              pressed ? styles.pressed : null,
             ]}
           >
             <AppIcon
               name="back"
               size="xs"
-              color={
-                Colors.textInverse
-              }
+              color={Colors.textInverse}
             />
 
             <AppText
               variant="caption"
               weight="bold"
-              style={
-                styles.backButtonText
-              }
+              style={styles.backButtonText}
             >
               GO BACK
             </AppText>
@@ -436,106 +407,92 @@ export default function MarketOrderDetailsScreen() {
 
   const rawOrder =
     order as MarketOrder &
-      Record<
-        string,
-        unknown
-      >;
+      Record<string, unknown>;
 
   /* ==========================================================
      STATUS
   ========================================================== */
 
-  const status =
-    normalizeMarketStatus(
-      rawOrder.status,
-    );
+  const status = normalizeMarketStatus(
+    rawOrder.status,
+  );
 
   /* ==========================================================
      PRODUCTS
   ========================================================== */
 
-  const products =
-    normalizeProducts(
-      rawOrder.products,
-    );
+  const products = normalizeProducts(
+    rawOrder.products,
+  );
 
   /* ==========================================================
      STORE
   ========================================================== */
 
-  const storeName =
-    getString(
-      rawOrder.storeName,
-      rawOrder.sellerName,
-      rawOrder.store,
-      "Market Store",
-    );
+  const storeName = getString(
+    rawOrder.storeName,
+    rawOrder.sellerName,
+    rawOrder.store,
+    "Market Store",
+  );
 
-  const storeId =
-    getString(
-      rawOrder.storeId,
-      rawOrder.sellerStoreId,
-      rawOrder.storeID,
-    );
+  const storeId = getString(
+    rawOrder.storeId,
+    rawOrder.sellerStoreId,
+    rawOrder.storeID,
+  );
 
-  const sellerId =
-    getString(
-      rawOrder.sellerId,
-      rawOrder.sellerID,
-      rawOrder.providerId,
-      rawOrder.workerId,
-    );
+  const sellerId = getString(
+    rawOrder.sellerId,
+    rawOrder.sellerID,
+    rawOrder.providerId,
+    rawOrder.workerId,
+  );
 
-  const storePhone =
-    getString(
-      rawOrder.storePhone,
-      rawOrder.sellerPhone,
-      rawOrder.phoneNumber,
-      rawOrder.phone,
-    );
+  const storePhone = getString(
+    rawOrder.storePhone,
+    rawOrder.sellerPhone,
+    rawOrder.phoneNumber,
+    rawOrder.phone,
+  );
 
   /* ==========================================================
      DELIVERY
   ========================================================== */
 
-  const receiverName =
-    getString(
-      rawOrder.receiverName,
-      rawOrder.customerName,
-      rawOrder.deliveryName,
-    );
+  const receiverName = getString(
+    rawOrder.receiverName,
+    rawOrder.customerName,
+    rawOrder.deliveryName,
+  );
 
-  const receiverPhone =
-    getString(
-      rawOrder.receiverPhone,
-      rawOrder.customerPhone,
-      rawOrder.deliveryPhone,
-    );
+  const receiverPhone = getString(
+    rawOrder.receiverPhone,
+    rawOrder.customerPhone,
+    rawOrder.deliveryPhone,
+  );
 
-  const address =
-    getString(
-      rawOrder.address,
-      rawOrder.deliveryAddress,
-      rawOrder.location,
-      rawOrder.deliveryLocation,
-      "Delivery address unavailable",
-    );
+  const address = getString(
+    rawOrder.address,
+    rawOrder.deliveryAddress,
+    rawOrder.location,
+    rawOrder.deliveryLocation,
+    "Delivery address unavailable",
+  );
 
   /* ==========================================================
      PAYMENT
   ========================================================== */
 
-  const paymentMethod =
-    getString(
-      rawOrder.paymentMethod,
-      "cash",
-    );
+  const paymentMethod = getString(
+    rawOrder.paymentMethod,
+    "cash",
+  );
 
-  const paymentStatus =
-    getString(
-      rawOrder.paymentStatus,
-      "pending",
-    );
+  const paymentStatus = getString(
+    rawOrder.paymentStatus,
+    "pending",
+  );
 
   /* ==========================================================
      PRICE
@@ -543,47 +500,38 @@ export default function MarketOrderDetailsScreen() {
 
   const calculatedSubtotal =
     products.reduce(
-      (
-        total,
-        product,
-      ) =>
+      (total, product) =>
         total +
         product.price *
           product.quantity,
       0,
     );
 
-  const subtotal =
-    getNumber(
-      rawOrder.subtotal,
-      calculatedSubtotal,
-    );
+  const subtotal = getNumber(
+    rawOrder.subtotal,
+    calculatedSubtotal,
+  );
 
-  const deliveryFee =
-    getNumber(
-      rawOrder.deliveryFee,
-      0,
-    );
+  const deliveryFee = getNumber(
+    rawOrder.deliveryFee,
+    0,
+  );
 
-  const total =
-    getNumber(
-      rawOrder.total,
-      subtotal +
-        deliveryFee,
-    );
+  const total = getNumber(
+    rawOrder.total,
+    subtotal + deliveryFee,
+  );
 
   /* ==========================================================
      OTHER
   ========================================================== */
 
-  const note =
-    getString(
-      rawOrder.note,
-      rawOrder.orderNote,
-    );
+  const note = getString(
+    rawOrder.note,
+    rawOrder.orderNote,
+  );
 
-  const createdAt =
-    rawOrder.createdAt;
+  const createdAt = rawOrder.createdAt;
 
   /* ==========================================================
      RENDER
@@ -592,66 +540,41 @@ export default function MarketOrderDetailsScreen() {
   return (
     <AppScreen
       role="customer"
-      contentContainerStyle={
-        styles.screen
-      }
+      contentContainerStyle={styles.screen}
     >
       <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        contentContainerStyle={
-          styles.content
-        }
+        contentContainerStyle={styles.content}
       >
         {/* ====================================================
             TOP HEADER
         ==================================================== */}
 
-        <View
-          style={
-            styles.topHeader
-          }
-        >
+        <View style={styles.topHeader}>
           <Pressable
-            onPress={
-              handleBack
-            }
+            onPress={handleBack}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={({
-              pressed,
-            }) => [
+            accessibilityLabel="Go back to market orders"
+            style={({ pressed }) => [
               styles.topHeaderButton,
-
-              pressed
-                ? styles.pressed
-                : null,
+              pressed ? styles.pressed : null,
             ]}
           >
             <AppIcon
               name="back"
               size="md"
-              color={
-                Colors.textPrimary
-              }
+              color={Colors.textPrimary}
             />
           </Pressable>
 
-          <View
-            style={
-              styles.topHeaderText
-            }
-          >
+          <View style={styles.topHeaderText}>
             <AppText
               variant="heading2"
               weight="bold"
-              style={
-                styles.topTitle
-              }
+              style={styles.topTitle}
             >
               Order Details
             </AppText>
@@ -659,34 +582,25 @@ export default function MarketOrderDetailsScreen() {
             <AppText
               variant="caption"
               tone="secondary"
-              style={
-                styles.topSubtitle
-              }
+              style={styles.topSubtitle}
             >
               Track your market order
             </AppText>
           </View>
 
-          {/*
-           * Existing visual retained.
-           *
-           * No action is attached because
-           * the original screen did not have
-           * a menu handler.
-           */}
+          {/* ==================================================
+              MORE BUTTON
+          ================================================== */}
+
           <View
-            style={
-              styles.topHeaderButton
-            }
+            style={styles.topHeaderButton}
             accessibilityElementsHidden
             importantForAccessibility="no"
           >
             <AppIcon
               name="more"
               size="md"
-              color={
-                Colors.textMuted
-              }
+              color={Colors.textMuted}
             />
           </View>
         </View>
@@ -696,21 +610,11 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderHeader
-          orderId={
-            order.id
-          }
-          status={
-            status
-          }
-          createdAt={
-            createdAt
-          }
-          products={
-            products
-          }
-          storeName={
-            storeName
-          }
+          orderId={order.id}
+          status={status}
+          createdAt={createdAt}
+          products={products}
+          storeName={storeName}
         />
 
         {/* ====================================================
@@ -718,12 +622,8 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderStatus
-          status={
-            status
-          }
-          createdAt={
-            createdAt
-          }
+          status={status}
+          createdAt={createdAt}
         />
 
         {/* ====================================================
@@ -731,9 +631,7 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderItems
-          products={
-            products
-          }
+          products={products}
         />
 
         {/* ====================================================
@@ -741,15 +639,9 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderDelivery
-          receiverName={
-            receiverName
-          }
-          receiverPhone={
-            receiverPhone
-          }
-          address={
-            address
-          }
+          receiverName={receiverName}
+          receiverPhone={receiverPhone}
+          address={address}
         />
 
         {/* ====================================================
@@ -757,12 +649,8 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderPayment
-          paymentMethod={
-            paymentMethod
-          }
-          paymentStatus={
-            paymentStatus
-          }
+          paymentMethod={paymentMethod}
+          paymentStatus={paymentStatus}
         />
 
         {/* ====================================================
@@ -770,15 +658,9 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderPrice
-          subtotal={
-            subtotal
-          }
-          deliveryFee={
-            deliveryFee
-          }
-          total={
-            total
-          }
+          subtotal={subtotal}
+          deliveryFee={deliveryFee}
+          total={total}
         />
 
         {/* ====================================================
@@ -786,34 +668,24 @@ export default function MarketOrderDetailsScreen() {
         ==================================================== */}
 
         <MarketOrderActions
-          orderId={
-            order.id
-          }
-          status={
-            status
-          }
+          orderId={order.id}
+          status={status}
           storeId={
-            storeId ||
-            undefined
+            storeId || undefined
           }
           sellerId={
-            sellerId ||
-            undefined
+            sellerId || undefined
           }
           storePhone={
-            storePhone ||
-            undefined
+            storePhone || undefined
           }
           note={
-            note ||
-            undefined
+            note || undefined
           }
         />
 
         <View
-          style={
-            styles.bottomSpace
-          }
+          style={styles.bottomSpace}
         />
       </ScrollView>
     </AppScreen>
@@ -827,9 +699,7 @@ export default function MarketOrderDetailsScreen() {
 function normalizeProducts(
   value: unknown,
 ): NormalizedProduct[] {
-  if (
-    !Array.isArray(value)
-  ) {
+  if (!Array.isArray(value)) {
     return [];
   }
 
@@ -840,8 +710,7 @@ function normalizeProducts(
         index,
       ): NormalizedProduct | null => {
         if (
-          typeof item !==
-            "object" ||
+          typeof item !== "object" ||
           item === null
         ) {
           return null;
@@ -874,17 +743,16 @@ function normalizeProducts(
             product.photo,
           );
 
-        const price =
-          Math.max(
-            0,
+        const price = Math.max(
+          0,
+          getNumber(
+            product.price,
             getNumber(
-              product.price,
-              getNumber(
-                product.unitPrice,
-                0,
-              ),
+              product.unitPrice,
+              0,
             ),
-          );
+          ),
+        );
 
         const rawQuantity =
           getNumber(
@@ -902,17 +770,13 @@ function normalizeProducts(
 
         return {
           productId,
-
           name,
 
           ...(image
-            ? {
-                image,
-              }
+            ? { image }
             : {}),
 
           price,
-
           quantity,
         };
       },
@@ -933,8 +797,7 @@ function normalizeMarketStatus(
   value: unknown,
 ): MarketStatus {
   const status =
-    typeof value ===
-    "string"
+    typeof value === "string"
       ? value
           .trim()
           .toLowerCase()
@@ -975,12 +838,9 @@ function normalizeMarketStatus(
 function getString(
   ...values: unknown[]
 ): string {
-  for (
-    const value of values
-  ) {
+  for (const value of values) {
     if (
-      typeof value ===
-        "string"
+      typeof value === "string"
     ) {
       const normalized =
         value.trim();
@@ -991,13 +851,10 @@ function getString(
     }
 
     if (
-      typeof value ===
-        "number" &&
+      typeof value === "number" &&
       Number.isFinite(value)
     ) {
-      return String(
-        value,
-      );
+      return String(value);
     }
   }
 
@@ -1013,30 +870,24 @@ function getNumber(
   fallback: number,
 ): number {
   if (
-    typeof value ===
-      "number" &&
+    typeof value === "number" &&
     Number.isFinite(value)
   ) {
     return value;
   }
 
   if (
-    typeof value ===
-    "string"
+    typeof value === "string"
   ) {
     const normalized =
       value.trim();
 
     if (normalized) {
       const parsed =
-        Number(
-          normalized,
-        );
+        Number(normalized);
 
       if (
-        Number.isFinite(
-          parsed,
-        )
+        Number.isFinite(parsed)
       ) {
         return parsed;
       }
@@ -1058,15 +909,10 @@ const styles =
 
     screen: {
       flex: 1,
-
       width: "100%",
-
       paddingHorizontal: 0,
-
       paddingTop: 0,
-
       paddingBottom: 0,
-
       backgroundColor:
         Colors.background,
     },
@@ -1090,11 +936,9 @@ const styles =
       minHeight:
         FixxamTokens.size.headerHeight,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
     },
 
     topHeaderButton: {
@@ -1106,11 +950,9 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderWidth: 1,
 
@@ -1160,11 +1002,9 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.xl,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
     },
 
     errorIcon: {
@@ -1172,11 +1012,9 @@ const styles =
 
       height: 64,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.xl,
@@ -1215,14 +1053,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.lg,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       gap:
         FixxamTokens.spacing.sm,

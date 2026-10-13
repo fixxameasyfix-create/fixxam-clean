@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -32,9 +33,54 @@ type WorkerOrdersEmptyProps = {
 
 type EmptyContent = {
   title: string;
-
   description: string;
 };
+
+/* ==============================================================
+   CONTENT
+============================================================== */
+
+function getEmptyContent(
+  filter: WorkerFilterType,
+): EmptyContent {
+  switch (filter) {
+    case "pending":
+      return {
+        title: "No new requests",
+        description:
+          "New job requests will appear here when they become available.",
+      };
+
+    case "active":
+      return {
+        title: "No active jobs",
+        description:
+          "Jobs you accept or start will appear here.",
+      };
+
+    case "completed":
+      return {
+        title: "No completed jobs",
+        description:
+          "Jobs you complete will appear here.",
+      };
+
+    case "cancelled":
+      return {
+        title: "No cancelled jobs",
+        description:
+          "Cancelled and expired jobs will appear here.",
+      };
+
+    case "all":
+    default:
+      return {
+        title: "No jobs yet",
+        description:
+          "Your jobs will appear here when you receive them.",
+      };
+  }
+}
 
 /* ==============================================================
    COMPONENT
@@ -44,8 +90,14 @@ function WorkerOrdersEmpty({
   filter,
 }: WorkerOrdersEmptyProps) {
   const content =
-    getEmptyContent(
-      filter,
+    useMemo(
+      () =>
+        getEmptyContent(
+          filter,
+        ),
+      [
+        filter,
+      ],
     );
 
   return (
@@ -53,13 +105,9 @@ function WorkerOrdersEmpty({
       style={
         styles.container
       }
-      accessibilityRole="text"
+      accessible
       accessibilityLabel={`${content.title}. ${content.description}`}
     >
-      {/* ========================================================
-          ICON
-      ======================================================== */}
-
       <View
         style={
           styles.iconContainer
@@ -68,20 +116,16 @@ function WorkerOrdersEmpty({
         <AppIcon
           name="jobs"
           role="worker"
-          size="lg"
+          size="md"
           color={
             WorkerColors.primary
           }
         />
       </View>
 
-      {/* ========================================================
-          TITLE
-      ======================================================== */}
-
       <AppText
         variant="heading3"
-        weight="bold"
+        weight="semibold"
         center
         style={
           styles.title
@@ -89,10 +133,6 @@ function WorkerOrdersEmpty({
       >
         {content.title}
       </AppText>
-
-      {/* ========================================================
-          DESCRIPTION
-      ======================================================== */}
 
       <AppText
         variant="body"
@@ -106,62 +146,6 @@ function WorkerOrdersEmpty({
       </AppText>
     </View>
   );
-}
-
-/* ==============================================================
-   EMPTY CONTENT
-============================================================== */
-
-function getEmptyContent(
-  filter: WorkerFilterType,
-): EmptyContent {
-  switch (filter) {
-    case "pending":
-      return {
-        title:
-          "No new requests",
-
-        description:
-          "New service requests and market orders will appear here.",
-      };
-
-    case "active":
-      return {
-        title:
-          "No active jobs",
-
-        description:
-          "Accepted and ongoing jobs or orders will appear here.",
-      };
-
-    case "completed":
-      return {
-        title:
-          "No completed jobs",
-
-        description:
-          "Completed jobs and market orders will appear here.",
-      };
-
-    case "cancelled":
-      return {
-        title:
-          "No cancelled jobs",
-
-        description:
-          "Cancelled or expired jobs and orders will appear here.",
-      };
-
-    case "all":
-    default:
-      return {
-        title:
-          "No jobs yet",
-
-        description:
-          "Your service requests and market orders will appear here.",
-      };
-  }
 }
 
 /* ==============================================================
@@ -184,7 +168,7 @@ const styles =
     container: {
       width: "100%",
 
-      minHeight: 260,
+      minHeight: 240,
 
       paddingHorizontal:
         FixxamTokens.spacing.xl,
@@ -200,11 +184,9 @@ const styles =
     },
 
     iconContainer: {
-      width:
-        FixxamTokens.size.avatarXl,
+      width: 56,
 
-      height:
-        FixxamTokens.size.avatarXl,
+      height: 56,
 
       alignItems:
         "center",
@@ -213,7 +195,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
         WorkerColors.primarySoft,
@@ -221,17 +203,17 @@ const styles =
 
     title: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       color:
         Colors.textPrimary,
     },
 
     description: {
-      maxWidth: 320,
+      maxWidth: 280,
 
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       lineHeight: 20,
 

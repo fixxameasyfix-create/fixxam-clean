@@ -14,7 +14,6 @@ import {
 import Toast from "react-native-toast-message";
 
 import {
-  AppButton,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -45,43 +44,24 @@ type Props = {
    HELPERS
 ============================================================ */
 
-function normalizeString(
+function safeString(
   value: unknown,
+  fallback = "",
 ): string {
-  return typeof value ===
+  if (
+    typeof value !==
     "string"
-    ? value.trim()
-    : "";
-}
+  ) {
+    return fallback;
+  }
 
-function normalizePhoneForCall(
-  value: string,
-): string {
-  const trimmed =
+  const normalized =
     value.trim();
 
-  if (!trimmed) {
-    return "";
-  }
-
-  const hasLeadingPlus =
-    trimmed.startsWith(
-      "+",
-    );
-
-  const digits =
-    trimmed.replace(
-      /\D/g,
-      "",
-    );
-
-  if (!digits) {
-    return "";
-  }
-
-  return hasLeadingPlus
-    ? `+${digits}`
-    : digits;
+  return (
+    normalized ||
+    fallback
+  );
 }
 
 function isValidLatitude(
@@ -118,212 +98,146 @@ function isValidLongitude(
 
 function WorkerMarketDelivery({
   receiverName,
-  receiverPhone,
   address,
   latitude,
   longitude,
 }: Props) {
-  /* ==========================================================
-     DISPLAY VALUES
-  ========================================================== */
-
-  const name =
+  const normalizedReceiverName =
     useMemo(
       () =>
-        normalizeString(
+        safeString(
           receiverName,
-        ) ||
-        "Customer",
+          "Customer",
+        ),
       [
         receiverName,
       ],
     );
 
-  const displayPhone =
+  const normalizedAddress =
     useMemo(
       () =>
-        normalizeString(
-          receiverPhone,
-        ),
-      [
-        receiverPhone,
-      ],
-    );
-
-  const callablePhone =
-    useMemo(
-      () =>
-        normalizePhoneForCall(
-          displayPhone,
-        ),
-      [
-        displayPhone,
-      ],
-    );
-
-  const deliveryAddress =
-    useMemo(
-      () =>
-        normalizeString(
+        safeString(
           address,
-        ) ||
-        "Delivery address unavailable",
+          "Delivery address unavailable",
+        ),
       [
         address,
       ],
     );
 
   const hasCoordinates =
-    isValidLatitude(
-      latitude,
-    ) &&
-    isValidLongitude(
-      longitude,
-    );
-
-  /* ==========================================================
-     OPEN MAP
-  ========================================================== */
-
-  const handleOpenMap =
-    useCallback(
-      async () => {
-        if (
-          !hasCoordinates
-        ) {
-          Toast.show({
-            type: "info",
-
-            text1:
-              "GPS unavailable",
-
-            text2:
-              "This order does not have valid GPS coordinates.",
-          });
-
-          return;
-        }
-
-        const url =
-          `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-
-        try {
-          const supported =
-            await Linking.canOpenURL(
-              url,
-            );
-
-          if (!supported) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Unable to open Maps",
-
-              text2:
-                "Please check your Maps application.",
-            });
-
-            return;
-          }
-
-          await Linking.openURL(
-            url,
-          );
-        } catch (error) {
-          console.error(
-            "WORKER_MARKET_OPEN_MAP_ERROR:",
-            error,
-          );
-
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Unable to open Maps",
-
-            text2:
-              "Please try again.",
-          });
-        }
-      },
+    useMemo(
+      () =>
+        isValidLatitude(
+          latitude,
+        ) &&
+        isValidLongitude(
+          longitude,
+        ),
       [
-        hasCoordinates,
         latitude,
         longitude,
       ],
     );
 
+  const hasAddress =
+    normalizedAddress !==
+    "Delivery address unavailable";
+
+  const canOpenDirections =
+    hasCoordinates ||
+    hasAddress;
+
   /* ==========================================================
-     CALL RECEIVER
+     OPEN DIRECTIONS
   ========================================================== */
 
-  const handleCall =
-    useCallback(
-      async () => {
+  const handleDirections =
+    useCallback(async () => {
+      if (
+        !canOpenDirections
+      ) {
+        Toast.show({
+          type:
+            "info",
+
+          text1:
+            "Location unavailable",
+
+          text2:
+            "Delivery location is not available for this order.",
+        });
+
+        return;
+      }
+
+      try {
+        const destination =
+          hasCoordinates
+            ? `${latitude},${longitude}`
+            : normalizedAddress;
+
+        const url =
+          `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+            destination,
+          )}`;
+
+        const supported =
+          await Linking.canOpenURL(
+            url,
+          );
+
         if (
-          !callablePhone
+          !supported
         ) {
           Toast.show({
-            type: "info",
+            type:
+              "error",
 
             text1:
-              "Phone unavailable",
+              "Maps unavailable",
 
             text2:
-              "The delivery recipient does not have a valid phone number.",
+              "Unable to open directions on this device.",
           });
 
           return;
         }
 
-        const phoneUrl =
-          `tel:${callablePhone}`;
-
-        try {
-          const supported =
-            await Linking.canOpenURL(
-              phoneUrl,
-            );
-
-          if (!supported) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Calling unavailable",
-
-              text2:
-                "Your device cannot make phone calls.",
-            });
-
-            return;
-          }
-
-          await Linking.openURL(
-            phoneUrl,
-          );
-        } catch (error) {
-          console.error(
-            "WORKER_MARKET_DELIVERY_CALL_ERROR:",
+        await Linking.openURL(
+          url,
+        );
+      } catch (
+        error
+      ) {
+        if (
+          __DEV__
+        ) {
+          console.warn(
+            "WORKER_MARKET_OPEN_DIRECTIONS_ERROR",
             error,
           );
-
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Unable to call recipient",
-
-            text2:
-              "Please try again.",
-          });
         }
-      },
-      [
-        callablePhone,
-      ],
-    );
+
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Unable to open directions",
+
+          text2:
+            "Please try again.",
+        });
+      }
+    }, [
+      canOpenDirections,
+      hasCoordinates,
+      latitude,
+      longitude,
+      normalizedAddress,
+    ]);
 
   /* ==========================================================
      RENDER
@@ -339,152 +253,15 @@ function WorkerMarketDelivery({
           HEADER
       ====================================================== */}
 
-      <View
+      <AppText
+        variant="bodyLarge"
+        weight="bold"
         style={
-          styles.header
+          styles.title
         }
       >
-        <AppText
-          variant="heading3"
-          weight="bold"
-          style={
-            styles.title
-          }
-        >
-          Delivery
-        </AppText>
-
-        {hasCoordinates ? (
-          <Pressable
-            onPress={
-              handleOpenMap
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Open delivery location in Maps"
-            style={({
-              pressed,
-            }) => [
-              styles.gpsButton,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="location"
-              size="xs"
-              color={
-                Colors.success
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.gpsText
-              }
-            >
-              GPS
-            </AppText>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {/* ======================================================
-          RECEIVER
-      ====================================================== */}
-
-      <View
-        style={
-          styles.receiverRow
-        }
-      >
-        <View
-          style={
-            styles.receiverIcon
-          }
-        >
-          <AppIcon
-            name="profile"
-            role="worker"
-            size="sm"
-            color={
-              WorkerColors.primary
-            }
-          />
-        </View>
-
-        <View
-          style={
-            styles.receiverContent
-          }
-        >
-          <AppText
-            variant="bodyMedium"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.receiverName
-            }
-          >
-            {name}
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={1}
-            style={
-              styles.receiverLabel
-            }
-          >
-            Delivery recipient
-          </AppText>
-
-          {displayPhone ? (
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-              style={
-                styles.receiverPhone
-              }
-            >
-              {displayPhone}
-            </AppText>
-          ) : null}
-        </View>
-
-        {callablePhone ? (
-          <Pressable
-            onPress={
-              handleCall
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${name}`}
-            style={({
-              pressed,
-            }) => [
-              styles.callButton,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="phone"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </Pressable>
-        ) : null}
-      </View>
+        Delivery
+      </AppText>
 
       {/* ======================================================
           ADDRESS
@@ -497,54 +274,169 @@ function WorkerMarketDelivery({
       >
         <View
           style={
-            styles.addressIcon
+            styles.locationIcon
           }
         >
           <AppIcon
             name="location"
-            role="worker"
             size="sm"
             color={
-              WorkerColors.primary
+              Colors.info
             }
           />
         </View>
 
-        <AppText
-          variant="body"
-          tone="secondary"
+        <View
           style={
-            styles.addressText
+            styles.addressContent
           }
         >
-          {deliveryAddress}
-        </AppText>
+          <AppText
+            variant="caption"
+            style={
+              styles.label
+            }
+          >
+            Delivery address
+          </AppText>
+
+          <AppText
+            variant="bodyMedium"
+            weight="medium"
+            numberOfLines={3}
+            style={
+              styles.address
+            }
+          >
+            {normalizedAddress}
+          </AppText>
+        </View>
       </View>
 
       {/* ======================================================
-          OPEN MAP
+          META
       ====================================================== */}
 
-      {hasCoordinates ? (
+      <View
+        style={
+          styles.metaRow
+        }
+      >
         <View
           style={
-            styles.mapAction
+            styles.receiver
           }
         >
-          <AppButton
-            title="OPEN LOCATION"
-            role="worker"
-            variant="outline"
-            leftIconName="navigation"
-            onPress={
-              handleOpenMap
-            }
-            style={
-              styles.mapButton
+          <AppIcon
+            name="profile"
+            size="xs"
+            color={
+              Colors.textMuted
             }
           />
+
+          <AppText
+            variant="caption"
+            numberOfLines={1}
+            style={
+              styles.receiverName
+            }
+          >
+            {normalizedReceiverName}
+          </AppText>
         </View>
-      ) : null}
+
+        <View
+          style={
+            styles.locationStatus
+          }
+        >
+          <View
+            style={[
+              styles.locationDot,
+
+              hasCoordinates
+                ? styles.locationDotActive
+                : null,
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            numberOfLines={1}
+            style={
+              styles.locationStatusText
+            }
+          >
+            {hasCoordinates
+              ? "GPS available"
+              : hasAddress
+                ? "Address only"
+                : "Location unavailable"}
+          </AppText>
+        </View>
+      </View>
+
+      {/* ======================================================
+          DIRECTIONS
+      ====================================================== */}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Get directions"
+        accessibilityHint="Open the customer's delivery location in maps"
+        accessibilityState={{
+          disabled:
+            !canOpenDirections,
+        }}
+        disabled={
+          !canOpenDirections
+        }
+        onPress={
+          handleDirections
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.directionsButton,
+
+          !canOpenDirections
+            ? styles.disabled
+            : null,
+
+          pressed &&
+          canOpenDirections
+            ? styles.pressed
+            : null,
+        ]}
+      >
+        <AppIcon
+          name="navigation"
+          size="xs"
+          color={
+            WorkerColors.primary
+          }
+        />
+
+        <AppText
+          variant="bodyMedium"
+          weight="medium"
+          numberOfLines={1}
+          style={
+            styles.directionsText
+          }
+        >
+          Get directions
+        </AppText>
+
+        <AppIcon
+          name="next"
+          size="xs"
+          color={
+            WorkerColors.primary
+          }
+        />
+      </Pressable>
     </View>
   );
 }
@@ -566,36 +458,123 @@ export default memo(
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
        HEADER
     ======================================================== */
 
-    header: {
-      marginBottom:
-        FixxamTokens.spacing.md,
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       ADDRESS
+    ======================================================== */
+
+    addressRow: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+    },
+
+    locationIcon: {
+      width:
+        36,
+
+      height:
+        36,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.infoSoft,
+    },
+
+    addressContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    label: {
+      color:
+        Colors.textMuted,
+    },
+
+    address: {
+      marginTop:
+        2,
+
+      lineHeight:
+        19,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       META
+    ======================================================== */
+
+    metaRow: {
+      minHeight:
+        32,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -607,17 +586,92 @@ const styles =
         "space-between",
 
       gap:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
     },
 
-    title: {
+    receiver: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    receiverName: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
       color:
-        Colors.textPrimary,
+        Colors.textSecondary,
     },
 
-    gpsButton: {
+    locationStatus: {
+      flexShrink:
+        0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    locationDot: {
+      width:
+        5,
+
+      height:
+        5,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.textMuted,
+    },
+
+    locationDotActive: {
+      backgroundColor:
+        Colors.success,
+    },
+
+    locationStatusText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       DIRECTIONS
+    ======================================================== */
+
+    directionsButton: {
       minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -634,107 +688,11 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.successSoft,
-    },
-
-    gpsText: {
-      color:
-        Colors.success,
-    },
-
-    /* ========================================================
-       RECEIVER
-    ======================================================== */
-
-    receiverRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-    },
-
-    receiverIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    receiverContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    receiverName: {
-      color:
-        Colors.textPrimary,
-    },
-
-    receiverLabel: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    receiverPhone: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    callButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
-        WorkerColors.primarySoft,
+        WorkerColors.primary,
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -743,73 +701,23 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    /* ========================================================
-       ADDRESS
-    ======================================================== */
-
-    addressRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-    },
-
-    addressIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    addressText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-
-      paddingTop:
-        FixxamTokens.spacing.xs,
-
-      lineHeight: 20,
+    directionsText: {
+      flex:
+        1,
 
       color:
-        Colors.textSecondary,
+        WorkerColors.primary,
     },
 
     /* ========================================================
-       MAP
+       STATES
     ======================================================== */
 
-    mapAction: {
-      marginTop:
-        FixxamTokens.spacing.lg,
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
-
-    mapButton: {
-      width: "100%",
-    },
-
-    /* ========================================================
-       STATE
-    ======================================================== */
 
     pressed: {
       opacity:

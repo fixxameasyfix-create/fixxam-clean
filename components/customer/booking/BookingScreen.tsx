@@ -8,10 +8,7 @@ import React, {
 
 import {
   Alert,
-  Modal,
-  Pressable,
   StyleSheet,
-  View,
 } from "react-native";
 
 import {
@@ -19,8 +16,6 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
-
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -30,27 +25,37 @@ import {
 } from "react-native-keyboard-controller";
 
 import {
-  AppButton,
-  AppCard,
-  AppIcon,
   AppScreen,
-  AppText,
 } from "@/components/ui";
 
 import {
-  Colors,
-  CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
-import RequestWorkerCard from "@/components/customer/request-service/RequestWorkerCard";
-import RequestDescription from "@/components/customer/request-service/RequestDescription";
-import RequestPhotos from "@/components/customer/request-service/RequestPhotos";
-import RequestLocation from "@/components/customer/request-service/RequestLocation";
+import BookingMethodStep from "@/components/customer/request-service/BookingMethodStep";
 
-import RequestTiming, {
+import BookingPriorityStep from "@/components/customer/request-service/BookingPriorityStep";
+
+import RequestServiceReviewCard from "@/components/customer/request-service/RequestServiceReviewCard";
+
+import RequestServiceSignInModal from "@/components/customer/request-service/RequestServiceSignInModal";
+
+import {
   type RequestTimingValue,
 } from "@/components/customer/request-service/RequestTiming";
+
+import {
+  getBookingParamValue,
+  useBookingServiceData,
+} from "@/components/customer/request-service/BookingServiceData";
+
+import {
+  useBookingWorkerData,
+} from "@/components/customer/request-service/BookingWorkerData";
+
+import {
+  useBookingProviderData,
+} from "@/components/customer/request-service/BookingProviderData";
 
 import {
   auth,
@@ -61,16 +66,16 @@ import {
 } from "@/firebase/queries/users";
 
 import {
-  getFreshWorkerProfilePhotoUrl,
-} from "@/firebase/queries/workerPublicProfiles";
-
-import {
   createBooking,
 } from "@/firebase/queries/bookings/createBooking";
 
 import {
-  uploadBookingPhotos,
-} from "@/firebase/storage/uploadBookingPhotos";
+  type BookingFulfillmentMode,
+} from "@/types/bookingFulfillment";
+
+import {
+  type BookingPriority,
+} from "@/types/bookingPriority";
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
 
@@ -89,106 +94,43 @@ type SelectedLocation = {
 
 type LocationSuggestion = {
   id: string;
-
   title: string;
-
   subtitle?: string;
-
   latitude: number;
-
   longitude: number;
 };
 
 type AiPrefilledBooking = {
   description?: string;
-
   photos?: string[];
-
   address?: string;
-
-  latitude?:
-    | number
-    | null;
-
-  longitude?:
-    | number
-    | null;
-
-  bookingDate?:
-    | string
-    | null;
-
-  bookingTime?:
-    | string
-    | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  bookingDate?: string | null;
+  bookingTime?: string | null;
 };
 
 type BookingParams = {
-  serviceId?:
-    | string
-    | string[];
+  serviceId?: string | string[];
+  serviceName?: string | string[];
+  serviceIcon?: string | string[];
+  serviceColor?: string | string[];
+  serviceBackgroundColor?: string | string[];
 
-  serviceName?:
-    | string
-    | string[];
+  categoryId?: string | string[];
+  fulfillmentMode?: string | string[];
 
-  serviceIcon?:
-    | string
-    | string[];
+  workerId?: string | string[];
+  workerName?: string | string[];
+  workerPhoto?: string | string[];
+  workerCategory?: string | string[];
+  workerOnline?: string | string[];
+  workerDistance?: string | string[];
 
-  serviceColor?:
-    | string
-    | string[];
-
-  serviceBackgroundColor?:
-    | string
-    | string[];
-
-  categoryId?:
-    | string
-    | string[];
-
-  workerId?:
-    | string
-    | string[];
-
-  workerName?:
-    | string
-    | string[];
-
-  workerPhoto?:
-    | string
-    | string[];
-
-  workerCategory?:
-    | string
-    | string[];
-
-  workerOnline?:
-    | string
-    | string[];
-
-  workerDistance?:
-    | string
-    | string[];
-
-  reward?:
-    | string
-    | string[];
-
-  customerDescription?:
-    | string
-    | string[];
-
-  booking?:
-    | string
-    | string[];
+  reward?: string | string[];
+  customerDescription?: string | string[];
+  booking?: string | string[];
 };
-
-type MaterialIconName =
-  React.ComponentProps<
-    typeof MaterialCommunityIcons
-  >["name"];
 
 /* ==============================================================
    CONSTANTS
@@ -196,70 +138,57 @@ type MaterialIconName =
 
 const MAX_PHOTOS = 3;
 
-const MIN_DESCRIPTION_LENGTH =
-  3;
+const MIN_DESCRIPTION_LENGTH = 3;
 
-const MAX_DESCRIPTION_LENGTH =
-  300;
+const MAX_DESCRIPTION_LENGTH = 300;
 
-const LOCATION_SEARCH_LIMIT =
-  5;
+const LOCATION_SEARCH_LIMIT = 5;
 
-const LOCATION_SEARCH_DEBOUNCE =
-  450;
+const LOCATION_SEARCH_DEBOUNCE = 450;
 
 /* ==============================================================
-   PARAM HELPER
+   HELPERS
 ============================================================== */
 
-function getParamValue(
-  value:
-    | string
-    | string[]
+function isValidCoordinates(
+  latitude:
+    | number
+    | null
     | undefined,
-): string {
-  if (
-    Array.isArray(value)
-  ) {
-    return (
-      value[0]?.trim() ??
-      ""
-    );
-  }
 
+  longitude:
+    | number
+    | null
+    | undefined,
+): boolean {
   return (
-    value?.trim() ??
-    ""
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+
+    typeof longitude === "number" &&
+    Number.isFinite(longitude) &&
+    longitude >= -180 &&
+    longitude <= 180
   );
 }
 
-/* ==============================================================
-   WORKER PHOTO
-============================================================== */
-
-function normalizeWorkerPhotoUrl(
-  value: string,
+function getUserFacingErrorMessage(
+  error: unknown,
 ): string {
-  const url =
-    value.trim();
-
-  if (!url) {
-    return "";
-  }
-
-  /*
-   * Production worker profile
-   * images must use HTTPS.
-   */
   if (
-    !url.startsWith(
-      "https://",
-    )
+    error instanceof Error
   ) {
-    return "";
+    const message =
+      error.message.trim();
+
+    if (message) {
+      return message;
+    }
   }
 
-  return url;
+  return "We could not send your request. Please try again.";
 }
 
 /* ==============================================================
@@ -278,17 +207,16 @@ export default function BookingScreen() {
     serviceBackgroundColor,
 
     categoryId,
+    fulfillmentMode,
 
     workerId,
     workerName,
     workerPhoto,
     workerCategory,
-
     workerOnline,
     workerDistance,
 
     reward,
-
     customerDescription,
     booking,
   } = params;
@@ -299,6 +227,76 @@ export default function BookingScreen() {
     useCurrentLocation();
 
   /* ============================================================
+     SERVICE DATA
+  ============================================================ */
+
+  const service =
+    useBookingServiceData({
+      serviceId,
+      serviceName,
+      serviceIcon,
+      serviceColor,
+      serviceBackgroundColor,
+      categoryId,
+      fulfillmentMode,
+    });
+
+  /* ============================================================
+     WORKER DATA
+  ============================================================ */
+
+  const worker =
+    useBookingWorkerData({
+      workerId,
+      workerName,
+      workerPhoto,
+      workerCategory,
+      workerOnline,
+      workerDistance,
+    });
+
+  /* ============================================================
+     PROVIDER DATA
+  ============================================================ */
+
+  const provider =
+    useBookingProviderData({
+      workerId:
+        worker.id,
+
+      fulfillmentMode:
+        service.fulfillmentMode,
+    });
+
+  /* ============================================================
+     METHOD MODAL
+  ============================================================ */
+
+  const [
+    methodModalVisible,
+    setMethodModalVisible,
+  ] =
+    useState(true);
+
+  /* ============================================================
+     PRIORITY MODAL
+  ============================================================ */
+
+  const [
+    priorityModalVisible,
+    setPriorityModalVisible,
+  ] =
+    useState(false);
+
+  const [
+    bookingPriority,
+    setBookingPriority,
+  ] =
+    useState<BookingPriority | null>(
+      null,
+    );
+
+  /* ============================================================
      AI PREFILLED BOOKING
   ============================================================ */
 
@@ -306,13 +304,11 @@ export default function BookingScreen() {
     useMemo<AiPrefilledBooking | null>(
       () => {
         const rawBooking =
-          getParamValue(
+          getBookingParamValue(
             booking,
           );
 
-        if (
-          !rawBooking
-        ) {
+        if (!rawBooking) {
           return null;
         }
 
@@ -324,22 +320,20 @@ export default function BookingScreen() {
 
           if (
             !parsed ||
-            typeof parsed !==
-              "object" ||
-            Array.isArray(
-              parsed,
-            )
+            typeof parsed !== "object" ||
+            Array.isArray(parsed)
           ) {
             return null;
           }
 
-          return parsed as
-            AiPrefilledBooking;
+          return parsed as AiPrefilledBooking;
         } catch (error) {
-          console.error(
-            "INVALID_AI_BOOKING_JSON:",
-            error,
-          );
+          if (__DEV__) {
+            console.warn(
+              "INVALID_AI_BOOKING_JSON",
+              error,
+            );
+          }
 
           return null;
         }
@@ -354,364 +348,90 @@ export default function BookingScreen() {
   ============================================================ */
 
   const initialScheduledDate =
-    useMemo(() => {
-      const value =
-        aiPrefilledBooking
-          ?.bookingDate;
-
-      if (
-        typeof value !==
-          "string" ||
-        !value.trim()
-      ) {
-        return null;
-      }
-
-      const date =
-        new Date(value);
-
-      if (
-        !Number.isFinite(
-          date.getTime(),
-        )
-      ) {
-        return null;
-      }
-
-      if (
-        date.getTime() <=
-        Date.now()
-      ) {
-        return null;
-      }
-
-      return date;
-    }, [
-      aiPrefilledBooking,
-    ]);
-
-  /* ============================================================
-     SERVICE
-  ============================================================ */
-
-  const resolvedServiceId =
     useMemo(
-      () =>
-        getParamValue(
-          serviceId,
-        ),
-      [
-        serviceId,
-      ],
-    );
+      () => {
+        const value =
+          aiPrefilledBooking
+            ?.bookingDate;
 
-  const resolvedServiceName =
-    useMemo(
-      () =>
-        getParamValue(
-          serviceName,
-        ),
-      [
-        serviceName,
-      ],
-    );
-
-  const resolvedServiceIcon =
-    useMemo(
-      () =>
-        getParamValue(
-          serviceIcon,
-        ) ||
-        "tools",
-      [
-        serviceIcon,
-      ],
-    );
-
-  const resolvedServiceColor =
-    useMemo(
-      () =>
-        getParamValue(
-          serviceColor,
-        ) ||
-        CustomerColors.primary,
-      [
-        serviceColor,
-      ],
-    );
-
-  const resolvedServiceBackgroundColor =
-    useMemo(
-      () =>
-        getParamValue(
-          serviceBackgroundColor,
-        ) ||
-        CustomerColors.primarySoft,
-      [
-        serviceBackgroundColor,
-      ],
-    );
-
-  /* ============================================================
-     WORKER
-  ============================================================ */
-
-  const resolvedWorkerId =
-    useMemo(
-      () =>
-        getParamValue(
-          workerId,
-        ),
-      [
-        workerId,
-      ],
-    );
-
-  const resolvedWorkerName =
-    useMemo(
-      () =>
-        getParamValue(
-          workerName,
-        ) ||
-        "Selected Worker",
-      [
-        workerName,
-      ],
-    );
-
-  const resolvedWorkerPhoto =
-    useMemo(
-      () =>
-        normalizeWorkerPhotoUrl(
-          getParamValue(
-            workerPhoto,
-          ),
-        ),
-      [
-        workerPhoto,
-      ],
-    );
-
-  const resolvedWorkerCategory =
-    useMemo(
-      () =>
-        getParamValue(
-          workerCategory,
-        ) ||
-        "Service Provider",
-      [
-        workerCategory,
-      ],
-    );
-
-  /* ============================================================
-     FRESH WORKER PHOTO
-  ============================================================ */
-
-  const [
-    freshWorkerPhoto,
-    setFreshWorkerPhoto,
-  ] =
-    useState("");
-
-  const [
-    workerPhotoLoading,
-    setWorkerPhotoLoading,
-  ] =
-    useState(false);
-
-  useEffect(() => {
-    let cancelled =
-      false;
-
-    const loadFreshWorkerPhoto =
-      async () => {
         if (
-          !resolvedWorkerId
+          typeof value !== "string" ||
+          !value.trim()
         ) {
-          if (
-            !cancelled
-          ) {
-            setFreshWorkerPhoto(
-              "",
-            );
-
-            setWorkerPhotoLoading(
-              false,
-            );
-          }
-
-          return;
+          return null;
         }
 
-        setWorkerPhotoLoading(
-          true,
-        );
+        const date =
+          new Date(value);
 
-        try {
-          const freshUrl =
-            await getFreshWorkerProfilePhotoUrl(
-              resolvedWorkerId,
-            );
-
-          if (
-            cancelled
-          ) {
-            return;
-          }
-
-          const normalizedFreshUrl =
-            normalizeWorkerPhotoUrl(
-              freshUrl,
-            );
-
-          setFreshWorkerPhoto(
-            normalizedFreshUrl,
-          );
-
-          if (__DEV__) {
-            console.log(
-              "BOOKING_FRESH_WORKER_PHOTO",
-              {
-                workerId:
-                  resolvedWorkerId,
-
-                hasFreshPhoto:
-                  Boolean(
-                    normalizedFreshUrl,
-                  ),
-              },
-            );
-          }
-        } catch (error) {
-          if (
-            cancelled
-          ) {
-            return;
-          }
-
-          console.warn(
-            "BOOKING_FRESH_WORKER_PHOTO_ERROR",
-            {
-              workerId:
-                resolvedWorkerId,
-
-              error,
-            },
-          );
-
-          setFreshWorkerPhoto(
-            "",
-          );
-        } finally {
-          if (
-            !cancelled
-          ) {
-            setWorkerPhotoLoading(
-              false,
-            );
-          }
+        if (
+          !Number.isFinite(
+            date.getTime(),
+          ) ||
+          date.getTime() <=
+            Date.now()
+        ) {
+          return null;
         }
-      };
 
-    void loadFreshWorkerPhoto();
-
-    return () => {
-      cancelled =
-        true;
-    };
-  }, [
-    resolvedWorkerId,
-  ]);
-
-  const finalWorkerPhoto =
-    useMemo(
-      () =>
-        freshWorkerPhoto ||
-        resolvedWorkerPhoto,
+        return date;
+      },
       [
-        freshWorkerPhoto,
-        resolvedWorkerPhoto,
+        aiPrefilledBooking,
       ],
     );
 
   /* ============================================================
-     DEBUG WORKER PHOTO
+     FULFILLMENT
   ============================================================ */
+
+  const [
+    selectedFulfillmentMode,
+    setSelectedFulfillmentMode,
+  ] =
+    useState<
+      BookingFulfillmentMode | null
+    >(null);
 
   useEffect(() => {
     if (
-      !__DEV__
+      service.fulfillmentMode !==
+      "flexible"
     ) {
-      return;
+      setSelectedFulfillmentMode(
+        null,
+      );
     }
-
-    console.log(
-      "BOOKING_WORKER_IMAGE",
-      {
-        workerId:
-          resolvedWorkerId,
-
-        workerName:
-          resolvedWorkerName,
-
-        hasPhoto:
-          Boolean(
-            finalWorkerPhoto,
-          ),
-
-        loading:
-          workerPhotoLoading,
-      },
-    );
   }, [
-    finalWorkerPhoto,
-    resolvedWorkerId,
-    resolvedWorkerName,
-    workerPhotoLoading,
+    service.fulfillmentMode,
   ]);
 
-  /* ============================================================
-     STATUS
-  ============================================================ */
-
-  const isWorkerOnline =
-    getParamValue(
-      workerOnline,
-    ) === "true";
-
-  /* ============================================================
-     DISTANCE
-  ============================================================ */
-
-  const parsedDistance =
-    useMemo(() => {
-      const raw =
-        getParamValue(
-          workerDistance,
-        );
-
-      if (!raw) {
-        return undefined;
+  const concreteFulfillmentMode =
+    useMemo<
+      BookingFulfillmentMode | null
+    >(() => {
+      if (
+        service.fulfillmentMode ===
+          "worker_visits_customer" ||
+        service.fulfillmentMode ===
+          "customer_visits_worker" ||
+        service.fulfillmentMode ===
+          "remote"
+      ) {
+        return service.fulfillmentMode;
       }
-
-      const value =
-        Number(raw);
 
       if (
-        !Number.isFinite(
-          value,
-        )
+        service.fulfillmentMode ===
+        "flexible"
       ) {
-        return undefined;
+        return selectedFulfillmentMode;
       }
 
-      return Math.max(
-        0,
-        value,
-      );
+      return null;
     }, [
-      workerDistance,
+      selectedFulfillmentMode,
+      service.fulfillmentMode,
     ]);
 
   /* ============================================================
@@ -722,23 +442,25 @@ export default function BookingScreen() {
     description,
     setDescription,
   ] =
-    useState(() => {
-      const aiDescription =
-        aiPrefilledBooking
-          ?.description
-          ?.trim();
+    useState(
+      () => {
+        const aiDescription =
+          aiPrefilledBooking
+            ?.description
+            ?.trim();
 
-      const fallbackDescription =
-        getParamValue(
-          customerDescription,
+        const fallbackDescription =
+          getBookingParamValue(
+            customerDescription,
+          );
+
+        return (
+          aiDescription ||
+          fallbackDescription ||
+          ""
         );
-
-      return (
-        aiDescription ||
-        fallbackDescription ||
-        ""
-      );
-    });
+      },
+    );
 
   /* ============================================================
      PHOTOS
@@ -759,15 +481,18 @@ export default function BookingScreen() {
           return [];
         }
 
-        return aiPrefilledBooking.photos
+        return aiPrefilledBooking
+          .photos
           .filter(
             (
               photo,
             ): photo is string =>
-              typeof photo ===
-                "string" &&
-              photo.trim()
-                .length > 0,
+              typeof photo === "string" &&
+              photo.trim().length > 0,
+          )
+          .map(
+            photo =>
+              photo.trim(),
           )
           .slice(
             0,
@@ -777,7 +502,7 @@ export default function BookingScreen() {
     );
 
   /* ============================================================
-     LOCATION
+     CUSTOMER LOCATION
   ============================================================ */
 
   const [
@@ -795,14 +520,8 @@ export default function BookingScreen() {
             ?.longitude;
 
         if (
-          typeof latitude !==
-            "number" ||
-          typeof longitude !==
-            "number" ||
-          !Number.isFinite(
+          !isValidCoordinates(
             latitude,
-          ) ||
-          !Number.isFinite(
             longitude,
           )
         ) {
@@ -810,8 +529,11 @@ export default function BookingScreen() {
         }
 
         return {
-          latitude,
-          longitude,
+          latitude:
+            latitude as number,
+
+          longitude:
+            longitude as number,
         };
       },
     );
@@ -830,6 +552,18 @@ export default function BookingScreen() {
 
   /* ============================================================
      TIMING
+
+     bookingPriority:
+     - immediate
+     - normal
+     - urgent
+
+     timing:
+     - asap
+     - schedule
+
+     Schedule is kept separate from priority so we preserve the
+     current UI architecture while storing the user's exact choice.
   ============================================================ */
 
   const [
@@ -851,7 +585,7 @@ export default function BookingScreen() {
     );
 
   /* ============================================================
-     SUBMIT
+     SUBMIT STATE
   ============================================================ */
 
   const [
@@ -859,6 +593,9 @@ export default function BookingScreen() {
     setSubmitting,
   ] =
     useState(false);
+
+  const submitInFlightRef =
+    useRef(false);
 
   /* ============================================================
      SIGN IN
@@ -916,58 +653,379 @@ export default function BookingScreen() {
   }, []);
 
   /* ============================================================
-     DERIVED STATE
+     FULFILLMENT CHANGE
+  ============================================================ */
+
+  const handleFulfillmentModeChange =
+    useCallback(
+      (
+        value:
+          BookingFulfillmentMode,
+      ) => {
+        setSelectedFulfillmentMode(
+          value,
+        );
+
+        if (
+          value ===
+          "worker_visits_customer"
+        ) {
+          return;
+        }
+
+        locationSearchRequestId.current +=
+          1;
+
+        if (
+          locationSearchTimer
+            .current
+        ) {
+          clearTimeout(
+            locationSearchTimer
+              .current,
+          );
+
+          locationSearchTimer.current =
+            null;
+        }
+
+        setLocationSuggestions(
+          [],
+        );
+
+        setLocationSearchLoading(
+          false,
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
+     METHOD MODAL CONTINUE
+  ============================================================ */
+
+  const handleContinueFromMethod =
+    useCallback(
+      () => {
+        if (
+          service.fulfillmentMode ===
+          "needs_review"
+        ) {
+          return;
+        }
+
+        if (
+          service.fulfillmentMode ===
+            "flexible" &&
+          (
+            selectedFulfillmentMode !==
+              "worker_visits_customer" &&
+            selectedFulfillmentMode !==
+              "customer_visits_worker"
+          )
+        ) {
+          Alert.alert(
+            "Choose service method",
+            "Please choose how you want to receive this service.",
+          );
+
+          return;
+        }
+
+        setMethodModalVisible(
+          false,
+        );
+
+        setPriorityModalVisible(
+          true,
+        );
+      },
+      [
+        selectedFulfillmentMode,
+        service.fulfillmentMode,
+      ],
+    );
+
+  /* ============================================================
+     PRIORITY CHANGE
+
+     Choosing a priority means this is NOT a scheduled request.
+  ============================================================ */
+
+  const handlePriorityChange =
+    useCallback(
+      (
+        value:
+          BookingPriority,
+      ) => {
+        setBookingPriority(
+          value,
+        );
+
+        setTiming(
+          "asap",
+        );
+
+        setScheduledDate(
+          null,
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
+     SCHEDULE SELECT
+
+     Choosing Schedule for later clears immediate/normal/urgent.
+  ============================================================ */
+
+  const handleScheduleSelect =
+    useCallback(
+      () => {
+        setBookingPriority(
+          null,
+        );
+
+        setTiming(
+          "schedule",
+        );
+
+        if (
+          !scheduledDate
+        ) {
+          const defaultDate =
+            new Date();
+
+          defaultDate.setDate(
+            defaultDate.getDate() +
+              1,
+          );
+
+          defaultDate.setHours(
+            9,
+            0,
+            0,
+            0,
+          );
+
+          setScheduledDate(
+            defaultDate,
+          );
+        }
+      },
+      [
+        scheduledDate,
+      ],
+    );
+
+  const handleOpenPriority =
+    useCallback(
+      () => {
+        if (
+          submitting ||
+          methodModalVisible
+        ) {
+          return;
+        }
+
+        setPriorityModalVisible(
+          true,
+        );
+      },
+      [
+        methodModalVisible,
+        submitting,
+      ],
+    );
+
+  const handleContinueFromPriority =
+    useCallback(
+      () => {
+        const scheduleSelected =
+          timing ===
+          "schedule";
+
+        if (
+          !bookingPriority &&
+          !scheduleSelected
+        ) {
+          Alert.alert(
+            "Choose service timing",
+            "Please choose how quickly you need this service or schedule it for later.",
+          );
+
+          return;
+        }
+
+        setPriorityModalVisible(
+          false,
+        );
+      },
+      [
+        bookingPriority,
+        timing,
+      ],
+    );
+
+  const handleBackFromPriority =
+    useCallback(
+      () => {
+        if (submitting) {
+          return;
+        }
+
+        setPriorityModalVisible(
+          false,
+        );
+
+        setMethodModalVisible(
+          true,
+        );
+      },
+      [
+        submitting,
+      ],
+    );
+
+  /* ============================================================
+     CURRENT LOCATION
+  ============================================================ */
+
+  const currentCoordinates =
+    useMemo(
+      () => {
+        if (
+          !location ||
+          !isValidCoordinates(
+            location.latitude,
+            location.longitude,
+          )
+        ) {
+          return null;
+        }
+
+        return {
+          latitude:
+            location.latitude,
+
+          longitude:
+            location.longitude,
+        };
+      },
+      [
+        location,
+      ],
+    );
+
+  /* ============================================================
+     VALIDATION
   ============================================================ */
 
   const cleanDescription =
     description.trim();
 
-  const currentCoordinates =
-    useMemo(() => {
-      if (
-        !location
-      ) {
-        return null;
-      }
+  const customerLocationValid =
+    useMemo(
+      () =>
+        Boolean(
+          selectedLocation &&
+          selectedAddress.trim() &&
+          isValidCoordinates(
+            selectedLocation
+              .latitude,
+            selectedLocation
+              .longitude,
+          ),
+        ),
+      [
+        selectedAddress,
+        selectedLocation,
+      ],
+    );
 
-      if (
-        !Number.isFinite(
-          location.latitude,
-        ) ||
-        !Number.isFinite(
-          location.longitude,
-        )
-      ) {
-        return null;
-      }
+  const bookingLocationValid =
+    useMemo(
+      () => {
+        if (
+          concreteFulfillmentMode ===
+          "remote"
+        ) {
+          return true;
+        }
 
-      return {
-        latitude:
-          location.latitude,
+        if (
+          concreteFulfillmentMode ===
+          "worker_visits_customer"
+        ) {
+          return customerLocationValid;
+        }
 
-        longitude:
-          location.longitude,
-      };
-    }, [
-      location,
-    ]);
+        if (
+          concreteFulfillmentMode ===
+          "customer_visits_worker"
+        ) {
+          return (
+            provider.valid &&
+            !provider.loading
+          );
+        }
+
+        return false;
+      },
+      [
+        concreteFulfillmentMode,
+        customerLocationValid,
+        provider.loading,
+        provider.valid,
+      ],
+    );
+
+  const scheduleValid =
+    useMemo(
+      () => {
+        if (
+          timing !==
+          "schedule"
+        ) {
+          return true;
+        }
+
+        return Boolean(
+          scheduledDate &&
+          Number.isFinite(
+            scheduledDate.getTime(),
+          ) &&
+          scheduledDate.getTime() >
+            Date.now(),
+        );
+      },
+      [
+        scheduledDate,
+        timing,
+      ],
+    );
+
+  const serviceTimingValid =
+    Boolean(
+      bookingPriority ||
+      timing === "schedule"
+    );
 
   const canSubmit =
     Boolean(
-      resolvedServiceId &&
-        resolvedServiceName &&
-        resolvedWorkerId &&
-        cleanDescription.length >=
-          MIN_DESCRIPTION_LENGTH &&
-        cleanDescription.length <=
-          MAX_DESCRIPTION_LENGTH &&
-        selectedLocation &&
-        selectedAddress.trim() &&
-        (
-          timing ===
-            "asap" ||
-          scheduledDate
-        ),
+      !methodModalVisible &&
+      !priorityModalVisible &&
+      serviceTimingValid &&
+      scheduleValid &&
+      service.id &&
+      service.name &&
+      worker.id &&
+      concreteFulfillmentMode &&
+      cleanDescription.length >=
+        MIN_DESCRIPTION_LENGTH &&
+      cleanDescription.length <=
+        MAX_DESCRIPTION_LENGTH &&
+      bookingLocationValid
     );
 
   /* ============================================================
@@ -975,30 +1033,31 @@ export default function BookingScreen() {
   ============================================================ */
 
   const handleBack =
-    useCallback(() => {
-      if (
-        submitting
-      ) {
-        return;
-      }
+    useCallback(
+      () => {
+        if (submitting) {
+          return;
+        }
 
-      if (
-        router.canGoBack()
-      ) {
-        router.back();
+        if (
+          router.canGoBack()
+        ) {
+          router.back();
 
-        return;
-      }
+          return;
+        }
 
-      router.replace(
-        "/(customer)/(tabs)/home",
-      );
-    }, [
-      submitting,
-    ]);
+        router.replace(
+          "/(customer)/(tabs)/home",
+        );
+      },
+      [
+        submitting,
+      ],
+    );
 
   /* ============================================================
-     TIMING
+     TIMING CHANGE
   ============================================================ */
 
   const handleTimingChange =
@@ -1012,51 +1071,64 @@ export default function BookingScreen() {
         );
 
         if (
-          value ===
-          "asap"
+          value === "asap"
         ) {
           setScheduledDate(
             null,
           );
+
+          return;
         }
+
+        /*
+         * If schedule is selected from the review form,
+         * clear priority so the booking cannot contain conflicting
+         * immediate/normal/urgent + scheduled states.
+         */
+        setBookingPriority(
+          null,
+        );
       },
       [],
     );
 
   /* ============================================================
-     RECEIVE CAMERA PHOTO
+     CAMERA PHOTO RESULT
   ============================================================ */
 
   useFocusEffect(
-    useCallback(() => {
-      const capturedPhoto =
-        consumeCapturedPhoto();
+    useCallback(
+      () => {
+        const capturedPhoto =
+          consumeCapturedPhoto();
 
-      if (
-        !capturedPhoto
-      ) {
-        return;
-      }
+        if (
+          !capturedPhoto
+        ) {
+          return;
+        }
 
-      setPhotos(
-        (current) => {
-          if (
-            current.length >=
-              MAX_PHOTOS ||
-            current.includes(
+        setPhotos(
+          current => {
+            if (
+              current.length >=
+                MAX_PHOTOS ||
+              current.includes(
+                capturedPhoto,
+              )
+            ) {
+              return current;
+            }
+
+            return [
+              ...current,
               capturedPhoto,
-            )
-          ) {
-            return current;
-          }
-
-          return [
-            ...current,
-            capturedPhoto,
-          ];
-        },
-      );
-    }, []),
+            ];
+          },
+        );
+      },
+      [],
+    ),
   );
 
   /* ============================================================
@@ -1071,16 +1143,12 @@ export default function BookingScreen() {
         longitude,
       }: {
         address?: string;
-
         latitude: number;
-
         longitude: number;
       }) => {
         if (
-          !Number.isFinite(
+          !isValidCoordinates(
             latitude,
-          ) ||
-          !Number.isFinite(
             longitude,
           )
         ) {
@@ -1092,17 +1160,18 @@ export default function BookingScreen() {
           return;
         }
 
-        const cleanAddress =
-          address?.trim() ||
-          "Selected service location";
-
         setSelectedLocation({
           latitude,
           longitude,
         });
 
         setSelectedAddress(
-          cleanAddress,
+          address?.trim() ||
+          "Selected service location",
+        );
+
+        setLocationSuggestions(
+          [],
         );
       },
       [],
@@ -1133,32 +1202,28 @@ export default function BookingScreen() {
             return;
           }
 
+          const nextSuggestions:
+            LocationSuggestion[] =
+            [];
+
           const limitedResults =
             results.slice(
               0,
               LOCATION_SEARCH_LIMIT,
             );
 
-          const nextSuggestions: LocationSuggestion[] =
-            [];
-
           for (
-            let index =
-              0;
+            let index = 0;
             index <
             limitedResults.length;
             index += 1
           ) {
             const item =
-              limitedResults[
-                index
-              ];
+              limitedResults[index];
 
             if (
-              !Number.isFinite(
+              !isValidCoordinates(
                 item.latitude,
-              ) ||
-              !Number.isFinite(
                 item.longitude,
               )
             ) {
@@ -1170,24 +1235,21 @@ export default function BookingScreen() {
 
             try {
               const addresses =
-                await Location.reverseGeocodeAsync(
-                  {
-                    latitude:
-                      item.latitude,
+                await Location.reverseGeocodeAsync({
+                  latitude:
+                    item.latitude,
 
-                    longitude:
-                      item.longitude,
-                  },
-                );
+                  longitude:
+                    item.longitude,
+                });
 
               const address =
                 addresses[0];
 
-              if (
-                address
-              ) {
+              if (address) {
                 subtitle =
                   [
+                    address.name,
                     address.city,
                     address.region,
                     address.country,
@@ -1196,19 +1258,20 @@ export default function BookingScreen() {
                       (
                         value,
                       ): value is string =>
-                        Boolean(
-                          value,
-                        ),
+                        typeof value ===
+                          "string" &&
+                        value.trim().length >
+                          0,
                     )
-                    .join(
-                      ", ",
-                    );
+                    .join(", ");
               }
             } catch (error) {
-              console.error(
-                "REVERSE_GEOCODE_SUGGESTION_ERROR:",
-                error,
-              );
+              if (__DEV__) {
+                console.warn(
+                  "REVERSE_GEOCODE_SUGGESTION_ERROR",
+                  error,
+                );
+              }
             }
 
             if (
@@ -1255,10 +1318,12 @@ export default function BookingScreen() {
             return;
           }
 
-          console.error(
-            "SEARCH_BOOKING_LOCATION_ERROR:",
-            error,
-          );
+          if (__DEV__) {
+            console.warn(
+              "SEARCH_BOOKING_LOCATION_ERROR",
+              error,
+            );
+          }
 
           setLocationSuggestions(
             [],
@@ -1305,9 +1370,7 @@ export default function BookingScreen() {
         locationSearchRequestId.current +=
           1;
 
-        if (
-          !query
-        ) {
+        if (!query) {
           setLocationSuggestions(
             [],
           );
@@ -1343,119 +1406,145 @@ export default function BookingScreen() {
   ============================================================ */
 
   const handleAddPhoto =
-    useCallback(async () => {
-      if (
-        photos.length >=
-        MAX_PHOTOS
-      ) {
-        Alert.alert(
-          "Photo limit",
-          `You can add up to ${MAX_PHOTOS} photos.`,
-        );
-
-        return;
-      }
-
-      try {
-        const permission =
-          await ImagePicker
-            .requestMediaLibraryPermissionsAsync();
+    useCallback(
+      async () => {
+        if (submitting) {
+          return;
+        }
 
         if (
-          !permission.granted
+          photos.length >=
+          MAX_PHOTOS
         ) {
           Alert.alert(
-            "Permission required",
-            "Please allow photo access to select a photo.",
+            "Photo limit",
+            `You can add up to ${MAX_PHOTOS} photos.`,
           );
 
           return;
         }
 
-        const result =
-          await ImagePicker
-            .launchImageLibraryAsync({
-              mediaTypes: [
-                "images",
-              ],
+        try {
+          const permission =
+            await ImagePicker
+              .requestMediaLibraryPermissionsAsync();
 
-              allowsEditing:
-                true,
+          if (
+            !permission.granted
+          ) {
+            Alert.alert(
+              "Permission required",
+              "Please allow photo access to select a photo.",
+            );
 
-              quality:
-                0.8,
+            return;
+          }
 
-              selectionLimit:
-                1,
-            });
+          const result =
+            await ImagePicker
+              .launchImageLibraryAsync({
+                mediaTypes: [
+                  "images",
+                ],
 
-        if (
-          result.canceled ||
-          !result.assets
-            ?.length
-        ) {
-          return;
-        }
+                allowsEditing:
+                  true,
 
-        const uri =
-          result.assets[0]
-            ?.uri;
+                quality:
+                  0.8,
 
-        if (!uri) {
-          return;
-        }
+                selectionLimit:
+                  1,
+              });
 
-        setPhotos(
-          (current) => {
-            if (
-              current.length >=
-                MAX_PHOTOS ||
-              current.includes(
+          if (
+            result.canceled ||
+            !result.assets?.length
+          ) {
+            return;
+          }
+
+          const uri =
+            result.assets[0]
+              ?.uri
+              ?.trim();
+
+          if (!uri) {
+            return;
+          }
+
+          setPhotos(
+            current => {
+              if (
+                current.length >=
+                  MAX_PHOTOS ||
+                current.includes(
+                  uri,
+                )
+              ) {
+                return current;
+              }
+
+              return [
+                ...current,
                 uri,
-              )
-            ) {
-              return current;
-            }
+              ];
+            },
+          );
+        } catch (error) {
+          if (__DEV__) {
+            console.warn(
+              "ADD_BOOKING_PHOTO_ERROR",
+              error,
+            );
+          }
 
-            return [
-              ...current,
-              uri,
-            ];
-          },
-        );
-      } catch (error) {
-        console.error(
-          "ADD_BOOKING_PHOTO_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Photo error",
-          "Unable to select this photo. Please try again.",
-        );
-      }
-    }, [
-      photos.length,
-    ]);
+          Alert.alert(
+            "Photo error",
+            "Unable to select this photo. Please try again.",
+          );
+        }
+      },
+      [
+        photos.length,
+        submitting,
+      ],
+    );
 
   /* ============================================================
      CAMERA
   ============================================================ */
 
   const handleTakePhoto =
-    useCallback(() => {
-      if (
-        submitting
-      ) {
-        return;
-      }
+    useCallback(
+      () => {
+        if (
+          submitting ||
+          photos.length >=
+            MAX_PHOTOS
+        ) {
+          if (
+            photos.length >=
+            MAX_PHOTOS
+          ) {
+            Alert.alert(
+              "Photo limit",
+              `You can add up to ${MAX_PHOTOS} photos.`,
+            );
+          }
 
-      router.push(
-        "/(customer)/requesting/camera",
-      );
-    }, [
-      submitting,
-    ]);
+          return;
+        }
+
+        router.push(
+          "/(customer)/requesting/camera",
+        );
+      },
+      [
+        photos.length,
+        submitting,
+      ],
+    );
 
   /* ============================================================
      REMOVE PHOTO
@@ -1466,18 +1555,21 @@ export default function BookingScreen() {
       (
         uri: string,
       ) => {
+        if (submitting) {
+          return;
+        }
+
         setPhotos(
-          (current) =>
+          current =>
             current.filter(
-              (
-                photo,
-              ) =>
-                photo !==
-                uri,
+              photo =>
+                photo !== uri,
             ),
         );
       },
-      [],
+      [
+        submitting,
+      ],
     );
 
   /* ============================================================
@@ -1485,229 +1577,361 @@ export default function BookingScreen() {
   ============================================================ */
 
   const handleCloseSignIn =
-    useCallback(() => {
-      setSignInModalVisible(
-        false,
-      );
-    }, []);
+    useCallback(
+      () => {
+        setSignInModalVisible(
+          false,
+        );
+      },
+      [],
+    );
 
   const handleSignIn =
-    useCallback(() => {
-      setSignInModalVisible(
-        false,
-      );
+    useCallback(
+      () => {
+        setSignInModalVisible(
+          false,
+        );
 
-      router.push(
-        "/(auth)/login",
-      );
-    }, []);
+        router.push(
+          "/(auth)/login",
+        );
+      },
+      [],
+    );
 
   /* ============================================================
      SUBMIT
   ============================================================ */
 
   const handleSubmit =
-    useCallback(async () => {
-      if (
-        submitting
-      ) {
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          submitting ||
+          submitInFlightRef.current
+        ) {
+          return;
+        }
 
-      const customerId =
-        auth.currentUser
-          ?.uid;
+        const currentUser =
+          auth.currentUser;
 
-      /* ========================================================
-         AUTH
-      ======================================================== */
+        const customerId =
+          currentUser?.uid
+            ?.trim();
 
-      if (
-        !customerId
-      ) {
-        setSignInModalVisible(
-          true,
-        );
-
-        return;
-      }
-
-      /* ========================================================
-         SERVICE
-      ======================================================== */
-
-      if (
-        !resolvedServiceId ||
-        !resolvedServiceName
-      ) {
-        Alert.alert(
-          "Service unavailable",
-          "The selected service is no longer available. Please choose the service again.",
-        );
-
-        return;
-      }
-
-      /* ========================================================
-         WORKER
-      ======================================================== */
-
-      if (
-        !resolvedWorkerId
-      ) {
-        Alert.alert(
-          "Worker unavailable",
-          "Please go back and select a worker.",
-        );
-
-        return;
-      }
-
-      /* ========================================================
-         DESCRIPTION
-      ======================================================== */
-
-      if (
-        cleanDescription.length <
-        MIN_DESCRIPTION_LENGTH
-      ) {
-        Alert.alert(
-          "Describe your request",
-          "Please tell the worker what you need help with.",
-        );
-
-        return;
-      }
-
-      if (
-        cleanDescription.length >
-        MAX_DESCRIPTION_LENGTH
-      ) {
-        Alert.alert(
-          "Description too long",
-          `Please keep your description within ${MAX_DESCRIPTION_LENGTH} characters.`,
-        );
-
-        return;
-      }
-
-      /* ========================================================
-         LOCATION
-      ======================================================== */
-
-      if (
-        !selectedLocation ||
-        !selectedAddress.trim()
-      ) {
-        Alert.alert(
-          "Location required",
-          "Please select your service location.",
-        );
-
-        return;
-      }
-
-      /* ========================================================
-         SCHEDULE
-      ======================================================== */
-
-      if (
-        timing ===
-          "schedule" &&
-        !scheduledDate
-      ) {
-        Alert.alert(
-          "Schedule required",
-          "Please choose the date and time for your service.",
-        );
-
-        return;
-      }
-
-      if (
-        timing ===
-          "schedule" &&
-        scheduledDate &&
-        scheduledDate.getTime() <=
-          Date.now()
-      ) {
-        Alert.alert(
-          "Invalid schedule",
-          "Please choose a future date and time.",
-        );
-
-        return;
-      }
-
-      setSubmitting(
-        true,
-      );
-
-      try {
         /* ======================================================
-           CUSTOMER
+           AUTH
         ====================================================== */
 
-        const userSnapshot =
-          await getUser(
-            customerId,
+        if (!customerId) {
+          setSignInModalVisible(
+            true,
           );
 
-        const user =
-          userSnapshot.exists()
-            ? userSnapshot.data()
-            : null;
-
-        const customerName =
-          typeof user?.fullName ===
-            "string"
-            ? user.fullName.trim()
-            : "";
-
-        const customerPhotoURL =
-          typeof user?.photoUrl ===
-            "string"
-            ? user.photoUrl.trim()
-            : "";
-
-        /* ======================================================
-           PHOTOS
-        ====================================================== */
-
-        let uploadedPhotos: string[] =
-          [];
-
-        if (
-          photos.length >
-          0
-        ) {
-          uploadedPhotos =
-            await uploadBookingPhotos(
-              photos,
-              customerId,
-            );
+          return;
         }
 
         /* ======================================================
-           DATE / TIME
+           SERVICE
         ====================================================== */
 
+        if (
+          !service.id ||
+          !service.name
+        ) {
+          Alert.alert(
+            "Service unavailable",
+            "The selected service is no longer available. Please choose the service again.",
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           WORKER
+        ====================================================== */
+
+        if (!worker.id) {
+          Alert.alert(
+            "Worker unavailable",
+            "Please go back and select a worker.",
+          );
+
+          return;
+        }
+
+        if (
+          worker.id ===
+          customerId
+        ) {
+          Alert.alert(
+            "Invalid worker",
+            "You cannot send a service request to yourself.",
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           FULFILLMENT
+        ====================================================== */
+
+        if (
+          !concreteFulfillmentMode
+        ) {
+          Alert.alert(
+            service.fulfillmentMode ===
+              "flexible"
+              ? "Choose service method"
+              : "Service setup required",
+
+            service.fulfillmentMode ===
+              "flexible"
+              ? "Please choose whether the provider should come to you or you will visit the provider."
+              : "This service has not been configured for booking yet. Please choose another service or try again later.",
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           PRIORITY / SCHEDULE
+        ====================================================== */
+
+        if (
+          !bookingPriority &&
+          timing !== "schedule"
+        ) {
+          setPriorityModalVisible(
+            true,
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           DESCRIPTION
+        ====================================================== */
+
+        if (
+          cleanDescription.length <
+          MIN_DESCRIPTION_LENGTH
+        ) {
+          Alert.alert(
+            "Describe your request",
+            "Please tell the worker what you need help with.",
+          );
+
+          return;
+        }
+
+        if (
+          cleanDescription.length >
+          MAX_DESCRIPTION_LENGTH
+        ) {
+          Alert.alert(
+            "Description too long",
+            `Please keep your description within ${MAX_DESCRIPTION_LENGTH} characters.`,
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           DESTINATION
+        ====================================================== */
+
+        let bookingAddress =
+          "";
+
+        let bookingLatitude:
+          number | null =
+          null;
+
+        let bookingLongitude:
+          number | null =
+          null;
+
+        if (
+          concreteFulfillmentMode ===
+          "worker_visits_customer"
+        ) {
+          if (
+            !selectedLocation ||
+            !selectedAddress.trim()
+          ) {
+            Alert.alert(
+              "Location required",
+              "Please select where the provider should come.",
+            );
+
+            return;
+          }
+
+          if (
+            !isValidCoordinates(
+              selectedLocation
+                .latitude,
+              selectedLocation
+                .longitude,
+            )
+          ) {
+            Alert.alert(
+              "Invalid location",
+              "Please select a valid service location.",
+            );
+
+            return;
+          }
+
+          bookingAddress =
+            selectedAddress.trim();
+
+          bookingLatitude =
+            selectedLocation.latitude;
+
+          bookingLongitude =
+            selectedLocation.longitude;
+        } else if (
+          concreteFulfillmentMode ===
+          "customer_visits_worker"
+        ) {
+          if (
+            provider.loading
+          ) {
+            Alert.alert(
+              "Provider location loading",
+              "Please wait while we load the provider location.",
+            );
+
+            return;
+          }
+
+          if (
+            !provider.location ||
+            !provider.valid ||
+            !provider.address
+          ) {
+            Alert.alert(
+              "Provider location unavailable",
+              "This provider has not added a complete service location yet. Please choose another provider.",
+            );
+
+            return;
+          }
+
+          bookingAddress =
+            provider.address;
+
+          bookingLatitude =
+            provider.location.latitude;
+
+          bookingLongitude =
+            provider.location.longitude;
+        }
+
+        if (
+          concreteFulfillmentMode !==
+            "remote" &&
+          !isValidCoordinates(
+            bookingLatitude,
+            bookingLongitude,
+          )
+        ) {
+          Alert.alert(
+            "Invalid location",
+            "A valid booking destination is required.",
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           SCHEDULE VALIDATION
+        ====================================================== */
+
+        if (
+          timing === "schedule" &&
+          !scheduledDate
+        ) {
+          Alert.alert(
+            "Schedule required",
+            "Please choose the date and time for your service.",
+          );
+
+          return;
+        }
+
+        if (
+          timing === "schedule" &&
+          scheduledDate &&
+          scheduledDate.getTime() <=
+            Date.now()
+        ) {
+          Alert.alert(
+            "Invalid schedule",
+            "Please choose a future date and time.",
+          );
+
+          return;
+        }
+
+        /* ======================================================
+           RESOLVE TIMING
+
+           These values are intentionally resolved before the
+           Firestore write so impossible combinations cannot be
+           stored.
+
+           Priority booking:
+             bookingPriority = immediate | normal | urgent
+             timing = asap
+             bookingDate = null
+             bookingTime = null
+
+           Scheduled booking:
+             bookingPriority = null
+             timing = schedule
+             bookingDate = ISO timestamp
+             bookingTime = formatted display time
+        ====================================================== */
+
+        const isScheduled =
+          timing === "schedule";
+
+        const resolvedPriority:
+          BookingPriority | null =
+          isScheduled
+            ? null
+            : bookingPriority;
+
+        if (
+          !isScheduled &&
+          !resolvedPriority
+        ) {
+          setPriorityModalVisible(
+            true,
+          );
+
+          return;
+        }
+
         const bookingDate =
-          timing ===
-            "schedule" &&
+          isScheduled &&
           scheduledDate
             ? scheduledDate.toISOString()
             : null;
 
         const bookingTime =
-          timing ===
-            "schedule" &&
+          isScheduled &&
           scheduledDate
             ? scheduledDate.toLocaleTimeString(
                 "en-US",
                 {
                   hour:
-                    "2-digit",
+                    "numeric",
 
                   minute:
                     "2-digit",
@@ -1718,169 +1942,263 @@ export default function BookingScreen() {
               )
             : null;
 
-        /* ======================================================
-           CREATE BOOKING
-        ====================================================== */
+        submitInFlightRef.current =
+          true;
 
-        const bookingId =
-          await createBooking({
-            customerId,
+        setSubmitting(
+          true,
+        );
 
-            customerName,
+        try {
+          /* ====================================================
+             CUSTOMER PROFILE
+          ==================================================== */
 
-            customerPhotoURL,
+          const userSnapshot =
+            await getUser(
+              customerId,
+            );
 
-            workerId:
-              resolvedWorkerId,
+          const user =
+            userSnapshot.exists()
+              ? userSnapshot.data()
+              : null;
 
-            workerName:
-              resolvedWorkerName,
+          const customerName =
+            typeof user?.fullName ===
+              "string"
+              ? user.fullName.trim()
+              : "";
 
-            workerPhoto:
-              finalWorkerPhoto ||
-              null,
+          const customerPhotoURL =
+            typeof user?.photoUrl ===
+              "string"
+              ? user.photoUrl.trim()
+              : "";
 
-            serviceId:
-              resolvedServiceId,
+          if (!customerName) {
+            throw new Error(
+              "Your profile name is missing. Please update your profile and try again.",
+            );
+          }
 
-            serviceName:
-              resolvedServiceName,
+          /* ====================================================
+             CREATE BOOKING
+          ==================================================== */
 
-            serviceIcon:
-              resolvedServiceIcon,
+          const bookingId =
+            await createBooking({
+              customerId,
 
-            serviceColor:
-              resolvedServiceColor,
+              customerName,
 
-            serviceBackgroundColor:
-              resolvedServiceBackgroundColor,
+              customerPhotoURL,
 
-            categoryId:
-              getParamValue(
-                categoryId,
-              ) ||
-              null,
+              workerId:
+                worker.id,
 
-            description:
-              cleanDescription,
+              workerName:
+                worker.name,
 
-            photos:
-              uploadedPhotos,
+              workerPhoto:
+                worker.photoUrl ||
+                null,
 
-            address:
-              selectedAddress.trim(),
+              serviceId:
+                service.id,
 
-            latitude:
-              selectedLocation
-                .latitude,
+              serviceName:
+                service.name,
 
-            longitude:
-              selectedLocation
-                .longitude,
+              serviceIcon:
+                service.icon,
 
-            bookingDate,
+              serviceColor:
+                service.color,
 
-            bookingTime,
+              serviceBackgroundColor:
+                service.backgroundColor,
 
-            amount: 0,
+              categoryId:
+                service.categoryId ||
+                null,
 
-            urgent:
-              timing ===
-              "asap",
+              fulfillmentMode:
+                concreteFulfillmentMode,
 
-            urgentFee:
-              0,
+              description:
+                cleanDescription,
+
+              photos,
+
+              address:
+                bookingAddress,
+
+              latitude:
+                bookingLatitude,
+
+              longitude:
+                bookingLongitude,
+
+              /*
+               * Schedule values exist only for
+               * "Schedule for later".
+               */
+              bookingDate,
+
+              bookingTime,
+
+              /*
+               * Preserve the customer's exact choice.
+               *
+               * immediate
+               * normal
+               * urgent
+               * null when scheduled
+               */
+              bookingPriority:
+                resolvedPriority,
+
+              /*
+               * Existing timing architecture:
+               *
+               * asap     = immediate/normal/urgent
+               * schedule = scheduled date/time
+               */
+              timing:
+                isScheduled
+                  ? "schedule"
+                  : "asap",
+
+              amount:
+                null,
+
+              /*
+               * Keep the legacy urgent field temporarily.
+               * Existing screens/rules may still depend on it.
+               */
+              urgent:
+                resolvedPriority ===
+                "urgent",
+
+              urgentFee:
+                0,
+            });
+
+          if (!bookingId) {
+            throw new Error(
+              "Booking ID was not returned.",
+            );
+          }
+
+          /* ====================================================
+             PENDING SCREEN
+          ==================================================== */
+
+          const rewardValue =
+            getBookingParamValue(
+              reward,
+            );
+
+          router.push({
+            pathname:
+              "/(customer)/requesting/pending",
+
+            params: {
+              bookingId,
+
+              serviceId:
+                service.id,
+
+              serviceName:
+                service.name,
+
+              serviceIcon:
+                service.icon,
+
+              serviceColor:
+                service.color,
+
+              serviceBackgroundColor:
+                service.backgroundColor,
+
+              fulfillmentMode:
+                concreteFulfillmentMode,
+
+              workerId:
+                worker.id,
+
+              workerName:
+                worker.name,
+
+              workerPhoto:
+                worker.photoUrl,
+
+              ...(rewardValue
+                ? {
+                    reward:
+                      rewardValue,
+                  }
+                : {}),
+            },
           });
+        } catch (error) {
+          if (__DEV__) {
+            console.warn(
+              "CREATE_BOOKING_FAILED",
+              {
+                message:
+                  getUserFacingErrorMessage(
+                    error,
+                  ),
 
-        if (
-          !bookingId
-        ) {
-          throw new Error(
-            "Booking ID was not returned.",
+                error,
+              },
+            );
+          }
+
+          Alert.alert(
+            "Request failed",
+            getUserFacingErrorMessage(
+              error,
+            ),
+          );
+        } finally {
+          submitInFlightRef.current =
+            false;
+
+          setSubmitting(
+            false,
           );
         }
-
-        /* ======================================================
-           PENDING
-        ====================================================== */
-
-        router.replace({
-          pathname:
-            "/(customer)/requesting/pending",
-
-          params: {
-            bookingId,
-
-            serviceId:
-              resolvedServiceId,
-
-            serviceName:
-              resolvedServiceName,
-
-            serviceIcon:
-              resolvedServiceIcon,
-
-            serviceColor:
-              resolvedServiceColor,
-
-            serviceBackgroundColor:
-              resolvedServiceBackgroundColor,
-
-            workerId:
-              resolvedWorkerId,
-
-            workerName:
-              resolvedWorkerName,
-
-            workerPhoto:
-              finalWorkerPhoto,
-
-            ...(getParamValue(
-              reward,
-            )
-              ? {
-                  reward:
-                    getParamValue(
-                      reward,
-                    ),
-                }
-              : {}),
-          },
-        });
-      } catch (error) {
-        console.error(
-          "CREATE_BOOKING_ERROR:",
-          error,
-        );
-
-        Alert.alert(
-          "Request failed",
-          "We could not send your request. Please try again.",
-        );
-      } finally {
-        setSubmitting(
-          false,
-        );
-      }
-    }, [
-      categoryId,
-      cleanDescription,
-      finalWorkerPhoto,
-      photos,
-      resolvedServiceBackgroundColor,
-      resolvedServiceColor,
-      resolvedServiceIcon,
-      resolvedServiceId,
-      resolvedServiceName,
-      resolvedWorkerId,
-      resolvedWorkerName,
-      reward,
-      scheduledDate,
-      selectedAddress,
-      selectedLocation,
-      submitting,
-      timing,
-    ]);
+      },
+      [
+        bookingPriority,
+        cleanDescription,
+        concreteFulfillmentMode,
+        photos,
+        provider.address,
+        provider.loading,
+        provider.location,
+        provider.valid,
+        reward,
+        scheduledDate,
+        selectedAddress,
+        selectedLocation,
+        service.backgroundColor,
+        service.categoryId,
+        service.color,
+        service.fulfillmentMode,
+        service.icon,
+        service.id,
+        service.name,
+        submitting,
+        timing,
+        worker.id,
+        worker.name,
+        worker.photoUrl,
+      ],
+    );
 
   /* ============================================================
      UI
@@ -1901,275 +2219,84 @@ export default function BookingScreen() {
           }
           keyboardShouldPersistTaps="handled"
           bottomOffset={
-            FixxamTokens.size
-              .buttonHeight
+            FixxamTokens
+              .size
+              .buttonHeight +
+            FixxamTokens
+              .spacing
+              .lg
           }
           contentContainerStyle={
             styles.content
           }
         >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
+          <RequestServiceReviewCard
+            worker={{
+              name:
+                worker.name,
 
-          <View
-            style={
-              styles.header
+              photoUrl:
+                worker.photoUrl,
+
+              category:
+                worker.category,
+
+              online:
+                worker.online,
+
+              distance:
+                worker.distance,
+            }}
+            service={{
+              name:
+                service.name,
+
+              icon:
+                service.icon,
+
+              color:
+                service.color,
+
+              backgroundColor:
+                service.backgroundColor,
+            }}
+            fulfillmentMode={
+              service.fulfillmentMode
             }
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-              accessibilityState={{
-                disabled:
-                  submitting,
-              }}
-              disabled={
-                submitting
-              }
-              hitSlop={8}
-              onPress={
-                handleBack
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.backButton,
-
-                pressed &&
-                !submitting
-                  ? styles.backButtonPressed
-                  : null,
-
-                submitting
-                  ? styles.controlDisabled
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="back"
-                role="customer"
-                size="sm"
-                state="default"
-              />
-            </Pressable>
-
-            <View
-              style={
-                styles.headerText
-              }
-            >
-              <AppText
-                variant="heading1"
-                weight="bold"
-              >
-                Request Service
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.subtitle
-                }
-              >
-                Review your request
-                and make any changes
-                before sending it.
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              WORKER
-          ================================================== */}
-
-          <SectionTitle
-            number="1"
-            title="Choose a worker"
-          />
-
-          <RequestWorkerCard
-            name={
-              resolvedWorkerName
+            selectedFulfillmentMode={
+              selectedFulfillmentMode
             }
-            photoUrl={
-              finalWorkerPhoto
+            bookingPriority={
+              bookingPriority
             }
-            category={
-              resolvedWorkerCategory
+            onPriorityPress={
+              handleOpenPriority
             }
-            online={
-              isWorkerOnline
+            providerLocation={
+              provider.location
             }
-            distance={
-              parsedDistance
+            providerLocationLoading={
+              provider.loading
             }
-          />
-
-          {/* ==================================================
-              SERVICE
-          ================================================== */}
-
-          <AppCard
-            role="customer"
-            variant="outlined"
-            style={
-              styles.serviceCard
-            }
-          >
-            <View
-              style={[
-                styles.serviceIconBox,
-
-                {
-                  backgroundColor:
-                    resolvedServiceBackgroundColor,
-
-                  borderColor:
-                    resolvedServiceBackgroundColor,
-                },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name={
-                  resolvedServiceIcon as
-                    MaterialIconName
-                }
-                size={
-                  FixxamTokens.size
-                    .iconMd
-                }
-                color={
-                  resolvedServiceColor
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.serviceInfo
-              }
-            >
-              <AppText
-                variant="caption"
-                tone="muted"
-                weight="semibold"
-                style={
-                  styles.serviceLabel
-                }
-              >
-                SERVICE
-              </AppText>
-
-              <AppText
-                variant="bodyLarge"
-                weight="bold"
-                numberOfLines={1}
-              >
-                {resolvedServiceName ||
-                  "Selected service"}
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.serviceCheck
-              }
-            >
-              <AppIcon
-                name="check"
-                role="customer"
-                size="xs"
-                state="inverse"
-                strokeWidth="strong"
-              />
-            </View>
-          </AppCard>
-
-          {/* ==================================================
-              DESCRIPTION
-          ================================================== */}
-
-          <SectionTitle
-            number="2"
-            title="Describe your request"
-          />
-
-          <RequestDescription
-            value={
+            description={
               description
             }
-            onChangeText={
+            onDescriptionChange={
               setDescription
             }
-            disabled={
-              submitting
+            photos={
+              photos
             }
-          />
-
-          {/* ==================================================
-              PHOTOS
-          ================================================== */}
-
-          <View
-            style={
-              styles.photoSection
+            onAddPhoto={
+              handleAddPhoto
             }
-          >
-            <View
-              style={
-                styles.photoHeader
-              }
-            >
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-              >
-                Photos
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="muted"
-                style={
-                  styles.optional
-                }
-              >
-                Optional
-              </AppText>
-            </View>
-
-            <RequestPhotos
-              photos={
-                photos
-              }
-              onAdd={
-                handleAddPhoto
-              }
-              onTakePhoto={
-                handleTakePhoto
-              }
-              onRemove={
-                handleRemovePhoto
-              }
-              disabled={
-                submitting
-              }
-            />
-          </View>
-
-          {/* ==================================================
-              LOCATION
-          ================================================== */}
-
-          <SectionTitle
-            number="3"
-            title="Service location"
-          />
-
-          <RequestLocation
-            selected={
+            onTakePhoto={
+              handleTakePhoto
+            }
+            onRemovePhoto={
+              handleRemovePhoto
+            }
+            locationSelected={
               Boolean(
                 selectedLocation,
               )
@@ -2177,245 +2304,133 @@ export default function BookingScreen() {
             address={
               selectedAddress
             }
-            onPress={() => {}}
-            onLocationSelected={
-              handleLocationSelected
-            }
             currentLocation={
               currentCoordinates
             }
-            suggestions={
+            locationSuggestions={
               locationSuggestions
             }
-            suggestionsLoading={
+            locationSuggestionsLoading={
               locationSearchLoading
+            }
+            onLocationSelected={
+              handleLocationSelected
             }
             onSearchLocation={
               handleSearchLocationInput
             }
-          />
-
-          {/* ==================================================
-              TIMING
-          ================================================== */}
-
-          <View
-            style={
-              styles.timingSection
+            timing={
+              timing
             }
-          >
-            <SectionTitle
-              number="4"
-              title="When do you need it?"
-            />
-
-            <RequestTiming
-              value={
-                timing
-              }
-              onChange={
-                handleTimingChange
-              }
-              disabled={
-                submitting
-              }
-              scheduledDate={
-                scheduledDate
-              }
-              onScheduledDateChange={
-                setScheduledDate
-              }
-            />
-          </View>
-
-          {/* ==================================================
-              SUBMIT
-          ================================================== */}
-
-          <AppButton
-            title={
-              submitting
-                ? "Sending Request..."
-                : "Request Service"
+            scheduledDate={
+              scheduledDate
             }
-            role="customer"
-            loading={
+            onTimingChange={
+              handleTimingChange
+            }
+            onScheduledDateChange={
+              setScheduledDate
+            }
+            submitting={
               submitting
+            }
+            canSubmit={
+              canSubmit
+            }
+            onCancel={
+              handleBack
+            }
+            onSubmit={
+              handleSubmit
             }
             disabled={
               submitting ||
-              !canSubmit
-            }
-            rightIconName={
-              submitting
-                ? undefined
-                : "next"
-            }
-            onPress={
-              handleSubmit
-            }
-            style={
-              styles.submitButton
+              methodModalVisible ||
+              priorityModalVisible
             }
           />
-
-          {/* ==================================================
-              FOOTER
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            tone="muted"
-            center
-            style={
-              styles.footer
-            }
-          >
-            Your request will be sent
-            directly to{" "}
-            {resolvedWorkerName}.
-          </AppText>
         </KeyboardAwareScrollView>
       </AppScreen>
 
       {/* ========================================================
-          SIGN-IN MODAL
+          SERVICE METHOD
       ======================================================== */}
 
-      <Modal
+      <BookingMethodStep
+        visible={
+          methodModalVisible
+        }
+        workerName={
+          worker.name
+        }
+        fulfillmentMode={
+          service.fulfillmentMode
+        }
+        selectedFulfillmentMode={
+          selectedFulfillmentMode
+        }
+        onFulfillmentModeChange={
+          handleFulfillmentModeChange
+        }
+        onContinue={
+          handleContinueFromMethod
+        }
+        onGoBack={
+          handleBack
+        }
+        disabled={
+          submitting
+        }
+      />
+
+      {/* ========================================================
+          PRIORITY / SCHEDULE
+      ======================================================== */}
+
+      <BookingPriorityStep
+        visible={
+          priorityModalVisible
+        }
+        value={
+          bookingPriority
+        }
+        scheduleSelected={
+          timing ===
+          "schedule"
+        }
+        onChange={
+          handlePriorityChange
+        }
+        onScheduleSelect={
+          handleScheduleSelect
+        }
+        onContinue={
+          handleContinueFromPriority
+        }
+        onGoBack={
+          handleBackFromPriority
+        }
+        disabled={
+          submitting
+        }
+      />
+
+      {/* ========================================================
+          SIGN IN
+      ======================================================== */}
+
+      <RequestServiceSignInModal
         visible={
           signInModalVisible
         }
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={
+        onClose={
           handleCloseSignIn
         }
-      >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
-          <AppCard
-            role="customer"
-            variant="elevated"
-            style={
-              styles.modalCard
-            }
-          >
-            <View
-              style={
-                styles.modalIcon
-              }
-            >
-              <AppIcon
-                name="profile"
-                role="customer"
-                size="lg"
-                state="active"
-              />
-            </View>
-
-            <AppText
-              variant="heading2"
-              weight="bold"
-            >
-              Sign in required
-            </AppText>
-
-            <AppText
-              variant="body"
-              tone="secondary"
-              style={
-                styles.modalMessage
-              }
-            >
-              Please sign in before
-              sending your service
-              request.
-            </AppText>
-
-            <View
-              style={
-                styles.modalActions
-              }
-            >
-              <AppButton
-                title="Cancel"
-                role="customer"
-                variant="ghost"
-                onPress={
-                  handleCloseSignIn
-                }
-                style={
-                  styles.modalAction
-                }
-              />
-
-              <AppButton
-                title="Sign In"
-                role="customer"
-                onPress={
-                  handleSignIn
-                }
-                style={
-                  styles.modalAction
-                }
-              />
-            </View>
-          </AppCard>
-        </View>
-      </Modal>
+        onSignIn={
+          handleSignIn
+        }
+      />
     </>
-  );
-}
-
-/* ==============================================================
-   SECTION TITLE
-============================================================== */
-
-function SectionTitle({
-  number,
-  title,
-}: {
-  number: string;
-
-  title: string;
-}) {
-  return (
-    <View
-      style={
-        styles.sectionTitle
-      }
-    >
-      <View
-        style={
-          styles.sectionNumber
-        }
-      >
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={
-            styles.sectionNumberText
-          }
-        >
-          {number}
-        </AppText>
-      </View>
-
-      <AppText
-        variant="bodyMedium"
-        weight="bold"
-        style={
-          styles.sectionText
-        }
-      >
-        {title}
-      </AppText>
-    </View>
   );
 }
 
@@ -2426,367 +2441,30 @@ function SectionTitle({
 const styles =
   StyleSheet.create({
     screen: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
-        Colors.background,
+        "#F8FAFC",
     },
 
     content: {
+      flexGrow:
+        1,
+
+      width:
+        "100%",
+
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        20,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        18,
 
       paddingBottom:
-        FixxamTokens.spacing.xxxl,
-    },
-
-    /* ========================================================
-       HEADER
-    ======================================================== */
-
-    header: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      paddingBottom:
-        FixxamTokens.spacing.xl,
-    },
-
-    backButton: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        40,
 
       backgroundColor:
-        Colors.surface,
-    },
-
-    backButtonPressed: {
-      borderColor:
-        CustomerColors.primaryLight,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    controlDisabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    headerText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    subtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       SECTION
-    ======================================================== */
-
-    sectionTitle: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-    },
-
-    sectionNumber: {
-      width: 28,
-
-      height: 28,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    sectionNumberText: {
-      color:
-        CustomerColors.primary,
-    },
-
-    sectionText: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    /* ========================================================
-       SERVICE
-    ======================================================== */
-
-    serviceCard: {
-      minHeight:
-        FixxamTokens.size
-          .roleCardHeight,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.xl,
-
-      padding:
-        FixxamTokens.spacing.md,
-    },
-
-    serviceIconBox: {
-      width:
-        FixxamTokens.size.iconBox,
-
-      height:
-        FixxamTokens.size.iconBox,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-    },
-
-    serviceInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-    },
-
-    serviceLabel: {
-      marginBottom:
-        FixxamTokens.spacing.xxs,
-
-      letterSpacing: 1,
-    },
-
-    serviceCheck: {
-      width: 30,
-
-      height: 30,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
-    /* ========================================================
-       PHOTOS
-    ======================================================== */
-
-    photoSection: {
-      marginTop:
-        FixxamTokens.spacing.xl,
-
-      marginBottom:
-        FixxamTokens.spacing.xl,
-    },
-
-    photoHeader: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-    },
-
-    optional: {
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       TIMING
-    ======================================================== */
-
-    timingSection: {
-      marginTop:
-        FixxamTokens.spacing.xl,
-    },
-
-    /* ========================================================
-       SUBMIT
-    ======================================================== */
-
-    submitButton: {
-      width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.xxl,
-    },
-
-    footer: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xxl,
-    },
-
-    /* ========================================================
-       SIGN-IN MODAL
-    ======================================================== */
-
-    modalOverlay: {
-      flex: 1,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xxl,
-
-      backgroundColor:
-        Colors.overlayStrong,
-    },
-
-    modalCard: {
-      width: "100%",
-
-      maxWidth: 390,
-
-      padding:
-        FixxamTokens.spacing.xxl,
-    },
-
-    modalIcon: {
-      width:
-        FixxamTokens.size.fabLarge,
-
-      height:
-        FixxamTokens.size.fabLarge,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    modalMessage: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    modalActions: {
-      flexDirection:
-        "row",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      marginTop:
-        FixxamTokens.spacing.xl,
-    },
-
-    modalAction: {
-      flex: 1,
+        "#F8FAFC",
     },
   });

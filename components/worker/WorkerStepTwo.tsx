@@ -1,53 +1,40 @@
-import React from "react";
+import React, { memo } from "react";
 
 import WorkerContactInfo from "@/components/worker/WorkerContactInfo";
 
 type Props = {
   email: string;
   emailOtp: string;
-  phone: string;
-  otp: string;
-
   emailVerified: boolean;
-  phoneVerified: boolean;
-
   setEmail: (value: string) => void;
   setEmailOtp: (value: string) => void;
-  setPhone: (value: string) => void;
-  setOtp: (value: string) => void;
-
   setEmailVerified: (value: boolean) => void;
-  setPhoneVerified: (value: boolean) => void;
+  onOtpSent?: () => void;
+  onExistingAccount?: (email: string) => void;
 };
 
-export default function WorkerStepTwo({
+function WorkerStepTwo({
   email,
   emailOtp,
-  phone,
-  otp,
   emailVerified,
-  phoneVerified,
   setEmail,
   setEmailOtp,
-  setPhone,
-  setOtp,
   setEmailVerified,
-  setPhoneVerified,
+  onOtpSent,
+  onExistingAccount,
 }: Props) {
   return (
     <WorkerContactInfo
       email={email}
       emailOtp={emailOtp}
-      phone={phone}
-      otp={otp}
       emailVerified={emailVerified}
-      phoneVerified={phoneVerified}
       setEmail={setEmail}
       setEmailOtp={setEmailOtp}
-      setPhone={setPhone}
-      setOtp={setOtp}
       setEmailVerified={setEmailVerified}
-      setPhoneVerified={setPhoneVerified}
+      onOtpSent={onOtpSent}
+      onExistingAccount={onExistingAccount}
     />
   );
 }
+
+export default memo(WorkerStepTwo);

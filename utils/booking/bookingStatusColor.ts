@@ -14,8 +14,14 @@ export default function bookingStatusColor(
     case "accepted":
       return "#3B82F6";
 
+    case "awaiting_start_confirmation":
+      return "#F59E0B";
+
     case "in-progress":
       return "#2563EB";
+
+    case "awaiting_completion_confirmation":
+      return "#F59E0B";
 
     case "completed":
       return "#22C55E";

@@ -5,50 +5,67 @@ export function useWorkerFormState() {
   const [surname, setSurname] = useState("");
   const [otherName, setOtherName] = useState("");
 
+  /* ============================================================
+     EMAIL
+  ============================================================ */
+
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
 
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
+  /* ============================================================
+     PASSWORD
+  ============================================================ */
 
-  const [emailVerified, setEmailVerified] =
-    useState(false);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [phoneVerified, setPhoneVerified] =
-    useState(false);
+  /* ============================================================
+     ACCOUNT
+  ============================================================ */
 
-  const [password, setPassword] =
-    useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
+  /* ============================================================
+     PROFILE
+  ============================================================ */
 
-  const [acceptedTerms, setAcceptedTerms] =
-    useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
 
-  const [photo, setPhoto] =
-    useState<string | null>(null);
+  const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [experience, setExperience] = useState("");
 
-  const [category, setCategory] =
-    useState("");
+  /* ============================================================
+     SERVICE AREA
+     State + LGA remain part of the professional profile step.
+  ============================================================ */
 
-  const [subcategory, setSubcategory] =
-    useState("");
+  const [state, setState] = useState("");
+  const [lga, setLga] = useState("");
 
-  const [selectedServices, setSelectedServices] =
-    useState<string[]>([]);
+  /* ============================================================
+     SERVICE INFORMATION
+  ============================================================ */
 
-  const [experience, setExperience] =
-    useState("");
+  const [serviceAddress, setServiceAddress] = useState("");
 
-  const [state, setState] =
-    useState("");
+  const [latitude, setLatitude] =
+    useState<number | null>(null);
 
-  const [lga, setLga] =
-    useState("");
+  const [longitude, setLongitude] =
+    useState<number | null>(null);
 
-  const [about, setAbout] =
-    useState("");
+  const [hourlyRate, setHourlyRate] = useState("");
+
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  /* ============================================================
+     ABOUT
+  ============================================================ */
+
+  const [about, setAbout] = useState("");
 
   /* ============================================================
      WORK GALLERY
@@ -57,10 +74,17 @@ export function useWorkerFormState() {
   const [workGallery, setWorkGallery] =
     useState<string[]>([]);
 
-  const [loading, setLoading] =
-    useState(false);
+  /* ============================================================
+     LOADING
+  ============================================================ */
+
+  const [loading, setLoading] = useState(false);
 
   return {
+    /* ----------------------------------------------------------
+       PERSONAL INFORMATION
+    ---------------------------------------------------------- */
+
     firstName,
     setFirstName,
 
@@ -70,23 +94,22 @@ export function useWorkerFormState() {
     otherName,
     setOtherName,
 
+    /* ----------------------------------------------------------
+       EMAIL
+    ---------------------------------------------------------- */
+
     email,
     setEmail,
 
     emailOtp,
     setEmailOtp,
 
-    phone,
-    setPhone,
-
-    otp,
-    setOtp,
-
     emailVerified,
     setEmailVerified,
 
-    phoneVerified,
-    setPhoneVerified,
+    /* ----------------------------------------------------------
+       PASSWORD
+    ---------------------------------------------------------- */
 
     password,
     setPassword,
@@ -94,8 +117,16 @@ export function useWorkerFormState() {
     confirmPassword,
     setConfirmPassword,
 
+    /* ----------------------------------------------------------
+       ACCOUNT
+    ---------------------------------------------------------- */
+
     acceptedTerms,
     setAcceptedTerms,
+
+    /* ----------------------------------------------------------
+       WORKER PROFILE
+    ---------------------------------------------------------- */
 
     photo,
     setPhoto,
@@ -112,17 +143,52 @@ export function useWorkerFormState() {
     experience,
     setExperience,
 
+    /* ----------------------------------------------------------
+       SERVICE AREA
+    ---------------------------------------------------------- */
+
     state,
     setState,
 
     lga,
     setLga,
 
+    /* ----------------------------------------------------------
+       SERVICE INFORMATION
+    ---------------------------------------------------------- */
+
+    serviceAddress,
+    setServiceAddress,
+
+    latitude,
+    setLatitude,
+
+    longitude,
+    setLongitude,
+
+    hourlyRate,
+    setHourlyRate,
+
+    phoneNumber,
+    setPhoneNumber,
+
+    /* ----------------------------------------------------------
+       ABOUT
+    ---------------------------------------------------------- */
+
     about,
     setAbout,
 
+    /* ----------------------------------------------------------
+       WORK GALLERY
+    ---------------------------------------------------------- */
+
     workGallery,
     setWorkGallery,
+
+    /* ----------------------------------------------------------
+       LOADING
+    ---------------------------------------------------------- */
 
     loading,
     setLoading,

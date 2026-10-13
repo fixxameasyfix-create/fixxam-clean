@@ -24,6 +24,10 @@ import type {
 } from "@/hooks/services/useServices";
 
 import {
+  isServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
+import {
   Colors,
   CustomerColors,
   FixxamTokens,
@@ -35,11 +39,6 @@ import {
 
 type IconName =
   keyof typeof MaterialCommunityIcons.glyphMap;
-
-type ServiceWithCategory =
-  ServiceItem & {
-    categoryId?: string;
-  };
 
 type Props = {
   services:
@@ -237,7 +236,9 @@ const ServiceCard =
                     iconName
                   }
                   size={
-                    FixxamTokens.size.iconLg
+                    FixxamTokens
+                      .size
+                      .iconLg
                   }
                   color={
                     iconColor
@@ -257,7 +258,9 @@ const ServiceCard =
                 <MaterialCommunityIcons
                   name="arrow-top-right"
                   size={
-                    FixxamTokens.size.iconSm
+                    FixxamTokens
+                      .size
+                      .iconSm
                   }
                   color={
                     CustomerColors.primary
@@ -337,7 +340,9 @@ function ServicesGrid({
             service.id,
           );
 
-        if (!serviceId) {
+        if (
+          !serviceId
+        ) {
           console.error(
             "FIXXAM_SERVICES_GRID_MISSING_SERVICE_ID",
           );
@@ -354,7 +359,9 @@ function ServicesGrid({
             service.name,
           );
 
-        if (!serviceName) {
+        if (
+          !serviceName
+        ) {
           console.error(
             "FIXXAM_SERVICES_GRID_MISSING_SERVICE_NAME",
             {
@@ -396,13 +403,30 @@ function ServicesGrid({
            CATEGORY
         ====================================================== */
 
-        const serviceWithCategory =
-          service as ServiceWithCategory;
-
         const categoryId =
           getSafeString(
-            serviceWithCategory.categoryId,
+            service.categoryId,
           );
+
+        /* ======================================================
+           FULFILLMENT MODE
+
+           ServiceItem comes from the authoritative top-level
+           services collection.
+
+           Validate again before crossing the route boundary.
+        ====================================================== */
+
+        const fulfillmentMode =
+          isServiceFulfillmentMode(
+            service.fulfillmentMode,
+          )
+            ? service.fulfillmentMode
+            : "needs_review";
+
+        /* ======================================================
+           DEVELOPMENT LOG
+        ====================================================== */
 
         if (__DEV__) {
           console.log(
@@ -414,14 +438,13 @@ function ServicesGrid({
               serviceColor,
               serviceBackgroundColor,
               categoryId,
+              fulfillmentMode,
             },
           );
         }
 
         /* ======================================================
            NAVIGATION
-
-           Existing route preserved.
         ====================================================== */
 
         router.push({
@@ -467,6 +490,11 @@ function ServicesGrid({
              * Exact service background.
              */
             serviceBackgroundColor,
+
+            /*
+             * Authoritative fulfillment mode.
+             */
+            fulfillmentMode,
 
             /*
              * Optional category ID.
@@ -573,13 +601,15 @@ const styles =
 
     itemPressed: {
       opacity:
-        FixxamTokens.motion
+        FixxamTokens
+          .motion
           .pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
+            FixxamTokens
+              .motion
               .scalePressed,
         },
       ],

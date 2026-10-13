@@ -12,7 +12,7 @@ type Props = {
 
   onSaved?: () => void;
 
-  onAddresses?: () => void;
+  onLocation?: () => void;
 
   onPayments?: () => void;
 
@@ -32,7 +32,7 @@ type Props = {
 export default function CustomerMenu({
   onOrders,
   onSaved,
-  onAddresses,
+  onLocation,
   onPayments,
   onNotifications,
   onReviews,
@@ -54,10 +54,11 @@ export default function CustomerMenu({
       />
 
       <ProfileMenuItem
-        title="Addresses"
-        icon="location-outline"
-        onPress={onAddresses}
-      />
+  title="Location"
+  subtitle="Use your current location"
+  icon="location-outline"
+  onPress={onLocation}
+/>
 
       <ProfileMenuItem
         title="Payment Methods"

@@ -90,29 +90,42 @@ function MarketOrderPayment({
       normalizedStatus,
     );
 
+  const accessibilityLabel =
+    useMemo(
+      () =>
+        `Payment method ${methodLabel}. Payment status ${statusConfig.label}.`,
+      [
+        methodLabel,
+        statusConfig.label,
+      ],
+    );
+
   return (
     <View
+      accessible
+      accessibilityLabel={
+        accessibilityLabel
+      }
       style={
         styles.card
       }
-      accessibilityLabel={`Payment method ${methodLabel}. Payment status ${statusConfig.label}.`}
     >
       {/* ======================================================
           TITLE
       ====================================================== */}
 
       <AppText
-        variant="body"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
         style={
           styles.title
         }
       >
-        Payment Information
+        Payment
       </AppText>
 
       {/* ======================================================
-          DETAILS
+          PAYMENT ROW
       ====================================================== */}
 
       <View
@@ -120,123 +133,78 @@ function MarketOrderPayment({
           styles.row
         }
       >
-        {/* ====================================================
-            PAYMENT METHOD
-        ==================================================== */}
-
         <View
           style={
-            styles.column
+            styles.methodIconBox
           }
         >
-          <AppText
-            variant="caption"
-            style={
-              styles.label
+          <AppIcon
+            name={
+              methodIcon
             }
-          >
-            Payment Method
-          </AppText>
-
-          <View
-            style={
-              styles.valueRow
-            }
-          >
-            <View
-              style={
-                styles.methodIconBox
-              }
-            >
-              <AppIcon
-                name={
-                  methodIcon
-                }
-                role="customer"
-                size="sm"
-                color={
-                  CustomerColors.primary
-                }
-              />
-            </View>
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              numberOfLines={2}
-              style={
-                styles.value
-              }
-            >
-              {methodLabel}
-            </AppText>
-          </View>
+            role="customer"
+            size="sm"
+            state="active"
+          />
         </View>
 
-        {/* ====================================================
-            DIVIDER
-        ==================================================== */}
-
         <View
           style={
-            styles.divider
-          }
-        />
-
-        {/* ====================================================
-            PAYMENT STATUS
-        ==================================================== */}
-
-        <View
-          style={
-            styles.column
+            styles.methodContent
           }
         >
           <AppText
             variant="caption"
-            style={
-              styles.label
-            }
+            tone="muted"
           >
-            Payment Status
+            Payment method
           </AppText>
 
+          <AppText
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={2}
+            ellipsizeMode="tail"
+            style={
+              styles.methodValue
+            }
+          >
+            {methodLabel}
+          </AppText>
+        </View>
+
+        <View
+          style={[
+            styles.statusBadge,
+
+            {
+              backgroundColor:
+                statusConfig.background,
+            },
+          ]}
+        >
           <View
             style={[
-              styles.statusBadge,
+              styles.statusDot,
 
               {
                 backgroundColor:
-                  statusConfig.background,
+                  statusConfig.color,
               },
             ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            numberOfLines={1}
+            style={{
+              color:
+                statusConfig.color,
+            }}
           >
-            <View
-              style={[
-                styles.statusDot,
-
-                {
-                  backgroundColor:
-                    statusConfig.color,
-                },
-              ]}
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={[
-                styles.statusText,
-
-                {
-                  color:
-                    statusConfig.color,
-                },
-              ]}
-            >
-              {statusConfig.label}
-            </AppText>
-          </View>
+            {statusConfig.label}
+          </AppText>
         </View>
       </View>
     </View>
@@ -268,7 +236,7 @@ function getPaymentStatusConfig(
     case "paid":
       return {
         label:
-          "PAID",
+          "Paid",
 
         color:
           Colors.success,
@@ -280,7 +248,7 @@ function getPaymentStatusConfig(
     case "failed":
       return {
         label:
-          "FAILED",
+          "Failed",
 
         color:
           Colors.error,
@@ -292,7 +260,7 @@ function getPaymentStatusConfig(
     case "refunded":
       return {
         label:
-          "REFUNDED",
+          "Refunded",
 
         color:
           Colors.info,
@@ -302,10 +270,9 @@ function getPaymentStatusConfig(
       };
 
     case "pending":
-    default:
       return {
         label:
-          "PENDING",
+          "Pending",
 
         color:
           Colors.warning,
@@ -327,24 +294,26 @@ const styles =
     ======================================================== */
 
     card: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -357,48 +326,13 @@ const styles =
     },
 
     /* ========================================================
-       CONTENT
+       PAYMENT ROW
     ======================================================== */
 
     row: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      minHeight:
+        56,
 
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    column: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    divider: {
-      width: 1,
-
-      height: 48,
-
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-
-      backgroundColor:
-        Colors.divider,
-    },
-
-    label: {
-      color:
-        Colors.textMuted,
-    },
-
-    /* ========================================================
-       PAYMENT METHOD
-    ======================================================== */
-
-    valueRow: {
       marginTop:
         FixxamTokens.spacing.sm,
 
@@ -407,19 +341,17 @@ const styles =
 
       alignItems:
         "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
     },
 
     methodIconBox: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -434,8 +366,20 @@ const styles =
         CustomerColors.primarySoft,
     },
 
-    value: {
-      flex: 1,
+    methodContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+    },
+
+    methodValue: {
+      marginTop:
+        2,
 
       color:
         Colors.textPrimary,
@@ -446,19 +390,14 @@ const styles =
     ======================================================== */
 
     statusBadge: {
-      alignSelf:
-        "flex-start",
+      minHeight:
+        28,
 
-      minHeight: 28,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
+      flexShrink:
+        0,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -466,24 +405,24 @@ const styles =
       alignItems:
         "center",
 
-      gap:
-        FixxamTokens.spacing.xs,
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.chip,
     },
 
     statusDot: {
-      width: 6,
+      width:
+        6,
 
-      height: 6,
+      height:
+        6,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
 
       borderRadius:
         FixxamTokens.radius.full,
-    },
-
-    statusText: {
-      letterSpacing:
-        0.2,
     },
   });

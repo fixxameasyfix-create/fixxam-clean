@@ -9,6 +9,7 @@ import React, {
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
@@ -22,13 +23,14 @@ import {
   Image,
 } from "expo-image";
 
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 import {
+  AppButton,
   AppIcon,
   AppScreen,
   AppText,
 } from "@/components/ui";
-
-import CategoryCard from "@/components/categories/CategoryCard";
 
 import {
   Colors,
@@ -43,6 +45,11 @@ import {
 import {
   getPublicWorker,
 } from "@/firebase/queries/workerPublicProfiles";
+
+import {
+  isBookingFulfillmentMode,
+  type BookingFulfillmentMode,
+} from "@/types/bookingFulfillment";
 
 /* ============================================================
    TYPES
@@ -85,6 +92,10 @@ type PendingParams = {
     | string
     | string[];
 
+  fulfillmentMode?:
+    | string
+    | string[];
+
   workerId?:
     | string
     | string[];
@@ -97,6 +108,11 @@ type PendingParams = {
     | string
     | string[];
 };
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
 
 /* ============================================================
    CONSTANTS
@@ -122,7 +138,9 @@ function getParamValue(
     | undefined,
 ): string {
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value,
+    )
   ) {
     return (
       value[0] ??
@@ -140,7 +158,8 @@ function normalizeWorkerPhotoUrl(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -148,15 +167,8 @@ function normalizeWorkerPhotoUrl(
   const url =
     value.trim();
 
-  if (!url) {
-    return "";
-  }
-
-  /*
-   * Only secure remote URLs are rendered
-   * directly on this confirmation screen.
-   */
   if (
+    !url ||
     !url.startsWith(
       "https://",
     )
@@ -176,7 +188,7 @@ export default function PendingScreen() {
     useLocalSearchParams<PendingParams>();
 
   /* ==========================================================
-     RESOLVED BOOKING
+     BOOKING
   ========================================================== */
 
   const resolvedBookingId =
@@ -189,6 +201,28 @@ export default function PendingScreen() {
         params.bookingId,
       ],
     );
+
+  const resolvedFulfillmentMode =
+    useMemo<
+      BookingFulfillmentMode | null
+    >(() => {
+      const value =
+        getParamValue(
+          params.fulfillmentMode,
+        );
+
+      return isBookingFulfillmentMode(
+        value,
+      )
+        ? value
+        : null;
+    }, [
+      params.fulfillmentMode,
+    ]);
+
+  const isRemoteBooking =
+    resolvedFulfillmentMode ===
+    "remote";
 
   /* ==========================================================
      WORKER
@@ -298,7 +332,9 @@ export default function PendingScreen() {
             resolvedWorkerId,
           );
 
-        if (cancelled) {
+        if (
+          cancelled
+        ) {
           return;
         }
 
@@ -350,10 +386,6 @@ export default function PendingScreen() {
             );
         }
 
-        /*
-         * Backward compatibility for
-         * older worker documents.
-         */
         const rootPhoto =
           normalizeWorkerPhotoUrl(
             data?.photoUrl,
@@ -390,10 +422,6 @@ export default function PendingScreen() {
         if (
           !cancelled
         ) {
-          /*
-           * Firestore refresh failure should
-           * not discard a valid route image.
-           */
           setFirebaseWorkerPhoto(
             routeWorkerPhoto,
           );
@@ -582,10 +610,6 @@ export default function PendingScreen() {
         return;
       }
 
-      /*
-       * BookingScreen may already provide
-       * the full dynamic service presentation.
-       */
       if (
         getParamValue(
           params.serviceIcon,
@@ -824,15 +848,6 @@ export default function PendingScreen() {
       resolvedWorkerId,
     ]);
 
-  const handleServicePress =
-    useCallback(() => {
-      /*
-       * Service is already selected.
-       * Existing behavior intentionally
-       * performs no navigation.
-       */
-    }, []);
-
   /* ==========================================================
      UI
   ========================================================== */
@@ -840,603 +855,530 @@ export default function PendingScreen() {
   return (
     <AppScreen
       role="customer"
-      contentContainerStyle={
-        styles.container
-      }
+      padded={false}
     >
-      {/* ======================================================
-          SUCCESS
-      ====================================================== */}
-
       <View
         style={
-          styles.successIcon
+          styles.overlay
         }
       >
-        <AppIcon
-          name="success"
-          size="lg"
-          color={
-            Colors.success
+        <View
+          style={
+            styles.modalCard
           }
-        />
-      </View>
-
-      <AppText
-        variant="heading2"
-        weight="bold"
-        center
-        style={
-          styles.title
-        }
-      >
-        Request Sent Successfully
-      </AppText>
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        center
-        style={
-          styles.description
-        }
-      >
-        Your request has been sent successfully.
-      </AppText>
-
-      {/* ======================================================
-          1 — WORKER
-      ====================================================== */}
-
-      <SectionTitle
-        number="1"
-        title="Request sent to worker"
-      />
-
-      {resolvedWorkerId ? (
-        <Pressable
-          onPress={
-            handleWorkerProfile
-          }
-          accessibilityRole="button"
-          accessibilityLabel="View selected worker"
-          style={({
-            pressed,
-          }) => [
-            styles.workerCard,
-
-            pressed
-              ? styles.cardPressed
-              : null,
-          ]}
         >
-          <View
-            style={
-              styles.avatarContainer
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            bounces={false}
+            overScrollMode="never"
+            contentContainerStyle={
+              styles.modalContent
             }
           >
-            {shouldShowWorkerImage ? (
-              <Image
-                source={{
-                  uri:
-                    resolvedWorkerPhoto,
-                }}
-                contentFit="cover"
-                cachePolicy="disk"
-                transition={180}
-                onLoadStart={() => {
-                  setWorkerPhotoLoading(
-                    true,
-                  );
-                }}
-                onLoad={
-                  handleWorkerImageLoaded
-                }
-                onError={
-                  handleWorkerImageError
-                }
-                accessibilityLabel={`${resolvedWorkerName} profile photo`}
-                style={
-                  styles.avatar
-                }
-              />
-            ) : (
+            {/* ==============================================
+                HEADER
+            ============================================== */}
+
+            <View
+              style={
+                styles.header
+              }
+            >
               <View
                 style={
-                  styles.avatarPlaceholder
+                  styles.successIcon
                 }
               >
                 <AppIcon
-                  name="profile"
-                  size="md"
+                  name="success"
+                  size="lg"
+                  color={
+                    Colors.success
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.headerContent
+                }
+              >
+                <AppText
+                  variant="heading2"
+                  weight="bold"
+                >
+                  Request Sent
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.headerSubtitle
+                  }
+                >
+                  Your service request was sent successfully.
+                </AppText>
+              </View>
+            </View>
+
+            {/* ==============================================
+                WORKER
+            ============================================== */}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View selected worker"
+              accessibilityHint={
+                resolvedWorkerId
+                  ? "Opens the worker profile"
+                  : undefined
+              }
+              accessibilityState={{
+                disabled:
+                  !resolvedWorkerId,
+              }}
+              disabled={
+                !resolvedWorkerId
+              }
+              onPress={
+                handleWorkerProfile
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.workerRow,
+
+                pressed &&
+                resolvedWorkerId
+                  ? styles.rowPressed
+                  : null,
+              ]}
+            >
+              <View
+                style={
+                  styles.avatarContainer
+                }
+              >
+                {shouldShowWorkerImage ? (
+                  <Image
+                    source={{
+                      uri:
+                        resolvedWorkerPhoto,
+                    }}
+                    contentFit="cover"
+                    cachePolicy="disk"
+                    transition={180}
+                    onLoadStart={() => {
+                      setWorkerPhotoLoading(
+                        true,
+                      );
+                    }}
+                    onLoad={
+                      handleWorkerImageLoaded
+                    }
+                    onError={
+                      handleWorkerImageError
+                    }
+                    accessibilityLabel={`${resolvedWorkerName} profile photo`}
+                    style={
+                      styles.avatar
+                    }
+                  />
+                ) : (
+                  <View
+                    style={
+                      styles.avatarPlaceholder
+                    }
+                  >
+                    <AppIcon
+                      name="profile"
+                      size="sm"
+                      color={
+                        Colors.textMuted
+                      }
+                    />
+                  </View>
+                )}
+
+                {workerPhotoLoading &&
+                shouldShowWorkerImage ? (
+                  <View
+                    pointerEvents="none"
+                    style={
+                      styles.imageLoadingOverlay
+                    }
+                  >
+                    <ActivityIndicator
+                      size="small"
+                      color={
+                        CustomerColors.primary
+                      }
+                    />
+                  </View>
+                ) : null}
+              </View>
+
+              <View
+                style={
+                  styles.rowContent
+                }
+              >
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                >
+                  Worker
+                </AppText>
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={
+                    styles.rowValue
+                  }
+                >
+                  {resolvedWorkerName}
+                </AppText>
+
+                {resolvedWorkerId ? (
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={
+                      styles.rowHint
+                    }
+                  >
+                    Tap to view profile
+                  </AppText>
+                ) : null}
+              </View>
+
+              {resolvedWorkerId ? (
+                <AppIcon
+                  name="next"
+                  size="sm"
                   color={
                     Colors.textMuted
                   }
                 />
-              </View>
-            )}
+              ) : null}
+            </Pressable>
 
-            {workerPhotoLoading &&
-            shouldShowWorkerImage ? (
-              <View
-                pointerEvents="none"
-                style={
-                  styles.imageLoadingOverlay
-                }
-              >
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    CustomerColors.primary
-                  }
-                />
-              </View>
-            ) : null}
+            <Divider />
+
+            {/* ==============================================
+                SERVICE
+            ============================================== */}
 
             <View
               style={
-                styles.workerCheck
+                styles.infoRow
               }
             >
-              <AppIcon
-                name="check"
-                size="xs"
-                color={
-                  Colors.textInverse
+              <View
+                style={[
+                  styles.rowIcon,
+
+                  {
+                    backgroundColor:
+                      resolvedServiceBackground,
+                  },
+                ]}
+              >
+                {loadingService ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      CustomerColors.primary
+                    }
+                  />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={
+                      resolvedServiceIcon as
+                        MaterialIconName
+                    }
+                    size={24}
+                    color={
+                      resolvedServiceColor
+                    }
+                  />
+                )}
+              </View>
+
+              <View
+                style={
+                  styles.rowContent
+                }
+              >
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                >
+                  Service
+                </AppText>
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  style={
+                    styles.rowValue
+                  }
+                >
+                  {loadingService
+                    ? "Loading service..."
+                    : resolvedServiceName}
+                </AppText>
+
+                {isRemoteBooking ? (
+                  <View
+                    style={
+                      styles.remoteLabel
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="laptop"
+                      size={14}
+                      color={
+                        CustomerColors.primary
+                      }
+                    />
+
+                    <AppText
+                      variant="caption"
+                      weight="bold"
+                      style={
+                        styles.remoteLabelText
+                      }
+                    >
+                      Remote service
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
+
+              {!loadingService ? (
+                <View
+                  style={
+                    styles.checkBadge
+                  }
+                >
+                  <AppIcon
+                    name="check"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+                </View>
+              ) : null}
+            </View>
+
+            <Divider />
+
+            {/* ==============================================
+                STATUS
+            ============================================== */}
+
+            <View
+              style={
+                styles.infoRow
+              }
+            >
+              <View
+                style={[
+                  styles.rowIcon,
+                  styles.statusIcon,
+                ]}
+              >
+                <AppIcon
+                  name="clock"
+                  size="sm"
+                  color={
+                    Colors.warning
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.rowContent
+                }
+              >
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                >
+                  Request status
+                </AppText>
+
+                <AppText
+                  variant="bodyMedium"
+                  weight="bold"
+                  style={
+                    styles.rowValue
+                  }
+                >
+                  Pending
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={2}
+                  style={
+                    styles.rowHint
+                  }
+                >
+                  Waiting for {resolvedWorkerName} to respond.
+                </AppText>
+              </View>
+
+              <View
+                style={
+                  styles.pendingBadge
+                }
+              >
+                <View
+                  style={
+                    styles.pendingDot
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.pendingText
+                  }
+                >
+                  WAITING
+                </AppText>
+              </View>
+            </View>
+
+            {/* ==============================================
+                INFO
+            ============================================== */}
+
+            <View
+              style={
+                styles.infoCard
+              }
+            >
+              <View
+                style={
+                  styles.infoIcon
+                }
+              >
+                <AppIcon
+                  name="info"
+                  size="sm"
+                  color={
+                    Colors.info
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.infoText
+                }
+              >
+                {isRemoteBooking
+                  ? "This is a remote service. No physical service location is required. You can track the request and its latest status from My Orders."
+                  : "You can track this request and see its latest status from My Orders."}
+              </AppText>
+            </View>
+
+            {/* ==============================================
+                ACTIONS
+            ============================================== */}
+
+            <View
+              style={
+                styles.actions
+              }
+            >
+              <AppButton
+                title="Back to Home"
+                role="customer"
+                variant="outline"
+                leftIconName="home"
+                onPress={
+                  handleBackHome
+                }
+                style={
+                  styles.actionButton
+                }
+              />
+
+              <AppButton
+                title="View Order"
+                role="customer"
+                rightIconName="next"
+                onPress={
+                  handleViewOrder
+                }
+                style={
+                  styles.actionButton
                 }
               />
             </View>
-          </View>
 
-          <View
-            style={
-              styles.workerContent
-            }
-          >
-            <AppText
-              variant="caption"
-              style={
-                styles.cardLabel
-              }
-            >
-              SELECTED WORKER
-            </AppText>
+            {/* ==============================================
+                REQUEST ID
+            ============================================== */}
 
-            <AppText
-              variant="body"
-              weight="bold"
-              numberOfLines={1}
-              style={
-                styles.workerName
-              }
-            >
-              {resolvedWorkerName}
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.cardHint
-              }
-            >
-              Tap to view worker profile
-            </AppText>
-          </View>
-
-          <View
-            style={
-              styles.chevronBox
-            }
-          >
-            <AppIcon
-              name="next"
-              size="sm"
-              color={
-                Colors.textSecondary
-              }
-            />
-          </View>
-        </Pressable>
-      ) : (
-        <View
-          style={
-            styles.workerCard
-          }
-        >
-          <View
-            style={
-              styles.avatarPlaceholder
-            }
-          >
-            <AppIcon
-              name="profile"
-              size="md"
-              color={
-                Colors.textMuted
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.workerContent
-            }
-          >
-            <AppText
-              variant="caption"
-              style={
-                styles.cardLabel
-              }
-            >
-              SELECTED WORKER
-            </AppText>
-
-            <AppText
-              variant="body"
-              weight="bold"
-              style={
-                styles.workerName
-              }
-            >
-              Selected worker
-            </AppText>
-          </View>
-        </View>
-      )}
-
-      {/* ======================================================
-          2 — SERVICE
-      ====================================================== */}
-
-      <SectionTitle
-        number="2"
-        title="Service"
-      />
-
-      {loadingService ? (
-        <View
-          style={
-            styles.serviceLoading
-          }
-        >
-          <ActivityIndicator
-            size="small"
-            color={
-              CustomerColors.primary
-            }
-          />
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.serviceLoadingText
-            }
-          >
-            Loading service...
-          </AppText>
-        </View>
-      ) : (
-        <View
-          style={
-            styles.categoryCardWrapper
-          }
-        >
-          {/*
-           * CategoryCard keeps the dynamic
-           * Firebase service icon/color system.
-           */}
-          <CategoryCard
-            icon={
-              resolvedServiceIcon
-            }
-            iconColor={
-              resolvedServiceColor
-            }
-            backgroundColor={
-              resolvedServiceBackground
-            }
-            title={
-              resolvedServiceName
-            }
-            onPress={
-              handleServicePress
-            }
-          />
-
-          <View
-            pointerEvents="none"
-            style={
-              styles.serviceCheckOverlay
-            }
-          >
-            <AppIcon
-              name="check"
-              size="sm"
-              color={
-                Colors.textInverse
-              }
-            />
-          </View>
-        </View>
-      )}
-
-      {/* ======================================================
-          3 — STATUS
-      ====================================================== */}
-
-      <SectionTitle
-        number="3"
-        title="Request status"
-      />
-
-      <View
-        style={
-          styles.statusCard
-        }
-      >
-        <View
-          style={
-            styles.statusIconBox
-          }
-        >
-          <AppIcon
-            name="clock"
-            size="md"
-            color={
-              Colors.warning
-            }
-          />
-        </View>
-
-        <View
-          style={
-            styles.statusContent
-          }
-        >
-          <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.statusTitle
-            }
-          >
-            PENDING
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.statusText
-            }
-          >
-            Waiting for the selected worker to respond.
-          </AppText>
-        </View>
-
-        <View
-          style={
-            styles.pendingBadge
-          }
-        >
-          <View
-            style={
-              styles.pendingDot
-            }
-          />
-
-          <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.pendingText
-            }
-          >
-            WAITING
-          </AppText>
+            {resolvedBookingId ? (
+              <AppText
+                variant="caption"
+                tone="muted"
+                center
+                numberOfLines={1}
+                ellipsizeMode="middle"
+                style={
+                  styles.requestId
+                }
+              >
+                Request ID: {resolvedBookingId}
+              </AppText>
+            ) : null}
+          </ScrollView>
         </View>
       </View>
-
-      {/* ======================================================
-          INFORMATION
-      ====================================================== */}
-
-      <View
-        style={
-          styles.infoCard
-        }
-      >
-        <View
-          style={
-            styles.infoIconBox
-          }
-        >
-          <AppIcon
-            name="info"
-            size="sm"
-            color={
-              Colors.info
-            }
-          />
-        </View>
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.infoText
-          }
-        >
-          You can track your request and view its latest status from My Orders.
-        </AppText>
-      </View>
-
-      {/* ======================================================
-          VIEW ORDER
-      ====================================================== */}
-
-      <Pressable
-        onPress={
-          handleViewOrder
-        }
-        accessibilityRole="button"
-        accessibilityLabel="View my order"
-        style={({
-          pressed,
-        }) => [
-          styles.primaryButton,
-
-          pressed
-            ? styles.primaryButtonPressed
-            : null,
-        ]}
-      >
-        <View
-          style={
-            styles.primaryIconBox
-          }
-        >
-          <AppIcon
-            name="file"
-            size="sm"
-            color={
-              Colors.textInverse
-            }
-          />
-        </View>
-
-        <AppText
-          variant="body"
-          weight="bold"
-          style={
-            styles.primaryButtonText
-          }
-        >
-          VIEW MY ORDER
-        </AppText>
-
-        <AppIcon
-          name="next"
-          size="sm"
-          color={
-            Colors.textInverse
-          }
-        />
-      </Pressable>
-
-      {/* ======================================================
-          HOME
-      ====================================================== */}
-
-      <Pressable
-        onPress={
-          handleBackHome
-        }
-        accessibilityRole="button"
-        accessibilityLabel="Back to home"
-        style={({
-          pressed,
-        }) => [
-          styles.secondaryButton,
-
-          pressed
-            ? styles.secondaryButtonPressed
-            : null,
-        ]}
-      >
-        <AppIcon
-          name="home"
-          size="sm"
-          color={
-            Colors.textSecondary
-          }
-        />
-
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={
-            styles.secondaryButtonText
-          }
-        >
-          BACK TO HOME
-        </AppText>
-      </Pressable>
-
-      {/* ======================================================
-          REQUEST ID
-      ====================================================== */}
-
-      {resolvedBookingId ? (
-        <AppText
-          variant="caption"
-          center
-          numberOfLines={1}
-          style={
-            styles.requestId
-          }
-        >
-          Request ID: {resolvedBookingId}
-        </AppText>
-      ) : null}
     </AppScreen>
   );
 }
 
 /* ============================================================
-   SECTION TITLE
+   DIVIDER
 ============================================================ */
 
-const SectionTitle =
+const Divider =
   memo(
-    function SectionTitle({
-      number,
-      title,
-    }: {
-      number: string;
-
-      title: string;
-    }) {
+    function Divider() {
       return (
         <View
           style={
-            styles.sectionTitle
+            styles.divider
           }
-        >
-          <View
-            style={
-              styles.sectionNumber
-            }
-          >
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.sectionNumberText
-              }
-            >
-              {number}
-            </AppText>
-          </View>
-
-          <AppText
-            variant="body"
-            weight="bold"
-            style={
-              styles.sectionText
-            }
-          >
-            {title}
-          </AppText>
-        </View>
+        />
       );
     },
   );
 
-SectionTitle.displayName =
-  "SectionTitle";
+Divider.displayName =
+  "Divider";
 
 /* ============================================================
    STYLES
@@ -1445,41 +1387,11 @@ SectionTitle.displayName =
 const styles =
   StyleSheet.create({
     /* ========================================================
-       CONTAINER
+       MODAL-LOOK SCREEN
     ======================================================== */
 
-    container: {
-      flexGrow: 1,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
-
-      paddingTop:
-        FixxamTokens.spacing.lg,
-
-      paddingBottom:
-        FixxamTokens.spacing.xxl,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    /* ========================================================
-       SUCCESS
-    ======================================================== */
-
-    successIcon: {
-      width:
-        FixxamTokens.size.avatarXl,
-
-      height:
-        FixxamTokens.size.avatarXl,
-
-      alignSelf:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.md,
+    overlay: {
+      flex: 1,
 
       alignItems:
         "center",
@@ -1487,64 +1399,66 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      borderColor:
-        Colors.success,
+      paddingVertical:
+        FixxamTokens.spacing.xxl,
+
+      backgroundColor:
+        Colors.overlayMedium,
+    },
+
+    modalCard: {
+      width:
+        "100%",
+
+      maxWidth:
+        430,
+
+      maxHeight:
+        "92%",
+
+      overflow:
+        "hidden",
 
       borderRadius:
         FixxamTokens.radius.xl,
 
       backgroundColor:
-        Colors.successSoft,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.modal,
     },
 
-    title: {
-      color:
-        Colors.textPrimary,
-    },
-
-    description: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      marginBottom:
+    modalContent: {
+      padding:
         FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      lineHeight: 18,
-
-      color:
-        Colors.textSecondary,
     },
 
     /* ========================================================
-       SECTION
+       HEADER
     ======================================================== */
 
-    sectionTitle: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
+    header: {
       flexDirection:
         "row",
 
       alignItems:
         "center",
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
-    sectionNumber: {
-      width: 28,
+    successIcon: {
+      width:
+        52,
 
-      height: 28,
+      height:
+        52,
 
-      marginRight:
-        FixxamTokens.spacing.sm,
+      flexShrink: 0,
 
       alignItems:
         "center",
@@ -1552,34 +1466,37 @@ const styles =
       justifyContent:
         "center",
 
+      marginRight:
+        FixxamTokens.spacing.md,
+
       borderRadius:
-        FixxamTokens.radius.sm,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        Colors.successSoft,
     },
 
-    sectionNumberText: {
-      color:
-        CustomerColors.primary,
-    },
-
-    sectionText: {
+    headerContent: {
       flex: 1,
 
-      color:
-        Colors.textPrimary,
+      minWidth: 0,
+    },
+
+    headerSubtitle: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight:
+        18,
     },
 
     /* ========================================================
-       WORKER
+       ROWS
     ======================================================== */
 
-    workerCard: {
-      minHeight: 80,
-
-      padding:
-        FixxamTokens.spacing.md,
+    workerRow: {
+      minHeight:
+        70,
 
       flexDirection:
         "row",
@@ -1587,7 +1504,11 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      padding:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1596,54 +1517,124 @@ const styles =
         FixxamTokens.radius.lg,
 
       backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+        Colors.background,
     },
 
-    cardPressed: {
+    infoRow: {
+      minHeight:
+        66,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
+    },
+
+    rowPressed: {
+      borderColor:
+        CustomerColors.primaryLight,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
+        FixxamTokens.motion.pressedOpacity,
     },
+
+    rowIcon: {
+      width:
+        46,
+
+      height:
+        46,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.md,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    rowContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    rowValue: {
+      marginTop:
+        2,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    rowHint: {
+      marginTop:
+        2,
+
+      lineHeight:
+        16,
+    },
+
+    /* ========================================================
+       WORKER PHOTO
+    ======================================================== */
 
     avatarContainer: {
       position:
         "relative",
 
       width:
-        FixxamTokens.size.avatarLg,
+        52,
 
       height:
-        FixxamTokens.size.avatarLg,
+        52,
+
+      flexShrink: 0,
+
+      marginRight:
+        FixxamTokens.spacing.md,
     },
 
     avatar: {
-      width: "100%",
+      width:
+        "100%",
 
-      height: "100%",
+      height:
+        "100%",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.divider,
+        Colors.disabledBackground,
     },
 
     avatarPlaceholder: {
       width:
-        FixxamTokens.size.avatarLg,
+        "100%",
 
       height:
-        FixxamTokens.size.avatarLg,
+        "100%",
 
       alignItems:
         "center",
@@ -1651,16 +1642,11 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.background,
+        CustomerColors.primarySoft,
     },
 
     imageLoadingOverlay: {
@@ -1673,34 +1659,48 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        "rgba(255,255,255,0.65)",
+        Colors.overlayLight,
     },
 
-    workerCheck: {
-      position:
-        "absolute",
+    /* ========================================================
+       DIVIDER
+    ======================================================== */
 
-      right: -3,
+    divider: {
+      width:
+        "100%",
 
-      bottom: -3,
+      height:
+        1,
 
-      width: 20,
+      marginVertical:
+        FixxamTokens.spacing.sm,
 
-      height: 20,
+      backgroundColor:
+        Colors.border,
+    },
+
+    /* ========================================================
+       CHECK
+    ======================================================== */
+
+    checkBadge: {
+      width:
+        28,
+
+      height:
+        28,
+
+      flexShrink: 0,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
-
-      borderWidth: 2,
-
-      borderColor:
-        Colors.surface,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1709,104 +1709,13 @@ const styles =
         Colors.success,
     },
 
-    workerContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-    },
-
-    cardLabel: {
-      letterSpacing: 1,
-
-      color:
-        Colors.textMuted,
-    },
-
-    workerName: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    cardHint: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    chevronBox: {
-      width: 32,
-
-      height: 32,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
-    },
-
     /* ========================================================
-       SERVICE
+       REMOTE
     ======================================================== */
 
-    categoryCardWrapper: {
-      position:
-        "relative",
-    },
-
-    serviceCheckOverlay: {
-      position:
-        "absolute",
-
-      right:
-        FixxamTokens.spacing.md,
-
-      top: "50%",
-
-      width: 30,
-
-      height: 30,
-
-      marginTop: -15,
-
-      zIndex: 10,
-
-      elevation: 10,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
-    serviceLoading: {
-      minHeight: 76,
+    remoteLabel: {
+      alignSelf:
+        "flex-start",
 
       flexDirection:
         "row",
@@ -1814,112 +1723,47 @@ const styles =
       alignItems:
         "center",
 
-      justifyContent:
-        "center",
-
       gap:
+        FixxamTokens.spacing.xxs,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.surface,
+        CustomerColors.primarySoft,
     },
 
-    serviceLoadingText: {
+    remoteLabelText: {
       color:
-        Colors.textSecondary,
+        CustomerColors.primary,
     },
 
     /* ========================================================
        STATUS
     ======================================================== */
 
-    statusCard: {
-      minHeight: 82,
+    statusIcon: {
+      backgroundColor:
+        Colors.warningSoft,
+    },
 
-      padding:
-        FixxamTokens.spacing.md,
+    pendingBadge: {
+      flexShrink: 0,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    statusIconBox: {
-      width:
-        FixxamTokens.size.avatarLg,
-
-      height:
-        FixxamTokens.size.avatarLg,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.warningSoft,
-    },
-
-    statusContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-    },
-
-    statusTitle: {
-      letterSpacing: 0.5,
-
-      color:
-        Colors.warning,
-    },
-
-    statusText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 16,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    pendingBadge: {
-      minHeight: 28,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -1927,26 +1771,22 @@ const styles =
       paddingVertical:
         FixxamTokens.spacing.xs,
 
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
       borderRadius:
-        FixxamTokens.radius.chip,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.warningSoft,
     },
 
     pendingDot: {
-      width: 6,
+      width:
+        6,
 
-      height: 6,
+      height:
+        6,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1956,8 +1796,6 @@ const styles =
     },
 
     pendingText: {
-      letterSpacing: 0.4,
-
       color:
         Colors.warning,
     },
@@ -1967,19 +1805,17 @@ const styles =
     ======================================================== */
 
     infoCard: {
-      minHeight: 58,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
 
       marginTop:
         FixxamTokens.spacing.md,
 
       padding:
         FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
 
       borderRadius:
         FixxamTokens.radius.lg,
@@ -1988,12 +1824,12 @@ const styles =
         Colors.infoSoft,
     },
 
-    infoIconBox: {
+    infoIcon: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        34,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        34,
 
       flexShrink: 0,
 
@@ -2003,8 +1839,11 @@ const styles =
       justifyContent:
         "center",
 
+      marginRight:
+        FixxamTokens.spacing.sm,
+
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.surface,
@@ -2013,139 +1852,29 @@ const styles =
     infoText: {
       flex: 1,
 
-      marginLeft:
-        FixxamTokens.spacing.sm,
+      minWidth: 0,
 
-      lineHeight: 17,
-
-      color:
-        Colors.textSecondary,
+      lineHeight:
+        18,
     },
 
     /* ========================================================
-       PRIMARY ACTION
+       ACTIONS
     ======================================================== */
 
-    primaryButton: {
-      minHeight:
-        FixxamTokens.size.buttonHeight,
+    actions: {
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
 
       marginTop:
         FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        CustomerColors.primary,
-
-      ...FixxamTokens.shadow.card,
     },
 
-    primaryButtonPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    primaryIconBox: {
-      width: 28,
-
-      height: 28,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.sm,
-
-      backgroundColor:
-        "rgba(255,255,255,0.14)",
-    },
-
-    primaryButtonText: {
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       SECONDARY ACTION
-    ======================================================== */
-
-    secondaryButton: {
-      minHeight:
-        FixxamTokens.size.buttonHeight,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    secondaryButtonPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    secondaryButtonText: {
-      color:
-        Colors.textSecondary,
+    actionButton: {
+      flex: 1,
     },
 
     /* ========================================================
@@ -2157,9 +1886,6 @@ const styles =
         FixxamTokens.spacing.md,
 
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textMuted,
+        FixxamTokens.spacing.md,
     },
   });

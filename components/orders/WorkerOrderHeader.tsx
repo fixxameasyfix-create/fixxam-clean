@@ -195,18 +195,24 @@ const WorkerOrderHeader = memo(
 
     return (
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         {/* ====================================================
             BACK
         ==================================================== */}
 
         <Pressable
-          onPress={onBack}
+          onPress={
+            onBack
+          }
           accessibilityRole="button"
           accessibilityLabel="Go back"
           hitSlop={8}
-          style={({ pressed }) => [
+          style={({
+            pressed,
+          }) => [
             styles.backButton,
 
             pressed
@@ -216,7 +222,7 @@ const WorkerOrderHeader = memo(
         >
           <AppIcon
             name="back"
-            size="sm"
+            size="xs"
             color={
               Colors.textPrimary
             }
@@ -228,10 +234,12 @@ const WorkerOrderHeader = memo(
         ==================================================== */}
 
         <View
-          style={styles.headerText}
+          style={
+            styles.headerText
+          }
         >
           <AppText
-            variant="heading3"
+            variant="bodyLarge"
             weight="bold"
             numberOfLines={1}
             style={
@@ -260,7 +268,9 @@ const WorkerOrderHeader = memo(
         ==================================================== */}
 
         <StatusBadge
-          status={status}
+          status={
+            status
+          }
         />
       </View>
     );
@@ -283,14 +293,37 @@ const styles =
     ======================================================== */
 
     header: {
+      width:
+        "100%",
+
       minHeight:
-        FixxamTokens.size
-          .headerHeight,
+        64,
 
-      flexDirection: "row",
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
 
-      alignItems: "center",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+
+      borderBottomColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.background,
     },
+
+    /* ========================================================
+       BACK
+    ======================================================== */
 
     backButton: {
       width:
@@ -301,14 +334,17 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -320,16 +356,22 @@ const styles =
         Colors.surface,
     },
 
-    headerText: {
-      flex: 1,
+    /* ========================================================
+       TITLE
+    ======================================================== */
 
-      minWidth: 0,
+    headerText: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
 
       marginRight:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
     },
 
     headerTitle: {
@@ -339,7 +381,10 @@ const styles =
 
     headerSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -347,17 +392,23 @@ const styles =
     ======================================================== */
 
     statusBadge: {
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      flexDirection: "row",
-
-      alignItems: "center",
+      minHeight:
+        26,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      paddingVertical:
-        FixxamTokens.spacing.xs,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -367,16 +418,22 @@ const styles =
     },
 
     statusDot: {
-      width: 7,
+      width:
+        6,
 
-      height: 7,
+      height:
+        6,
 
       borderRadius:
         FixxamTokens.radius.full,
     },
 
     statusBadgeText: {
-      letterSpacing: 0.3,
+      fontSize:
+        10,
+
+      letterSpacing:
+        0.25,
     },
 
     /* ========================================================

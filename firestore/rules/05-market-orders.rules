@@ -1,0 +1,832 @@
+/* ============================================================
+   MARKET ORDERS
+============================================================ */
+
+match /orders/{orderId} {
+
+  /* ==========================================================
+     LOCAL HELPERS
+  ========================================================== */
+
+  function marketOrderPartiesUnchanged() {
+    return request.resource.data.customerId
+        == resource.data.customerId
+
+      && (
+        (
+          !("workerId" in resource.data)
+          && !("workerId" in request.resource.data)
+        )
+
+        ||
+
+        (
+          ("workerId" in resource.data)
+          && ("workerId" in request.resource.data)
+
+          && request.resource.data.workerId
+            == resource.data.workerId
+        )
+      )
+
+      && (
+        (
+          !("sellerId" in resource.data)
+          && !("sellerId" in request.resource.data)
+        )
+
+        ||
+
+        (
+          ("sellerId" in resource.data)
+          && ("sellerId" in request.resource.data)
+
+          && request.resource.data.sellerId
+            == resource.data.sellerId
+        )
+      );
+  }
+
+
+  function isTerminalMarketOrderStatus() {
+    return resource.data.status
+      in [
+        "completed",
+        "delivered",
+        "cancelled",
+        "canceled",
+        "expired",
+        "declined"
+      ];
+  }
+
+
+  /* ==========================================================
+     CUSTOMER HIDES MARKET ORDER HISTORY
+
+     Customer-specific soft delete.
+     Worker/seller/platform records remain intact.
+  ========================================================== */
+
+  function canCustomerHideMarketOrderHistory() {
+    return signedIn()
+
+      && resource.data.customerId
+        == request.auth.uid
+
+      && isTerminalMarketOrderStatus()
+
+      && marketOrderPartiesUnchanged()
+
+      && request.resource.data.status
+        == resource.data.status
+
+      && resource.data.get(
+        "deletedByCustomer",
+        false
+      ) != true
+
+      && request.resource.data.deletedByCustomer
+        == true
+
+      && request.resource.data.deletedByCustomerAt
+        == request.time
+
+      && request.resource.data.updatedAt
+        == request.time
+
+      && request.resource.data.diff(
+        resource.data
+      ).affectedKeys().hasOnly([
+        "deletedByCustomer",
+        "deletedByCustomerAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     WORKER HIDES MARKET ORDER HISTORY
+
+     Worker-specific soft delete.
+     Customer/seller/platform records remain intact.
+  ========================================================== */
+
+  function canWorkerHideMarketOrderHistory() {
+    return signedIn()
+
+      && ("workerId" in resource.data)
+
+      && resource.data.workerId
+        == request.auth.uid
+
+      && isTerminalMarketOrderStatus()
+
+      && marketOrderPartiesUnchanged()
+
+      && request.resource.data.status
+        == resource.data.status
+
+      && resource.data.get(
+        "deletedByWorker",
+        false
+      ) != true
+
+      && request.resource.data.deletedByWorker
+        == true
+
+      && request.resource.data.deletedByWorkerAt
+        == request.time
+
+      && request.resource.data.updatedAt
+        == request.time
+
+      && request.resource.data.diff(
+        resource.data
+      ).affectedKeys().hasOnly([
+        "deletedByWorker",
+        "deletedByWorkerAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     NORMAL PARTICIPANT UPDATE
+
+     Existing order lifecycle remains supported.
+
+     History ownership fields are protected from the normal
+     update path.
+  ========================================================== */
+
+  function canParticipantUpdateMarketOrder() {
+    return signedIn()
+
+      && (
+        resource.data.customerId
+          == request.auth.uid
+
+        ||
+
+        (
+          ("workerId" in resource.data)
+
+          && resource.data.workerId
+            == request.auth.uid
+        )
+
+        ||
+
+        (
+          ("sellerId" in resource.data)
+
+          && resource.data.sellerId
+            == request.auth.uid
+        )
+      )
+
+      && marketOrderPartiesUnchanged()
+
+      && !request.resource.data.diff(
+        resource.data
+      ).affectedKeys().hasAny([
+        "deletedByCustomer",
+        "deletedByCustomerAt",
+        "deletedByWorker",
+        "deletedByWorkerAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     READ
+  ========================================================== */
+
+  allow read:
+    if signedIn()
+
+    && (
+      resource.data.customerId
+        == request.auth.uid
+
+      ||
+
+      (
+        ("workerId" in resource.data)
+
+        && resource.data.workerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        ("sellerId" in resource.data)
+
+        && resource.data.sellerId
+          == request.auth.uid
+      )
+    );
+
+
+  /* ==========================================================
+     CUSTOMER MARKET ORDER HISTORY — DEDICATED UPDATE
+
+     Customer can hide only their own terminal order history.
+  ========================================================== */
+
+  allow update:
+    if canCustomerHideMarketOrderHistory();
+
+
+  /* ==========================================================
+     WORKER MARKET ORDER HISTORY — DEDICATED UPDATE
+
+     Worker can hide only their own terminal order history.
+  ========================================================== */
+
+  allow update:
+    if canWorkerHideMarketOrderHistory();
+
+
+  /* ==========================================================
+     CREATE
+
+     New orders cannot start already hidden from either
+     customer or worker history.
+  ========================================================== */
+
+  allow create:
+    if signedIn()
+
+    && (
+      request.resource.data.customerId
+        == request.auth.uid
+
+      ||
+
+      (
+        ("workerId" in request.resource.data)
+
+        && request.resource.data.workerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        ("sellerId" in request.resource.data)
+
+        && request.resource.data.sellerId
+          == request.auth.uid
+      )
+    )
+
+    && (
+      !("workerId" in request.resource.data)
+
+      ||
+
+      request.resource.data.customerId
+        != request.resource.data.workerId
+    )
+
+    && request.resource.data.get(
+      "deletedByCustomer",
+      false
+    ) == false
+
+    && request.resource.data.get(
+      "deletedByWorker",
+      false
+    ) == false
+
+    && request.resource.data.get(
+      "deletedByCustomerAt",
+      null
+    ) == null
+
+    && request.resource.data.get(
+      "deletedByWorkerAt",
+      null
+    ) == null;
+
+
+  /* ==========================================================
+     NORMAL MARKET ORDER UPDATE
+
+     Lifecycle updates remain separate from history removal.
+     History flags cannot be changed through this path.
+  ========================================================== */
+
+  allow update:
+    if canParticipantUpdateMarketOrder();
+
+
+  /* ==========================================================
+     DELETE
+
+     Orders are retained permanently at this security layer.
+     History removal is role-specific soft-delete only.
+  ========================================================== */
+
+  allow delete:
+    if false;
+}
+
+
+/* ============================================================
+   MARKET CHATS
+
+   ARCHITECTURE:
+
+   /orders/{orderId}
+
+   /marketChats/{orderId}
+
+   /marketChats/{orderId}/messages/{messageId}
+
+   Therefore:
+   chatId == orderId
+============================================================ */
+
+match /marketChats/{chatId} {
+
+  /* ==========================================================
+     CREATE CHAT
+  ========================================================== */
+
+  allow create:
+    if signedIn()
+
+    && request.resource.data.orderId
+      is string
+
+    && request.resource.data.orderId
+      == chatId
+
+    && marketOrderExists(
+      chatId
+    )
+
+    && isMarketOrderParticipant(
+      chatId
+    )
+
+    && request.resource.data.customerId
+      == currentMarketOrder(
+        chatId
+      ).customerId
+
+    && (
+      !(
+        "workerId"
+        in request.resource.data
+      )
+
+      ||
+
+      (
+        (
+          "workerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && request.resource.data.workerId
+          == currentMarketOrder(
+            chatId
+          ).workerId
+      )
+    )
+
+    && (
+      !(
+        "sellerId"
+        in request.resource.data
+      )
+
+      ||
+
+      (
+        (
+          "sellerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && request.resource.data.sellerId
+          == currentMarketOrder(
+            chatId
+          ).sellerId
+      )
+    )
+
+    && request.resource.data.lastMessage
+      is string
+
+    && request.resource.data.lastMessage.size()
+      > 0
+
+    && request.resource.data.lastMessage.size()
+      <= 1000
+
+    && request.resource.data.lastMessageSenderId
+      == request.auth.uid
+
+    && request.resource.data.lastMessageSenderRole
+      is string
+
+    && request.resource.data.lastMessageSenderRole
+      in [
+        "customer",
+        "worker",
+        "seller"
+      ]
+
+    && (
+      (
+        request.resource.data.lastMessageSenderRole
+          == "customer"
+
+        && currentMarketOrder(
+          chatId
+        ).customerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        request.resource.data.lastMessageSenderRole
+          == "worker"
+
+        && (
+          "workerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && currentMarketOrder(
+          chatId
+        ).workerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        request.resource.data.lastMessageSenderRole
+          == "seller"
+
+        && (
+          "sellerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && currentMarketOrder(
+          chatId
+        ).sellerId
+          == request.auth.uid
+      )
+    )
+
+    && request.resource.data.updatedAt
+      == request.time;
+
+
+  /* ==========================================================
+     READ CHAT
+  ========================================================== */
+
+  allow read:
+    if signedIn()
+
+    && (
+      isMarketChatParticipant(
+        chatId
+      )
+
+      ||
+
+      isMarketChatOrderParticipant(
+        chatId
+      )
+    );
+
+
+  /* ==========================================================
+     UPDATE CHAT SUMMARY
+  ========================================================== */
+
+  allow update:
+    if signedIn()
+
+    && marketOrderExists(
+      resource.data.orderId
+    )
+
+    && isMarketOrderParticipant(
+      resource.data.orderId
+    )
+
+    && request.resource.data.orderId
+      == resource.data.orderId
+
+    && resource.data.orderId
+      == chatId
+
+    && request.resource.data.customerId
+      == resource.data.customerId
+
+    && resource.data.customerId
+      == currentMarketOrder(
+        chatId
+      ).customerId
+
+    && (
+      !(
+        "workerId"
+        in resource.data
+      )
+
+      ||
+
+      (
+        (
+          "workerId"
+          in request.resource.data
+        )
+
+        && request.resource.data.workerId
+          == resource.data.workerId
+      )
+    )
+
+    && (
+      !(
+        "sellerId"
+        in resource.data
+      )
+
+      ||
+
+      (
+        (
+          "sellerId"
+          in request.resource.data
+        )
+
+        && request.resource.data.sellerId
+          == resource.data.sellerId
+      )
+    )
+
+    && request.resource.data.diff(
+      resource.data
+    ).affectedKeys().hasOnly([
+      "updatedAt",
+      "lastMessage",
+      "lastMessageSenderId",
+      "lastMessageSenderRole"
+    ])
+
+    && request.resource.data.lastMessage
+      is string
+
+    && request.resource.data.lastMessage.size()
+      <= 1000
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && request.resource.data.lastMessageSenderId
+      == request.auth.uid
+
+    && request.resource.data.lastMessageSenderRole
+      in [
+        "customer",
+        "worker",
+        "seller"
+      ]
+
+    && (
+      (
+        request.resource.data.lastMessageSenderRole
+          == "customer"
+
+        && currentMarketOrder(
+          chatId
+        ).customerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        request.resource.data.lastMessageSenderRole
+          == "worker"
+
+        && (
+          "workerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && currentMarketOrder(
+          chatId
+        ).workerId
+          == request.auth.uid
+      )
+
+      ||
+
+      (
+        request.resource.data.lastMessageSenderRole
+          == "seller"
+
+        && (
+          "sellerId"
+          in currentMarketOrder(
+            chatId
+          )
+        )
+
+        && currentMarketOrder(
+          chatId
+        ).sellerId
+          == request.auth.uid
+      )
+    );
+
+
+  /* ==========================================================
+     DELETE CHAT
+
+     Chat documents are retained.
+  ========================================================== */
+
+  allow delete:
+    if false;
+
+
+  /* ==========================================================
+     CHAT MESSAGES
+  ========================================================== */
+
+  match /messages/{messageId} {
+
+    /* ========================================================
+       READ MESSAGE
+    ======================================================== */
+
+    allow read:
+      if signedIn()
+
+      && (
+        isMarketChatOrderParticipant(
+          chatId
+        )
+
+        ||
+
+        isMarketChatParticipant(
+          chatId
+        )
+      );
+
+
+    /* ========================================================
+       CREATE MESSAGE
+    ======================================================== */
+
+    allow create:
+      if signedIn()
+
+      && marketOrderExists(
+        chatId
+      )
+
+      && isMarketOrderParticipant(
+        chatId
+      )
+
+      && request.resource.data.senderId
+        == request.auth.uid
+
+      && request.resource.data.senderRole
+        is string
+
+      && request.resource.data.senderRole
+        in [
+          "customer",
+          "worker",
+          "seller"
+        ]
+
+      && request.resource.data.text
+        is string
+
+      && request.resource.data.text.size()
+        > 0
+
+      && request.resource.data.text.size()
+        <= 1000
+
+      && request.resource.data.createdAt
+        == request.time
+
+      && request.resource.data.keys().hasOnly([
+        "senderId",
+        "senderRole",
+        "text",
+        "createdAt"
+      ])
+
+      && (
+        (
+          request.resource.data.senderRole
+            == "customer"
+
+          && currentMarketOrder(
+            chatId
+          ).customerId
+            == request.auth.uid
+        )
+
+        ||
+
+        (
+          request.resource.data.senderRole
+            == "worker"
+
+          && (
+            "workerId"
+            in currentMarketOrder(
+              chatId
+            )
+          )
+
+          && currentMarketOrder(
+            chatId
+          ).workerId
+            == request.auth.uid
+        )
+
+        ||
+
+        (
+          request.resource.data.senderRole
+            == "seller"
+
+          && (
+            "sellerId"
+            in currentMarketOrder(
+              chatId
+            )
+          )
+
+          && currentMarketOrder(
+            chatId
+          ).sellerId
+            == request.auth.uid
+        )
+      );
+
+
+    /* ========================================================
+       UPDATE MESSAGE
+
+       Sent messages are immutable.
+    ======================================================== */
+
+    allow update:
+      if false;
+
+
+    /* ========================================================
+       DELETE OWN MESSAGE
+    ======================================================== */
+
+    allow delete:
+      if signedIn()
+
+      && marketOrderExists(
+        chatId
+      )
+
+      && isMarketOrderParticipant(
+        chatId
+      )
+
+      && resource.data.senderId
+        == request.auth.uid;
+  }
+}

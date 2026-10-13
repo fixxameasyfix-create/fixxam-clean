@@ -9,7 +9,6 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   StyleSheet,
   View,
@@ -160,7 +159,31 @@ function MarketOrderActions({
       ],
     );
 
-  const cleanPhone =
+  const cleanSellerId =
+    useMemo(
+      () =>
+        typeof sellerId ===
+        "string"
+          ? sellerId.trim()
+          : "",
+      [
+        sellerId,
+      ],
+    );
+
+  const cleanStoreId =
+    useMemo(
+      () =>
+        typeof storeId ===
+        "string"
+          ? storeId.trim()
+          : "",
+      [
+        storeId,
+      ],
+    );
+
+  const cleanStorePhone =
     useMemo(
       () =>
         typeof storePhone ===
@@ -200,6 +223,12 @@ function MarketOrderActions({
     status !== "cancelled" &&
     status !== "expired";
 
+  const canCallStore =
+    canContactStore &&
+    Boolean(
+      cleanSellerId,
+    );
+
   /* ==========================================================
      TRACK ORDER
   ========================================================== */
@@ -229,71 +258,68 @@ function MarketOrderActions({
     ]);
 
   /* ==========================================================
-     CALL STORE
+     FIXXAM VOICE CALL
   ========================================================== */
 
-  const handleCallStore =
-    useCallback(async () => {
-      if (!cleanPhone) {
-        showInfoToast(
-          "Phone unavailable",
-          "The store phone number is not available for this order.",
-        );
+  const handleFixxamVoiceCall =
+    useCallback(() => {
+      const user =
+        auth.currentUser;
 
-        return;
-      }
-
-      const safePhone =
-        cleanPhone.replace(
-          /[^+\d]/g,
-          "",
-        );
-
-      if (!safePhone) {
+      if (!user) {
         showErrorToast(
-          "Invalid phone number",
-          "The store phone number is not valid.",
+          "Sign in required",
+          "Please sign in again before starting a call.",
         );
 
         return;
       }
 
-      const phoneUrl =
-        `tel:${safePhone}`;
-
-      try {
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
-
-        if (!supported) {
-          showErrorToast(
-            "Unable to call",
-            "Your device cannot make phone calls.",
-          );
-
-          return;
-        }
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (
-        callError
+      if (
+        !canContactStore
       ) {
-        console.error(
-          "MARKET_ORDER_CALL_STORE_ERROR:",
-          callError,
+        showInfoToast(
+          "Call unavailable",
+          "This order is no longer active.",
         );
 
-        showErrorToast(
-          "Unable to call",
-          "Something went wrong while trying to call the store.",
-        );
+        return;
       }
+
+      if (
+        !cleanSellerId
+      ) {
+        showInfoToast(
+          "Store unavailable",
+          "The store could not be identified for this call.",
+        );
+
+        return;
+      }
+
+      /*
+       * Existing Fixxam Voice flow:
+       *
+       * Customer -> call/[workerId]
+       * -> secure Firebase call session
+       * -> seller accepts
+       * -> both users enter voice-call/[callId]
+       */
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
+
+        params: {
+          workerId:
+            cleanSellerId,
+
+          name:
+            "Store",
+        },
+      } as never);
     }, [
-      cleanPhone,
+      canContactStore,
+      cleanSellerId,
     ]);
 
   /* ==========================================================
@@ -378,9 +404,6 @@ function MarketOrderActions({
 
             /* ================================================
                OWNERSHIP
-
-               Firestore Security Rules must independently
-               enforce this check server-side.
             ================================================ */
 
             if (
@@ -391,6 +414,10 @@ function MarketOrderActions({
                 "ORDER_ACCESS_DENIED",
               );
             }
+
+            /* ================================================
+               CURRENT STATUS
+            ================================================ */
 
             const currentStatus =
               normalizeMarketStatus(
@@ -406,10 +433,6 @@ function MarketOrderActions({
               );
             }
 
-            /*
-             * Customer cancellation is only
-             * allowed while order is pending.
-             */
             if (
               currentStatus !==
               "pending"
@@ -418,6 +441,10 @@ function MarketOrderActions({
                 "ORDER_NOT_CANCELLABLE",
               );
             }
+
+            /* ================================================
+               UPDATE
+            ================================================ */
 
             transaction.update(
               orderRef,
@@ -428,10 +455,6 @@ function MarketOrderActions({
                 cancelledAt:
                   serverTimestamp(),
 
-                /*
-                 * Preserve existing schema:
-                 * cancelledBy contains user UID.
-                 */
                 cancelledBy:
                   user.uid,
 
@@ -497,12 +520,12 @@ function MarketOrderActions({
       }
 
       Alert.alert(
-        "Cancel Order?",
+        "Cancel order?",
         "Are you sure you want to cancel this market order?",
         [
           {
             text:
-              "Keep Order",
+              "Keep order",
 
             style:
               "cancel",
@@ -510,7 +533,7 @@ function MarketOrderActions({
 
           {
             text:
-              "Cancel Order",
+              "Cancel order",
 
             style:
               "destructive",
@@ -572,9 +595,73 @@ function MarketOrderActions({
 
       <View
         style={
-          styles.actionsCard
+          styles.actionsSection
         }
       >
+        {/* ====================================================
+            TRACK
+        ==================================================== */}
+
+        {canTrack ? (
+          <ActionButton
+            icon="navigation"
+            label="Track order"
+            variant="primary"
+            onPress={
+              handleTrack
+            }
+            fullWidth
+          />
+        ) : null}
+
+        {/* ====================================================
+            CONTACT STORE
+        ==================================================== */}
+
+        {canContactStore ? (
+          <View
+            style={
+              styles.contactRow
+            }
+          >
+            <ActionButton
+              icon="phone"
+              label="Call store"
+              variant="secondary"
+              onPress={
+                handleFixxamVoiceCall
+              }
+              disabled={
+                !canCallStore
+              }
+            />
+
+            <View
+              style={
+                styles.chatButtonContainer
+              }
+            >
+              <MarketOrderChat
+                orderId={
+                  cleanOrderId
+                }
+                storeId={
+                  cleanStoreId ||
+                  undefined
+                }
+                sellerId={
+                  cleanSellerId ||
+                  undefined
+                }
+                storePhone={
+                  cleanStorePhone ||
+                  undefined
+                }
+              />
+            </View>
+          </View>
+        ) : null}
+
         {/* ====================================================
             CANCEL
         ==================================================== */}
@@ -584,8 +671,8 @@ function MarketOrderActions({
             icon="close"
             label={
               cancelling
-                ? "CANCELLING..."
-                : "CANCEL ORDER"
+                ? "Cancelling..."
+                : "Cancel order"
             }
             variant="danger"
             onPress={
@@ -597,57 +684,7 @@ function MarketOrderActions({
             loading={
               cancelling
             }
-          />
-        ) : null}
-
-        {/* ====================================================
-            TRACK
-        ==================================================== */}
-
-        {canTrack ? (
-          <ActionButton
-            icon="navigation"
-            label="TRACK ORDER"
-            variant="primary"
-            onPress={
-              handleTrack
-            }
-          />
-        ) : null}
-
-        {/* ====================================================
-            CALL STORE
-        ==================================================== */}
-
-        {canContactStore ? (
-          <ActionButton
-            icon="phone"
-            label="CALL STORE"
-            variant="secondary"
-            onPress={
-              handleCallStore
-            }
-            disabled={
-              !cleanPhone
-            }
-          />
-        ) : null}
-
-        {/* ====================================================
-            CHAT STORE
-        ==================================================== */}
-
-        {canContactStore ? (
-          <MarketOrderChat
-            orderId={
-              cleanOrderId
-            }
-            storeId={
-              storeId
-            }
-            sellerId={
-              sellerId
-            }
+            fullWidth
           />
         ) : null}
       </View>
@@ -686,39 +723,39 @@ const OrderNote =
             styles.noteCard
           }
         >
-          <AppText
-            variant="body"
-            weight="bold"
-            style={
-              styles.noteTitle
-            }
-          >
-            Order Note
-          </AppText>
-
           <View
             style={
-              styles.noteBox
+              styles.noteHeader
             }
           >
             <AppIcon
               name="file"
-              size="sm"
+              size="xs"
               color={
                 Colors.textSecondary
               }
             />
 
             <AppText
-              variant="caption"
-              tone="secondary"
+              variant="bodyMedium"
+              weight="semibold"
               style={
-                styles.noteText
+                styles.noteTitle
               }
             >
-              {note}
+              Order note
             </AppText>
           </View>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.noteText
+            }
+          >
+            {note}
+          </AppText>
         </View>
       );
     },
@@ -740,6 +777,7 @@ const ActionButton =
       onPress,
       disabled = false,
       loading = false,
+      fullWidth = false,
     }: {
       icon: AppIconName;
 
@@ -754,6 +792,8 @@ const ActionButton =
       disabled?: boolean;
 
       loading?: boolean;
+
+      fullWidth?: boolean;
     }) {
       const config =
         getButtonConfig(
@@ -782,6 +822,10 @@ const ActionButton =
           }) => [
             styles.actionButton,
 
+            fullWidth
+              ? styles.fullWidthButton
+              : styles.flexButton,
+
             config.button,
 
             disabled
@@ -803,7 +847,9 @@ const ActionButton =
             />
           ) : (
             <AppIcon
-              name={icon}
+              name={
+                icon
+              }
               role="customer"
               size="sm"
               color={
@@ -813,8 +859,9 @@ const ActionButton =
           )}
 
           <AppText
-            variant="caption"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={1}
             style={[
               styles.actionText,
 
@@ -854,6 +901,18 @@ function getButtonConfig(
           Colors.textInverse,
       };
 
+    case "secondary":
+      return {
+        button:
+          styles.secondaryButton,
+
+        icon:
+          CustomerColors.primary,
+
+        text:
+          CustomerColors.primary,
+      };
+
     case "danger":
       return {
         button:
@@ -864,19 +923,6 @@ function getButtonConfig(
 
         text:
           Colors.error,
-      };
-
-    case "secondary":
-    default:
-      return {
-        button:
-          styles.secondaryButton,
-
-        icon:
-          CustomerColors.primary,
-
-        text:
-          CustomerColors.primary,
       };
   }
 }
@@ -961,89 +1007,87 @@ const styles =
     ======================================================== */
 
     noteCard: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
+    },
 
-      ...FixxamTokens.shadow.card,
+    noteHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     noteTitle: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
       color:
         Colors.textPrimary,
     },
 
-    noteBox: {
+    noteText: {
       marginTop:
         FixxamTokens.spacing.sm,
 
-      padding:
+      lineHeight:
+        18,
+    },
+
+    /* ========================================================
+       ACTIONS
+    ======================================================== */
+
+    actionsSection: {
+      width:
+        "100%",
+
+      marginTop:
         FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    contactRow: {
+      width:
+        "100%",
 
       flexDirection:
         "row",
 
       alignItems:
-        "flex-start",
+        "stretch",
 
       gap:
         FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
     },
 
-    noteText: {
-      flex: 1,
+    chatButtonContainer: {
+      flex:
+        1,
 
-      lineHeight: 16,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       ACTION CARD
-    ======================================================== */
-
-    actionsCard: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+      minWidth:
+        0,
     },
 
     /* ========================================================
@@ -1052,7 +1096,7 @@ const styles =
 
     actionButton: {
       minHeight:
-        FixxamTokens.size.buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -1067,12 +1111,26 @@ const styles =
         "center",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderRadius:
         FixxamTokens.radius.button,
+    },
+
+    fullWidthButton: {
+      width:
+        "100%",
+    },
+
+    flexButton: {
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     /* ========================================================
@@ -1096,7 +1154,7 @@ const styles =
         CustomerColors.primary,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        Colors.surface,
     },
 
     /* ========================================================
@@ -1108,7 +1166,7 @@ const styles =
         Colors.error,
 
       backgroundColor:
-        Colors.errorSoft,
+        Colors.surface,
     },
 
     /* ========================================================
@@ -1116,6 +1174,9 @@ const styles =
     ======================================================== */
 
     actionText: {
+      flexShrink:
+        1,
+
       textAlign:
         "center",
     },
@@ -1126,20 +1187,17 @@ const styles =
 
     disabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

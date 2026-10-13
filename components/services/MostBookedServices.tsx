@@ -30,6 +30,10 @@ import type {
   PopularService,
 } from "@/hooks/services/usePopularServices";
 
+import {
+  isServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
 /* ==============================================================
    TYPES
 ============================================================== */
@@ -354,9 +358,20 @@ function MostBookedServices({
             service.categoryId,
           );
 
-        /*
-         * Existing customer route and params preserved.
-         */
+        const fulfillmentMode =
+          isServiceFulfillmentMode(
+            service.fulfillmentMode,
+          )
+            ? service.fulfillmentMode
+            : "needs_review";
+
+        /* ======================================================
+           NAVIGATION
+
+           Preserve the authoritative service fulfillment mode
+           all the way into the worker-selection flow.
+        ====================================================== */
+
         router.push({
           pathname:
             "/(customer)/details/workers/[id]",
@@ -383,6 +398,8 @@ function MostBookedServices({
             serviceColor,
 
             serviceBackgroundColor,
+
+            fulfillmentMode,
 
             ...(categoryId
               ? {

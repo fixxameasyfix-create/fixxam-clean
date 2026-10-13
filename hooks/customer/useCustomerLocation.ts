@@ -29,6 +29,7 @@ export type CustomerLocation = {
   latitude: number;
   longitude: number;
   geohash: string;
+  address: string | null;
 };
 
 /* ============================================================
@@ -47,6 +48,60 @@ function isValidCoordinates(
     longitude >= -180 &&
     longitude <= 180
   );
+}
+
+/* ============================================================
+   REVERSE GEOCODING
+============================================================ */
+
+async function getReadableAddress(
+  latitude: number,
+  longitude: number,
+): Promise<string | null> {
+  try {
+    const results =
+      await Location.reverseGeocodeAsync({
+        latitude,
+        longitude,
+      });
+
+    const place = results[0];
+
+    if (!place) {
+      return null;
+    }
+
+    const parts = [
+      place.name,
+      place.street,
+      place.district,
+      place.city,
+      place.subregion,
+      place.region,
+    ]
+      .map((value) =>
+        typeof value === "string"
+          ? value.trim()
+          : "",
+      )
+      .filter(Boolean);
+
+    const uniqueParts =
+      Array.from(
+        new Set(parts),
+      );
+
+    return uniqueParts.length > 0
+      ? uniqueParts.join(", ")
+      : null;
+  } catch (error) {
+    console.warn(
+      "FIXXAM_REVERSE_GEOCODING_ERROR:",
+      error,
+    );
+
+    return null;
+  }
 }
 
 /* ============================================================
@@ -82,6 +137,7 @@ export default function useCustomerLocation() {
       async (
         latitude: number,
         longitude: number,
+        address: string | null,
       ) => {
         if (
           !isValidCoordinates(
@@ -116,18 +172,12 @@ export default function useCustomerLocation() {
             latitude,
             longitude,
             geohash,
+            address,
           };
 
         /*
-         * IMPORTANT:
-         *
-         * setDoc + merge:true:
-         *
-         * - idan users/{uid} yana nan -> UPDATE
-         * - idan babu -> CREATE
-         *
-         * Ba zai goge sauran customer
-         * profile fields ba.
+         * Save location without deleting
+         * existing customer profile fields.
          */
 
         await setDoc(
@@ -140,6 +190,8 @@ export default function useCustomerLocation() {
             latitude,
             longitude,
             geohash,
+            currentLocation:
+              address,
             locationUpdatedAt:
               serverTimestamp(),
           },
@@ -159,6 +211,7 @@ export default function useCustomerLocation() {
             latitude,
             longitude,
             geohash,
+            address,
           },
         );
 
@@ -261,12 +314,23 @@ export default function useCustomerLocation() {
           }
 
           /* ----------------------------------------------------
+             REVERSE GEOCODE
+          ---------------------------------------------------- */
+
+          const address =
+            await getReadableAddress(
+              latitude,
+              longitude,
+            );
+
+          /* ----------------------------------------------------
              SAVE TO FIRESTORE
           ---------------------------------------------------- */
 
           return await saveLocation(
             latitude,
             longitude,
+            address,
           );
         } catch (error) {
           console.error(
@@ -325,6 +389,10 @@ export default function useCustomerLocation() {
 
   return {
     location,
+
+    address:
+      location?.address ??
+      null,
 
     latitude:
       location?.latitude ??

@@ -6,7 +6,6 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -69,16 +68,31 @@ export default function WorkerProfileHeader({
     cleanText(email);
 
   return (
-    <AppCard
-      role="worker"
-      style={styles.card}
+    <View
+      style={styles.container}
     >
+      {/* ======================================================
+          TITLE
+      ====================================================== */}
+
+      <AppText
+        variant="heading3"
+        weight="semibold"
+        style={styles.title}
+      >
+        Profile
+      </AppText>
+
+      {/* ======================================================
+          PROFILE CONTENT
+      ====================================================== */}
+
       <View
         style={styles.row}
       >
-        {/* ==================================================
+        {/* ====================================================
             PROFILE PHOTO
-        ================================================== */}
+        ==================================================== */}
 
         <ProfileAvatar
           photoUrl={photoUrl}
@@ -92,9 +106,9 @@ export default function WorkerProfileHeader({
           }
         />
 
-        {/* ==================================================
+        {/* ====================================================
             INFO
-        ================================================== */}
+        ==================================================== */}
 
         <View
           style={styles.info}
@@ -110,9 +124,9 @@ export default function WorkerProfileHeader({
             {safeName}
           </AppText>
 
-          {/* =================================================
+          {/* ==================================================
               WORKER BADGE
-          ================================================= */}
+          ================================================== */}
 
           <View
             style={styles.badge}
@@ -132,9 +146,9 @@ export default function WorkerProfileHeader({
             </AppText>
           </View>
 
-          {/* =================================================
+          {/* ==================================================
               PHONE
-          ================================================= */}
+          ================================================== */}
 
           {safePhone ? (
             <View
@@ -164,9 +178,9 @@ export default function WorkerProfileHeader({
             </View>
           ) : null}
 
-          {/* =================================================
+          {/* ==================================================
               EMAIL
-          ================================================= */}
+          ================================================== */}
 
           {safeEmail ? (
             <View
@@ -197,7 +211,7 @@ export default function WorkerProfileHeader({
           ) : null}
         </View>
       </View>
-    </AppCard>
+    </View>
   );
 }
 
@@ -208,36 +222,39 @@ export default function WorkerProfileHeader({
 const styles =
   StyleSheet.create({
     /* ========================================================
-       CARD
+       CONTAINER
     ======================================================== */
 
-    card: {
-      marginHorizontal: 0,
-
-      marginTop: 0,
-
-      marginBottom: 0,
+    container: {
+      width: "100%",
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      paddingVertical:
+      paddingTop:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
+      paddingBottom:
+        FixxamTokens.spacing.md,
 
       backgroundColor:
         Colors.surface,
     },
 
     /* ========================================================
-       ROW
+       TITLE
+    ======================================================== */
+
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    /* ========================================================
+       PROFILE ROW
     ======================================================== */
 
     row: {

@@ -1,6 +1,5 @@
 import React, {
   memo,
-  useMemo,
 } from "react";
 
 import {
@@ -51,18 +50,22 @@ function MarketChatMessageBubbleComponent({
   message,
   isMine,
 }: Props) {
+  const messageText =
+    typeof message.text ===
+    "string"
+      ? message.text.trim()
+      : "";
+
+  if (!messageText) {
+    return null;
+  }
+
   const formattedTime =
-    useMemo(
-      () =>
-        message.createdAt > 0
-          ? formatTime(
-              message.createdAt,
-            )
-          : "",
-      [
-        message.createdAt,
-      ],
-    );
+    message.createdAt > 0
+      ? formatTime(
+          message.createdAt,
+        )
+      : "";
 
   const senderLabel =
     isMine
@@ -84,8 +87,8 @@ function MarketChatMessageBubbleComponent({
       accessible
       accessibilityLabel={
         formattedTime
-          ? `${senderLabel}: ${message.text}. Sent at ${formattedTime}`
-          : `${senderLabel}: ${message.text}`
+          ? `${senderLabel}: ${messageText}. Sent at ${formattedTime}`
+          : `${senderLabel}: ${messageText}`
       }
     >
       <View
@@ -107,7 +110,7 @@ function MarketChatMessageBubbleComponent({
               : styles.sellerMessageText,
           ]}
         >
-          {message.text}
+          {messageText}
         </AppText>
 
         {formattedTime ? (

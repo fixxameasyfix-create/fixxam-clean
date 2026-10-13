@@ -5,34 +5,26 @@ import React, {
 
 import {
   StyleSheet,
+  View,
 } from "react-native";
+
+import AppInput from "@/components/ui/AppInput";
 
 import CategorySelector from "@/components/worker/CategorySelector";
 import ServiceSelector from "@/components/worker/ServiceSelector";
+import LocationSelector from "@/components/worker/LocationSelector";
 
 import {
-  AppCard,
-  AppInput,
-  AppText,
-} from "@/components/ui";
-
-import {
-  Colors,
   FixxamTokens,
 } from "@/theme";
 
-/* ============================================================
-   TYPES
-============================================================ */
-
 type Props = {
   category: string;
-
   subcategory: string;
-
   selectedServices: string[];
-
   experience: string;
+  state: string;
+  lga: string;
 
   setCategory: (
     value: string,
@@ -49,94 +41,45 @@ type Props = {
   setExperience: (
     value: string,
   ) => void;
+
+  setState: (
+    value: string,
+  ) => void;
+
+  setLga: (
+    value: string,
+  ) => void;
 };
 
-/* ============================================================
-   CONSTANTS
-============================================================ */
-
 const MAX_EXPERIENCE_YEARS = 20;
-
-/* ============================================================
-   COMPONENT
-============================================================ */
 
 function ProfessionalInfoSection({
   category,
   subcategory,
   selectedServices,
   experience,
+  state,
+  lga,
   setCategory,
   setSubcategory,
   setSelectedServices,
   setExperience,
+  setState,
+  setLga,
 }: Props) {
   const handleResetServices =
     useCallback(() => {
       setSelectedServices([]);
-    }, [setSelectedServices]);
-
-  const handleExperienceChange =
-    useCallback(
-      (
-        text: string,
-      ) => {
-        const sanitized =
-          text.replace(
-            /\D/g,
-            "",
-          );
-
-        if (
-          sanitized === ""
-        ) {
-          setExperience("");
-          return;
-        }
-
-        const numericValue =
-          Number(sanitized);
-
-        if (
-          numericValue <=
-          MAX_EXPERIENCE_YEARS
-        ) {
-          setExperience(
-            sanitized,
-          );
-        }
-      },
-      [setExperience],
-    );
+    }, [
+      setSelectedServices,
+    ]);
 
   return (
-    <AppCard
-      role="worker"
-      variant="outlined"
-      style={
-        styles.card
-      }
-    >
-      <AppText
-        variant="heading3"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        Professional Information
-      </AppText>
-
+    <View style={styles.container}>
       <CategorySelector
-        category={
-          category
-        }
-        subcategory={
-          subcategory
-        }
-        setCategory={
-          setCategory
-        }
+        category={category}
+        subcategory={subcategory}
+        setCategory={setCategory}
         setSubcategory={
           setSubcategory
         }
@@ -146,9 +89,7 @@ function ProfessionalInfoSection({
       />
 
       <ServiceSelector
-        subcategory={
-          subcategory
-        }
+        subcategory={subcategory}
         selectedServices={
           selectedServices
         }
@@ -159,17 +100,22 @@ function ProfessionalInfoSection({
 
       <AppInput
         label="Years of Experience"
-        placeholder="0 - 20"
-        value={
-          experience
-        }
-        keyboardType="numeric"
-        variant="worker"
+        value={experience}
         onChangeText={
-          handleExperienceChange
+          setExperience
         }
+        placeholder={`0 - ${MAX_EXPERIENCE_YEARS}`}
+        keyboardType="number-pad"
+        maxLength={2}
       />
-    </AppCard>
+
+      <LocationSelector
+        state={state}
+        lga={lga}
+        setState={setState}
+        setLga={setLga}
+      />
+    </View>
   );
 }
 
@@ -177,37 +123,13 @@ export default memo(
   ProfessionalInfoSection,
 );
 
-/* ============================================================
-   STYLES
-============================================================ */
-
 const styles =
   StyleSheet.create({
-    card: {
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-
-      marginTop:
-        FixxamTokens.spacing.xxl,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
+    container: {
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.lg,
 
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    title: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
+      paddingBottom:
+        FixxamTokens.spacing.xl,
     },
   });

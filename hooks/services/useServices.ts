@@ -12,7 +12,14 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
+import {
+  db,
+} from "@/firebase/config";
+
+import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
 
 /* ============================================================
    TYPES
@@ -32,6 +39,9 @@ export interface ServiceItem {
   categoryId: string;
 
   subcategoryId: string;
+
+  fulfillmentMode:
+    ServiceFulfillmentMode;
 
   bookingCount: number;
 
@@ -55,6 +65,33 @@ function normalizeId(
 }
 
 /* ============================================================
+   SAFE NUMBER
+============================================================ */
+
+function normalizeCount(
+  value: unknown,
+): number {
+  const parsed =
+    typeof value ===
+    "number"
+      ? value
+      : Number(value);
+
+  if (
+    !Number.isFinite(
+      parsed,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    parsed,
+  );
+}
+
+/* ============================================================
    HOOK
 ============================================================ */
 
@@ -65,12 +102,16 @@ export default function useServices(
   const [
     services,
     setServices,
-  ] = useState<ServiceItem[]>([]);
+  ] =
+    useState<
+      ServiceItem[]
+    >([]);
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   /* ==========================================================
      LOAD SERVICES
@@ -85,11 +126,13 @@ export default function useServices(
           db,
           "services",
         ),
+
         where(
           "active",
           "==",
           true,
         ),
+
         orderBy(
           "bookingCount",
           "desc",
@@ -99,16 +142,40 @@ export default function useServices(
     const unsubscribe =
       onSnapshot(
         servicesQuery,
+
         (snapshot) => {
-          const data: ServiceItem[] =
+          const data:
+            ServiceItem[] =
             snapshot.docs.map(
-              (serviceDoc) => {
+              (
+                serviceDoc,
+              ) => {
                 const item =
                   serviceDoc.data();
 
+                /* ==============================================
+                   FULFILLMENT MODE
+                ============================================== */
+
+                const fulfillmentMode:
+                  ServiceFulfillmentMode =
+                  isServiceFulfillmentMode(
+                    item.fulfillmentMode,
+                  )
+                    ? item.fulfillmentMode
+                    : "needs_review";
+
                 return {
+                  /* ============================================
+                     ID
+                  ============================================ */
+
                   id:
                     serviceDoc.id,
+
+                  /* ============================================
+                     SERVICE
+                  ============================================ */
 
                   name:
                     typeof item.name ===
@@ -118,21 +185,28 @@ export default function useServices(
 
                   icon:
                     typeof item.icon ===
-                    "string"
-                      ? item.icon
+                    "string" &&
+                    item.icon.trim()
+                      ? item.icon.trim()
                       : "tools",
 
                   color:
                     typeof item.color ===
-                    "string"
-                      ? item.color
+                    "string" &&
+                    item.color.trim()
+                      ? item.color.trim()
                       : "#2563EB",
 
                   backgroundColor:
                     typeof item.backgroundColor ===
-                    "string"
-                      ? item.backgroundColor
+                      "string" &&
+                    item.backgroundColor.trim()
+                      ? item.backgroundColor.trim()
                       : "#EFF6FF",
+
+                  /* ============================================
+                     RELATIONSHIPS
+                  ============================================ */
 
                   categoryId:
                     typeof item.categoryId ===
@@ -146,17 +220,29 @@ export default function useServices(
                       ? item.subcategoryId.trim()
                       : "",
 
+                  /* ============================================
+                     FULFILLMENT
+                  ============================================ */
+
+                  fulfillmentMode,
+
+                  /* ============================================
+                     COUNTS
+                  ============================================ */
+
                   bookingCount:
-                    Number(
-                      item.bookingCount ??
-                        0,
+                    normalizeCount(
+                      item.bookingCount,
                     ),
 
                   completedCount:
-                    Number(
-                      item.completedCount ??
-                        0,
+                    normalizeCount(
+                      item.completedCount,
                     ),
+
+                  /* ============================================
+                     STATUS
+                  ============================================ */
 
                   active:
                     item.active !==
@@ -165,17 +251,28 @@ export default function useServices(
               },
             );
 
-          setServices(data);
-          setLoading(false);
+          setServices(
+            data,
+          );
+
+          setLoading(
+            false,
+          );
         },
+
         (error) => {
           console.error(
             "Failed to load services:",
             error,
           );
 
-          setServices([]);
-          setLoading(false);
+          setServices(
+            [],
+          );
+
+          setLoading(
+            false,
+          );
         },
       );
 
@@ -205,12 +302,17 @@ export default function useServices(
           ---------------------------------------------------- */
 
           const matchesSearch =
-            keyword.length === 0 ||
+            keyword.length ===
+              0 ||
             service.name
               .toLowerCase()
-              .includes(keyword);
+              .includes(
+                keyword,
+              );
 
-          if (!matchesSearch) {
+          if (
+            !matchesSearch
+          ) {
             return false;
           }
 

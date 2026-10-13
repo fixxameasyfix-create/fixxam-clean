@@ -67,59 +67,11 @@ function WorkerWorkGallery({
         styles.container
       }
     >
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <View
-        style={
-          styles.header
-        }
-      >
-        <View
-          style={
-            styles.headerContent
-          }
-        >
-          <AppText
-            variant="bodyLarge"
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Your Work Gallery
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.subtitle
-            }
-          >
-            Show customers examples of your work.
-          </AppText>
-        </View>
-
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={
-            styles.count
-          }
-        >
-          {images.length}/{safeMaxImages}
-        </AppText>
-      </View>
-
-      {/* =====================================================
-          GALLERY
-      ===================================================== */}
-
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={
+          false
+        }
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.gallery
@@ -174,12 +126,8 @@ function WorkerWorkGallery({
           ) => (
             <WorkImage
               key={`${uri}-${index}`}
-              uri={
-                uri
-              }
-              index={
-                index
-              }
+              uri={uri}
+              index={index}
               onRemove={
                 onRemove
               }
@@ -206,7 +154,9 @@ const WorkImage = memo(
     onRemove,
   }: {
     uri: string;
+
     index: number;
+
     onRemove: (
       index: number,
     ) => void;
@@ -278,68 +228,7 @@ WorkImage.displayName =
 const styles =
   StyleSheet.create({
     container: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      backgroundColor:
-        Colors.surface,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-    },
-
-    header: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-    },
-
-    headerContent: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    title: {
-      color:
-        Colors.textPrimary,
-
-      marginBottom:
-        FixxamTokens.spacing.xxs,
-    },
-
-    subtitle: {
-      color:
-        Colors.textSecondary,
-    },
-
-    count: {
-      flexShrink: 0,
-
-      color:
-        Colors.textSecondary,
+      width: "100%",
     },
 
     gallery: {
@@ -436,31 +325,32 @@ const styles =
         "100%",
     },
 
-   removeButton: {
-  position: "absolute",
+    removeButton: {
+      position:
+        "absolute",
 
-  top:
-    FixxamTokens.spacing.xs,
+      top:
+        FixxamTokens.spacing.xs,
 
-  right:
-    FixxamTokens.spacing.xs,
+      right:
+        FixxamTokens.spacing.xs,
 
-  width: 30,
+      width: 30,
 
-  height: 30,
+      height: 30,
 
-  borderRadius:
-    FixxamTokens.radius.full,
+      borderRadius:
+        FixxamTokens.radius.full,
 
-  backgroundColor:
-    "rgba(15, 23, 42, 0.72)",
+      backgroundColor:
+        "rgba(15, 23, 42, 0.72)",
 
-  alignItems:
-    "center",
+      alignItems:
+        "center",
 
-  justifyContent:
-    "center",
-},
+      justifyContent:
+        "center",
+    },
 
     pressed: {
       opacity:

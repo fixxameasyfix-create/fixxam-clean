@@ -22,6 +22,8 @@ import {
   AppText,
 } from "@/components/ui";
 
+import ProductCardMenu from "@/components/customer/home/ProductCardMenu";
+
 import {
   Colors,
   CustomerColors,
@@ -53,7 +55,29 @@ export type ProductCardProps = {
 
   discountPercentage?: number;
 
+  /**
+   * Legacy compatibility only.
+   *
+   * ProductCard no longer depends on this value.
+   * Discounted price is calculated directly from:
+   *
+   * price + discountPercentage
+   */
   discountedPrice?: number;
+
+  favorite?: boolean;
+
+  favoriteCount?: number;
+
+  ratingCount?: number;
+
+  reviewCount?: number;
+
+  onFavoritePress?: () => void;
+
+  onRatingPress?: () => void;
+
+  onReviewPress?: () => void;
 
   onPress: () => void;
 
@@ -70,7 +94,8 @@ function cleanString(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -82,10 +107,14 @@ function normalizePrice(
   value: unknown,
 ): number {
   const parsed =
-    Number(value);
+    Number(
+      value,
+    );
 
   if (
-    !Number.isFinite(parsed) ||
+    !Number.isFinite(
+      parsed,
+    ) ||
     parsed < 0
   ) {
     return 0;
@@ -94,14 +123,45 @@ function normalizePrice(
   return parsed;
 }
 
+function normalizeDiscount(
+  value: unknown,
+): number {
+  const parsed =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed <= 0 ||
+    parsed >= 100
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    99,
+    Math.max(
+      0,
+      parsed,
+    ),
+  );
+}
+
 function normalizeStock(
   value: unknown,
 ): number {
   const parsed =
-    Number(value);
+    Number(
+      value,
+    );
 
   if (
-    !Number.isFinite(parsed) ||
+    !Number.isFinite(
+      parsed,
+    ) ||
     parsed <= 0
   ) {
     return 0;
@@ -112,11 +172,74 @@ function normalizeStock(
   );
 }
 
+function normalizeCount(
+  value: unknown,
+): number {
+  const parsed =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.floor(
+    parsed,
+  );
+}
+
+function calculateDiscountedPrice(
+  originalPrice: number,
+  discountPercentage: number,
+): number {
+  if (
+    originalPrice <= 0 ||
+    discountPercentage <= 0
+  ) {
+    return 0;
+  }
+
+  const calculatedPrice =
+    originalPrice *
+    (
+      1 -
+      discountPercentage /
+        100
+    );
+
+  if (
+    !Number.isFinite(
+      calculatedPrice,
+    ) ||
+    calculatedPrice <= 0 ||
+    calculatedPrice >=
+      originalPrice
+  ) {
+    return 0;
+  }
+
+  return (
+    Math.round(
+      calculatedPrice *
+        100,
+    ) /
+    100
+  );
+}
+
 function formatPrice(
   value: number,
 ): string {
   const safeValue =
-    normalizePrice(value);
+    normalizePrice(
+      value,
+    );
 
   return safeValue.toLocaleString(
     "en-NG",
@@ -126,7 +249,8 @@ function formatPrice(
           ? 0
           : 2,
 
-      maximumFractionDigits: 2,
+      maximumFractionDigits:
+        2,
     },
   );
 }
@@ -142,8 +266,13 @@ function ProductCard({
   category,
   stock = 0,
   featured = false,
-  discountPercentage,
-  discountedPrice,
+  discountPercentage = 0,
+  favoriteCount = 0,
+  ratingCount = 0,
+  reviewCount = 0,
+  onFavoritePress,
+  onRatingPress,
+  onReviewPress,
   onPress,
   onBuyPress,
   style,
@@ -152,14 +281,26 @@ function ProductCard({
     imageFailed,
     setImageFailed,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
+
+  const [
+    menuVisible,
+    setMenuVisible,
+  ] =
+    useState(
+      false,
+    );
 
   /* ============================================================
      PRODUCT
   ============================================================ */
 
   const productName =
-    cleanString(name) ||
+    cleanString(
+      name,
+    ) ||
     "Product";
 
   const categoryName =
@@ -181,35 +322,65 @@ function ProductCard({
   ]);
 
   const showImage =
-    Boolean(imageUrl) &&
+    Boolean(
+      imageUrl,
+    ) &&
     !imageFailed;
 
   /* ============================================================
-     PRICE
+     ORIGINAL PRICE
   ============================================================ */
 
   const originalPrice =
-    normalizePrice(
-      price,
+    useMemo(
+      () =>
+        normalizePrice(
+          price,
+        ),
+      [
+        price,
+      ],
     );
+
+  /* ============================================================
+     DISCOUNT
+  ============================================================ */
 
   const discount =
-    Number(
-      discountPercentage,
+    useMemo(
+      () =>
+        normalizeDiscount(
+          discountPercentage,
+        ),
+      [
+        discountPercentage,
+      ],
     );
 
+  /* ============================================================
+     DISCOUNTED PRICE
+  ============================================================ */
+
   const dealPrice =
-    normalizePrice(
-      discountedPrice,
+    useMemo(
+      () =>
+        calculateDiscountedPrice(
+          originalPrice,
+          discount,
+        ),
+      [
+        discount,
+        originalPrice,
+      ],
     );
+
+  /* ============================================================
+     DISCOUNT STATE
+  ============================================================ */
 
   const hasDiscount =
     originalPrice > 0 &&
-    Number.isFinite(
-      discount,
-    ) &&
     discount > 0 &&
-    discount < 100 &&
     dealPrice > 0 &&
     dealPrice <
       originalPrice;
@@ -226,17 +397,33 @@ function ProductCard({
         )
       : 0;
 
+  const saving =
+    hasDiscount
+      ? Math.max(
+          0,
+          originalPrice -
+            dealPrice,
+        )
+      : 0;
+
   /* ============================================================
      STOCK
   ============================================================ */
 
   const safeStock =
-    normalizeStock(
-      stock,
+    useMemo(
+      () =>
+        normalizeStock(
+          stock,
+        ),
+      [
+        stock,
+      ],
     );
 
   const hasStock =
-    safeStock > 0;
+    safeStock >
+    0;
 
   const stockLabel =
     useMemo(
@@ -255,16 +442,88 @@ function ProductCard({
     );
 
   /* ============================================================
+     MENU COUNTS
+  ============================================================ */
+
+  const safeFavoriteCount =
+    useMemo(
+      () =>
+        normalizeCount(
+          favoriteCount,
+        ),
+      [
+        favoriteCount,
+      ],
+    );
+
+  const safeRatingCount =
+    useMemo(
+      () =>
+        normalizeCount(
+          ratingCount,
+        ),
+      [
+        ratingCount,
+      ],
+    );
+
+  const safeReviewCount =
+    useMemo(
+      () =>
+        normalizeCount(
+          reviewCount,
+        ),
+      [
+        reviewCount,
+      ],
+    );
+
+  /* ============================================================
      ADD TO CART
   ============================================================ */
 
   const handleBuyPress =
     () => {
-      if (!hasStock) {
+      if (
+        !hasStock
+      ) {
         return;
       }
 
       onBuyPress();
+    };
+
+  /* ============================================================
+     MENU
+  ============================================================ */
+
+  const handleOpenMenu =
+    () => {
+      setMenuVisible(
+        true,
+      );
+    };
+
+  const handleCloseMenu =
+    () => {
+      setMenuVisible(
+        false,
+      );
+    };
+
+  const handleFavorite =
+    () => {
+      onFavoritePress?.();
+    };
+
+  const handleRating =
+    () => {
+      onRatingPress?.();
+    };
+
+  const handleReview =
+    () => {
+      onReviewPress?.();
     };
 
   /* ============================================================
@@ -278,14 +537,20 @@ function ProductCard({
         style,
       ]}
     >
-      {/* ======================================================
-          PRODUCT CONTENT
-      ====================================================== */}
-
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`View ${productName}`}
-        onPress={onPress}
+        accessibilityLabel={
+          hasDiscount
+            ? `View ${productName}. ${displayDiscount}% discount. Price ₦${formatPrice(
+                displayPrice,
+              )}.`
+            : `View ${productName}. Price ₦${formatPrice(
+                originalPrice,
+              )}.`
+        }
+        onPress={
+          onPress
+        }
         style={({
           pressed,
         }) => [
@@ -313,6 +578,9 @@ function ProductCard({
               }}
               contentFit="cover"
               cachePolicy="memory-disk"
+              transition={
+                150
+              }
               style={
                 styles.image
               }
@@ -332,7 +600,7 @@ function ProductCard({
               <AppIcon
                 name="package"
                 role="customer"
-                size="xl"
+                size="lg"
                 state="muted"
               />
             </View>
@@ -360,6 +628,9 @@ function ProductCard({
               <AppText
                 variant="caption"
                 weight="bold"
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.featuredText
                 }
@@ -370,26 +641,46 @@ function ProductCard({
           ) : null}
 
           {/* ==================================================
-              DISCOUNT
+              THREE DOT MENU
           ================================================== */}
 
-          {hasDiscount ? (
-            <View
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`More options for ${productName}`}
+            accessibilityState={{
+              expanded:
+                menuVisible,
+            }}
+            hitSlop={
+              6
+            }
+            onPress={(
+              event,
+            ) => {
+              event.stopPropagation();
+
+              handleOpenMenu();
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.menuButton,
+
+              pressed
+                ? styles.menuButtonPressed
+                : null,
+            ]}
+          >
+            <AppText
+              variant="bodyLarge"
+              weight="bold"
               style={
-                styles.discountBadge
+                styles.menuDots
               }
             >
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.discountText
-                }
-              >
-                -{displayDiscount}%
-              </AppText>
-            </View>
-          ) : null}
+              •••
+            </AppText>
+          </Pressable>
         </View>
 
         {/* ====================================================
@@ -401,10 +692,16 @@ function ProductCard({
             styles.content
           }
         >
+          {/* ==================================================
+              NAME
+          ================================================== */}
+
           <AppText
             variant="bodyMedium"
             weight="bold"
-            numberOfLines={2}
+            numberOfLines={
+              2
+            }
             style={
               styles.name
             }
@@ -416,18 +713,26 @@ function ProductCard({
               CATEGORY
           ================================================== */}
 
-          {categoryName ? (
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-              style={
-                styles.category
-              }
-            >
-              {categoryName}
-            </AppText>
-          ) : null}
+          <View
+            style={
+              styles.categoryRow
+            }
+          >
+            {categoryName ? (
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={
+                  1
+                }
+                style={
+                  styles.category
+                }
+              >
+                {categoryName}
+              </AppText>
+            ) : null}
+          </View>
 
           {/* ==================================================
               PRICE
@@ -444,9 +749,11 @@ function ProductCard({
               }
             >
               <AppText
-                variant="bodyLarge"
+                variant="bodyMedium"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.price
                 }
@@ -460,7 +767,9 @@ function ProductCard({
               {hasDiscount ? (
                 <AppText
                   variant="caption"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                   style={
                     styles.originalPrice
                   }
@@ -472,95 +781,126 @@ function ProductCard({
                 </AppText>
               ) : null}
             </View>
+
+            <View
+              style={
+                styles.savingRow
+              }
+            >
+              {hasDiscount ? (
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  numberOfLines={
+                    1
+                  }
+                  style={
+                    styles.savingText
+                  }
+                >
+                  Save ₦
+                  {formatPrice(
+                    saving,
+                  )}
+                </AppText>
+              ) : null}
+            </View>
           </View>
 
           {/* ==================================================
-              DEAL
+              DEAL + STOCK
           ================================================== */}
 
           <View
-            style={[
-              styles.dealRow,
-
-              hasDiscount
-                ? styles.activeDealRow
-                : styles.noDealRow,
-            ]}
+            style={
+              styles.metaSection
+            }
           >
-            <AppIcon
-              name={
-                hasDiscount
-                  ? "payment"
-                  : "info"
-              }
-              role="customer"
-              size="xs"
-              color={
-                hasDiscount
-                  ? CustomerColors.primary
-                  : Colors.textMuted
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
+            <View
               style={[
-                styles.dealText,
+                styles.dealRow,
 
-                !hasDiscount
-                  ? styles.noDealText
-                  : null,
+                hasDiscount
+                  ? styles.activeDealRow
+                  : styles.noDealRow,
               ]}
             >
-              {hasDiscount
-                ? "Deal"
-                : "No Deal"}
-            </AppText>
-          </View>
+              <AppIcon
+                name={
+                  hasDiscount
+                    ? "payment"
+                    : "info"
+                }
+                role="customer"
+                size="xs"
+                color={
+                  hasDiscount
+                    ? CustomerColors.primary
+                    : Colors.textMuted
+                }
+              />
 
-          {/* ==================================================
-              STOCK
-          ================================================== */}
+              <AppText
+                variant="caption"
+                weight="bold"
+                numberOfLines={
+                  1
+                }
+                style={[
+                  styles.dealText,
 
-          <View
-            style={[
-              styles.stockBadge,
+                  !hasDiscount
+                    ? styles.noDealText
+                    : null,
+                ]}
+              >
+                {hasDiscount
+                  ? `${displayDiscount}% Deal`
+                  : "No Deal"}
+              </AppText>
+            </View>
 
-              hasStock
-                ? styles.inStockBadge
-                : styles.outOfStockBadge,
-            ]}
-          >
-            <AppIcon
-              name={
-                hasStock
-                  ? "success"
-                  : "error"
-              }
-              role="customer"
-              size="xs"
-              state={
-                hasStock
-                  ? "success"
-                  : "error"
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              numberOfLines={1}
+            <View
               style={[
-                styles.stockText,
+                styles.stockBadge,
 
                 hasStock
-                  ? styles.inStockText
-                  : styles.outOfStockText,
+                  ? styles.inStockBadge
+                  : styles.outOfStockBadge,
               ]}
             >
-              {stockLabel}
-            </AppText>
+              <AppIcon
+                name={
+                  hasStock
+                    ? "success"
+                    : "error"
+                }
+                role="customer"
+                size="xs"
+                state={
+                  hasStock
+                    ? "success"
+                    : "error"
+                }
+              />
+
+              <AppText
+                variant="caption"
+                weight="bold"
+                numberOfLines={
+                  1
+                }
+                style={[
+                  styles.stockText,
+
+                  hasStock
+                    ? styles.inStockText
+                    : styles.outOfStockText,
+                ]}
+              >
+                {stockLabel}
+              </AppText>
+            </View>
           </View>
         </View>
       </Pressable>
@@ -577,7 +917,9 @@ function ProductCard({
         <AppText
           variant="caption"
           tone="secondary"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           style={
             styles.cartHint
           }
@@ -601,7 +943,9 @@ function ProductCard({
           disabled={
             !hasStock
           }
-          hitSlop={6}
+          hitSlop={
+            6
+          }
           onPress={
             handleBuyPress
           }
@@ -634,6 +978,37 @@ function ProductCard({
           />
         </Pressable>
       </View>
+
+      {/* ======================================================
+          PRODUCT MENU
+      ====================================================== */}
+
+      <ProductCardMenu
+        visible={
+          menuVisible
+        }
+        favorCount={
+          safeFavoriteCount
+        }
+        ratingCount={
+          safeRatingCount
+        }
+        reviewCount={
+          safeReviewCount
+        }
+        onClose={
+          handleCloseMenu
+        }
+        onFavor={
+          handleFavorite
+        }
+        onRating={
+          handleRating
+        }
+        onReview={
+          handleReview
+        }
+      />
     </View>
   );
 }
@@ -649,12 +1024,14 @@ const styles =
     ======================================================== */
 
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       overflow:
         "hidden",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -675,14 +1052,12 @@ const styles =
 
     productPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
@@ -695,22 +1070,30 @@ const styles =
       position:
         "relative",
 
-      width: "100%",
+      width:
+        "100%",
 
-      height: 132,
+      height:
+        118,
 
       backgroundColor:
         Colors.disabledBackground,
     },
 
     image: {
-      width: "100%",
+      width:
+        "100%",
 
-      height: "100%",
+      height:
+        "100%",
+
+      backgroundColor:
+        Colors.disabledBackground,
     },
 
     imagePlaceholder: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         "center",
@@ -731,12 +1114,13 @@ const styles =
         "absolute",
 
       top:
-        FixxamTokens.spacing.sm,
+        6,
 
       left:
-        FixxamTokens.spacing.sm,
+        6,
 
-      minHeight: 28,
+      minHeight:
+        22,
 
       flexDirection:
         "row",
@@ -745,9 +1129,10 @@ const styles =
         "center",
 
       paddingHorizontal:
-        FixxamTokens.spacing.sm,
+        6,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -763,29 +1148,31 @@ const styles =
 
     featuredText: {
       marginLeft:
-        FixxamTokens.spacing.xs,
+        4,
 
       color:
         Colors.textSecondary,
     },
 
     /* ========================================================
-       DISCOUNT
+       THREE DOT MENU
     ======================================================== */
 
-    discountBadge: {
+    menuButton: {
       position:
         "absolute",
 
       top:
-        FixxamTokens.spacing.sm,
+        6,
 
       right:
-        FixxamTokens.spacing.sm,
+        6,
 
-      minWidth: 46,
+      width:
+        42,
 
-      minHeight: 34,
+      height:
+        42,
 
       alignItems:
         "center",
@@ -793,19 +1180,36 @@ const styles =
       justifyContent:
         "center",
 
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.error,
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
     },
 
-    discountText: {
+    menuDots: {
+      marginTop:
+        -6,
+
+      letterSpacing:
+        1,
+
       color:
-        Colors.textInverse,
+        Colors.textPrimary,
+    },
+
+    menuButtonPressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
     },
 
     /* ========================================================
@@ -813,26 +1217,29 @@ const styles =
     ======================================================== */
 
     content: {
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingTop:
-        FixxamTokens.spacing.sm,
-
-      paddingBottom:
-        FixxamTokens.spacing.sm,
+      padding:
+        8,
     },
 
     name: {
-      minHeight: 36,
+      minHeight:
+        36,
 
       color:
         Colors.textPrimary,
     },
 
+    categoryRow: {
+      height:
+        18,
+
+      justifyContent:
+        "center",
+    },
+
     category: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -840,35 +1247,42 @@ const styles =
     ======================================================== */
 
     priceSection: {
-      minHeight: 24,
+      minHeight:
+        38,
 
       justifyContent:
-        "center",
-
-      marginTop:
-        FixxamTokens.spacing.sm,
+        "flex-start",
     },
 
     priceRow: {
+      minHeight:
+        22,
+
       flexDirection:
         "row",
 
       flexWrap:
-        "wrap",
+        "nowrap",
 
       alignItems:
         "baseline",
 
       columnGap:
-        FixxamTokens.spacing.xs,
+        4,
     },
 
     price: {
+      flexShrink:
+        1,
+
       color:
         CustomerColors.primary,
     },
 
     originalPrice: {
+      flexShrink:
+        1,
+
       color:
         Colors.textMuted,
 
@@ -876,15 +1290,40 @@ const styles =
         "line-through",
     },
 
+    savingRow: {
+      height:
+        16,
+
+      justifyContent:
+        "center",
+    },
+
+    savingText: {
+      color:
+        Colors.success,
+    },
+
     /* ========================================================
-       DEAL
+       DEAL + STOCK
     ======================================================== */
+
+    metaSection: {
+      minHeight:
+        52,
+
+      justifyContent:
+        "flex-start",
+    },
 
     dealRow: {
       alignSelf:
         "flex-start",
 
-      minHeight: 24,
+      maxWidth:
+        "100%",
+
+      minHeight:
+        24,
 
       flexDirection:
         "row",
@@ -892,11 +1331,8 @@ const styles =
       alignItems:
         "center",
 
-      marginTop:
-        FixxamTokens.spacing.xs,
-
       paddingHorizontal:
-        FixxamTokens.spacing.xs,
+        6,
 
       borderRadius:
         FixxamTokens.radius.sm,
@@ -913,8 +1349,11 @@ const styles =
     },
 
     dealText: {
+      flexShrink:
+        1,
+
       marginLeft:
-        FixxamTokens.spacing.xs,
+        4,
 
       color:
         CustomerColors.primary,
@@ -925,15 +1364,15 @@ const styles =
         Colors.textMuted,
     },
 
-    /* ========================================================
-       STOCK
-    ======================================================== */
-
     stockBadge: {
       alignSelf:
         "flex-start",
 
-      minHeight: 24,
+      maxWidth:
+        "100%",
+
+      minHeight:
+        24,
 
       flexDirection:
         "row",
@@ -942,10 +1381,10 @@ const styles =
         "center",
 
       marginTop:
-        FixxamTokens.spacing.xs,
+        4,
 
       paddingHorizontal:
-        FixxamTokens.spacing.xs,
+        6,
 
       borderRadius:
         FixxamTokens.radius.sm,
@@ -962,8 +1401,11 @@ const styles =
     },
 
     stockText: {
+      flexShrink:
+        1,
+
       marginLeft:
-        FixxamTokens.spacing.xs,
+        4,
     },
 
     inStockText: {
@@ -982,8 +1424,7 @@ const styles =
 
     cartRow: {
       minHeight:
-        FixxamTokens.size
-          .buttonHeight,
+        42,
 
       flexDirection:
         "row",
@@ -995,12 +1436,13 @@ const styles =
         "space-between",
 
       paddingHorizontal:
-        FixxamTokens.spacing.sm,
+        8,
 
       paddingVertical:
-        FixxamTokens.spacing.xs,
+        3,
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        1,
 
       borderTopColor:
         Colors.divider,
@@ -1010,24 +1452,25 @@ const styles =
     },
 
     cartHint: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginRight:
-        FixxamTokens.spacing.sm,
+        6,
     },
 
     cartButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        36,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        36,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1049,14 +1492,12 @@ const styles =
 
     cartPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useMemo,
   useRef,
@@ -50,13 +51,21 @@ type Props = {
 
   disabled?: boolean;
 
-  /**
-   * Called only after Firestore successfully
-   * records the unavailable product.
-   */
   onReported?: (
     productId: string,
   ) => void;
+};
+
+type ActionErrorCode =
+  | "ORDER_NOT_FOUND"
+  | "NOT_ASSIGNED_WORKER"
+  | "NOT_MARKET_ORDER"
+  | "ORDER_NOT_PENDING"
+  | "PRODUCT_NOT_FOUND"
+  | "ALREADY_REPORTED";
+
+type FirebaseLikeError = {
+  code?: unknown;
 };
 
 /* ============================================================
@@ -85,37 +94,20 @@ function normalizeStatus(
     );
 }
 
-function isClosedStatus(
-  value: unknown,
-): boolean {
-  const status =
-    normalizeStatus(
-      value,
-    );
-
-  return (
-    status === "cancelled" ||
-    status === "canceled" ||
-    status === "completed" ||
-    status === "expired"
-  );
-}
-
 function containsProductId(
   value: unknown,
   productId: string,
 ): boolean {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return false;
   }
 
   return value.some(
     item => {
-      /*
-       * Migration-safe:
-       * supports legacy string[] and
-       * current object[] values.
-       */
       if (
         typeof item ===
         "string"
@@ -143,17 +135,83 @@ function containsProductId(
       return (
         normalizeString(
           record.productId,
+        ) === productId ||
+        normalizeString(
+          record.id,
         ) === productId
       );
     },
   );
 }
 
+function orderContainsProduct(
+  products: unknown,
+  productId: string,
+): boolean {
+  if (
+    !Array.isArray(
+      products,
+    )
+  ) {
+    return false;
+  }
+
+  return products.some(
+    item => {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return false;
+      }
+
+      const data =
+        item as Record<
+          string,
+          unknown
+        >;
+
+      return (
+        normalizeString(
+          data.productId,
+        ) === productId ||
+        normalizeString(
+          data.id,
+        ) === productId
+      );
+    },
+  );
+}
+
+function getFirebaseErrorCode(
+  error: unknown,
+): string {
+  if (
+    !error ||
+    typeof error !==
+      "object" ||
+    !("code" in error)
+  ) {
+    return "";
+  }
+
+  const code =
+    (
+      error as FirebaseLikeError
+    ).code;
+
+  return typeof code ===
+    "string"
+    ? code
+    : "";
+}
+
 /* ============================================================
    COMPONENT
 ============================================================ */
 
-export default function WorkerMarketProductUnavailable({
+function WorkerMarketProductUnavailable({
   orderId,
   productId,
   productName,
@@ -177,14 +235,18 @@ export default function WorkerMarketProductUnavailable({
     useMemo(
       () =>
         orderId.trim(),
-      [orderId],
+      [
+        orderId,
+      ],
     );
 
   const normalizedProductId =
     useMemo(
       () =>
         productId.trim(),
-      [productId],
+      [
+        productId,
+      ],
     );
 
   const normalizedProductName =
@@ -192,7 +254,9 @@ export default function WorkerMarketProductUnavailable({
       () =>
         productName.trim() ||
         "Product",
-      [productName],
+      [
+        productName,
+      ],
     );
 
   const blocked =
@@ -215,12 +279,15 @@ export default function WorkerMarketProductUnavailable({
       const user =
         auth.currentUser;
 
-      if (!user) {
+      if (
+        !user
+      ) {
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
-            "Authentication required",
+            "Sign in required",
 
           text2:
             "Please sign in again.",
@@ -234,10 +301,11 @@ export default function WorkerMarketProductUnavailable({
         !normalizedProductId
       ) {
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
-            "Invalid product",
+            "Product unavailable",
 
           text2:
             "Product information is missing.",
@@ -269,9 +337,9 @@ export default function WorkerMarketProductUnavailable({
                 orderRef,
               );
 
-            /* ==================================================
+            /* ================================================
                ORDER EXISTS
-            ================================================== */
+            ================================================ */
 
             if (
               !snapshot.exists()
@@ -284,18 +352,18 @@ export default function WorkerMarketProductUnavailable({
             const data =
               snapshot.data();
 
-            /* ==================================================
+            /* ================================================
                WORKER OWNERSHIP
-            ================================================== */
+            ================================================ */
 
-            const workerId =
+            const assignedWorkerId =
               normalizeString(
                 data.workerId,
               );
 
             if (
-              !workerId ||
-              workerId !==
+              !assignedWorkerId ||
+              assignedWorkerId !==
                 user.uid
             ) {
               throw new Error(
@@ -303,23 +371,64 @@ export default function WorkerMarketProductUnavailable({
               );
             }
 
-            /* ==================================================
-               ORDER STATUS
-            ================================================== */
+            /* ================================================
+               MARKET ORDER
+            ================================================ */
+
+            const orderType =
+              normalizeStatus(
+                data.orderType,
+              );
+
+            const type =
+              normalizeStatus(
+                data.type,
+              );
 
             if (
-              isClosedStatus(
-                data.status,
-              )
+              orderType !==
+                "market" &&
+              type !==
+                "market"
             ) {
               throw new Error(
-                "ORDER_CLOSED",
+                "NOT_MARKET_ORDER",
               );
             }
 
-            /* ==================================================
+            /* ================================================
+               STATUS
+            ================================================ */
+
+            if (
+              normalizeStatus(
+                data.status,
+              ) !==
+              "pending"
+            ) {
+              throw new Error(
+                "ORDER_NOT_PENDING",
+              );
+            }
+
+            /* ================================================
+               PRODUCT MUST BELONG TO ORDER
+            ================================================ */
+
+            if (
+              !orderContainsProduct(
+                data.products,
+                normalizedProductId,
+              )
+            ) {
+              throw new Error(
+                "PRODUCT_NOT_FOUND",
+              );
+            }
+
+            /* ================================================
                DUPLICATE CHECK
-            ================================================== */
+            ================================================ */
 
             if (
               containsProductId(
@@ -332,9 +441,9 @@ export default function WorkerMarketProductUnavailable({
               );
             }
 
-            /* ==================================================
+            /* ================================================
                UPDATE
-            ================================================== */
+            ================================================ */
 
             transaction.update(
               orderRef,
@@ -351,11 +460,12 @@ export default function WorkerMarketProductUnavailable({
                       user.uid,
 
                     /*
-                     * Timestamp.now() is intentional.
+                     * Nested serverTimestamp() cannot be used
+                     * inside arrayUnion().
                      *
-                     * serverTimestamp() remains top-level
-                     * because transform sentinels should not
-                     * be nested inside arrayUnion values.
+                     * This timestamp is display metadata.
+                     * The trusted document update timestamp
+                     * remains updatedAt below.
                      */
                     reportedAt:
                       Timestamp.now(),
@@ -368,28 +478,31 @@ export default function WorkerMarketProductUnavailable({
           },
         );
 
-        /* ======================================================
-           LOCAL UI UPDATE
-        ====================================================== */
-
         onReported?.(
           normalizedProductId,
         );
 
         Toast.show({
-          type: "success",
+          type:
+            "success",
 
           text1:
-            "Customer notified",
+            "Marked unavailable",
 
           text2:
-            `"${normalizedProductName}" was marked unavailable.`,
+            `${normalizedProductName} was reported to the customer.`,
         });
-      } catch (error) {
-        console.error(
-          "FIXXAM_WORKER_MARK_PRODUCT_UNAVAILABLE_ERROR:",
-          error,
-        );
+      } catch (
+        error
+      ) {
+        if (
+          __DEV__
+        ) {
+          console.warn(
+            "WORKER_MARK_PRODUCT_UNAVAILABLE_ERROR",
+            error,
+          );
+        }
 
         handleError(
           error,
@@ -424,10 +537,8 @@ export default function WorkerMarketProductUnavailable({
       }
 
       Alert.alert(
-        "Product unavailable",
-
-        `"${normalizedProductName}" is not available at the moment. Notify the customer?`,
-
+        "Product unavailable?",
+        `Mark "${normalizedProductName}" as unavailable for this order?`,
         [
           {
             text:
@@ -439,15 +550,14 @@ export default function WorkerMarketProductUnavailable({
 
           {
             text:
-              "Notify Customer",
+              "Mark Unavailable",
 
             style:
               "destructive",
 
-            onPress:
-              () => {
-                void submitUnavailable();
-              },
+            onPress: () => {
+              void submitUnavailable();
+            },
           },
         ],
       );
@@ -458,19 +568,14 @@ export default function WorkerMarketProductUnavailable({
     ]);
 
   /* ==========================================================
-     RENDER
+     ACTION
   ========================================================== */
 
   return (
     <Pressable
-      onPress={
-        handleUnavailable
-      }
-      disabled={
-        blocked
-      }
       accessibilityRole="button"
       accessibilityLabel={`Mark ${normalizedProductName} unavailable`}
+      accessibilityHint="Report this product as unavailable for the current order"
       accessibilityState={{
         disabled:
           blocked,
@@ -478,10 +583,29 @@ export default function WorkerMarketProductUnavailable({
         busy:
           submitting,
       }}
+      disabled={
+        blocked
+      }
+      hitSlop={{
+        top:
+          8,
+
+        bottom:
+          8,
+
+        left:
+          8,
+
+        right:
+          8,
+      }}
+      onPress={
+        handleUnavailable
+      }
       style={({
         pressed,
       }) => [
-        styles.button,
+        styles.action,
 
         blocked
           ? styles.disabled
@@ -512,7 +636,7 @@ export default function WorkerMarketProductUnavailable({
 
       <AppText
         variant="caption"
-        weight="bold"
+        weight="medium"
         numberOfLines={1}
         style={
           styles.text
@@ -520,11 +644,22 @@ export default function WorkerMarketProductUnavailable({
       >
         {submitting
           ? "Updating..."
-          : "Unavailable"}
+          : "Mark unavailable"}
       </AppText>
     </Pressable>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerMarketProductUnavailable.displayName =
+  "WorkerMarketProductUnavailable";
+
+export default memo(
+  WorkerMarketProductUnavailable,
+);
 
 /* ============================================================
    ERROR HANDLER
@@ -534,74 +669,157 @@ function handleError(
   error: unknown,
 ): void {
   const message =
-    error instanceof Error
-      ? error.message
+    error instanceof
+    Error
+      ? (
+          error.message as
+            ActionErrorCode
+        )
       : "";
 
-  switch (message) {
+  switch (
+    message
+  ) {
     case "ORDER_NOT_FOUND":
       Toast.show({
-        type: "error",
+        type:
+          "error",
 
         text1:
-          "Order not found",
+          "Order unavailable",
 
         text2:
-          "This order is no longer available.",
+          "This order could not be found.",
       });
 
       return;
 
     case "NOT_ASSIGNED_WORKER":
       Toast.show({
-        type: "error",
+        type:
+          "error",
 
         text1:
-          "Permission denied",
+          "Order unavailable",
 
         text2:
-          "You are not assigned to this order.",
+          "You are no longer assigned to this order.",
       });
 
       return;
 
-    case "ORDER_CLOSED":
+    case "NOT_MARKET_ORDER":
       Toast.show({
-        type: "info",
+        type:
+          "error",
 
         text1:
-          "Order closed",
+          "Invalid order",
 
         text2:
-          "You can no longer update this order.",
+          "This is not a market order.",
+      });
+
+      return;
+
+    case "ORDER_NOT_PENDING":
+      Toast.show({
+        type:
+          "info",
+
+        text1:
+          "Order changed",
+
+        text2:
+          "Products can no longer be updated for this order.",
+      });
+
+      return;
+
+    case "PRODUCT_NOT_FOUND":
+      Toast.show({
+        type:
+          "error",
+
+        text1:
+          "Product unavailable",
+
+        text2:
+          "This product is no longer part of the order.",
       });
 
       return;
 
     case "ALREADY_REPORTED":
       Toast.show({
-        type: "info",
+        type:
+          "info",
 
         text1:
-          "Already reported",
+          "Already unavailable",
 
         text2:
-          "This product has already been marked unavailable.",
+          "This product has already been reported.",
       });
 
       return;
-
-    default:
-      Toast.show({
-        type: "error",
-
-        text1:
-          "Unable to update product",
-
-        text2:
-          "Please check your connection and try again.",
-      });
   }
+
+  const firebaseCode =
+    getFirebaseErrorCode(
+      error,
+    );
+
+  if (
+    firebaseCode ===
+      "permission-denied" ||
+    firebaseCode ===
+      "firestore/permission-denied"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Order changed",
+
+      text2:
+        "This product can no longer be updated. Refresh the order.",
+    });
+
+    return;
+  }
+
+  if (
+    firebaseCode ===
+      "unavailable" ||
+    firebaseCode ===
+      "firestore/unavailable"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Connection problem",
+
+      text2:
+        "Check your internet connection and try again.",
+    });
+
+    return;
+  }
+
+  Toast.show({
+    type:
+      "error",
+
+    text1:
+      "Unable to update product",
+
+    text2:
+      "Please try again.",
+  });
 }
 
 /* ============================================================
@@ -610,12 +828,15 @@ function handleError(
 
 const styles =
   StyleSheet.create({
-    button: {
+    action: {
       minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+        28,
+
+      alignSelf:
+        "flex-start",
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -629,19 +850,17 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.error,
-
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.sm,
 
       backgroundColor:
         Colors.errorSoft,
     },
 
     text: {
+      lineHeight:
+        16,
+
       color:
         Colors.error,
     },

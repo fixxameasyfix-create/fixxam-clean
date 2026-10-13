@@ -19,6 +19,8 @@ import {
 export type WorkerProfile = {
   uid: string;
 
+  fullName: string;
+
   firstName: string;
 
   otherName: string;
@@ -44,7 +46,47 @@ export type WorkerProfile = {
   hourlyRate: number;
 
   selectedServices: string[];
+
+  workGallery: string[];
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function getStringArray(
+  value: unknown,
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(
+      (
+        item,
+      ): item is string =>
+        typeof item ===
+        "string",
+    )
+    .map(
+      item =>
+        item.trim(),
+    )
+    .filter(Boolean);
+}
 
 /* ============================================================
    HOOK
@@ -56,17 +98,24 @@ export default function useWorkerProfile(
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     worker,
     setWorker,
-  ] = useState<WorkerProfile | null>(
-    null,
-  );
+  ] =
+    useState<WorkerProfile | null>(
+      null,
+    );
 
   useEffect(() => {
-    if (!workerId?.trim()) {
+    const normalizedWorkerId =
+      cleanString(
+        workerId,
+      );
+
+    if (!normalizedWorkerId) {
       setWorker(null);
       setLoading(false);
 
@@ -76,156 +125,316 @@ export default function useWorkerProfile(
     setLoading(true);
 
     /*
-     * IMPORTANT:
+     * Customer-facing worker profile.
      *
-     * Worker public profiles are stored as:
+     * Worker Update Profile publishes
+     * customer-facing information to:
      *
      * workerPublicProfiles/{workerId}
-     *
-     * Do NOT read:
-     *
-     * users/{workerId}
-     *
-     * because that collection contains private
-     * worker/customer information.
      */
-    const workerRef = doc(
-      db,
-      "workerPublicProfiles",
-      workerId,
-    );
+    const workerRef =
+      doc(
+        db,
+        "workerPublicProfiles",
+        normalizedWorkerId,
+      );
 
-    const unsubscribe = onSnapshot(
-      workerRef,
+    const unsubscribe =
+      onSnapshot(
+        workerRef,
 
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setWorker(null);
-          setLoading(false);
+        snapshot => {
+          if (
+            !snapshot.exists()
+          ) {
+            setWorker(null);
+            setLoading(false);
 
-          return;
-        }
+            return;
+          }
 
-        const data =
-          snapshot.data();
+          const data =
+            snapshot.data();
 
-        const profile =
-          data.workerProfile ?? {};
+          const profile =
+            data.workerProfile &&
+            typeof data.workerProfile ===
+              "object" &&
+            !Array.isArray(
+              data.workerProfile,
+            )
+              ? (
+                  data.workerProfile as Record<
+                    string,
+                    unknown
+                  >
+                )
+              : {};
 
-        const firstName =
-          typeof data.firstName === "string"
-            ? data.firstName
-            : "";
+          /* ==================================================
+             NAME
+          ================================================== */
 
-        const otherName =
-          typeof data.otherName === "string"
-            ? data.otherName
-            : "";
+          const fullName =
+            cleanString(
+              data.fullName,
+            ) ||
+            cleanString(
+              profile.fullName,
+            ) ||
+            cleanString(
+              data.name,
+            );
 
-        const surname =
-          typeof data.surname === "string"
-            ? data.surname
-            : "";
+          /*
+           * Legacy fields are preserved
+           * for older screens.
+           */
+          const firstName =
+            cleanString(
+              data.firstName,
+            );
 
-        const state =
-          typeof profile
-            .serviceDetails?.state ===
-            "string"
-            ? profile.serviceDetails.state
-            : "";
+          const otherName =
+            cleanString(
+              data.otherName,
+            );
 
-        const location =
-          state.trim();
+          const surname =
+            cleanString(
+              data.surname,
+            );
 
-        const rating =
-          typeof data.rating === "number" &&
-          Number.isFinite(data.rating)
-            ? data.rating
-            : 0;
+          /* ==================================================
+             PHOTO
+          ================================================== */
 
-        const hourlyRate =
-          typeof profile.hourlyRate ===
-            "number" &&
-          Number.isFinite(
-            profile.hourlyRate,
-          )
-            ? profile.hourlyRate
-            : 0;
+          const photoUrl =
+            cleanString(
+              data.photoUrl,
+            ) ||
+            cleanString(
+              profile.photoUrl,
+            ) ||
+            cleanString(
+              data.photoURL,
+            ) ||
+            cleanString(
+              profile.photoURL,
+            );
 
-        const selectedServices =
-          Array.isArray(
-            profile.selectedServices,
-          )
-            ? profile.selectedServices.filter(
+          /* ==================================================
+             LOCATION
+          ================================================== */
+
+          const location =
+            cleanString(
+              data.location,
+            ) ||
+            cleanString(
+              profile.location,
+            );
+
+          /* ==================================================
+             RATING
+          ================================================== */
+
+          const rawRating =
+            Number(
+              data.rating,
+            );
+
+          const rating =
+            Number.isFinite(
+              rawRating,
+            ) &&
+            rawRating > 0
+              ? Math.min(
+                  5,
+                  Math.max(
+                    0,
+                    rawRating,
+                  ),
+                )
+              : 0;
+
+          /* ==================================================
+             HOURLY RATE
+          ================================================== */
+
+          const rootHourlyRate =
+            Number(
+              data.hourlyRate,
+            );
+
+          const profileHourlyRate =
+            Number(
+              profile.hourlyRate,
+            );
+
+          const hourlyRate =
+            Number.isFinite(
+              rootHourlyRate,
+            ) &&
+            rootHourlyRate >= 0
+              ? rootHourlyRate
+              : Number.isFinite(
+                    profileHourlyRate,
+                  ) &&
+                  profileHourlyRate >= 0
+                ? profileHourlyRate
+                : 0;
+
+          /* ==================================================
+             EXPERIENCE
+          ================================================== */
+
+          const experience =
+            cleanString(
+              profile.experience,
+            ) ||
+            cleanString(
+              data.experience,
+            );
+
+          /* ==================================================
+             CATEGORY
+          ================================================== */
+
+          const category =
+            cleanString(
+              profile.category,
+            ) ||
+            cleanString(
+              data.category,
+            );
+
+          const subcategory =
+            cleanString(
+              profile.subcategory,
+            ) ||
+            cleanString(
+              data.subcategory,
+            );
+
+          /* ==================================================
+             SELECTED SERVICES
+          ================================================== */
+
+          const rawSelectedServices =
+            Array.isArray(
+              profile.selectedServices,
+            )
+              ? profile.selectedServices
+              : Array.isArray(
+                    data.selectedServices,
+                  )
+                ? data.selectedServices
+                : [];
+
+          const selectedServices =
+            rawSelectedServices
+              .filter(
                 (
-                  service: unknown,
+                  service,
                 ): service is string =>
                   typeof service ===
                   "string",
               )
-            : [];
+              .map(
+                service =>
+                  service.trim(),
+              )
+              .filter(Boolean);
 
-        setWorker({
-          uid: snapshot.id,
+          /* ==================================================
+             WORK GALLERY
+          ================================================== */
 
-          firstName,
+          /*
+           * Primary source:
+           *
+           * workerPublicProfiles/{uid}
+           *   .workerProfile.workGallery
+           *
+           * Fallback:
+           *
+           * workerPublicProfiles/{uid}
+           *   .workGallery
+           */
+          const rawWorkGallery =
+            Array.isArray(
+              profile.workGallery,
+            )
+              ? profile.workGallery
+              : Array.isArray(
+                    data.workGallery,
+                  )
+                ? data.workGallery
+                : [];
 
-          otherName,
+          const workGallery =
+            getStringArray(
+              rawWorkGallery,
+            );
 
-          surname,
+          /* ==================================================
+             PUBLIC WORKER PROFILE
+          ================================================== */
 
-          photoUrl:
-            typeof profile.photoUrl ===
-            "string"
-              ? profile.photoUrl
-              : "",
+          setWorker({
+            uid:
+              snapshot.id,
 
-          location,
+            fullName,
 
-          rating,
+            firstName,
 
-          online:
-            data.online === true,
+            otherName,
 
-          available:
-            data.available !== false,
+            surname,
 
-          category:
-            typeof profile.category ===
-            "string"
-              ? profile.category
-              : "",
+            photoUrl,
 
-          subcategory:
-            typeof profile.subcategory ===
-            "string"
-              ? profile.subcategory
-              : "",
+            location,
 
-          experience:
-            typeof profile.experience ===
-            "string"
-              ? profile.experience
-              : "",
+            rating,
 
-          hourlyRate,
+            online:
+              data.online ===
+              true,
 
-          selectedServices,
-        });
+            available:
+              data.available !==
+              false,
 
-        setLoading(false);
-      },
+            category,
 
-      (error) => {
-        console.error(
-          "LOAD_WORKER_PROFILE_ERROR:",
-          error,
-        );
+            subcategory,
 
-        setWorker(null);
-        setLoading(false);
-      },
-    );
+            experience,
+
+            hourlyRate,
+
+            selectedServices,
+
+            workGallery,
+          });
+
+          setLoading(false);
+        },
+
+        error => {
+          console.error(
+            "LOAD_WORKER_PROFILE_ERROR:",
+            error,
+          );
+
+          setWorker(null);
+
+          setLoading(false);
+        },
+      );
 
     return unsubscribe;
   }, [

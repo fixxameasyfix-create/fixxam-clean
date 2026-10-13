@@ -1,13 +1,16 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   ActivityIndicator,
-  Linking,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
@@ -37,6 +40,7 @@ import {
 } from "@/contexts/CartContext";
 
 import useProductDetails from "@/hooks/market/useProductDetails";
+import useWorkerProfile from "@/hooks/worker/useWorkerProfile";
 
 import ProductGallery from "@/components/customer/market/ProductGallery";
 import ProductInfo from "@/components/customer/market/ProductInfo";
@@ -44,11 +48,15 @@ import ProductDescription from "@/components/customer/market/ProductDescription"
 import ProductSeller from "@/components/customer/market/ProductSeller";
 import ProductActions from "@/components/customer/market/ProductActions";
 
-import useWorkerProfile from "@/hooks/worker/useWorkerProfile";
+import WorkerStore from "@/components/customer/worker/WorkerStore";
 
 import getActiveProductDeal, {
-  ActiveProductDeal,
+  type ActiveProductDeal,
 } from "@/services/deals/getActiveProductDeal";
+
+import {
+  recordProductView,
+} from "@/services/products/productViewService";
 
 /* ==============================================================
    TYPES
@@ -56,30 +64,13 @@ import getActiveProductDeal, {
 
 type WorkerData = {
   uid?: string;
-
+  fullName?: string;
   firstName?: string;
-
   otherName?: string;
-
   surname?: string;
-
   photoUrl?: string;
-
   location?: string;
-
   rating?: number;
-
-  phoneNumber?: string;
-
-  phone?: string;
-
-  mobileNumber?: string;
-
-  workerProfile?: {
-    phoneNumber?: string;
-
-    phone?: string;
-  };
 };
 
 /* ==============================================================
@@ -132,33 +123,6 @@ function getAvailableStock(
   );
 }
 
-function normalizePhoneNumber(
-  value: unknown,
-): string {
-  const raw =
-    cleanString(value);
-
-  if (!raw) {
-    return "";
-  }
-
-  const normalized =
-    raw.replace(
-      /[\s().-]/g,
-      "",
-    );
-
-  if (
-    !/^\+?\d{7,15}$/.test(
-      normalized,
-    )
-  ) {
-    return "";
-  }
-
-  return normalized;
-}
-
 /* ==============================================================
    SCREEN
 ============================================================== */
@@ -172,14 +136,22 @@ export default function ProductDetailsScreen() {
     id,
   } =
     useLocalSearchParams<{
-      id?: string;
+      id?:
+        | string
+        | string[];
     }>();
 
   const productId =
-    cleanString(
-      Array.isArray(id)
-        ? id[0]
-        : id,
+    useMemo(
+      () =>
+        cleanString(
+          Array.isArray(id)
+            ? id[0]
+            : id,
+        ),
+      [
+        id,
+      ],
     );
 
   /* ============================================================
@@ -193,6 +165,72 @@ export default function ProductDetailsScreen() {
     useProductDetails(
       productId,
     );
+
+  /* ============================================================
+     PRODUCT VIEW TRACKING
+  ============================================================ */
+
+  /*
+   * Keeps track of the product already counted
+   * during this mounted screen session.
+   *
+   * useRef prevents a re-render from creating
+   * another view count.
+   */
+  const viewedProductIdRef =
+    useRef<string>("");
+
+  useEffect(() => {
+    const loadedProductId =
+      cleanString(
+        product?.id,
+      );
+
+    if (
+      loading ||
+      !loadedProductId ||
+      loadedProductId !==
+        productId
+    ) {
+      return;
+    }
+
+    if (
+      viewedProductIdRef.current ===
+      loadedProductId
+    ) {
+      return;
+    }
+
+    /*
+     * Mark it before starting the async write.
+     * This prevents duplicate increments caused
+     * by another render while the request is pending.
+     */
+    viewedProductIdRef.current =
+      loadedProductId;
+
+    void recordProductView(
+      loadedProductId,
+    ).catch(
+      error => {
+        /*
+         * Analytics must never block the customer
+         * from viewing or purchasing the product.
+         */
+        if (__DEV__) {
+          console.error(
+            "RECORD_PRODUCT_VIEW_ERROR:",
+            error,
+          );
+        }
+      },
+    );
+  }, [
+    loading,
+    product?.id,
+    productId,
+  ]);
 
   /* ============================================================
      DEAL
@@ -210,10 +248,6 @@ export default function ProductDetailsScreen() {
     let cancelled =
       false;
 
-    /*
-     * Prevent the previous product's deal
-     * briefly appearing after route changes.
-     */
     setDeal(null);
 
     if (!productId) {
@@ -246,10 +280,6 @@ export default function ProductDetailsScreen() {
         );
 
         if (!cancelled) {
-          /*
-           * Deals are optional.
-           * Product remains usable.
-           */
           setDeal(null);
         }
       }
@@ -334,7 +364,16 @@ export default function ProductDetailsScreen() {
         return "Worker";
       }
 
-      const name =
+      const fullName =
+        cleanString(
+          workerData.fullName,
+        );
+
+      if (fullName) {
+        return fullName;
+      }
+
+      const legacyName =
         [
           cleanString(
             workerData.firstName,
@@ -350,37 +389,32 @@ export default function ProductDetailsScreen() {
           .join(" ");
 
       return (
-        name ||
+        legacyName ||
         "Worker"
       );
     }, [
       workerData,
     ]);
 
-  const phoneNumber =
+  const workerPhoto =
     useMemo(
       () =>
         cleanString(
-          workerData?.phoneNumber,
-        ) ||
-        cleanString(
-          workerData?.phone,
-        ) ||
-        cleanString(
-          workerData?.mobileNumber,
-        ) ||
-        cleanString(
-          workerData
-            ?.workerProfile
-            ?.phoneNumber,
-        ) ||
-        cleanString(
-          workerData
-            ?.workerProfile
-            ?.phone,
+          workerData?.photoUrl,
         ),
       [
-        workerData,
+        workerData?.photoUrl,
+      ],
+    );
+
+  const workerLocation =
+    useMemo(
+      () =>
+        cleanString(
+          workerData?.location,
+        ),
+      [
+        workerData?.location,
       ],
     );
 
@@ -389,7 +423,9 @@ export default function ProductDetailsScreen() {
   ============================================================ */
 
   const {
+    items,
     addToCart,
+    replaceCartWithItem,
     cartReady,
   } =
     useCart();
@@ -404,10 +440,6 @@ export default function ProductDetailsScreen() {
   ] =
     useState(1);
 
-  /*
-   * A new product must never inherit
-   * the previous product's quantity.
-   */
   useEffect(() => {
     setQuantity(1);
   }, [
@@ -426,7 +458,27 @@ export default function ProductDetailsScreen() {
     );
 
   /* ============================================================
-     VIEW WORKER PROFILE
+     REPLACE CART MODAL
+  ============================================================ */
+
+  const [
+    showReplaceCartModal,
+    setShowReplaceCartModal,
+  ] =
+    useState(false);
+
+  /*
+   * false = Add Cart
+   * true  = Buy Now
+   */
+  const [
+    pendingBuyNow,
+    setPendingBuyNow,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     VIEW PROFILE
   ============================================================ */
 
   const handleViewProfile =
@@ -448,14 +500,13 @@ export default function ProductDetailsScreen() {
         return;
       }
 
-      /* ROUTE PRESERVED */
-
       router.push({
         pathname:
-          "/(customer)/workers/[id]",
+          "/(customer)/details/worker-profile/[id]",
 
         params: {
-          id: workerId,
+          id:
+            workerId,
         },
       });
     }, [
@@ -463,11 +514,11 @@ export default function ProductDetailsScreen() {
     ]);
 
   /* ============================================================
-     CALL WORKER
+     FIXXAM VOICE CALL
   ============================================================ */
 
   const handleCallWorker =
-    useCallback(async () => {
+    useCallback(() => {
       const workerId =
         cleanString(
           product?.workerId,
@@ -485,76 +536,28 @@ export default function ProductDetailsScreen() {
         return;
       }
 
-      if (!phoneNumber) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Phone number unavailable",
-          text2:
-            "This worker has not added a phone number.",
-        });
+      router.push({
+        pathname:
+          "/(customer)/call/[workerId]",
 
-        return;
-      }
+        params: {
+          workerId,
 
-      const normalizedPhone =
-        normalizePhoneNumber(
-          phoneNumber,
-        );
+          name:
+            workerName,
 
-      if (!normalizedPhone) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Invalid phone number",
-          text2:
-            "This worker's phone number cannot be dialed.",
-        });
-
-        return;
-      }
-
-      try {
-        const phoneUrl =
-          `tel:${normalizedPhone}`;
-
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
-
-        if (!supported) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Cannot make call",
-            text2:
-              "Calling is not available on this device.",
-          });
-
-          return;
-        }
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (error) {
-        console.error(
-          "CALL_WORKER_ERROR:",
-          error,
-        );
-
-        Toast.show({
-          type: "error",
-          text1:
-            "Call failed",
-          text2:
-            "Unable to open the phone dialer.",
-        });
-      }
+          ...(workerPhoto
+            ? {
+                image:
+                  workerPhoto,
+              }
+            : {}),
+        },
+      } as never);
     }, [
-      phoneNumber,
       product?.workerId,
+      workerName,
+      workerPhoto,
     ]);
 
   /* ============================================================
@@ -601,7 +604,7 @@ export default function ProductDetailsScreen() {
       }
 
       setQuantity(
-        (previous) =>
+        previous =>
           Math.min(
             previous + 1,
             availableStock,
@@ -616,7 +619,7 @@ export default function ProductDetailsScreen() {
   const decreaseQuantity =
     useCallback(() => {
       setQuantity(
-        (previous) =>
+        previous =>
           Math.max(
             1,
             previous - 1,
@@ -625,7 +628,7 @@ export default function ProductDetailsScreen() {
     }, []);
 
   /* ============================================================
-     PRODUCT VALIDATION
+     VALIDATE PRODUCT
   ============================================================ */
 
   const validateProductForCart =
@@ -657,9 +660,7 @@ export default function ProductDetailsScreen() {
           product.workerId,
         );
 
-      if (
-        !normalizedProductId
-      ) {
+      if (!normalizedProductId) {
         Toast.show({
           type: "error",
           text1:
@@ -733,9 +734,7 @@ export default function ProductDetailsScreen() {
         return false;
       }
 
-      if (
-        !normalizedWorkerId
-      ) {
+      if (!normalizedWorkerId) {
         Toast.show({
           type: "error",
           text1:
@@ -769,7 +768,43 @@ export default function ProductDetailsScreen() {
     ]);
 
   /* ============================================================
-     CART ITEM
+     DIFFERENT WORKER CHECK
+  ============================================================ */
+
+  const hasDifferentWorkerInCart =
+    useCallback((): boolean => {
+      const currentWorkerId =
+        cleanString(
+          product?.workerId,
+        );
+
+      if (
+        !currentWorkerId ||
+        items.length === 0
+      ) {
+        return false;
+      }
+
+      return items.some(
+        item => {
+          const itemWorkerId =
+            cleanString(
+              item.workerId,
+            );
+
+          return (
+            itemWorkerId !==
+            currentWorkerId
+          );
+        },
+      );
+    }, [
+      items,
+      product?.workerId,
+    ]);
+
+  /* ============================================================
+     BUILD CART ITEM
   ============================================================ */
 
   const buildCartItem =
@@ -783,14 +818,6 @@ export default function ProductDetailsScreen() {
           product.workerId,
         );
 
-      /*
-       * price     = original product price
-       * unitPrice = customer-facing active price
-       *
-       * IMPORTANT:
-       * These are display/cart snapshots only.
-       * Checkout/backend must revalidate them.
-       */
       return {
         id:
           cleanString(
@@ -856,6 +883,51 @@ export default function ProductDetailsScreen() {
     ]);
 
   /* ============================================================
+     ADD CURRENT PRODUCT
+  ============================================================ */
+
+  const addCurrentProduct =
+    useCallback((): boolean => {
+      const cartItem =
+        buildCartItem();
+
+      if (!cartItem) {
+        return false;
+      }
+
+      const result =
+        addToCart(
+          cartItem,
+        );
+
+      if (
+        result === "invalid"
+      ) {
+        Toast.show({
+          type: "error",
+          text1:
+            "Unable to add product",
+          text2:
+            "This product contains invalid information.",
+        });
+
+        return false;
+      }
+
+      if (
+        result ===
+        "worker-conflict"
+      ) {
+        return false;
+      }
+
+      return true;
+    }, [
+      addToCart,
+      buildCartItem,
+    ]);
+
+  /* ============================================================
      ADD TO CART
   ============================================================ */
 
@@ -867,44 +939,22 @@ export default function ProductDetailsScreen() {
         return;
       }
 
-      const cartItem =
-        buildCartItem();
+      if (
+        hasDifferentWorkerInCart()
+      ) {
+        setPendingBuyNow(false);
 
-      if (!cartItem) {
-        return;
-      }
-
-      const result =
-        addToCart(
-          cartItem,
+        setShowReplaceCartModal(
+          true,
         );
 
-      if (
-        result ===
-        "worker-conflict"
-      ) {
-        Toast.show({
-          type: "error",
-          text1:
-            "Different worker",
-          text2:
-            "Your cart already contains products from another worker. Clear the cart before adding this product.",
-        });
-
         return;
       }
 
-      if (
-        result === "updated"
-      ) {
-        Toast.show({
-          type: "success",
-          text1:
-            "Cart updated",
-          text2:
-            `${quantity} × ${cartItem.name} added to your existing cart quantity.`,
-        });
+      const added =
+        addCurrentProduct();
 
+      if (!added) {
         return;
       }
 
@@ -913,11 +963,14 @@ export default function ProductDetailsScreen() {
         text1:
           "Added to Cart",
         text2:
-          `${quantity} × ${cartItem.name} added successfully.`,
+          `${quantity} × ${cleanString(
+            product?.name,
+          )} added successfully.`,
       });
     }, [
-      addToCart,
-      buildCartItem,
+      addCurrentProduct,
+      hasDifferentWorkerInCart,
+      product?.name,
       quantity,
       validateProductForCart,
     ]);
@@ -934,41 +987,114 @@ export default function ProductDetailsScreen() {
         return;
       }
 
+      if (
+        hasDifferentWorkerInCart()
+      ) {
+        setPendingBuyNow(true);
+
+        setShowReplaceCartModal(
+          true,
+        );
+
+        return;
+      }
+
+      const added =
+        addCurrentProduct();
+
+      if (!added) {
+        return;
+      }
+
+      router.push(
+        "/(customer)/shop/cart",
+      );
+    }, [
+      addCurrentProduct,
+      hasDifferentWorkerInCart,
+      validateProductForCart,
+    ]);
+
+  /* ============================================================
+     REPLACE CART + CONTINUE
+  ============================================================ */
+
+  const handleClearCartAndContinue =
+    useCallback(() => {
+      if (
+        !validateProductForCart()
+      ) {
+        setShowReplaceCartModal(
+          false,
+        );
+
+        setPendingBuyNow(
+          false,
+        );
+
+        return;
+      }
+
       const cartItem =
         buildCartItem();
 
       if (!cartItem) {
+        setShowReplaceCartModal(
+          false,
+        );
+
+        setPendingBuyNow(
+          false,
+        );
+
         return;
       }
 
-      const result =
-        addToCart(
+      const shouldOpenCart =
+        pendingBuyNow;
+
+      const replaced =
+        replaceCartWithItem(
           cartItem,
         );
 
-      if (
-        result ===
-        "worker-conflict"
-      ) {
+      if (!replaced) {
         Toast.show({
           type: "error",
           text1:
-            "Different worker",
+            "Unable to update cart",
           text2:
-            "Your cart already contains products from another worker. Clear the cart before buying this product.",
+            "Please try again.",
         });
 
         return;
       }
 
-      /* ROUTE PRESERVED */
-
-      router.push(
-        "/(customer)/shop/checkout",
+      setShowReplaceCartModal(
+        false,
       );
+
+      setPendingBuyNow(
+        false,
+      );
+
+      Toast.show({
+        type: "success",
+        text1:
+          "Cart Updated",
+        text2:
+          "Your previous cart was cleared and this product was added.",
+      });
+
+      if (shouldOpenCart) {
+        router.push(
+          "/(customer)/shop/cart",
+        );
+      }
     }, [
-      addToCart,
       buildCartItem,
+      pendingBuyNow,
+      replaceCartWithItem,
       validateProductForCart,
     ]);
 
@@ -990,14 +1116,14 @@ export default function ProductDetailsScreen() {
           }
         >
           <ActivityIndicator
-            size="large"
+            size="small"
             color={
               CustomerColors.primary
             }
           />
 
           <AppText
-            variant="body"
+            variant="caption"
             tone="secondary"
             style={
               styles.loadingText
@@ -1011,7 +1137,7 @@ export default function ProductDetailsScreen() {
   }
 
   /* ============================================================
-     PRODUCT NOT FOUND
+     NOT FOUND
   ============================================================ */
 
   if (!product) {
@@ -1033,7 +1159,7 @@ export default function ProductDetailsScreen() {
             <AppIcon
               name="package"
               role="customer"
-              size="xl"
+              size="lg"
               state="muted"
             />
           </View>
@@ -1050,15 +1176,14 @@ export default function ProductDetailsScreen() {
           </AppText>
 
           <AppText
-            variant="body"
+            variant="caption"
             tone="secondary"
             center
             style={
               styles.subtitle
             }
           >
-            This product is no longer
-            available.
+            This product is no longer available.
           </AppText>
         </View>
       </AppScreen>
@@ -1083,19 +1208,11 @@ export default function ProductDetailsScreen() {
           styles.container
         }
       >
-        {/* ====================================================
-            PRODUCT GALLERY
-        ==================================================== */}
-
         <ProductGallery
           images={
             product.images
           }
         />
-
-        {/* ====================================================
-            PRODUCT INFO
-        ==================================================== */}
 
         <ProductInfo
           name={
@@ -1118,10 +1235,6 @@ export default function ProductDetailsScreen() {
           }
         />
 
-        {/* ====================================================
-            ACTIVE DISCOUNT
-        ==================================================== */}
-
         {hasActiveDiscount &&
         deal ? (
           <View
@@ -1135,7 +1248,7 @@ export default function ProductDetailsScreen() {
               }
             >
               <AppText
-                variant="bodyMedium"
+                variant="caption"
                 weight="bold"
                 style={
                   styles.discountTitle
@@ -1147,6 +1260,7 @@ export default function ProductDetailsScreen() {
               <AppText
                 variant="caption"
                 tone="secondary"
+                numberOfLines={1}
                 style={
                   styles.discountText
                 }
@@ -1175,7 +1289,7 @@ export default function ProductDetailsScreen() {
               </AppText>
 
               <AppText
-                variant="bodyLarge"
+                variant="bodyMedium"
                 weight="bold"
                 style={
                   styles.discountedPrice
@@ -1190,19 +1304,11 @@ export default function ProductDetailsScreen() {
           </View>
         ) : null}
 
-        {/* ====================================================
-            DESCRIPTION
-        ==================================================== */}
-
         <ProductDescription
           description={
             product.description
           }
         />
-
-        {/* ====================================================
-            SELLER
-        ==================================================== */}
 
         <ProductSeller
           workerId={
@@ -1212,18 +1318,14 @@ export default function ProductDetailsScreen() {
             workerName
           }
           photoUrl={
-            workerData?.photoUrl
+            workerPhoto
           }
           location={
-            workerData?.location ??
-            ""
+            workerLocation
           }
           rating={
             workerData?.rating ??
             0
-          }
-          phoneNumber={
-            phoneNumber
           }
           onViewProfile={
             handleViewProfile
@@ -1232,11 +1334,13 @@ export default function ProductDetailsScreen() {
             handleCallWorker
           }
         />
-      </ScrollView>
 
-      {/* ======================================================
-          ACTIONS
-      ====================================================== */}
+        <WorkerStore
+          workerId={
+            product.workerId
+          }
+        />
+      </ScrollView>
 
       <ProductActions
         quantity={
@@ -1255,9 +1359,216 @@ export default function ProductDetailsScreen() {
           handleBuyNow
         }
       />
+
+      <ReplaceCartModal
+        visible={
+          showReplaceCartModal
+        }
+        onClose={() => {
+          setShowReplaceCartModal(
+            false,
+          );
+
+          setPendingBuyNow(
+            false,
+          );
+        }}
+        onContinue={
+          handleClearCartAndContinue
+        }
+      />
     </AppScreen>
   );
 }
+
+/* ==============================================================
+   REPLACE CART MODAL
+============================================================== */
+
+const ReplaceCartModal =
+  memo(
+    function ReplaceCartModal({
+      visible,
+      onClose,
+      onContinue,
+    }: {
+      visible: boolean;
+      onClose: () => void;
+      onContinue: () => void;
+    }) {
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              onPress={
+                onClose
+              }
+              accessible={false}
+              style={
+                StyleSheet.absoluteFill
+              }
+            />
+
+            <View
+              style={
+                styles.modal
+              }
+            >
+              <View
+                style={
+                  styles.modalIcon
+                }
+              >
+                <AppIcon
+                  name="cart"
+                  role="customer"
+                  size="lg"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="bodyLarge"
+                weight="bold"
+                center
+                style={
+                  styles.modalTitle
+                }
+              >
+                Your Cart Has Other Products
+              </AppText>
+
+              <AppText
+                variant="body"
+                tone="secondary"
+                center
+                style={
+                  styles.modalMessage
+                }
+              >
+                Your cart contains products from another worker.
+                Clear your current cart to continue with this product.
+              </AppText>
+
+              <View
+                style={
+                  styles.infoBox
+                }
+              >
+                <AppIcon
+                  name="info"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  style={
+                    styles.infoText
+                  }
+                >
+                  Your current cart will be removed and replaced
+                  with this product.
+                </AppText>
+              </View>
+
+              <View
+                style={
+                  styles.modalActions
+                }
+              >
+                <Pressable
+                  onPress={
+                    onClose
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.cancelButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    style={
+                      styles.cancelButtonText
+                    }
+                  >
+                    Cancel
+                  </AppText>
+                </Pressable>
+
+                <Pressable
+                  onPress={
+                    onContinue
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear cart and continue"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.continueButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppIcon
+                    name="cart"
+                    role="customer"
+                    size="sm"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+
+                  <AppText
+                    variant="caption"
+                    weight="bold"
+                    numberOfLines={1}
+                    style={
+                      styles.continueButtonText
+                    }
+                  >
+                    Clear & Continue
+                  </AppText>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      );
+    },
+  );
+
+ReplaceCartModal.displayName =
+  "ReplaceCartModal";
 
 /* ==============================================================
    STYLES
@@ -1266,15 +1577,12 @@ export default function ProductDetailsScreen() {
 const styles =
   StyleSheet.create({
     container: {
-      paddingBottom: 120,
+      paddingBottom:
+        FixxamTokens.spacing.sm,
 
       backgroundColor:
         Colors.background,
     },
-
-    /* ========================================================
-       LOADING / EMPTY
-    ======================================================== */
 
     center: {
       flex: 1,
@@ -1286,7 +1594,7 @@ const styles =
         "center",
 
       paddingHorizontal:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
 
       backgroundColor:
         Colors.background,
@@ -1294,13 +1602,13 @@ const styles =
 
     loadingText: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     emptyIcon: {
-      width: 88,
+      width: 64,
 
-      height: 88,
+      height: 64,
 
       alignItems:
         "center",
@@ -1309,7 +1617,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
         Colors.disabledBackground,
@@ -1317,24 +1625,20 @@ const styles =
 
     notFoundTitle: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       color:
         Colors.textPrimary,
     },
 
     subtitle: {
-      maxWidth: 300,
+      maxWidth: 280,
 
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      lineHeight: 20,
+      lineHeight: 18,
     },
-
-    /* ========================================================
-       DISCOUNT
-    ======================================================== */
 
     discountCard: {
       flexDirection:
@@ -1347,13 +1651,16 @@ const styles =
         "space-between",
 
       marginHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.xs,
 
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
@@ -1361,7 +1668,7 @@ const styles =
         Colors.success,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.successSoft,
@@ -1373,7 +1680,7 @@ const styles =
       minWidth: 0,
 
       paddingRight:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     discountTitle: {
@@ -1382,8 +1689,7 @@ const styles =
     },
 
     discountText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
     },
 
     discountPriceContainer: {
@@ -1402,10 +1708,208 @@ const styles =
     },
 
     discountedPrice: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
 
       color:
         Colors.success,
+    },
+
+    modalOverlay: {
+      flex: 1,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.overlayMedium,
+    },
+
+    modal: {
+      width: "100%",
+
+      maxWidth: 400,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    modalIcon: {
+      width: 52,
+
+      height: 52,
+
+      alignSelf:
+        "center",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    modalTitle: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    modalMessage: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight: 20,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    infoBox: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    infoText: {
+      flex: 1,
+
+      lineHeight: 18,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    modalActions: {
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    cancelButton: {
+      flex: 1,
+
+      minHeight: 44,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    cancelButtonText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    continueButton: {
+      flex: 1.35,
+
+      minHeight: 44,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    continueButtonText: {
+      flexShrink: 1,
+
+      color:
+        Colors.textInverse,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

@@ -27,111 +27,219 @@ import {
   FixxamTokens,
 } from "@/theme";
 
-import { useCheckout } from "@/hooks/useCheckout";
+import {
+  useCheckout,
+} from "@/hooks/useCheckout";
+
+/* ============================================================
+   CHECKOUT SCREEN
+============================================================ */
 
 export default function CheckoutScreen() {
-  const checkout = useCheckout();
+  const checkout =
+    useCheckout();
 
   return (
     <>
+      {/* ========================================================
+          CHECKOUT
+      ======================================================== */}
+
       <AppScreen
         role="customer"
-        contentContainerStyle={styles.screen}
+        contentContainerStyle={
+          styles.screen
+        }
       >
         <KeyboardAvoidingView
-          style={styles.keyboard}
+          style={
+            styles.keyboard
+          }
           behavior={
-            Platform.OS === "ios"
+            Platform.OS ===
+            "ios"
               ? "padding"
               : undefined
           }
         >
           <ScrollView
-            contentContainerStyle={styles.container}
-            showsVerticalScrollIndicator={false}
+            contentContainerStyle={
+              styles.container
+            }
+            showsVerticalScrollIndicator={
+              false
+            }
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
+            {/* ==================================================
+                TITLE
+            ================================================== */}
+
             <AppText
               variant="heading1"
               weight="bold"
-              style={styles.title}
+              style={
+                styles.title
+              }
             >
               Checkout
             </AppText>
 
+            {/* ==================================================
+                DELIVERY
+            ================================================== */}
+
             <CheckoutDeliveryCard
-              address={checkout.address}
-              focused={checkout.addressFocused}
-              loading={checkout.loading}
-              locationLoading={checkout.locationLoading}
-              latitude={checkout.latitude}
-              longitude={checkout.longitude}
-              onAddressChange={checkout.handleAddressChange}
-              onFocusChange={checkout.setAddressFocused}
+              address={
+                checkout.address
+              }
+              focused={
+                checkout.addressFocused
+              }
+              loading={
+                checkout.loading
+              }
+              locationLoading={
+                checkout.locationLoading
+              }
+              latitude={
+                checkout.latitude
+              }
+              longitude={
+                checkout.longitude
+              }
+              onAddressChange={
+                checkout.handleAddressChange
+              }
+              onFocusChange={
+                checkout.setAddressFocused
+              }
               onUseCurrentLocation={() => {
-                void checkout.handleUseCurrentLocation();
+                void checkout
+                  .handleUseCurrentLocation();
               }}
             />
 
+            {/* ==================================================
+                PAYMENT
+            ================================================== */}
+
             <CheckoutPaymentSection
-              paymentMethod={checkout.paymentMethod}
-              loading={checkout.loading}
-              onChange={checkout.setPaymentMethod}
+              paymentMethod={
+                checkout.paymentMethod
+              }
+              loading={
+                checkout.loading
+              }
+              onChange={
+                checkout.setPaymentMethod
+              }
             />
+
+            {/* ==================================================
+                ORDER SUMMARY
+            ================================================== */}
 
             <CheckoutOrderSummary
-              items={checkout.items}
-              totalQuantity={checkout.totalQuantity}
+              items={
+                checkout.items
+              }
+              totalQuantity={
+                checkout.totalQuantity
+              }
             />
 
+            {/* ==================================================
+                TOTAL
+            ================================================== */}
+
             <CheckoutTotalCard
-              subtotal={checkout.safeSubtotal}
-              discountTotal={checkout.safeDiscountTotal}
-              total={checkout.safeTotal}
-              hasDiscount={checkout.hasDiscount}
-              loading={checkout.loading}
-              cartReady={checkout.cartReady}
+              subtotal={
+                checkout.safeSubtotal
+              }
+              discountTotal={
+                checkout.safeDiscountTotal
+              }
+              total={
+                checkout.safeTotal
+              }
+              hasDiscount={
+                checkout.hasDiscount
+              }
+              loading={
+                checkout.loading
+              }
+              cartReady={
+                checkout.cartReady
+              }
               onPlaceOrder={() => {
-                void checkout.handlePlaceOrder();
+                void checkout
+                  .handlePlaceOrder();
               }}
             />
           </ScrollView>
         </KeyboardAvoidingView>
       </AppScreen>
 
+      {/* ========================================================
+          LOGIN REQUIRED MODAL
+      ======================================================== */}
+
       <Modal
-        visible={checkout.loginModalVisible}
+        visible={
+          checkout.loginModalVisible
+        }
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={checkout.closeLoginModal}
+        onRequestClose={
+          checkout.closeLoginModal
+        }
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={
+            styles.modalOverlay
+          }
+        >
           <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={checkout.closeLoginModal}
+            style={
+              StyleSheet.absoluteFill
+            }
+            onPress={
+              checkout.closeLoginModal
+            }
             accessibilityRole="button"
             accessibilityLabel="Close login dialog"
           />
 
           <View
             accessibilityViewIsModal
-            style={styles.loginModal}
+            style={
+              styles.loginModal
+            }
           >
-            <View style={styles.loginIcon}>
+            <View
+              style={
+                styles.loginIcon
+              }
+            >
               <AppIcon
                 name="lock"
                 role="customer"
                 size="md"
-                color={CustomerColors.primary}
+                color={
+                  CustomerColors.primary
+                }
               />
             </View>
 
             <AppText
               variant="heading3"
               weight="bold"
-              style={styles.loginTitle}
+              style={
+                styles.loginTitle
+              }
             >
               Login required
             </AppText>
@@ -139,19 +247,32 @@ export default function CheckoutScreen() {
             <AppText
               variant="body"
               tone="secondary"
-              style={styles.loginMessage}
+              style={
+                styles.loginMessage
+              }
             >
               Please login to place an order.
             </AppText>
 
-            <View style={styles.loginActions}>
+            <View
+              style={
+                styles.loginActions
+              }
+            >
               <Pressable
-                onPress={checkout.closeLoginModal}
-                disabled={checkout.loading}
+                onPress={
+                  checkout.closeLoginModal
+                }
+                disabled={
+                  checkout.loading
+                }
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
-                style={({ pressed }) => [
+                style={({
+                  pressed,
+                }) => [
                   styles.modalSecondaryButton,
+
                   pressed &&
                     !checkout.loading &&
                     styles.pressed,
@@ -160,19 +281,28 @@ export default function CheckoutScreen() {
                 <AppText
                   variant="caption"
                   weight="bold"
-                  style={styles.cancelText}
+                  style={
+                    styles.cancelText
+                  }
                 >
                   CANCEL
                 </AppText>
               </Pressable>
 
               <Pressable
-                onPress={checkout.handleLogin}
-                disabled={checkout.loading}
+                onPress={
+                  checkout.handleLogin
+                }
+                disabled={
+                  checkout.loading
+                }
                 accessibilityRole="button"
                 accessibilityLabel="Login"
-                style={({ pressed }) => [
+                style={({
+                  pressed,
+                }) => [
                   styles.modalPrimaryButton,
+
                   pressed &&
                     !checkout.loading &&
                     styles.pressed,
@@ -181,7 +311,9 @@ export default function CheckoutScreen() {
                 <AppText
                   variant="caption"
                   weight="bold"
-                  style={styles.loginText}
+                  style={
+                    styles.loginText
+                  }
                 >
                   LOGIN
                 </AppText>
@@ -189,8 +321,162 @@ export default function CheckoutScreen() {
                 <AppIcon
                   name="next"
                   size="xs"
-                  color={Colors.textInverse}
+                  color={
+                    Colors.textInverse
+                  }
                 />
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================
+          ORDER SUCCESS MODAL
+      ======================================================== */}
+
+      <Modal
+        visible={
+          checkout
+            .orderSuccessModalVisible
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          checkout.handleGoHome
+        }
+      >
+        <View
+          style={
+            styles.modalOverlay
+          }
+        >
+          <View
+            accessibilityViewIsModal
+            accessibilityRole="alert"
+            style={
+              styles.successModal
+            }
+          >
+            {/* ==================================================
+                SUCCESS ICON
+            ================================================== */}
+
+            <View
+              style={
+                styles.successIcon
+              }
+            >
+              <AppText
+                variant="heading1"
+                weight="bold"
+                style={
+                  styles.successCheck
+                }
+              >
+                ✓
+              </AppText>
+            </View>
+
+            {/* ==================================================
+                SUCCESS TITLE
+            ================================================== */}
+
+            <AppText
+              variant="heading2"
+              weight="bold"
+              center
+              style={
+                styles.successTitle
+              }
+            >
+              Order Placed Successfully
+            </AppText>
+
+            {/* ==================================================
+                SUCCESS MESSAGE
+            ================================================== */}
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.successMessage
+              }
+            >
+              You have successfully placed your
+              order.
+            </AppText>
+
+            {/* ==================================================
+                ACTIONS
+            ================================================== */}
+
+            <View
+              style={
+                styles.successActions
+              }
+            >
+              <Pressable
+                onPress={
+                  checkout.handleViewOrder
+                }
+                accessibilityRole="button"
+                accessibilityLabel="View order"
+                style={({
+                  pressed,
+                }) => [
+                  styles.viewOrderButton,
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <AppText
+                  variant="bodyLarge"
+                  weight="bold"
+                  style={
+                    styles.viewOrderText
+                  }
+                >
+                  View Order
+                </AppText>
+
+                <AppIcon
+                  name="next"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+              </Pressable>
+
+              <Pressable
+                onPress={
+                  checkout.handleGoHome
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Go to home"
+                style={({
+                  pressed,
+                }) => [
+                  styles.goHomeButton,
+
+                  pressed &&
+                    styles.pressed,
+                ]}
+              >
+                <AppText
+                  variant="bodyLarge"
+                  weight="bold"
+                  style={
+                    styles.goHomeText
+                  }
+                >
+                  Go to Home
+                </AppText>
               </Pressable>
             </View>
           </View>
@@ -200,112 +486,386 @@ export default function CheckoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-    backgroundColor: Colors.background,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  keyboard: {
-    flex: 1,
-  },
+const styles =
+  StyleSheet.create({
+    screen: {
+      flex: 1,
 
-  container: {
-    paddingHorizontal: FixxamTokens.spacing.lg,
-    paddingTop: FixxamTokens.spacing.lg,
-    paddingBottom: FixxamTokens.spacing.xxl,
-  },
+      paddingHorizontal:
+        0,
 
-  title: {
-    marginBottom: FixxamTokens.spacing.lg,
-    color: Colors.textPrimary,
-  },
+      paddingTop:
+        0,
 
-  modalOverlay: {
-    flex: 1,
-    paddingHorizontal: FixxamTokens.spacing.xl,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Colors.overlayMedium,
-  },
+      paddingBottom:
+        0,
 
-  loginModal: {
-    width: "100%",
-    maxWidth: 390,
-    padding: FixxamTokens.spacing.xl,
-    borderRadius: FixxamTokens.radius.xl,
-    backgroundColor: Colors.surface,
-    ...FixxamTokens.shadow.card,
-  },
+      backgroundColor:
+        Colors.background,
+    },
 
-  loginIcon: {
-    width: FixxamTokens.size.avatarLg,
-    height: FixxamTokens.size.avatarLg,
-    marginBottom: FixxamTokens.spacing.md,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: FixxamTokens.radius.lg,
-    backgroundColor: CustomerColors.primarySoft,
-  },
+    keyboard: {
+      flex: 1,
+    },
 
-  loginTitle: {
-    color: Colors.textPrimary,
-  },
+    container: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-  loginMessage: {
-    marginTop: FixxamTokens.spacing.sm,
-    lineHeight: 21,
-    color: Colors.textSecondary,
-  },
+      paddingTop:
+        FixxamTokens.spacing.lg,
 
-  loginActions: {
-    marginTop: FixxamTokens.spacing.xl,
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: FixxamTokens.spacing.sm,
-  },
+      paddingBottom:
+        FixxamTokens.spacing.xxl,
+    },
 
-  modalSecondaryButton: {
-    minHeight: FixxamTokens.size.minimumTouchTarget,
-    paddingHorizontal: FixxamTokens.spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: FixxamTokens.radius.button,
-    backgroundColor: Colors.surface,
-  },
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.lg,
 
-  modalPrimaryButton: {
-    minHeight: FixxamTokens.size.minimumTouchTarget,
-    paddingHorizontal: FixxamTokens.spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: FixxamTokens.spacing.xs,
-    borderRadius: FixxamTokens.radius.button,
-    backgroundColor: CustomerColors.primary,
-  },
+      color:
+        Colors.textPrimary,
+    },
 
-  cancelText: {
-    letterSpacing: 0.7,
-    color: Colors.textSecondary,
-  },
+    /* ========================================================
+       SHARED MODAL
+    ======================================================== */
 
-  loginText: {
-    letterSpacing: 0.7,
-    color: Colors.textInverse,
-  },
+    modalOverlay: {
+      flex: 1,
 
-  pressed: {
-    opacity: FixxamTokens.motion.pressedOpacity,
-    transform: [
-      {
-        scale: FixxamTokens.motion.scalePressed,
-      },
-    ],
-  },
-});
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      backgroundColor:
+        Colors.overlayMedium,
+    },
+
+    /* ========================================================
+       LOGIN MODAL
+    ======================================================== */
+
+    loginModal: {
+      width:
+        "100%",
+
+      maxWidth:
+        390,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens
+        .shadow
+        .card,
+    },
+
+    loginIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    loginTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    loginMessage: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight:
+        21,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    loginActions: {
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      flexDirection:
+        "row",
+
+      justifyContent:
+        "flex-end",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalSecondaryButton: {
+      minHeight:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth:
+        1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalPrimaryButton: {
+      minHeight:
+        FixxamTokens
+          .size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    cancelText: {
+      letterSpacing:
+        0.7,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    loginText: {
+      letterSpacing:
+        0.7,
+
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       SUCCESS MODAL
+    ======================================================== */
+
+    successModal: {
+      width:
+        "100%",
+
+      maxWidth:
+        390,
+
+      padding:
+        FixxamTokens.spacing.xl,
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens
+        .shadow
+        .card,
+    },
+
+    successIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    successCheck: {
+      color:
+        Colors.success,
+    },
+
+    successTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    successMessage: {
+      maxWidth:
+        300,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      lineHeight:
+        22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    successActions: {
+      width:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      gap:
+        FixxamTokens.spacing.md,
+    },
+
+    viewOrderButton: {
+      minHeight:
+        FixxamTokens
+          .size
+          .buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    viewOrderText: {
+      color:
+        Colors.textInverse,
+    },
+
+    goHomeButton: {
+      minHeight:
+        FixxamTokens
+          .size
+          .buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth:
+        1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    goHomeText: {
+      color:
+        CustomerColors.primary,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens
+          .motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens
+              .motion
+              .scalePressed,
+        },
+      ],
+    },
+  });

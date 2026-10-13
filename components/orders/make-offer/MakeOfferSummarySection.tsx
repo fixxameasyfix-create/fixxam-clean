@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -18,7 +19,9 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import MakeOfferSectionTitle from "@/components/orders/make-offer/MakeOfferSectionTitle";
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type Props = {
   serviceName: string;
@@ -28,236 +31,227 @@ type Props = {
   formattedAmount: string;
 };
 
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+  fallback: string,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
+
+  const cleaned =
+    value.trim();
+
+  return cleaned ||
+    fallback;
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function MakeOfferSummarySection({
   serviceName,
   customerName,
   formattedAmount,
 }: Props) {
+  const safeServiceName =
+    useMemo(
+      () =>
+        cleanText(
+          serviceName,
+          "Service request",
+        ),
+      [serviceName],
+    );
+
+  const safeCustomerName =
+    useMemo(
+      () =>
+        cleanText(
+          customerName,
+          "Customer",
+        ),
+      [customerName],
+    );
+
+  const safeAmount =
+    useMemo(
+      () =>
+        cleanText(
+          formattedAmount,
+          "₦0",
+        ),
+      [formattedAmount],
+    );
+
   return (
-    <>
-      <MakeOfferSectionTitle
-        number="3"
-        title="Offer summary"
-      />
+    <View
+      accessible
+      accessibilityLabel={`Offer preview. ${safeAmount} for ${safeServiceName}, customer ${safeCustomerName}.`}
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          TOP
+      ======================================================== */}
 
       <View
         style={
-          styles.summaryCard
+          styles.topRow
         }
       >
         <View
           style={
-            styles.summaryHeader
+            styles.iconContainer
           }
         >
-          <View
-            style={
-              styles.summaryIcon
+          <AppIcon
+            name="check"
+            role="worker"
+            size="xs"
+            color={
+              WorkerColors.primary
             }
-          >
-            <AppIcon
-              name="payment"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.summaryHeaderText
-            }
-          >
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              style={
-                styles.summaryTitle
-              }
-            >
-              Ready to send
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.summarySubtitle
-              }
-            >
-              Customer will review your offer.
-            </AppText>
-          </View>
+          />
         </View>
 
         <View
           style={
-            styles.divider
+            styles.content
           }
-        />
+        >
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={
+              styles.label
+            }
+          >
+            OFFER PREVIEW
+          </AppText>
 
-        <SummaryRow
-          label="Service"
-          value={
-            serviceName
-          }
-        />
+          <View
+            style={
+              styles.metaRow
+            }
+          >
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.service
+              }
+            >
+              {safeServiceName}
+            </AppText>
 
-        <SummaryRow
-          label="Customer"
-          value={
-            customerName
-          }
-        />
+            <View
+              style={
+                styles.dot
+              }
+            />
 
-        <SummaryRow
-          label="Your offer"
-          value={
-            formattedAmount
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.customer
+              }
+            >
+              {safeCustomerName}
+            </AppText>
+          </View>
+        </View>
+
+        <AppText
+          variant="heading3"
+          weight="bold"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          style={
+            styles.amount
           }
-          strong
-        />
+        >
+          {safeAmount}
+        </AppText>
       </View>
+
+      {/* ========================================================
+          NOTE
+      ======================================================== */}
 
       <View
         style={
-          styles.infoCard
+          styles.noteRow
         }
       >
         <AppIcon
           name="info"
-          role="worker"
-          size="sm"
+          size="xs"
           color={
-            WorkerColors.primary
+            Colors.textMuted
           }
         />
 
         <AppText
           variant="caption"
           tone="secondary"
+          numberOfLines={2}
           style={
-            styles.infoText
+            styles.note
           }
         >
-          The customer will receive this offer inside the order and can accept, decline, or respond with a counter offer.
+          Customer can accept, decline, or counter your offer.
         </AppText>
       </View>
-    </>
+    </View>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MakeOfferSummarySection.displayName =
+  "MakeOfferSummarySection";
 
 export default memo(
   MakeOfferSummarySection,
 );
 
-const SummaryRow =
-  memo(
-    function SummaryRow({
-      label,
-      value,
-      strong = false,
-    }: {
-      label: string;
-
-      value: string;
-
-      strong?: boolean;
-    }) {
-      return (
-        <View
-          style={
-            styles.summaryRow
-          }
-        >
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.summaryLabel
-            }
-          >
-            {label}
-          </AppText>
-
-          <AppText
-            variant={
-              strong
-                ? "bodyLarge"
-                : "caption"
-            }
-            weight={
-              strong
-                ? "bold"
-                : "medium"
-            }
-            numberOfLines={2}
-            style={[
-              styles.summaryValue,
-
-              strong
-                ? styles.summaryValueStrong
-                : null,
-            ]}
-          >
-            {value}
-          </AppText>
-        </View>
-      );
-    },
-  );
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
-    summaryCard: {
-      width: "100%",
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    summaryHeader: {
-      width: "100%",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    summaryIcon: {
+    container: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        "100%",
 
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      marginRight:
+      paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexShrink: 0,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-      alignItems:
-        "center",
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
-      justifyContent:
-        "center",
+      borderColor:
+        WorkerColors.primary,
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -266,63 +260,75 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    summaryHeaderText: {
-      flex: 1,
+    /* ==========================================================
+       TOP
+    ========================================================== */
 
-      minWidth: 0,
-    },
-
-    summaryTitle: {
-      color:
-        Colors.textPrimary,
-    },
-
-    summarySubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    divider: {
-      height:
-        StyleSheet.hairlineWidth,
-
-      marginVertical:
-        FixxamTokens.spacing.md,
-
-      backgroundColor:
-        Colors.divider,
-    },
-
-    summaryRow: {
-      width: "100%",
-
-      minHeight: 34,
+    topRow: {
+      width:
+        "100%",
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
+    },
+
+    iconContainer: {
+      width:
+        32,
+
+      height:
+        32,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
 
       justifyContent:
-        "space-between",
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    summaryLabel: {
-      color:
-        Colors.textSecondary,
-    },
+    content: {
+      flex:
+        1,
 
-    summaryValue: {
-      flex: 1,
-
-      maxWidth: "64%",
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.xs,
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    label: {
+      fontSize:
+        10,
+
+      letterSpacing:
+        0.35,
+
+      color:
+        WorkerColors.primary,
+    },
+
+    amount: {
+      flexShrink:
+        1,
+
+      maxWidth:
+        "42%",
 
       textAlign:
         "right",
@@ -331,19 +337,82 @@ const styles =
         Colors.textPrimary,
     },
 
-    summaryValueStrong: {
-      color:
-        WorkerColors.primary,
-    },
+    /* ==========================================================
+       META
+    ========================================================== */
 
-    infoCard: {
-      width: "100%",
+    metaRow: {
+      width:
+        "100%",
+
+      minWidth:
+        0,
 
       marginTop:
-        FixxamTokens.spacing.md,
+        2,
 
-      padding:
-        FixxamTokens.spacing.md,
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    service: {
+      maxWidth:
+        "52%",
+
+      flexShrink:
+        1,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    dot: {
+      width:
+        3,
+
+      height:
+        3,
+
+      flexShrink:
+        0,
+
+      marginHorizontal:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.textMuted,
+    },
+
+    customer: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ==========================================================
+       NOTE
+    ========================================================== */
+
+    noteRow: {
+      width:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -351,22 +420,25 @@ const styles =
       alignItems:
         "flex-start",
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+      gap:
+        FixxamTokens.spacing.xs,
 
-      backgroundColor:
-        WorkerColors.primarySoft,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
     },
 
-    infoText: {
-      flex: 1,
+    note: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 18,
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,

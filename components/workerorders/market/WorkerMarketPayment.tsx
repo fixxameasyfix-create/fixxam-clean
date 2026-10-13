@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -12,139 +13,235 @@ import {
   AppText,
 } from "@/components/ui";
 
-import type {
-  AppIconName,
-} from "@/components/ui/AppIcon";
-
 import {
   Colors,
   FixxamTokens,
-  WorkerColors,
 } from "@/theme";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-export type WorkerMarketPaymentMethod =
+type Props = {
+  paymentMethod?: string | null;
+
+  paymentStatus?: string | null;
+};
+
+type PaymentMethod =
   | "cash"
   | "card"
   | "transfer"
-  | string;
+  | "unknown";
 
-type Props = {
-  paymentMethod?: WorkerMarketPaymentMethod;
-
-  paymentStatus?: string;
-};
-
-type PaymentConfig = {
-  label: string;
-
-  icon: AppIconName;
-};
+type PaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function normalizeValue(
+function safeString(
   value: unknown,
-  fallback: string,
 ): string {
   if (
-    typeof value ===
-      "string" &&
-    value.trim()
+    typeof value !==
+    "string"
   ) {
-    return value.trim();
+    return "";
   }
 
-  return fallback;
+  return value.trim();
 }
 
-function normalizeStatus(
+function normalizePaymentMethod(
   value: unknown,
-): string {
-  return normalizeValue(
-    value,
-    "pending",
-  )
-    .toLowerCase()
-    .replace(
-      /[_\s]+/g,
-      "-",
-    );
-}
+): PaymentMethod {
+  const method =
+    safeString(
+      value,
+    )
+      .toLowerCase()
+      .replace(
+        /[_\s-]+/g,
+        "",
+      );
 
-function getPaymentConfig(
-  method: string,
-): PaymentConfig {
   switch (
     method
-      .trim()
+  ) {
+    case "cash":
+    case "cod":
+    case "cashondelivery":
+    case "payondelivery":
+      return "cash";
+
+    case "card":
+    case "debitcard":
+    case "creditcard":
+      return "card";
+
+    case "transfer":
+    case "banktransfer":
+      return "transfer";
+
+    default:
+      return "unknown";
+  }
+}
+
+function normalizePaymentStatus(
+  value: unknown,
+): PaymentStatus {
+  const status =
+    safeString(
+      value,
+    )
       .toLowerCase()
+      .replace(
+        /[_\s-]+/g,
+        "",
+      );
+
+  switch (
+    status
+  ) {
+    case "paid":
+    case "success":
+    case "successful":
+    case "completed":
+      return "paid";
+
+    case "failed":
+    case "declined":
+      return "failed";
+
+    case "refunded":
+    case "refund":
+      return "refunded";
+
+    case "pending":
+    case "unpaid":
+    default:
+      return "pending";
+  }
+}
+
+function getPaymentMethodConfig(
+  method: PaymentMethod,
+) {
+  switch (
+    method
   ) {
     case "cash":
       return {
-        label:
-          "Pay on Delivery",
+        title:
+          "Pay on delivery",
+
+        description:
+          "Customer pays when the order arrives.",
 
         icon:
-          "wallet",
+          "card" as const,
       };
 
     case "card":
       return {
-        label:
-          "Card Payment",
+        title:
+          "Card payment",
+
+        description:
+          "Payment made using a bank card.",
 
         icon:
-          "payment",
+          "card" as const,
       };
 
     case "transfer":
       return {
-        label:
-          "Bank Transfer",
+        title:
+          "Bank transfer",
+
+        description:
+          "Payment made by bank transfer.",
 
         icon:
-          "payment",
+          "card" as const,
       };
 
+    case "unknown":
     default:
       return {
-        label:
-          "Payment Method",
+        title:
+          "Payment method",
+
+        description:
+          "Payment information unavailable.",
 
         icon:
-          "wallet",
+          "card" as const,
       };
   }
 }
 
-function formatStatusLabel(
-  status: string,
-): string {
-  if (
-    status === "paid" ||
-    status === "completed" ||
-    status === "success" ||
-    status === "successful"
+function getPaymentStatusConfig(
+  status: PaymentStatus,
+) {
+  switch (
+    status
   ) {
-    return "Paid";
-  }
+    case "paid":
+      return {
+        label:
+          "Paid",
 
-  return status
-    .replace(
-      /-/g,
-      " ",
-    )
-    .replace(
-      /\b\w/g,
-      character =>
-        character.toUpperCase(),
-    );
+        color:
+          Colors.success,
+
+        backgroundColor:
+          Colors.successSoft,
+      };
+
+    case "failed":
+      return {
+        label:
+          "Failed",
+
+        color:
+          Colors.error,
+
+        backgroundColor:
+          Colors.errorSoft,
+      };
+
+    case "refunded":
+      return {
+        label:
+          "Refunded",
+
+        color:
+          Colors.info,
+
+        backgroundColor:
+          Colors.infoSoft,
+      };
+
+    case "pending":
+    default:
+      return {
+        label:
+          "Pending",
+
+        color:
+          Colors.warning,
+
+        backgroundColor:
+          Colors.warningSoft,
+      };
+  }
 }
 
 /* ============================================================
@@ -155,49 +252,64 @@ function WorkerMarketPayment({
   paymentMethod,
   paymentStatus,
 }: Props) {
-  const method =
-    normalizeValue(
-      paymentMethod,
-      "cash",
+  const normalizedMethod =
+    useMemo(
+      () =>
+        normalizePaymentMethod(
+          paymentMethod,
+        ),
+      [
+        paymentMethod,
+      ],
     );
 
   const normalizedStatus =
-    normalizeStatus(
-      paymentStatus,
+    useMemo(
+      () =>
+        normalizePaymentStatus(
+          paymentStatus,
+        ),
+      [
+        paymentStatus,
+      ],
     );
 
-  const config =
-    getPaymentConfig(
-      method,
+  const methodConfig =
+    useMemo(
+      () =>
+        getPaymentMethodConfig(
+          normalizedMethod,
+        ),
+      [
+        normalizedMethod,
+      ],
     );
 
-  const isPaid =
-    normalizedStatus ===
-      "paid" ||
-    normalizedStatus ===
-      "completed" ||
-    normalizedStatus ===
-      "success" ||
-    normalizedStatus ===
-      "successful";
-
-  const statusLabel =
-    formatStatusLabel(
-      normalizedStatus,
+  const statusConfig =
+    useMemo(
+      () =>
+        getPaymentStatusConfig(
+          normalizedStatus,
+        ),
+      [
+        normalizedStatus,
+      ],
     );
 
   return (
     <View
+      accessible
+      accessibilityLabel={`${methodConfig.title}. ${statusConfig.label}. ${methodConfig.description}`}
       style={
         styles.card
       }
     >
       {/* ======================================================
-          TITLE
+          HEADER
       ====================================================== */}
 
       <AppText
-        variant="heading3"
+        variant="bodyLarge"
         weight="bold"
         style={
           styles.title
@@ -207,12 +319,12 @@ function WorkerMarketPayment({
       </AppText>
 
       {/* ======================================================
-          PAYMENT METHOD
+          PAYMENT
       ====================================================== */}
 
       <View
         style={
-          styles.row
+          styles.paymentRow
         }
       >
         <View
@@ -222,65 +334,74 @@ function WorkerMarketPayment({
         >
           <AppIcon
             name={
-              config.icon
+              methodConfig.icon
             }
-            role="worker"
             size="sm"
             color={
-              WorkerColors.primary
+              Colors.info
             }
           />
         </View>
 
         <View
           style={
-            styles.content
+            styles.paymentContent
           }
         >
           <AppText
             variant="bodyMedium"
-            weight="bold"
+            weight="semibold"
             numberOfLines={1}
             style={
-              styles.method
+              styles.paymentTitle
             }
           >
-            {config.label}
+            {methodConfig.title}
           </AppText>
 
-          {/* ==================================================
-              STATUS
-          ================================================== */}
-
-          <View
+          <AppText
+            variant="caption"
+            numberOfLines={2}
             style={
-              styles.statusRow
+              styles.paymentDescription
             }
           >
-            <View
-              style={[
-                styles.statusDot,
+            {methodConfig.description}
+          </AppText>
+        </View>
 
-                isPaid
-                  ? styles.statusDotPaid
-                  : styles.statusDotPending,
-              ]}
-            />
+        <View
+          style={[
+            styles.statusBadge,
 
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={[
-                styles.statusText,
+            {
+              backgroundColor:
+                statusConfig.backgroundColor,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.statusDot,
 
-                isPaid
-                  ? styles.statusPaid
-                  : styles.statusPending,
-              ]}
-            >
-              Payment: {statusLabel}
-            </AppText>
-          </View>
+              {
+                backgroundColor:
+                  statusConfig.color,
+              },
+            ]}
+          />
+
+          <AppText
+            variant="caption"
+            weight="medium"
+            numberOfLines={1}
+            style={{
+              color:
+                statusConfig.color,
+            }}
+          >
+            {statusConfig.label}
+          </AppText>
         </View>
       </View>
     </View>
@@ -304,46 +425,56 @@ export default memo(
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
-       TITLE
+       HEADER
     ======================================================== */
 
     title: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
       color:
         Colors.textPrimary,
     },
 
     /* ========================================================
-       METHOD
+       PAYMENT ROW
     ======================================================== */
 
-    row: {
+    paymentRow: {
+      minHeight:
+        44,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
       flexDirection:
         "row",
 
@@ -353,12 +484,13 @@ const styles =
 
     iconBox: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        36,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        36,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -370,71 +502,80 @@ const styles =
         FixxamTokens.radius.md,
 
       backgroundColor:
-        WorkerColors.primarySoft,
+        Colors.infoSoft,
     },
 
-    content: {
-      flex: 1,
+    paymentContent: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+
+      marginRight:
+        FixxamTokens.spacing.xs,
     },
 
-    method: {
+    paymentTitle: {
       color:
         Colors.textPrimary,
+    },
+
+    paymentDescription: {
+      marginTop:
+        2,
+
+      lineHeight:
+        16,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
        STATUS
     ======================================================== */
 
-    statusRow: {
-      marginTop:
+    statusBadge: {
+      minHeight:
+        24,
+
+      flexShrink:
+        0,
+
+      paddingHorizontal:
         FixxamTokens.spacing.xs,
+
+      paddingVertical:
+        2,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
-    },
 
-    statusDot: {
-      width: 7,
+      justifyContent:
+        "center",
 
-      height: 7,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
+      gap:
+        FixxamTokens.spacing.xs,
 
       borderRadius:
         FixxamTokens.radius.full,
     },
 
-    statusDotPaid: {
-      backgroundColor:
-        Colors.success,
-    },
+    statusDot: {
+      width:
+        5,
 
-    statusDotPending: {
-      backgroundColor:
-        Colors.warning,
-    },
+      height:
+        5,
 
-    statusText: {
-      flexShrink: 1,
-    },
-
-    statusPaid: {
-      color:
-        Colors.success,
-    },
-
-    statusPending: {
-      color:
-        Colors.warning,
+      borderRadius:
+        FixxamTokens.radius.full,
     },
   });

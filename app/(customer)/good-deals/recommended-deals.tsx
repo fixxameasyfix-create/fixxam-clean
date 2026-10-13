@@ -24,11 +24,36 @@ import CategoryCard from "@/components/categories/CategoryCard";
 
 import useRecommendedServices from "@/hooks/services/useRecommendedServices";
 
+import type {
+  ServiceCardData,
+} from "@/firebase/mappers/serviceMapper";
+
+import {
+  isServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
 import {
   Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
 
 /* ============================================================
    COMPONENT
@@ -56,14 +81,101 @@ export default function RecommendedDealsScreen() {
   const handleServicePress =
     useCallback(
       (
-        serviceId: string,
+        service:
+          ServiceCardData,
       ) => {
+        const serviceId =
+          cleanString(
+            service.id,
+          );
+
+        const serviceName =
+          cleanString(
+            service.name,
+          );
+
+        if (
+          !serviceId ||
+          !serviceName
+        ) {
+          console.error(
+            "RECOMMENDED_SERVICE_NAVIGATION_INVALID_SERVICE:",
+            {
+              serviceId,
+              serviceName,
+            },
+          );
+
+          return;
+        }
+
+        const serviceIcon =
+          cleanString(
+            service.icon,
+          );
+
+        const serviceColor =
+          cleanString(
+            service.color,
+          );
+
+        const serviceBackgroundColor =
+          cleanString(
+            service.backgroundColor,
+          );
+
+        const categoryId =
+          cleanString(
+            service.categoryId,
+          );
+
+        const fulfillmentMode =
+          isServiceFulfillmentMode(
+            service.fulfillmentMode,
+          )
+            ? service.fulfillmentMode
+            : "needs_review";
+
         router.push({
           pathname:
             "/(customer)/details/workers/[id]",
 
           params: {
-            id: serviceId,
+            id:
+              serviceId,
+
+            serviceId,
+
+            serviceName,
+
+            service:
+              serviceName,
+
+            fulfillmentMode,
+
+            ...(serviceIcon
+              ? {
+                  serviceIcon,
+                }
+              : {}),
+
+            ...(serviceColor
+              ? {
+                  serviceColor,
+                }
+              : {}),
+
+            ...(serviceBackgroundColor
+              ? {
+                  serviceBackgroundColor,
+                }
+              : {}),
+
+            ...(categoryId
+              ? {
+                  categoryId,
+                }
+              : {}),
           },
         });
       },
@@ -74,14 +186,20 @@ export default function RecommendedDealsScreen() {
      LOADING
   ========================================================== */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <AppScreen
         role="customer"
-        style={styles.screen}
+        style={
+          styles.screen
+        }
       >
         <View
-          style={styles.center}
+          style={
+            styles.center
+          }
         >
           <ActivityIndicator
             size="large"
@@ -97,7 +215,8 @@ export default function RecommendedDealsScreen() {
               styles.loadingText
             }
           >
-            Loading recommended services...
+            Loading recommended
+            services...
           </AppText>
         </View>
       </AppScreen>
@@ -111,14 +230,18 @@ export default function RecommendedDealsScreen() {
   return (
     <AppScreen
       role="customer"
-      style={styles.screen}
+      style={
+        styles.screen
+      }
     >
       {/* ====================================================
           HEADER
       ==================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <Pressable
           onPress={
@@ -155,7 +278,9 @@ export default function RecommendedDealsScreen() {
           <AppText
             variant="heading2"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Recommended Deals
           </AppText>
@@ -167,7 +292,8 @@ export default function RecommendedDealsScreen() {
               styles.subtitle
             }
           >
-            Discover services selected for today.
+            Discover services selected
+            for today.
           </AppText>
         </View>
       </View>
@@ -209,7 +335,8 @@ export default function RecommendedDealsScreen() {
               styles.dailyTitle
             }
           >
-            Today's Recommended Services
+            Today's Recommended
+            Services
           </AppText>
 
           <AppText
@@ -219,7 +346,9 @@ export default function RecommendedDealsScreen() {
               styles.dailyText
             }
           >
-            We selected up to 10 services from Fixxam for today.
+            We selected up to 10
+            services from Fixxam for
+            today.
           </AppText>
         </View>
       </View>
@@ -230,7 +359,9 @@ export default function RecommendedDealsScreen() {
 
       {error ? (
         <View
-          style={styles.errorCard}
+          style={
+            styles.errorCard
+          }
         >
           <AppIcon
             name="error"
@@ -257,25 +388,33 @@ export default function RecommendedDealsScreen() {
       ==================================================== */}
 
       <FlatList
-        data={services}
+        data={
+          services
+        }
         keyExtractor={(
           item,
-        ) => item.id}
+        ) =>
+          item.id
+        }
         renderItem={({
           item,
         }) => (
           <CategoryCard
-            icon={item.icon}
+            icon={
+              item.icon
+            }
             iconColor={
               item.color
             }
             backgroundColor={
               item.backgroundColor
             }
-            title={item.name}
+            title={
+              item.name
+            }
             onPress={() =>
               handleServicePress(
-                item.id,
+                item,
               )
             }
           />
@@ -292,13 +431,16 @@ export default function RecommendedDealsScreen() {
         contentContainerStyle={[
           styles.content,
 
-          services.length === 0
+          services.length ===
+          0
             ? styles.emptyContent
             : null,
         ]}
         ListEmptyComponent={
           <View
-            style={styles.empty}
+            style={
+              styles.empty
+            }
           >
             <View
               style={
@@ -334,7 +476,9 @@ export default function RecommendedDealsScreen() {
                 styles.emptyText
               }
             >
-              There are no services available to recommend right now.
+              There are no services
+              available to recommend
+              right now.
             </AppText>
 
             <Pressable
@@ -404,7 +548,8 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.xl,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -432,7 +577,8 @@ const styles =
       paddingBottom:
         FixxamTokens.spacing.lg,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
         "flex-start",
@@ -449,7 +595,8 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -506,9 +653,11 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       borderWidth: 1,
 
@@ -533,7 +682,8 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -583,7 +733,8 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
         "flex-start",
@@ -646,7 +797,8 @@ const styles =
       paddingVertical:
         FixxamTokens.spacing.xxl,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -660,7 +812,8 @@ const styles =
       marginBottom:
         FixxamTokens.spacing.lg,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -704,9 +857,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.lg,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",

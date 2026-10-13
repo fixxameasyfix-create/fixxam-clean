@@ -1,5 +1,7 @@
 import React, {
   useCallback,
+  useEffect,
+  useState,
 } from "react";
 
 import {
@@ -28,6 +30,26 @@ import useServicesBySubcategory from "@/hooks/services/useServicesBySubcategory"
 import type {
   ServiceCardData,
 } from "@/firebase/mappers/serviceMapper";
+
+import {
+  getCategoryById,
+} from "@/firebase/queries/getCategoryById";
+
+import {
+  getSubcategoryById,
+} from "@/firebase/queries/getSubcategoryById";
+
+import type {
+  CategoryData,
+} from "@/firebase/mappers/categoryMapper";
+
+import type {
+  SubcategoryData,
+} from "@/firebase/mappers/subcategoryMapper";
+
+import {
+  resolveServiceFulfillmentMode,
+} from "@/types/serviceFulfillmentResolver";
 
 import {
   Colors,
@@ -110,6 +132,123 @@ export default function ServicesScreen() {
     );
 
   /* ============================================================
+     FULFILLMENT PARENTS
+  ============================================================ */
+
+  const [
+    category,
+    setCategory,
+  ] =
+    useState<
+      CategoryData | null
+    >(null);
+
+  const [
+    subcategory,
+    setSubcategory,
+  ] =
+    useState<
+      SubcategoryData | null
+    >(null);
+
+  const [
+    fulfillmentLoading,
+    setFulfillmentLoading,
+  ] =
+    useState(true);
+
+  /* ============================================================
+     LOAD FULFILLMENT PARENTS
+  ============================================================ */
+
+  useEffect(() => {
+    let active =
+      true;
+
+    const loadFulfillmentParents =
+      async () => {
+        try {
+          setFulfillmentLoading(
+            true,
+          );
+
+          const [
+            categoryResult,
+            subcategoryResult,
+          ] =
+            await Promise.all([
+              categoryId
+                ? getCategoryById(
+                    categoryId,
+                  )
+                : Promise.resolve(
+                    null,
+                  ),
+
+              subcategoryId
+                ? getSubcategoryById(
+                    subcategoryId,
+                  )
+                : Promise.resolve(
+                    null,
+                  ),
+            ]);
+
+          if (
+            !active
+          ) {
+            return;
+          }
+
+          setCategory(
+            categoryResult,
+          );
+
+          setSubcategory(
+            subcategoryResult,
+          );
+        } catch (
+          loadError
+        ) {
+          console.error(
+            "LOAD_FULFILLMENT_PARENTS_ERROR:",
+            loadError,
+          );
+
+          if (
+            active
+          ) {
+            setCategory(
+              null,
+            );
+
+            setSubcategory(
+              null,
+            );
+          }
+        } finally {
+          if (
+            active
+          ) {
+            setFulfillmentLoading(
+              false,
+            );
+          }
+        }
+      };
+
+    void loadFulfillmentParents();
+
+    return () => {
+      active =
+        false;
+    };
+  }, [
+    categoryId,
+    subcategoryId,
+  ]);
+
+  /* ============================================================
      BACK
   ============================================================ */
 
@@ -128,6 +267,17 @@ export default function ServicesScreen() {
         service:
           ServiceCardData,
       ) => {
+        /*
+         * Do not navigate until parent
+         * fulfillment data has finished
+         * loading.
+         */
+        if (
+          fulfillmentLoading
+        ) {
+          return;
+        }
+
         const serviceId =
           cleanString(
             service.id,
@@ -144,6 +294,29 @@ export default function ServicesScreen() {
         ) {
           return;
         }
+
+        /*
+         * Resolve using:
+         *
+         * Service
+         *   ↓
+         * Subcategory
+         *   ↓
+         * Category
+         *   ↓
+         * needs_review
+         */
+        const fulfillmentMode =
+          resolveServiceFulfillmentMode({
+            serviceMode:
+              service.fulfillmentMode,
+
+            subcategoryMode:
+              subcategory?.fulfillmentMode,
+
+            categoryMode:
+              category?.fulfillmentMode,
+          });
 
         /*
          * Keep the EXACT icon coming
@@ -177,6 +350,11 @@ export default function ServicesScreen() {
               serviceName,
 
             /*
+             * RESOLVED FULFILLMENT MODE
+             */
+            fulfillmentMode,
+
+            /*
              * EXACT SERVICE ICON
              */
             ...(serviceIcon
@@ -206,8 +384,11 @@ export default function ServicesScreen() {
         });
       },
       [
+        category,
         categoryId,
+        fulfillmentLoading,
         reward,
+        subcategory,
       ],
     );
 
@@ -256,7 +437,8 @@ export default function ServicesScreen() {
   ============================================================ */
 
   if (
-    loading
+    loading ||
+    fulfillmentLoading
   ) {
     return (
       <AppScreen

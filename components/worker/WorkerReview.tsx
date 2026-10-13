@@ -4,52 +4,25 @@ import React, {
 } from "react";
 
 import {
-  ScrollView,
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import {
-  Image,
-} from "expo-image";
+import AppIcon from "@/components/ui/AppIcon";
+import AppText from "@/components/ui/AppText";
 
-import {
-  AppCard,
-  AppIcon,
-  AppText,
-} from "@/components/ui";
-
-import PasswordField from "@/components/auth/PasswordField";
-import TermsCheckbox from "@/components/auth/TermsCheckbox";
-
-import {
-  getServices,
-  ServiceItem,
-} from "@/constants/serviceLoader";
-
-import {
-  Colors,
-  FixxamTokens,
-  WorkerColors,
-} from "@/theme";
-
-/* ============================================================
-   TYPES
-============================================================ */
+import { FixxamTokens } from "@/theme";
 
 type Props = {
-  photo: string | null;
-
   firstName: string;
   surname: string;
   otherName: string;
 
   email: string;
-  phone: string;
 
   category: string;
   subcategory: string;
-
   selectedServices: string[];
 
   experience: string;
@@ -57,680 +30,434 @@ type Props = {
   state: string;
   lga: string;
 
+  serviceAddress: string;
+  latitude: number | null;
+  longitude: number | null;
+  hourlyRate: string;
+  phoneNumber: string;
+
+  photo: string | null;
+
   about: string;
 
   workGallery: string[];
 
-  isLoggedIn: boolean;
-
-  password: string;
-  confirmPassword: string;
-
   acceptedTerms: boolean;
-
-  setPassword: (
-    value: string,
-  ) => void;
-
-  setConfirmPassword: (
-    value: string,
-  ) => void;
 
   onToggleTerms: () => void;
 };
 
-type ReviewItemProps = {
-  label: string;
-  value?: string | null;
-};
-
-/* ============================================================
-   CONSTANTS
-============================================================ */
-
-const MAX_GALLERY_IMAGES = 6;
-
-/* ============================================================
-   REVIEW ITEM
-============================================================ */
-
-const ReviewItem =
-  memo(function ReviewItem({
-    label,
-    value,
-  }: ReviewItemProps) {
-    const displayValue =
-      typeof value === "string" &&
-      value.trim().length > 0
-        ? value.trim()
-        : "-";
-
-    return (
-      <View
-        style={
-          styles.item
-        }
-      >
-        <AppText
-          variant="caption"
-          weight="medium"
-          style={
-            styles.label
-          }
-        >
-          {label}
-        </AppText>
-
-        <AppText
-          variant="body"
-          style={
-            styles.value
-          }
-        >
-          {displayValue}
-        </AppText>
-      </View>
-    );
-  });
-
-/* ============================================================
-   COMPONENT
-============================================================ */
-
 function WorkerReview({
-  photo,
-
   firstName,
   surname,
   otherName,
-
   email,
-  phone,
-
   category,
   subcategory,
-
   selectedServices,
-
   experience,
-
   state,
   lga,
-
+  serviceAddress,
+  latitude,
+  longitude,
+  hourlyRate,
+  phoneNumber,
+  photo,
   about,
-
   workGallery,
-
-  isLoggedIn,
-
-  password,
-  confirmPassword,
-
   acceptedTerms,
-
-  setPassword,
-  setConfirmPassword,
-
   onToggleTerms,
 }: Props) {
-  const hasPhoto =
-    typeof photo === "string" &&
-    photo.trim().length > 0;
-
-  const availableServices =
-    useMemo<ServiceItem[]>(() => {
-      if (!subcategory) {
-        return [];
-      }
-
-      try {
-        return getServices(
-          subcategory,
-        );
-      } catch {
-        return [];
-      }
-    }, [subcategory]);
-
-  const selectedServiceItems =
-    useMemo(
-      () =>
-        selectedServices
-          .map(
-            (serviceId) =>
-              availableServices.find(
-                (service) =>
-                  service.id ===
-                  serviceId,
-              ),
-          )
-          .filter(
-            (
-              service,
-            ): service is ServiceItem =>
-              Boolean(service),
-          ),
+  const fullName = useMemo(
+    () =>
       [
-        availableServices,
-        selectedServices,
-      ],
-    );
+        firstName,
+        surname,
+        otherName,
+      ]
+        .map((value) =>
+          value.trim(),
+        )
+        .filter(Boolean)
+        .join(" "),
+    [
+      firstName,
+      surname,
+      otherName,
+    ],
+  );
 
-  const safeGallery =
-    useMemo(
-      () =>
-        workGallery
-          .filter(
-            (uri): uri is string =>
-              typeof uri ===
-                "string" &&
-              uri.trim().length >
-                0,
-          )
-          .slice(
-            0,
-            MAX_GALLERY_IMAGES,
-          ),
-      [workGallery],
-    );
+  const servicesLabel = useMemo(
+    () =>
+      selectedServices
+        .filter(Boolean)
+        .join(", "),
+    [selectedServices],
+  );
 
-  const experienceLabel =
+  const locationLabel = useMemo(
+    () =>
+      [state, lga]
+        .filter(Boolean)
+        .join(", "),
+    [state, lga],
+  );
+
+  const hourlyRateLabel =
     useMemo(() => {
       const normalized =
-        experience.trim();
+        hourlyRate
+          .replace(
+            /,/g,
+            "",
+          )
+          .trim();
 
       if (!normalized) {
-        return "-";
+        return "Not provided";
       }
 
-      const numericValue =
-        Number(normalized);
+      return `₦${Number(
+        normalized,
+      ).toLocaleString(
+        "en-NG",
+      )} / hour`;
+    }, [hourlyRate]);
 
-      if (
-        !Number.isFinite(
-          numericValue,
-        )
-      ) {
-        return "-";
-      }
-
-      return `${normalized} ${
-        numericValue === 1
-          ? "Year"
-          : "Years"
-      }`;
-    }, [experience]);
-
-  const aboutText =
-    about.trim() || "-";
+  const hasGpsLocation =
+    Number.isFinite(
+      latitude,
+    ) &&
+    Number.isFinite(
+      longitude,
+    );
 
   return (
-    <AppCard
-      role="worker"
-      variant="outlined"
+    <View
       style={
-        styles.card
+        styles.container
       }
     >
-      {/* ======================================================
-          REVIEW MESSAGE
-      ====================================================== */}
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        center
-        style={
-          styles.reviewMessage
-        }
-      >
-        Please review your details before completing your registration.
-      </AppText>
-
-      {/* ======================================================
-          PROFILE PHOTO
-      ====================================================== */}
-
-      <View
-        style={
-          styles.photoContainer
-        }
-      >
-        {hasPhoto ? (
-          <Image
-            source={{
-              uri:
-                photo!.trim(),
-            }}
-            contentFit="cover"
-            transition={150}
-            accessibilityLabel="Worker profile photo"
-            style={
-              styles.photo
-            }
-          />
-        ) : (
-          <View
-            style={
-              styles.photoPlaceholder
-            }
-          >
-            <AppIcon
-              name="profile"
-              role="worker"
-              size="lg"
-              state="muted"
-            />
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.photoPlaceholderText
-              }
-            >
-              No Photo
-            </AppText>
-          </View>
-        )}
-      </View>
-
       {/* ======================================================
           PERSONAL INFORMATION
       ====================================================== */}
 
-      {!isLoggedIn ? (
-        <>
-          <ReviewItem
-            label="First Name"
-            value={
-              firstName
-            }
-          />
-
-          <ReviewItem
-            label="Surname"
-            value={
-              surname
-            }
-          />
-
-          <ReviewItem
-            label="Other Name"
-            value={
-              otherName
-            }
-          />
-
-          <ReviewItem
-            label="Email"
-            value={
-              email
-            }
-          />
-
-          <ReviewItem
-            label="Phone"
-            value={
-              phone
-            }
-          />
-        </>
-      ) : null}
-
-      {/* ======================================================
-          PROFESSIONAL INFORMATION
-      ====================================================== */}
-
-      <ReviewItem
-        label="Category"
-        value={
-          category
-        }
-      />
-
-      <ReviewItem
-        label="Subcategory"
-        value={
-          subcategory
-        }
-      />
-
-      {/* ======================================================
-          SELECTED SERVICES
-      ====================================================== */}
-
-      <View
-        style={
-          styles.section
-        }
+      <ReviewSection
+        icon="profile"
+        title="Personal information"
       >
-        <AppText
-          variant="caption"
-          weight="medium"
-          style={
-            styles.label
+        <ReviewRow
+          label="Full name"
+          value={
+            fullName ||
+            "Not provided"
           }
-        >
-          Selected Services
-        </AppText>
+        />
 
-        {selectedServiceItems.length >
-        0 ? (
-          <View
-            style={
-              styles.servicesContainer
-            }
-          >
-            {selectedServiceItems.map(
-              (service) => (
-                <View
-                  key={
-                    service.id
-                  }
-                  style={
-                    styles.serviceChip
-                  }
-                >
-                  <AppIcon
-                    name="check"
-                    role="worker"
-                    size="xs"
-                    state="active"
-                  />
-
-                  <AppText
-                    variant="caption"
-                    weight="medium"
-                    numberOfLines={1}
-                    style={
-                      styles.serviceText
-                    }
-                  >
-                    {
-                      service.name
-                    }
-                  </AppText>
-                </View>
-              ),
-            )}
-          </View>
-        ) : (
-          <AppText
-            variant="body"
-            style={
-              styles.value
-            }
-          >
-            -
-          </AppText>
-        )}
-      </View>
+        <ReviewRow
+          label="Email"
+          value={
+            email ||
+            "Not provided"
+          }
+        />
+      </ReviewSection>
 
       {/* ======================================================
-          ABOUT
+          WORKER PROFILE
       ====================================================== */}
 
-      <View
-        style={
-          styles.aboutSection
-        }
+      <ReviewSection
+        icon="professional"
+        title="Worker profile"
       >
-        <AppText
-          variant="caption"
-          weight="medium"
-          style={
-            styles.label
+        <ReviewRow
+          label="Category"
+          value={
+            category ||
+            "Not provided"
           }
-        >
-          About You & Your Skills
-        </AppText>
+        />
 
+        <ReviewRow
+          label="Subcategory"
+          value={
+            subcategory ||
+            "Not provided"
+          }
+        />
+
+        <ReviewRow
+          label="Services"
+          value={
+            servicesLabel ||
+            "Not provided"
+          }
+        />
+
+        <ReviewRow
+          label="Experience"
+          value={
+            experience ||
+            "Not provided"
+          }
+        />
+
+        <ReviewRow
+          label="Location"
+          value={
+            locationLabel ||
+            "Not provided"
+          }
+        />
+
+        <ReviewRow
+          label="About"
+          value={
+            about.trim() ||
+            "Not provided"
+          }
+        />
+      </ReviewSection>
+
+      {/* ======================================================
+          SERVICE INFORMATION
+      ====================================================== */}
+
+      <ReviewSection
+        icon="location"
+        title="Service information"
+      >
+        <ReviewRow
+          label="Service address"
+          value={
+            serviceAddress.trim() ||
+            "Not provided"
+          }
+        />
+
+        <ReviewRow
+          label="GPS location"
+          value={
+            hasGpsLocation
+              ? "Location saved"
+              : "Not set"
+          }
+        />
+
+        <ReviewRow
+          label="Hourly rate"
+          value={
+            hourlyRateLabel
+          }
+        />
+
+        {phoneNumber.trim() && (
+  <ReviewRow
+    label="Phone number"
+    value={phoneNumber.trim()}
+  />
+)}
+      </ReviewSection>
+
+      {/* ======================================================
+          PROFILE MEDIA
+      ====================================================== */}
+
+      <ReviewSection
+        icon="image"
+        title="Profile media"
+      >
+        <ReviewRow
+          label="Profile photo"
+          value={
+            photo
+              ? "Added"
+              : "Not added"
+          }
+        />
+
+        <ReviewRow
+          label="Work gallery"
+          value={
+            workGallery.length >
+            0
+              ? `${workGallery.length} ${
+                  workGallery.length ===
+                  1
+                    ? "photo"
+                    : "photos"
+                } added`
+              : "No photos added"
+          }
+        />
+      </ReviewSection>
+
+      {/* ======================================================
+          TERMS
+      ====================================================== */}
+
+      <Pressable
+        style={[
+          styles.termsCard,
+          acceptedTerms &&
+            styles.termsCardAccepted,
+        ]}
+        onPress={
+          onToggleTerms
+        }
+        accessibilityRole="checkbox"
+        accessibilityState={{
+          checked:
+            acceptedTerms,
+        }}
+        accessibilityLabel="Accept Terms and Conditions"
+      >
         <View
-          style={
-            styles.aboutBox
-          }
+          style={[
+            styles.checkbox,
+            acceptedTerms &&
+              styles.checkboxAccepted,
+          ]}
         >
-          <AppText
-            variant="body"
-            style={
-              styles.aboutText
-            }
-          >
-            {aboutText}
-          </AppText>
+          {acceptedTerms ? (
+            <AppIcon
+              name="check"
+              role="worker"
+              state="active"
+              size="sm"
+            />
+          ) : null}
         </View>
-      </View>
 
-      {/* ======================================================
-          WORK GALLERY
-      ====================================================== */}
-
-      <View
-        style={
-          styles.gallerySection
-        }
-      >
         <View
           style={
-            styles.galleryHeader
+            styles.termsContent
           }
         >
           <AppText
-            variant="caption"
-            weight="medium"
-            style={
-              styles.label
-            }
+            variant="body"
+            weight="semibold"
           >
-            Work Gallery
+            I agree to the Terms &
+            Conditions
           </AppText>
 
           <AppText
             variant="caption"
             tone="secondary"
-            style={
-              styles.gallerySubtitle
-            }
           >
-            {safeGallery.length}/
-            {MAX_GALLERY_IMAGES} photos
+            By creating your worker
+            account, you agree to
+            Fixxam's terms and
+            conditions.
           </AppText>
         </View>
-
-        {safeGallery.length >
-        0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={
-              false
-            }
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={
-              styles.galleryScrollContent
-            }
-          >
-            {safeGallery.map(
-              (
-                uri,
-                index,
-              ) => (
-                <View
-                  key={`${uri}-${index}`}
-                  style={
-                    styles.galleryItem
-                  }
-                >
-                  <Image
-                    source={{
-                      uri,
-                    }}
-                    contentFit="cover"
-                    transition={150}
-                    accessibilityLabel={`Work gallery photo ${
-                      index + 1
-                    }`}
-                    style={
-                      styles.galleryImage
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.galleryNumber
-                    }
-                  >
-                    <AppText
-                      variant="caption"
-                      weight="bold"
-                      style={
-                        styles.galleryNumberText
-                      }
-                    >
-                      {
-                        index + 1
-                      }
-                    </AppText>
-                  </View>
-                </View>
-              ),
-            )}
-          </ScrollView>
-        ) : (
-          <View
-            style={
-              styles.emptyGallery
-            }
-          >
-            <AppIcon
-              name="image"
-              role="worker"
-              size="md"
-              state="muted"
-            />
-
-            <AppText
-              variant="body"
-              weight="medium"
-              tone="secondary"
-              style={
-                styles.emptyGalleryText
-              }
-            >
-              No work photos added
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-            >
-              Work photos are optional.
-            </AppText>
-          </View>
-        )}
-      </View>
-
-      {/* ======================================================
-          EXPERIENCE
-      ====================================================== */}
-
-      <ReviewItem
-        label="Experience"
-        value={
-          experienceLabel
-        }
-      />
-
-      {/* ======================================================
-          LOCATION
-      ====================================================== */}
-
-      <ReviewItem
-        label="State"
-        value={
-          state
-        }
-      />
-
-      <ReviewItem
-        label="Local Government"
-        value={
-          lga
-        }
-      />
-
-      {/* ======================================================
-          SECURITY
-      ====================================================== */}
-
-      {!isLoggedIn ? (
-        <View
-          style={
-            styles.security
-          }
-        >
-          <AppText
-            variant="heading3"
-            weight="bold"
-            style={
-              styles.securityTitle
-            }
-          >
-            Security
-          </AppText>
-
-          <PasswordField
-            placeholder="Create Password"
-            value={
-              password
-            }
-            onChangeText={
-              setPassword
-            }
-            variant="worker"
-          />
-
-          <View
-            style={
-              styles.space
-            }
-          />
-
-          <PasswordField
-            placeholder="Confirm Password"
-            value={
-              confirmPassword
-            }
-            onChangeText={
-              setConfirmPassword
-            }
-            variant="worker"
-          />
-
-          <View
-            style={
-              styles.termsSpace
-            }
-          />
-
-          <TermsCheckbox
-            checked={
-              acceptedTerms
-            }
-            onToggle={
-              onToggleTerms
-            }
-            variant="worker"
-          />
-        </View>
-      ) : null}
-    </AppCard>
+      </Pressable>
+    </View>
   );
 }
 
-export default memo(
-  WorkerReview,
-);
+/* ============================================================
+   REVIEW SECTION
+============================================================ */
+
+type ReviewSectionProps = {
+  icon: React.ComponentProps<
+    typeof AppIcon
+  >["name"];
+
+  title: string;
+
+  children: React.ReactNode;
+};
+
+function ReviewSection({
+  icon,
+  title,
+  children,
+}: ReviewSectionProps) {
+  return (
+    <View
+      style={
+        styles.section
+      }
+    >
+      <View
+        style={
+          styles.sectionHeader
+        }
+      >
+        <View
+          style={
+            styles.sectionIcon
+          }
+        >
+          <AppIcon
+            name={icon}
+            role="worker"
+            state="active"
+            size="md"
+          />
+        </View>
+
+        <AppText
+          variant="body"
+          weight="semibold"
+        >
+          {title}
+        </AppText>
+      </View>
+
+      <View
+        style={
+          styles.sectionContent
+        }
+      >
+        {children}
+      </View>
+    </View>
+  );
+}
+
+/* ============================================================
+   REVIEW ROW
+============================================================ */
+
+type ReviewRowProps = {
+  label: string;
+  value: string;
+};
+
+function ReviewRow({
+  label,
+  value,
+}: ReviewRowProps) {
+  return (
+    <View
+      style={
+        styles.row
+      }
+    >
+      <AppText
+        variant="caption"
+        tone="secondary"
+      >
+        {label}
+      </AppText>
+
+      <AppText
+        variant="body"
+        style={
+          styles.value
+        }
+      >
+        {value}
+      </AppText>
+    </View>
+  );
+}
 
 /* ============================================================
    STYLES
@@ -738,364 +465,117 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    card: {
-      marginHorizontal:
+    container: {
+      width: "100%",
+      gap:
         FixxamTokens.spacing.md,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    reviewMessage: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       PROFILE PHOTO
-    ======================================================== */
-
-    photoContainer: {
-      alignItems:
-        "center",
-
-      marginBottom:
+      paddingBottom:
         FixxamTokens.spacing.lg,
     },
 
-    photo: {
-      width: 88,
-
-      height: 88,
-
+    section: {
+      width: "100%",
+      padding:
+        FixxamTokens.spacing.md,
       borderRadius:
-        FixxamTokens.radius.full,
-
+        FixxamTokens.radius.lg,
       backgroundColor:
-        Colors.disabledBackground,
+        "#FFFFFF",
+      borderWidth: 1,
+      borderColor:
+        "#E5E7EB",
     },
 
-    photoPlaceholder: {
-      width: 88,
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap:
+        FixxamTokens.spacing.sm,
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-      height: 88,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-
-      justifyContent:
-        "center",
-
+    sectionIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       alignItems:
         "center",
+      justifyContent:
+        "center",
+      backgroundColor:
+        "#F0F8FF",
+    },
 
+    sectionContent: {
       gap:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens.spacing.md,
     },
 
-    photoPlaceholderText: {
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       ITEMS
-    ======================================================== */
-
-    item: {
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      paddingBottom:
-        FixxamTokens.spacing.sm,
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        Colors.divider,
-    },
-
-    label: {
-      marginBottom:
+    row: {
+      width: "100%",
+      gap:
         FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textSecondary,
     },
 
     value: {
-      color:
-        Colors.textPrimary,
-    },
-
-    /* ========================================================
-       SERVICES
-    ======================================================== */
-
-    section: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-    },
-
-    servicesContainer: {
-      flexDirection:
-        "row",
-
-      flexWrap:
-        "wrap",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    serviceChip: {
-      maxWidth:
-        "100%",
-
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-
-      borderWidth: 1,
-
-      borderColor:
-        WorkerColors.primary,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-    },
-
-    serviceText: {
       flexShrink: 1,
-
-      color:
-        WorkerColors.primary,
     },
 
-    /* ========================================================
-       ABOUT
-    ======================================================== */
-
-    aboutSection: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-    },
-
-    aboutBox: {
-      minHeight: 55,
-
-      backgroundColor:
-        Colors.background,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-    },
-
-    aboutText: {
-      color:
-        Colors.textPrimary,
-    },
-
-    /* ========================================================
-       WORK GALLERY
-    ======================================================== */
-
-    gallerySection: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-    },
-
-    galleryHeader: {
+    termsCard: {
+      width: "100%",
       flexDirection:
         "row",
-
       alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
+        "flex-start",
       gap:
-        FixxamTokens.spacing.sm,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-    },
-
-    gallerySubtitle: {
-      color:
-        Colors.textMuted,
-    },
-
-    galleryScrollContent: {
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      paddingRight:
-        FixxamTokens.spacing.xs,
-    },
-
-    galleryItem: {
-      width: 105,
-
-      height: 115,
-
+        FixxamTokens.spacing.md,
+      padding:
+        FixxamTokens.spacing.md,
       borderRadius:
-        FixxamTokens.radius.md,
-
-      overflow:
-        "hidden",
-
+        FixxamTokens.radius.lg,
       backgroundColor:
-        Colors.disabledBackground,
-
-      position:
-        "relative",
-    },
-
-    galleryImage: {
-      width:
-        "100%",
-
-      height:
-        "100%",
-    },
-
-    galleryNumber: {
-      position:
-        "absolute",
-
-      top:
-        FixxamTokens.spacing.xs,
-
-      left:
-        FixxamTokens.spacing.xs,
-
-      width: 22,
-
-      height: 22,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        "rgba(15, 23, 42, 0.72)",
-
-      justifyContent:
-        "center",
-
-      alignItems:
-        "center",
-    },
-
-    galleryNumberText: {
-      color:
-        Colors.textInverse,
-    },
-
-    emptyGallery: {
+        "#FFFFFF",
       borderWidth: 1,
-
-      borderStyle:
-        "dashed",
-
       borderColor:
-        Colors.disabled,
+        "#E5E7EB",
+    },
 
-      borderRadius:
-        FixxamTokens.radius.md,
+    termsCardAccepted: {
+      borderColor:
+        "#43B982",
+      backgroundColor:
+        "#F0FBF6",
+    },
 
-      paddingVertical:
-        FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      borderWidth: 1.5,
+      borderColor:
+        "#D1D5DB",
       alignItems:
         "center",
+      justifyContent:
+        "center",
+      marginTop: 1,
+    },
 
+    checkboxAccepted: {
+      borderColor:
+        "#43B982",
+      backgroundColor:
+        "#E8F8F0",
+    },
+
+    termsContent: {
+      flex: 1,
       gap:
         FixxamTokens.spacing.xs,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    emptyGalleryText: {
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       SECURITY
-    ======================================================== */
-
-    security: {
-      marginTop:
-        FixxamTokens.spacing.lg,
-    },
-
-    securityTitle: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    space: {
-      height:
-        FixxamTokens.spacing.md,
-    },
-
-    termsSpace: {
-      height:
-        FixxamTokens.spacing.lg,
     },
   });
+
+export default memo(
+  WorkerReview,
+);

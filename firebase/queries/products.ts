@@ -73,8 +73,12 @@ export async function getActiveProducts() {
   return getDocs(
     query(
       productsCollection,
-      where("active", "==", true)
-    )
+      where(
+        "status",
+        "==",
+        "active",
+      ),
+    ),
   );
 }
 

@@ -1,27 +1,17 @@
-import React, {
-  memo,
-  useMemo,
-} from "react";
+import React, { memo } from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  AppIcon,
   AppText,
 } from "@/components/ui";
-
-import type {
-  AppIconName,
-} from "@/components/ui/AppIcon";
 
 import {
   Colors,
   FixxamTokens,
-  WorkerColors,
 } from "@/theme";
 
 import type {
@@ -35,162 +25,72 @@ import type {
 type Props = {
   counts: WorkerOrderCounts;
 
-  onManage: () => void;
+  /**
+   * @deprecated
+   * Job management now lives in WorkerOrdersHeader.
+   * Kept temporarily to avoid breaking existing callers.
+   */
+  onManage?: () => void;
 };
 
-type StatTone =
-  | "pending"
-  | "active"
-  | "completed"
-  | "cancelled";
-
-type OverviewStatProps = {
+type StatItemProps = {
   label: string;
-
   count: number;
-
-  icon: AppIconName;
-
-  tone: StatTone;
-};
-
-type StatConfig = {
   color: string;
-
-  backgroundColor: string;
 };
 
 /* ==============================================================
-   STAT CONFIG
+   STAT ITEM
 ============================================================== */
 
-function getStatConfig(
-  tone: StatTone,
-): StatConfig {
-  switch (tone) {
-    case "pending":
-      return {
-        color:
-          Colors.warning,
-
-        backgroundColor:
-          Colors.warningSoft,
-      };
-
-    case "active":
-      return {
-        color:
-          Colors.info,
-
-        backgroundColor:
-          Colors.infoSoft,
-      };
-
-    case "completed":
-      return {
-        color:
-          Colors.success,
-
-        backgroundColor:
-          Colors.successSoft,
-      };
-
-    case "cancelled":
-    default:
-      return {
-        color:
-          Colors.error,
-
-        backgroundColor:
-          Colors.errorSoft,
-      };
-  }
-}
-
-/* ==============================================================
-   OVERVIEW STAT
-============================================================== */
-
-const OverviewStat =
-  memo(
-    function OverviewStat({
-      label,
-      count,
-      icon,
-      tone,
-    }: OverviewStatProps) {
-      const config =
-        useMemo(
-          () =>
-            getStatConfig(
-              tone,
-            ),
-          [
-            tone,
-          ],
-        );
-
-      return (
+const StatItem = memo(
+  function StatItem({
+    label,
+    count,
+    color,
+  }: StatItemProps) {
+    return (
+      <View
+        style={styles.statItem}
+        accessibilityLabel={`${count} ${label}`}
+      >
         <View
-          style={
-            styles.stat
-          }
-          accessibilityLabel={`${label}: ${count}`}
+          style={[
+            styles.dot,
+            {
+              backgroundColor: color,
+            },
+          ]}
+        />
+
+        <AppText
+          variant="body"
+          weight="semibold"
+          style={[
+            styles.statCount,
+            {
+              color,
+            },
+          ]}
         >
-          <View
-            style={[
-              styles.statIcon,
+          {count}
+        </AppText>
 
-              {
-                backgroundColor:
-                  config.backgroundColor,
-              },
-            ]}
-          >
-            <AppIcon
-              name={
-                icon
-              }
-              size="sm"
-              color={
-                config.color
-              }
-            />
-          </View>
+        <AppText
+          variant="body"
+          tone="secondary"
+          numberOfLines={1}
+          style={styles.statLabel}
+        >
+          {label}
+        </AppText>
+      </View>
+    );
+  },
+);
 
-          <View
-            style={
-              styles.statContent
-            }
-          >
-            <AppText
-              variant="heading3"
-              weight="bold"
-              style={
-                styles.statValue
-              }
-            >
-              {count}
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-              style={
-                styles.statLabel
-              }
-            >
-              {label}
-            </AppText>
-          </View>
-        </View>
-      );
-    },
-  );
-
-OverviewStat.displayName =
-  "WorkerOrdersOverviewStat";
+StatItem.displayName =
+  "WorkerOrdersOverviewStatItem";
 
 /* ==============================================================
    COMPONENT
@@ -198,129 +98,63 @@ OverviewStat.displayName =
 
 function WorkerOrdersOverview({
   counts,
-  onManage,
 }: Props) {
+  const totalJobs =
+    counts.pending +
+    counts.active +
+    counts.completed +
+    counts.cancelled;
+
   return (
-    <View
-      style={
-        styles.container
-      }
-    >
+    <View style={styles.container}>
       {/* ========================================================
-          HEADER
+          TOTAL
       ======================================================== */}
 
-      <View
-        style={
-          styles.header
-        }
+      <AppText
+        variant="heading3"
+        weight="semibold"
+        style={styles.total}
+        accessibilityLabel={`${totalJobs} total jobs`}
       >
-        <View
-          style={
-            styles.headerContent
-          }
-        >
-          <AppText
-            variant="heading3"
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Job overview
-          </AppText>
+        {totalJobs} jobs
+      </AppText>
 
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.subtitle
-            }
-          >
-            Your service activity
-          </AppText>
-        </View>
-
-        <Pressable
-          onPress={
-            onManage
-          }
-          accessibilityRole="button"
-          accessibilityLabel="Manage jobs"
-          style={({
-            pressed,
-          }) => [
-            styles.manageButton,
-
-            pressed
-              ? styles.pressed
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="settings"
-            role="worker"
-            size="sm"
-            color={
-              WorkerColors.primary
-            }
-          />
-
-          <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.manageText
-            }
-          >
-            MANAGE
-          </AppText>
-        </Pressable>
-      </View>
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={styles.subtitle}
+      >
+        Your service activity
+      </AppText>
 
       {/* ========================================================
-          STATS
+          STATUS SUMMARY
       ======================================================== */}
 
-      <View
-        style={
-          styles.stats
-        }
-      >
-        <OverviewStat
-          label="Requests"
-          count={
-            counts.pending
-          }
-          icon="clock"
-          tone="pending"
+      <View style={styles.stats}>
+        <StatItem
+          label="New requests"
+          count={counts.pending}
+          color={Colors.warning}
         />
 
-        <OverviewStat
+        <StatItem
           label="Active"
-          count={
-            counts.active
-          }
-          icon="jobs"
-          tone="active"
+          count={counts.active}
+          color={Colors.info}
         />
 
-        <OverviewStat
-          label="Done"
-          count={
-            counts.completed
-          }
-          icon="success"
-          tone="completed"
+        <StatItem
+          label="Completed"
+          count={counts.completed}
+          color={Colors.success}
         />
 
-        <OverviewStat
+        <StatItem
           label="Cancelled"
-          count={
-            counts.cancelled
-          }
-          icon="error"
-          tone="cancelled"
+          count={counts.cancelled}
+          color={Colors.error}
         />
       </View>
     </View>
@@ -342,204 +176,77 @@ export default memo(
    STYLES
 ============================================================== */
 
-const styles =
-  StyleSheet.create({
-    /* ==========================================================
-       CONTAINER
-    ========================================================== */
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
 
-    container: {
-      width: "100%",
+    paddingVertical:
+      FixxamTokens.spacing.sm,
+  },
 
-      padding:
-        FixxamTokens.spacing.md,
+  total: {
+    color:
+      Colors.textPrimary,
+  },
 
-      borderWidth: 1,
+  subtitle: {
+    marginTop:
+      FixxamTokens.spacing.xxs,
 
-      borderColor:
-        Colors.border,
+    color:
+      Colors.textSecondary,
+  },
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+  stats: {
+    marginTop:
+      FixxamTokens.spacing.md,
 
-      backgroundColor:
-        Colors.surface,
+    flexDirection: "row",
 
-      ...FixxamTokens.shadow.card,
-    },
+    flexWrap: "wrap",
 
-    /* ==========================================================
-       HEADER
-    ========================================================== */
+    rowGap:
+      FixxamTokens.spacing.sm,
+  },
 
-    header: {
-      flexDirection:
-        "row",
+  statItem: {
+    width: "50%",
 
-      alignItems:
-        "center",
+    minHeight:
+      FixxamTokens.size.minimumTouchTarget,
 
-      justifyContent:
-        "space-between",
+    paddingRight:
+      FixxamTokens.spacing.sm,
 
-      gap:
-        FixxamTokens.spacing.md,
-    },
+    flexDirection: "row",
 
-    headerContent: {
-      flex: 1,
+    alignItems: "center",
+  },
 
-      minWidth: 0,
-    },
+  dot: {
+    width: 8,
 
-    title: {
-      color:
-        Colors.textPrimary,
-    },
+    height: 8,
 
-    subtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+    flexShrink: 0,
 
-      color:
-        Colors.textMuted,
-    },
+    borderRadius: 4,
+  },
 
-    manageButton: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+  statCount: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
 
-      flexShrink: 0,
+    flexShrink: 0,
+  },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
+  statLabel: {
+    marginLeft:
+      FixxamTokens.spacing.xs,
 
-      flexDirection:
-        "row",
+    flexShrink: 1,
 
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    manageText: {
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ==========================================================
-       STATS
-    ========================================================== */
-
-    stats: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      flexWrap:
-        "wrap",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    stat: {
-      flexGrow: 1,
-
-      flexBasis: "47%",
-
-      minHeight: 72,
-
-      padding:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    statIcon: {
-      width:
-        FixxamTokens.size.iconBox,
-
-      height:
-        FixxamTokens.size.iconBox,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-    },
-
-    statContent: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    statValue: {
-      color:
-        Colors.textPrimary,
-    },
-
-    statLabel: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textMuted,
-    },
-
-    /* ==========================================================
-       STATES
-    ========================================================== */
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-  });
+    color:
+      Colors.textSecondary,
+  },
+});

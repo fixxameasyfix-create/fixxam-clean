@@ -1,71 +1,158 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { router } from "expo-router";
 
 import { useAuth } from "@/hooks/useAuth";
 import useUserProfile from "@/hooks/auth/useUserProfile";
 
-export default function useRoleResolver() {
+export type AppRole = "customer" | "worker";
+
+type RoleResolverError =
+  | "PROFILE_NOT_FOUND"
+  | "NO_VALID_ROLE"
+  | "UNKNOWN";
+
+type UseRoleResolverResult = {
+  loading: boolean;
+  error: RoleResolverError | null;
+};
+
+export default function useRoleResolver(): UseRoleResolverResult {
   const {
     user,
     loading: authLoading,
   } = useAuth();
 
   const {
-  profile,
-  loading: profileLoading,
-} = useUserProfile();
+    profile,
+    loading: profileLoading,
+  } = useUserProfile();
+
+  const [error, setError] =
+    useState<RoleResolverError | null>(null);
 
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading || profileLoading) {
       return;
     }
 
-    if (profileLoading) {
-  return;
-}
-
-    // Not logged in
     if (!user) {
       router.replace("/(auth)/role-selection");
       return;
     }
 
-    // Wait until Firestore snapshot arrives
+    /*
+     * Firebase authentication exists,
+     * but the Firestore user profile does not.
+     *
+     * Never assume customer.
+     */
     if (!profile) {
+      console.error(
+        "ROLE_RESOLVER_PROFILE_NOT_FOUND:",
+        {
+          uid: user.uid,
+        },
+      );
+
+      setError("PROFILE_NOT_FOUND");
       return;
     }
 
-    // Active role takes priority
-    if (profile.activeRole === "customer") {
-      router.replace("/(customer)/(tabs)/home");
+    const roles: AppRole[] = Array.from(
+      new Set(
+        (
+          Array.isArray(profile.roles)
+            ? profile.roles
+            : []
+        ).filter(
+          (role): role is AppRole =>
+            role === "customer" ||
+            role === "worker",
+        ),
+      ),
+    );
+
+    /*
+     * No valid role.
+     *
+     * This is an invalid/incomplete account,
+     * not a customer account.
+     */
+    if (roles.length === 0) {
+  /*
+   * Do not treat an empty role list as a customer account
+   * and do not throw a console error here.
+   *
+   * AppNavigation remains the source of truth for the actual
+   * authenticated route. This resolver simply waits for a
+   * valid role to become available.
+   */
+  setError(null);
+  return;
+}
+
+    setError(null);
+
+    /*
+     * Customer + Worker
+     */
+    if (
+      roles.includes("customer") &&
+      roles.includes("worker")
+    ) {
+      router.replace(
+        "/(auth)/select-account",
+      );
       return;
     }
 
-    if (profile.activeRole === "worker") {
-      router.replace("/(worker)/(tabs)/home");
+    /*
+     * Customer only
+     */
+    if (
+      roles.length === 1 &&
+      roles[0] === "customer"
+    ) {
+      router.replace(
+        "/(customer)/(tabs)/home",
+      );
       return;
     }
 
-    // Fallback for old accounts
-    if (profile.roles.length > 1) {
-      router.replace("/(auth)/select-account");
+    /*
+     * Worker only
+     */
+    if (
+      roles.length === 1 &&
+      roles[0] === "worker"
+    ) {
+      router.replace(
+        "/(worker)/(tabs)/home",
+      );
       return;
     }
 
-    if (profile.roles.includes("customer")) {
-      router.replace("/(customer)/(tabs)/home");
-      return;
-    }
+    console.error(
+      "ROLE_RESOLVER_UNKNOWN_ROLE_STATE:",
+      {
+        uid: user.uid,
+        roles,
+      },
+    );
 
-    if (profile.roles.includes("worker")) {
-      router.replace("/(worker)/(tabs)/home");
-      return;
-    }
-
-    router.replace("/(auth)/role-selection");
+    setError("UNKNOWN");
   }, [
     authLoading,
-    user,
     profile,
+    profileLoading,
+    user,
   ]);
+
+  return {
+    loading:
+      authLoading ||
+      profileLoading,
+
+    error,
+  };
 }

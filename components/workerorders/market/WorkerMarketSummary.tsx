@@ -1,9 +1,12 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
+  StyleProp,
   StyleSheet,
+  TextStyle,
   View,
 } from "react-native";
 
@@ -22,17 +25,19 @@ import {
 ============================================================ */
 
 type Props = {
-  subtotal: number;
+  subtotal?: number | null;
 
-  deliveryFee: number;
+  deliveryFee?: number | null;
 
-  total: number;
+  total?: number | null;
 };
 
 type SummaryRowProps = {
   label: string;
 
   value: string;
+
+  valueStyle?: StyleProp<TextStyle>;
 };
 
 /* ============================================================
@@ -43,100 +48,45 @@ function safeMoney(
   value: unknown,
 ): number {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value !== "number" ||
+    !Number.isFinite(value)
   ) {
-    return value;
+    return 0;
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const normalized =
-      value
-        .replace(
-          /[₦,\s]/g,
-          "",
-        )
-        .trim();
-
-    const parsed =
-      Number(
-        normalized,
-      );
-
-    if (
-      Number.isFinite(
-        parsed,
-      )
-    ) {
-      return parsed;
-    }
-  }
-
-  return 0;
+  return Math.max(
+    0,
+    value,
+  );
 }
 
 function formatMoney(
   value: unknown,
 ): string {
   const amount =
-    safeMoney(
-      value,
+    typeof value === "number" &&
+    Number.isFinite(value)
+      ? value
+      : 0;
+
+  const absolute =
+    Math.abs(
+      amount,
     );
 
-  return `₦${amount.toLocaleString(
-    "en-NG",
-    {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    },
-  )}`;
+  const formatted =
+    `₦${absolute.toLocaleString(
+      "en-NG",
+      {
+        maximumFractionDigits:
+          0,
+      },
+    )}`;
+
+  return amount < 0
+    ? `-${formatted}`
+    : formatted;
 }
-
-/* ============================================================
-   SUMMARY ROW
-============================================================ */
-
-const SummaryRow =
-  memo(
-    function SummaryRow({
-      label,
-      value,
-    }: SummaryRowProps) {
-      return (
-        <View
-          style={
-            styles.row
-          }
-        >
-          <AppText
-            variant="body"
-            tone="secondary"
-            style={
-              styles.label
-            }
-          >
-            {label}
-          </AppText>
-
-          <AppText
-            variant="bodyMedium"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.value
-            }
-          >
-            {value}
-          </AppText>
-        </View>
-      );
-    },
-  );
-
-SummaryRow.displayName =
-  "WorkerMarketSummaryRow";
 
 /* ============================================================
    COMPONENT
@@ -147,65 +97,95 @@ function WorkerMarketSummary({
   deliveryFee,
   total,
 }: Props) {
-  const safeSubtotal =
-    safeMoney(
+  const values =
+    useMemo(() => {
+      const safeSubtotal =
+        safeMoney(
+          subtotal,
+        );
+
+      const safeDeliveryFee =
+        safeMoney(
+          deliveryFee,
+        );
+
+      const calculatedBeforeAdjustment =
+        safeSubtotal +
+        safeDeliveryFee;
+
+      /*
+       * If total is missing or invalid, use subtotal + delivery.
+       * This avoids incorrectly displaying ₦0 for incomplete data.
+       */
+      const hasValidTotal =
+        typeof total === "number" &&
+        Number.isFinite(total) &&
+        total >= 0;
+
+      const safeTotal =
+        hasValidTotal
+          ? total
+          : calculatedBeforeAdjustment;
+
+      const adjustment =
+        safeTotal -
+        calculatedBeforeAdjustment;
+
+      /*
+       * Ignore insignificant floating-point differences.
+       */
+      const normalizedAdjustment =
+        Math.abs(
+          adjustment,
+        ) < 0.01
+          ? 0
+          : adjustment;
+
+      return {
+        subtotal:
+          safeSubtotal,
+
+        deliveryFee:
+          safeDeliveryFee,
+
+        adjustment:
+          normalizedAdjustment,
+
+        total:
+          safeTotal,
+      };
+    }, [
       subtotal,
-    );
-
-  const safeDeliveryFee =
-    safeMoney(
       deliveryFee,
-    );
-
-  const safeTotal =
-    safeMoney(
       total,
-    );
+    ]);
 
-  const calculatedTotal =
-    safeSubtotal +
-    safeDeliveryFee;
-
-  /*
-   * Preserve the existing behavior:
-   * if total is zero but calculated values
-   * contain an amount, use the calculated total.
-   */
-  const displayTotal =
-    safeTotal > 0 ||
-    calculatedTotal === 0
-      ? safeTotal
-      : calculatedTotal;
+  const hasAdjustment =
+    values.adjustment !==
+    0;
 
   return (
     <View
       style={
         styles.card
       }
-      accessibilityLabel={`Order summary. Subtotal ${formatMoney(
-        safeSubtotal,
-      )}. Delivery fee ${formatMoney(
-        safeDeliveryFee,
-      )}. Total ${formatMoney(
-        displayTotal,
-      )}.`}
     >
       {/* ======================================================
-          HEADER
+          TITLE
       ====================================================== */}
 
       <AppText
-        variant="heading3"
+        variant="bodyLarge"
         weight="bold"
         style={
           styles.title
         }
       >
-        Order Summary
+        Price
       </AppText>
 
       {/* ======================================================
-          BREAKDOWN
+          PRICE BREAKDOWN
       ====================================================== */}
 
       <View
@@ -215,28 +195,42 @@ function WorkerMarketSummary({
       >
         <SummaryRow
           label="Subtotal"
-          value={formatMoney(
-            safeSubtotal,
-          )}
+          value={
+            formatMoney(
+              values.subtotal,
+            )
+          }
         />
 
         <SummaryRow
-          label="Delivery fee"
-          value={formatMoney(
-            safeDeliveryFee,
-          )}
+          label="Delivery"
+          value={
+            values.deliveryFee >
+            0
+              ? formatMoney(
+                  values.deliveryFee,
+                )
+              : "Free"
+          }
         />
+
+        {hasAdjustment ? (
+          <SummaryRow
+            label="Adjustment"
+            value={
+              formatMoney(
+                values.adjustment,
+              )
+            }
+            valueStyle={
+              values.adjustment <
+              0
+                ? styles.adjustmentNegative
+                : styles.adjustmentPositive
+            }
+          />
+        ) : null}
       </View>
-
-      {/* ======================================================
-          DIVIDER
-      ====================================================== */}
-
-      <View
-        style={
-          styles.divider
-        }
-      />
 
       {/* ======================================================
           TOTAL
@@ -247,27 +241,45 @@ function WorkerMarketSummary({
           styles.totalRow
         }
       >
-        <AppText
-          variant="bodyLarge"
-          weight="bold"
+        <View
           style={
-            styles.totalLabel
+            styles.totalText
           }
         >
-          Total
-        </AppText>
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            style={
+              styles.totalLabel
+            }
+          >
+            Total
+          </AppText>
+
+          <AppText
+            variant="caption"
+            style={
+              styles.totalHint
+            }
+          >
+            Order amount
+          </AppText>
+        </View>
 
         <AppText
-          variant="heading2"
+          variant="heading3"
           weight="bold"
           numberOfLines={1}
           adjustsFontSizeToFit
+          minimumFontScale={
+            0.8
+          }
           style={
             styles.totalValue
           }
         >
           {formatMoney(
-            displayTotal,
+            values.total,
           )}
         </AppText>
       </View>
@@ -287,36 +299,89 @@ export default memo(
 );
 
 /* ============================================================
+   SUMMARY ROW
+============================================================ */
+
+const SummaryRow =
+  memo(
+    function SummaryRow({
+      label,
+      value,
+      valueStyle,
+    }: SummaryRowProps) {
+      return (
+        <View
+          style={
+            styles.row
+          }
+        >
+          <AppText
+            variant="caption"
+            numberOfLines={1}
+            style={
+              styles.rowLabel
+            }
+          >
+            {label}
+          </AppText>
+
+          <AppText
+            variant="bodyMedium"
+            weight="medium"
+            numberOfLines={1}
+            style={[
+              styles.rowValue,
+              valueStyle,
+            ]}
+          >
+            {value}
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+SummaryRow.displayName =
+  "SummaryRow";
+
+/* ============================================================
    STYLES
 ============================================================ */
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CARD
+    ======================================================== */
+
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
-       HEADER
+       TITLE
     ======================================================== */
 
     title: {
@@ -330,14 +395,21 @@ const styles =
 
     breakdown: {
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      gap:
-        FixxamTokens.spacing.md,
+      paddingBottom:
+        FixxamTokens.spacing.xs,
+
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+
+      borderBottomColor:
+        Colors.divider,
     },
 
     row: {
-      minHeight: 28,
+      minHeight:
+        26,
 
       flexDirection:
         "row",
@@ -349,35 +421,39 @@ const styles =
         "space-between",
 
       gap:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
-    label: {
-      flex: 1,
+    rowLabel: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       color:
         Colors.textSecondary,
     },
 
-    value: {
-      flexShrink: 0,
+    rowValue: {
+      flexShrink:
+        0,
+
+      textAlign:
+        "right",
 
       color:
         Colors.textPrimary,
     },
 
-    /* ========================================================
-       DIVIDER
-    ======================================================== */
+    adjustmentNegative: {
+      color:
+        Colors.success,
+    },
 
-    divider: {
-      height: 1,
-
-      marginVertical:
-        FixxamTokens.spacing.lg,
-
-      backgroundColor:
-        Colors.divider,
+    adjustmentPositive: {
+      color:
+        Colors.warning,
     },
 
     /* ========================================================
@@ -385,6 +461,18 @@ const styles =
     ======================================================== */
 
     totalRow: {
+      minHeight:
+        50,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
       flexDirection:
         "row",
 
@@ -395,7 +483,21 @@ const styles =
         "space-between",
 
       gap:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    totalText: {
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     totalLabel: {
@@ -403,10 +505,23 @@ const styles =
         Colors.textPrimary,
     },
 
-    totalValue: {
-      flexShrink: 1,
+    totalHint: {
+      marginTop:
+        1,
 
-      textAlign: "right",
+      color:
+        Colors.textSecondary,
+    },
+
+    totalValue: {
+      maxWidth:
+        "58%",
+
+      flexShrink:
+        1,
+
+      textAlign:
+        "right",
 
       color:
         WorkerColors.primary,

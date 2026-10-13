@@ -32,6 +32,18 @@ type Props = {
 };
 
 /* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanText(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* ============================================================
    COMPONENT
 ============================================================ */
 
@@ -43,70 +55,90 @@ function MarketOrderDelivery({
   const deliveryName =
     useMemo(
       () =>
-        typeof receiverName === "string" &&
-        receiverName.trim()
-          ? receiverName.trim()
-          : "Delivery location",
+        cleanText(
+          receiverName,
+        ),
       [
         receiverName,
-      ],
-    );
-
-  const deliveryAddress =
-    useMemo(
-      () =>
-        typeof address === "string" &&
-        address.trim()
-          ? address.trim()
-          : "Delivery address unavailable",
-      [
-        address,
       ],
     );
 
   const deliveryPhone =
     useMemo(
       () =>
-        typeof receiverPhone === "string"
-          ? receiverPhone.trim()
-          : "",
+        cleanText(
+          receiverPhone,
+        ),
       [
         receiverPhone,
       ],
     );
 
+  const deliveryAddress =
+    useMemo(
+      () =>
+        cleanText(
+          address,
+        ) ||
+        "Delivery address unavailable",
+      [
+        address,
+      ],
+    );
+
+  const accessibilityLabel =
+    useMemo(
+      () =>
+        [
+          "Delivery address.",
+          deliveryName,
+          deliveryAddress,
+          deliveryPhone
+            ? `Phone ${deliveryPhone}.`
+            : "",
+        ]
+          .filter(
+            Boolean,
+          )
+          .join(" "),
+      [
+        deliveryAddress,
+        deliveryName,
+        deliveryPhone,
+      ],
+    );
+
   return (
     <View
+      accessible
+      accessibilityLabel={
+        accessibilityLabel
+      }
       style={
         styles.card
       }
-      accessibilityLabel={`${deliveryName}. ${deliveryAddress}${
-        deliveryPhone
-          ? `. Phone ${deliveryPhone}`
-          : ""
-      }`}
     >
       {/* ======================================================
-          TITLE
+          HEADER
       ====================================================== */}
 
       <AppText
-        variant="body"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
         style={
           styles.title
         }
       >
-        Delivery Address
+        Delivery
       </AppText>
 
       {/* ======================================================
-          DELIVERY INFO
+          LOCATION
       ====================================================== */}
 
       <View
         style={
-          styles.row
+          styles.locationRow
         }
       >
         <View
@@ -117,10 +149,8 @@ function MarketOrderDelivery({
           <AppIcon
             name="location"
             role="customer"
-            size="md"
-            color={
-              CustomerColors.primary
-            }
+            size="sm"
+            state="active"
           />
         </View>
 
@@ -130,19 +160,8 @@ function MarketOrderDelivery({
           }
         >
           <AppText
-            variant="caption"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.name
-            }
-          >
-            {deliveryName}
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
+            variant="bodyMedium"
+            weight="semibold"
             style={
               styles.address
             }
@@ -150,34 +169,59 @@ function MarketOrderDelivery({
             {deliveryAddress}
           </AppText>
 
-          {deliveryPhone ? (
-            <View
+          {deliveryName ? (
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
               style={
-                styles.phoneRow
+                styles.receiverName
               }
             >
-              <AppIcon
-                name="phone"
-                size="xs"
-                color={
-                  Colors.textSecondary
-                }
-              />
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                numberOfLines={1}
-                style={
-                  styles.phone
-                }
-              >
-                {deliveryPhone}
-              </AppText>
-            </View>
+              {deliveryName}
+            </AppText>
           ) : null}
         </View>
       </View>
+
+      {/* ======================================================
+          PHONE
+      ====================================================== */}
+
+      {deliveryPhone ? (
+        <>
+          <View
+            style={
+              styles.divider
+            }
+          />
+
+          <View
+            style={
+              styles.phoneRow
+            }
+          >
+            <AppIcon
+              name="phone"
+              size="xs"
+              color={
+                Colors.textSecondary
+              }
+            />
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              numberOfLines={1}
+              style={
+                styles.phone
+              }
+            >
+              {deliveryPhone}
+            </AppText>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -207,28 +251,30 @@ const styles =
     ======================================================== */
 
     card: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.sm,
 
       padding:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
-       TITLE
+       HEADER
     ======================================================== */
 
     title: {
@@ -237,12 +283,12 @@ const styles =
     },
 
     /* ========================================================
-       CONTENT
+       LOCATION
     ======================================================== */
 
-    row: {
+    locationRow: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -253,12 +299,13 @@ const styles =
 
     iconBox: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -274,35 +321,54 @@ const styles =
     },
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
     },
 
-    name: {
+    address: {
+      lineHeight:
+        20,
+
       color:
         Colors.textPrimary,
     },
 
-    address: {
+    receiverName: {
       marginTop:
         FixxamTokens.spacing.xs,
-
-      lineHeight: 16,
-
-      color:
-        Colors.textSecondary,
     },
 
     /* ========================================================
        PHONE
     ======================================================== */
 
-    phoneRow: {
+    divider: {
+      height:
+        StyleSheet.hairlineWidth,
+
       marginTop:
+        FixxamTokens.spacing.sm,
+
+      marginLeft:
+        40 +
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    phoneRow: {
+      minHeight:
+        36,
+
+      marginLeft:
+        40 +
         FixxamTokens.spacing.sm,
 
       flexDirection:
@@ -316,9 +382,10 @@ const styles =
     },
 
     phone: {
-      flex: 1,
+      flex:
+        1,
 
-      color:
-        Colors.textSecondary,
+      minWidth:
+        0,
     },
   });

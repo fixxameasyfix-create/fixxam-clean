@@ -1,262 +1,134 @@
-import React, {
-  memo,
-} from "react";
+import React, { memo, useCallback } from "react";
 
 import {
   StyleSheet,
   View,
 } from "react-native";
 
-import {
-  AppCard,
-  AppText,
-} from "@/components/ui";
+import AppInput from "@/components/ui/AppInput";
+import AppText from "@/components/ui/AppText";
 
-import EmailOtpField from "@/components/auth/EmailOtpField";
-import PhoneOtpField from "@/components/auth/PhoneOtpField";
+import OtpVerification from "@/components/auth/OtpVerification";
 
-import {
-  Colors,
-  FixxamTokens,
-} from "@/theme";
-
-/* ============================================================
-   TYPES
-============================================================ */
+import { FixxamTokens } from "@/theme";
 
 type Props = {
   email: string;
-
   emailOtp: string;
-
-  phone: string;
-
-  otp: string;
-
   emailVerified: boolean;
 
-  phoneVerified: boolean;
+  setEmail: (value: string) => void;
+  setEmailOtp: (value: string) => void;
+  setEmailVerified: (value: boolean) => void;
 
-  setEmail: (
-    value: string,
-  ) => void;
-
-  setEmailOtp: (
-    value: string,
-  ) => void;
-
-  setPhone: (
-    value: string,
-  ) => void;
-
-  setOtp: (
-    value: string,
-  ) => void;
-
-  setEmailVerified: (
-    value: boolean,
-  ) => void;
-
-  setPhoneVerified: (
-    value: boolean,
-  ) => void;
+  onOtpSent?: () => void;
+  onExistingAccount?: (email: string) => void;
 };
-
-/* ============================================================
-   COMPONENT
-============================================================ */
 
 function WorkerContactInfo({
   email,
   emailOtp,
-  phone,
-  otp,
   emailVerified,
-  phoneVerified,
   setEmail,
   setEmailOtp,
-  setPhone,
-  setOtp,
   setEmailVerified,
-  setPhoneVerified,
+  onOtpSent,
+  onExistingAccount,
 }: Props) {
-  return (
-    <AppCard
-      role="worker"
-      variant="outlined"
-      style={
-        styles.card
+  const handleEmailChange = useCallback(
+    (value: string) => {
+      const normalizedValue = value.trim();
+
+      if (normalizedValue !== email) {
+        setEmailVerified(false);
+        setEmailOtp("");
       }
-    >
-      {/* ==================================================
-          HEADER
-      ================================================== */}
 
-      <AppText
-        variant="heading3"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        How can we reach you?
-      </AppText>
+      setEmail(normalizedValue);
+    },
+    [email, setEmail, setEmailOtp, setEmailVerified],
+  );
 
-      <AppText
-        variant="body"
-        tone="secondary"
-        style={
-          styles.subtitle
-        }
-      >
-        Add your contact details. Verify at least one to continue.
-      </AppText>
+  const handleOtpSent = useCallback(() => {
+    onOtpSent?.();
+  }, [onOtpSent]);
 
-      {/* ==================================================
-          EMAIL
-      ================================================== */}
+  const handleExistingAccount = useCallback(
+    (existingEmail: string) => {
+      onExistingAccount?.(existingEmail);
+    },
+    [onExistingAccount],
+  );
 
-      <View
-        style={
-          styles.emailSection
-        }
-      >
-        <EmailOtpField
-          email={
-            email
-          }
-          otp={
-            emailOtp
-          }
-          onEmailChange={
-            setEmail
-          }
-          onOtpChange={
-            setEmailOtp
-          }
+  return (
+    <View style={styles.container}>
+      <View style={styles.inputSection}>
+        <AppInput
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={handleEmailChange}
           variant="worker"
-          isVerified={
-            emailVerified
-          }
-          onVerifiedChange={
-            setEmailVerified
-          }
+          leftIconName="mail"
+          keyboardType="email-address"
+          inputMode="email"
+          autoComplete="email"
+          textContentType="emailAddress"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!emailVerified}
+          accessibilityLabel="Email address"
         />
       </View>
 
-      {/* ==================================================
-          PHONE
-      ================================================== */}
+      {!emailVerified && (
+        <View style={styles.actionSection}>
+          <OtpVerification
+            type="email"
+            value={email}
+            otp={emailOtp}
+            onOtpChange={setEmailOtp}
+            variant="worker"
+            verified={emailVerified}
+            onVerified={setEmailVerified}
+            mode="send"
+            onOtpSent={handleOtpSent}
+            onExistingAccount={handleExistingAccount}
+          />
+        </View>
+      )}
 
-      <View
-        style={
-          styles.phoneSection
-        }
-      >
-        <PhoneOtpField
-          phone={
-            phone
-          }
-          otp={
-            otp
-          }
-          onPhoneChange={
-            setPhone
-          }
-          onOtpChange={
-            setOtp
-          }
-          variant="worker"
-          isVerified={
-            phoneVerified
-          }
-          onVerifiedChange={
-            setPhoneVerified
-          }
-        />
-      </View>
-
-      {/* ==================================================
-          SECURITY HINT
-      ================================================== */}
-
-      <AppText
-        variant="caption"
-        tone="secondary"
-        style={
-          styles.hint
-        }
-      >
-        Your contact details are kept secure.
-      </AppText>
-    </AppCard>
+      {emailVerified && (
+        <AppText
+          variant="body"
+          tone="success"
+          style={styles.verifiedText}
+        >
+          Email verified successfully.
+        </AppText>
+      )}
+    </View>
   );
 }
 
-export default memo(
-  WorkerContactInfo,
-);
+export default memo(WorkerContactInfo);
 
-/* ============================================================
-   STYLES
-============================================================ */
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    paddingTop: FixxamTokens.spacing.sm,
+  },
 
-const styles =
-  StyleSheet.create({
-    card: {
-      marginTop:
-        FixxamTokens.spacing.xxxl,
+  inputSection: {
+    width: "100%",
+  },
 
-      marginBottom:
-        FixxamTokens.spacing.sm,
+  actionSection: {
+    width: "100%",
+    marginTop: FixxamTokens.spacing.lg,
+    paddingBottom: FixxamTokens.spacing.md,
+  },
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    title: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    emailSection: {
-      width:
-        "100%",
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-    },
-
-    phoneSection: {
-      width:
-        "100%",
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-    },
-
-    hint: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textSecondary,
-    },
-  });
+  verifiedText: {
+    marginTop: FixxamTokens.spacing.sm,
+  },
+});

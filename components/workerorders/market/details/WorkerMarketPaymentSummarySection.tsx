@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -8,14 +9,9 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
-
-import {
-  AppDivider,
-} from "@/components/common";
 
 import {
   Colors,
@@ -53,18 +49,50 @@ type Props = {
    HELPERS
 ============================================================== */
 
+function safeMoney(
+  value: number,
+): number {
+  return Number.isFinite(
+    value,
+  )
+    ? Math.max(
+        0,
+        value,
+      )
+    : 0;
+}
+
 function formatMoney(
   value: number,
 ): string {
-  const safeValue =
-    Number.isFinite(value)
-      ? Math.max(
-          0,
-          value,
-        )
-      : 0;
+  return `₦${safeMoney(
+    value,
+  ).toLocaleString(
+    "en-NG",
+  )}`;
+}
 
-  return `₦${safeValue.toLocaleString(
+function formatSignedMoney(
+  value: number,
+): string {
+  const absolute =
+    Math.abs(
+      value,
+    );
+
+  if (
+    value === 0
+  ) {
+    return formatMoney(
+      0,
+    );
+  }
+
+  return `${
+    value > 0
+      ? "+"
+      : "-"
+  }₦${absolute.toLocaleString(
     "en-NG",
   )}`;
 }
@@ -74,14 +102,14 @@ function formatPaymentMethod(
 ): string {
   switch (method) {
     case "card":
-      return "Card Payment";
+      return "Card payment";
 
     case "transfer":
-      return "Bank Transfer";
+      return "Bank transfer";
 
     case "cash":
     default:
-      return "Pay on Delivery";
+      return "Pay on delivery";
   }
 }
 
@@ -112,6 +140,33 @@ function formatPaymentStatus(
     .join(" ");
 }
 
+function getPaymentStatusColor(
+  value: string,
+): string {
+  const status =
+    value
+      .trim()
+      .toLowerCase();
+
+  if (
+    status === "paid" ||
+    status === "completed" ||
+    status === "successful"
+  ) {
+    return Colors.success;
+  }
+
+  if (
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "canceled"
+  ) {
+    return Colors.error;
+  }
+
+  return Colors.warning;
+}
+
 /* ==============================================================
    COMPONENT
 ============================================================== */
@@ -129,17 +184,64 @@ function WorkerMarketPaymentSummarySection({
     note?.trim() ??
     "";
 
+  const safeSubtotal =
+    safeMoney(
+      subtotal,
+    );
+
+  const safeDeliveryFee =
+    safeMoney(
+      deliveryFee,
+    );
+
+  const safeTotal =
+    safeMoney(
+      total,
+    );
+
+  /*
+   * We intentionally call this "Adjustment" instead of
+   * "Discount" because the current order schema does not
+   * explicitly tell us why the backend total differs.
+   */
+  const adjustment =
+    useMemo(
+      () =>
+        safeTotal -
+        (
+          safeSubtotal +
+          safeDeliveryFee
+        ),
+      [
+        safeDeliveryFee,
+        safeSubtotal,
+        safeTotal,
+      ],
+    );
+
+  const hasAdjustment =
+    Math.abs(
+      adjustment,
+    ) >= 0.01;
+
+  const paymentStatusColor =
+    getPaymentStatusColor(
+      paymentStatus,
+    );
+
   return (
-    <>
+    <View
+      style={
+        styles.container
+      }
+    >
       {/* ========================================================
           PAYMENT
       ======================================================== */}
 
-      <AppCard
-        role="worker"
-        variant="outlined"
+      <View
         style={
-          styles.card
+          styles.section
         }
       >
         <AppText
@@ -159,7 +261,7 @@ function WorkerMarketPaymentSummarySection({
         >
           <View
             style={
-              styles.workerAccentIcon
+              styles.leadingIcon
             }
           >
             <AppIcon
@@ -169,8 +271,7 @@ function WorkerMarketPaymentSummarySection({
                   ? "wallet"
                   : "payment"
               }
-              role="worker"
-              size="sm"
+              size="md"
               color={
                 WorkerColors.primary
               }
@@ -183,7 +284,7 @@ function WorkerMarketPaymentSummarySection({
             }
           >
             <AppText
-              variant="bodyMedium"
+              variant="bodyLarge"
               weight="medium"
               numberOfLines={1}
               style={
@@ -195,32 +296,55 @@ function WorkerMarketPaymentSummarySection({
               )}
             </AppText>
 
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
+            <View
               style={
-                styles.paymentStatus
+                styles.paymentStatusRow
               }
             >
-              Payment:{" "}
-              {formatPaymentStatus(
-                paymentStatus,
-              )}
-            </AppText>
+              <View
+                style={[
+                  styles.statusDot,
+
+                  {
+                    backgroundColor:
+                      paymentStatusColor,
+                  },
+                ]}
+              />
+
+              <AppText
+                variant="caption"
+                numberOfLines={1}
+                style={
+                  styles.paymentStatus
+                }
+              >
+                {formatPaymentStatus(
+                  paymentStatus,
+                )}
+              </AppText>
+            </View>
           </View>
         </View>
-      </AppCard>
+      </View>
+
+      {/* ========================================================
+          DIVIDER
+      ======================================================== */}
+
+      <View
+        style={
+          styles.majorDivider
+        }
+      />
 
       {/* ========================================================
           ORDER SUMMARY
       ======================================================== */}
 
-      <AppCard
-        role="worker"
-        variant="outlined"
+      <View
         style={
-          styles.card
+          styles.section
         }
       >
         <AppText
@@ -230,117 +354,155 @@ function WorkerMarketPaymentSummarySection({
             styles.sectionTitle
           }
         >
-          Order Summary
+          Order summary
         </AppText>
-
-        <SummaryRow
-          label="Items"
-          value={`${itemCount} ${
-            itemCount === 1
-              ? "item"
-              : "items"
-          }`}
-        />
-
-        <SummaryRow
-          label="Subtotal"
-          value={
-            formatMoney(
-              subtotal,
-            )
-          }
-        />
-
-        <SummaryRow
-          label="Delivery fee"
-          value={
-            formatMoney(
-              deliveryFee,
-            )
-          }
-        />
-
-        <AppDivider
-          style={
-            styles.summaryDivider
-          }
-        />
 
         <View
           style={
-            styles.totalRow
+            styles.summaryContent
           }
         >
-          <AppText
-            variant="bodyLarge"
-            weight="medium"
-            style={
-              styles.totalLabel
-            }
-          >
-            Total
-          </AppText>
+          <SummaryRow
+            label="Items"
+            value={`${itemCount} ${
+              itemCount === 1
+                ? "item"
+                : "items"
+            }`}
+          />
 
-          <AppText
-            variant="heading2"
-            weight="bold"
-            numberOfLines={1}
+          <SummaryRow
+            label="Subtotal"
+            value={
+              formatMoney(
+                safeSubtotal,
+              )
+            }
+          />
+
+          <SummaryRow
+            label="Delivery fee"
+            value={
+              formatMoney(
+                safeDeliveryFee,
+              )
+            }
+          />
+
+          {hasAdjustment ? (
+            <SummaryRow
+              label="Adjustment"
+              value={
+                formatSignedMoney(
+                  adjustment,
+                )
+              }
+              emphasized
+            />
+          ) : null}
+
+          <View
             style={
-              styles.totalValue
+              styles.summaryDivider
+            }
+          />
+
+          <View
+            style={
+              styles.totalRow
             }
           >
-            {formatMoney(
-              total,
-            )}
-          </AppText>
+            <View
+              style={
+                styles.totalTextGroup
+              }
+            >
+              <AppText
+                variant="bodyLarge"
+                weight="medium"
+                style={
+                  styles.totalLabel
+                }
+              >
+                Total
+              </AppText>
+
+              <AppText
+                variant="caption"
+                style={
+                  styles.totalCaption
+                }
+              >
+                Order amount
+              </AppText>
+            </View>
+
+            <AppText
+              variant="heading2"
+              weight="bold"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={
+                styles.totalValue
+              }
+            >
+              {formatMoney(
+                safeTotal,
+              )}
+            </AppText>
+          </View>
         </View>
-      </AppCard>
+      </View>
 
       {/* ========================================================
           CUSTOMER NOTE
       ======================================================== */}
 
       {cleanNote ? (
-        <AppCard
-          role="worker"
-          variant="accent"
-          style={
-            styles.noteCard
-          }
-        >
+        <>
           <View
             style={
-              styles.noteIcon
+              styles.majorDivider
             }
-          >
-            <AppIcon
-              name="messages"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
+          />
 
           <View
             style={
-              styles.noteContent
+              styles.noteSection
             }
           >
-            <AppText
-              variant="bodyMedium"
-              weight="medium"
+            <View
               style={
-                styles.noteTitle
+                styles.noteHeader
               }
             >
-              Customer Note
-            </AppText>
+              <View
+                style={
+                  styles.noteIcon
+                }
+              >
+                <AppIcon
+                  name="messages"
+                  size="sm"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <AppText
+                variant="bodyMedium"
+                weight="medium"
+                style={
+                  styles.noteTitle
+                }
+              >
+                Customer note
+              </AppText>
+            </View>
 
             <AppText
               variant="body"
-              tone="secondary"
               style={
                 styles.noteText
               }
@@ -348,9 +510,9 @@ function WorkerMarketPaymentSummarySection({
               {cleanNote}
             </AppText>
           </View>
-        </AppCard>
+        </>
       ) : null}
-    </>
+    </View>
   );
 }
 
@@ -367,10 +529,13 @@ const SummaryRow =
     function SummaryRow({
       label,
       value,
+      emphasized = false,
     }: {
       label: string;
 
       value: string;
+
+      emphasized?: boolean;
     }) {
       return (
         <View
@@ -380,7 +545,7 @@ const SummaryRow =
         >
           <AppText
             variant="body"
-            tone="secondary"
+            numberOfLines={1}
             style={
               styles.summaryLabel
             }
@@ -390,11 +555,19 @@ const SummaryRow =
 
           <AppText
             variant="body"
-            weight="medium"
-            numberOfLines={1}
-            style={
-              styles.summaryValue
+            weight={
+              emphasized
+                ? "medium"
+                : "regular"
             }
+            numberOfLines={1}
+            style={[
+              styles.summaryValue,
+
+              emphasized
+                ? styles.summaryValueEmphasized
+                : null,
+            ]}
           >
             {value}
           </AppText>
@@ -412,14 +585,18 @@ SummaryRow.displayName =
 
 const styles =
   StyleSheet.create({
-    card: {
+    container: {
       width: "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
-
-      padding:
         FixxamTokens.spacing.lg,
+    },
+
+    section: {
+      width: "100%",
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
     },
 
     sectionTitle: {
@@ -427,11 +604,13 @@ const styles =
         Colors.textPrimary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        PAYMENT
-    ========================================================== */
+    ======================================================== */
 
     paymentRow: {
+      minHeight: 64,
+
       marginTop:
         FixxamTokens.spacing.md,
 
@@ -442,12 +621,10 @@ const styles =
         "center",
     },
 
-    workerAccentIcon: {
-      width:
-        FixxamTokens.size.iconBox,
+    leadingIcon: {
+      width: 44,
 
-      height:
-        FixxamTokens.size.iconBox,
+      height: 44,
 
       flexShrink: 0,
 
@@ -458,7 +635,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         WorkerColors.primarySoft,
@@ -478,21 +655,72 @@ const styles =
         Colors.textPrimary,
     },
 
-    paymentStatus: {
+    paymentStatusRow: {
       marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
         FixxamTokens.spacing.xs,
+    },
+
+    statusDot: {
+      width: 7,
+
+      height: 7,
+
+      borderRadius: 999,
+    },
+
+    paymentStatus: {
+      flex: 1,
 
       color:
         Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
+       DIVIDERS
+    ======================================================== */
+
+    majorDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginVertical:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.border,
+    },
+
+    summaryDivider: {
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginVertical:
+        FixxamTokens.spacing.md,
+
+      backgroundColor:
+        Colors.border,
+    },
+
+    /* ========================================================
        SUMMARY
-    ========================================================== */
+    ======================================================== */
+
+    summaryContent: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
     summaryRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      minHeight: 38,
 
       flexDirection:
         "row",
@@ -524,9 +752,9 @@ const styles =
         Colors.textPrimary,
     },
 
-    summaryDivider: {
-      marginVertical:
-        FixxamTokens.spacing.lg,
+    summaryValueEmphasized: {
+      color:
+        WorkerColors.primary,
     },
 
     totalRow: {
@@ -543,13 +771,25 @@ const styles =
         FixxamTokens.spacing.lg,
     },
 
+    totalTextGroup: {
+      flexShrink: 0,
+    },
+
     totalLabel: {
       color:
         Colors.textPrimary,
     },
 
+    totalCaption: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      color:
+        Colors.textMuted,
+    },
+
     totalValue: {
-      flexShrink: 1,
+      flex: 1,
 
       textAlign:
         "right",
@@ -558,31 +798,30 @@ const styles =
         WorkerColors.primary,
     },
 
-    /* ==========================================================
-       NOTE
-    ========================================================== */
+    /* ========================================================
+       CUSTOMER NOTE
+    ======================================================== */
 
-    noteCard: {
-      width: "100%",
+    noteSection: {
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
 
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      padding:
-        FixxamTokens.spacing.lg,
-
+    noteHeader: {
       flexDirection:
         "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     noteIcon: {
-      width:
-        FixxamTokens.size.iconBox,
+      width: 32,
 
-      height:
-        FixxamTokens.size.iconBox,
-
-      flexShrink: 0,
+      height: 32,
 
       alignItems:
         "center",
@@ -591,31 +830,26 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         WorkerColors.primarySoft,
     },
 
-    noteContent: {
+    noteTitle: {
       flex: 1,
 
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    noteTitle: {
       color:
-        WorkerColors.primary,
+        Colors.textPrimary,
     },
 
     noteText: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        FixxamTokens.spacing.sm,
 
-      lineHeight: 20,
+      paddingLeft: 40,
+
+      lineHeight: 21,
 
       color:
         Colors.textSecondary,

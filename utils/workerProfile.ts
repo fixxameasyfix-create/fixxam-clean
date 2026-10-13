@@ -21,21 +21,73 @@ export function cleanString(
 }
 
 /* ============================================================
+   STRING ARRAY HELPERS
+============================================================ */
+
+export function normalizeStringArray(
+  value: unknown,
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .filter(
+          (
+            item,
+          ): item is string =>
+            typeof item === "string",
+        )
+        .map(
+          (item) =>
+            item.trim(),
+        )
+        .filter(Boolean),
+    ),
+  );
+}
+
+/* ============================================================
    IMAGE URI HELPERS
 ============================================================ */
 
 export function isHttpsUrl(
   value: string,
 ): boolean {
-  return value.startsWith("https://");
+  const normalized =
+    cleanString(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  try {
+    const url =
+      new URL(normalized);
+
+    return (
+      url.protocol === "https:"
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function isLocalUri(
   value: string,
 ): boolean {
+  const normalized =
+    cleanString(value);
+
   return (
-    value.startsWith("file://") ||
-    value.startsWith("content://")
+    normalized.startsWith(
+      "file://",
+    ) ||
+    normalized.startsWith(
+      "content://",
+    )
   );
 }
 
@@ -57,7 +109,7 @@ export function getSafeImageUrl(
 }
 
 /* ============================================================
-   FIRESTORE OBJECT
+   FIRESTORE OBJECT HELPERS
 ============================================================ */
 
 function getWorkerProfileObject(
@@ -74,6 +126,68 @@ function getWorkerProfileObject(
   return value as FirestoreWorkerProfile;
 }
 
+function getRecord(
+  value: unknown,
+): Record<string, unknown> {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    return {};
+  }
+
+  return value as Record<
+    string,
+    unknown
+  >;
+}
+
+/* ============================================================
+   COORDINATE HELPERS
+============================================================ */
+
+function getCoordinate(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+export function isValidLatitude(
+  value:
+    | number
+    | null
+    | undefined,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= -90 &&
+    value <= 90
+  );
+}
+
+export function isValidLongitude(
+  value:
+    | number
+    | null
+    | undefined,
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= -180 &&
+    value <= 180
+  );
+}
+
 /* ============================================================
    GALLERY
 ============================================================ */
@@ -88,7 +202,7 @@ export function getSafeGallery(
   return Array.from(
     new Set(
       value
-        .map(item =>
+        .map((item) =>
           getSafeImageUrl(item),
         )
         .filter(Boolean),
@@ -126,10 +240,7 @@ export function sanitizeDecimalInput(
   const decimal =
     decimalParts
       .join("")
-      .slice(
-        0,
-        2,
-      );
+      .slice(0, 2);
 
   return `${whole}.${decimal}`;
 }
@@ -139,7 +250,9 @@ export function sanitizeDecimalInput(
 ============================================================ */
 
 export function validateImageSize(
-  fileSize?: number | null,
+  fileSize?:
+    | number
+    | null,
 ): boolean {
   if (
     typeof fileSize !== "number" ||
@@ -159,15 +272,21 @@ export function validateImageSize(
 ============================================================ */
 
 export function normalizeProfileData(
-  data: Record<
-    string,
-    unknown
-  >,
+  data: Record<string, unknown>,
 ): WorkerProfile {
   const workerProfile =
     getWorkerProfileObject(
       data.workerProfile,
     );
+
+  const workerRecord =
+    getRecord(
+      data.workerProfile,
+    );
+
+  /* ==========================================================
+     PHOTO
+  ========================================================== */
 
   const photoUrl =
     getSafeImageUrl(
@@ -183,6 +302,10 @@ export function normalizeProfileData(
       data.photoUrl,
     );
 
+  /* ==========================================================
+     PHONE
+  ========================================================== */
+
   const phoneNumber =
     cleanString(
       workerProfile.phoneNumber,
@@ -197,20 +320,9 @@ export function normalizeProfileData(
       data.phone,
     );
 
-  const nestedGallery =
-    getSafeGallery(
-      workerProfile.workGallery,
-    );
-
-  const rootGallery =
-    getSafeGallery(
-      data.workGallery,
-    );
-
-  const workGallery =
-    nestedGallery.length > 0
-      ? nestedGallery
-      : rootGallery;
+  /* ==========================================================
+     NAME
+  ========================================================== */
 
   const fullName =
     cleanString(
@@ -232,8 +344,47 @@ export function normalizeProfileData(
       data.displayName,
     );
 
+  /* ==========================================================
+     PROFESSIONAL INFORMATION
+  ========================================================== */
+
+  const category =
+    cleanString(
+      workerRecord.category,
+    ) ||
+    cleanString(
+      data.category,
+    );
+
+  const subcategory =
+    cleanString(
+      workerRecord.subcategory,
+    ) ||
+    cleanString(
+      data.subcategory,
+    );
+
+  const nestedServices =
+    normalizeStringArray(
+      workerRecord.selectedServices,
+    );
+
+  const rootServices =
+    normalizeStringArray(
+      data.selectedServices,
+    );
+
+  const selectedServices =
+    nestedServices.length > 0
+      ? nestedServices
+      : rootServices;
+
+  /* ==========================================================
+     EXPERIENCE
+  ========================================================== */
+
   const experienceValue =
-    workerProfile.experience ??
+    workerRecord.experience ??
     data.experience;
 
   const experience =
@@ -246,9 +397,13 @@ export function normalizeProfileData(
           experienceValue,
         );
 
+  /* ==========================================================
+     HOURLY RATE
+  ========================================================== */
+
   const rateValue =
-    workerProfile.hourlyRate ??
-    workerProfile.rate ??
+    workerRecord.hourlyRate ??
+    workerRecord.rate ??
     data.hourlyRate ??
     data.rate;
 
@@ -262,12 +417,21 @@ export function normalizeProfileData(
           rateValue,
         );
 
+  /* ==========================================================
+     LEGACY LOCATION
+
+     Keep this for backward compatibility.
+
+     This must NOT be treated as an exact physical
+     service destination.
+  ========================================================== */
+
   const location =
     cleanString(
-      workerProfile.location,
+      workerRecord.location,
     ) ||
     cleanString(
-      workerProfile.address,
+      workerRecord.address,
     ) ||
     cleanString(
       data.location,
@@ -276,12 +440,171 @@ export function normalizeProfileData(
       data.address,
     );
 
-  const aboutMe =
+  /* ==========================================================
+     SERVICE LOCATION
+  ========================================================== */
+
+  const nestedServiceLocation =
+    getRecord(
+      workerRecord.serviceLocation,
+    );
+
+  const rootServiceLocation =
+    getRecord(
+      data.serviceLocation,
+    );
+
+  const serviceAddress =
     cleanString(
-      workerProfile.aboutMe,
+      nestedServiceLocation.address,
     ) ||
     cleanString(
-      workerProfile.about,
+      rootServiceLocation.address,
+    ) ||
+    cleanString(
+      workerRecord.serviceAddress,
+    ) ||
+    cleanString(
+      data.address,
+    );
+
+  const serviceState =
+    cleanString(
+      nestedServiceLocation.state,
+    ) ||
+    cleanString(
+      rootServiceLocation.state,
+    ) ||
+    cleanString(
+      workerRecord.state,
+    ) ||
+    cleanString(
+      data.state,
+    );
+
+  const serviceLga =
+    cleanString(
+      nestedServiceLocation.lga,
+    ) ||
+    cleanString(
+      rootServiceLocation.lga,
+    ) ||
+    cleanString(
+      workerRecord.lga,
+    ) ||
+    cleanString(
+      data.lga,
+    );
+
+  const nestedLatitude =
+    getCoordinate(
+      nestedServiceLocation.latitude,
+    );
+
+  const rootLatitude =
+    getCoordinate(
+      rootServiceLocation.latitude,
+    );
+
+  const nestedLongitude =
+    getCoordinate(
+      nestedServiceLocation.longitude,
+    );
+
+  const rootLongitude =
+    getCoordinate(
+      rootServiceLocation.longitude,
+    );
+
+  const currentLocation =
+    getRecord(
+      workerRecord.currentLocation,
+    );
+
+  const currentLatitude =
+    getCoordinate(
+      currentLocation.latitude,
+    );
+
+  const currentLongitude =
+    getCoordinate(
+      currentLocation.longitude,
+    );
+
+  const latitude =
+    isValidLatitude(
+      nestedLatitude,
+    )
+      ? nestedLatitude
+      : isValidLatitude(
+            rootLatitude,
+          )
+        ? rootLatitude
+        : isValidLatitude(
+              currentLatitude,
+            )
+          ? currentLatitude
+          : null;
+
+  const longitude =
+    isValidLongitude(
+      nestedLongitude,
+    )
+      ? nestedLongitude
+      : isValidLongitude(
+            rootLongitude,
+          )
+        ? rootLongitude
+        : isValidLongitude(
+              currentLongitude,
+            )
+          ? currentLongitude
+          : null;
+
+  const serviceLocation = {
+    address:
+      serviceAddress,
+
+    state:
+      serviceState,
+
+    lga:
+      serviceLga,
+
+    latitude,
+
+    longitude,
+  };
+
+  /* ==========================================================
+     GALLERY
+  ========================================================== */
+
+  const nestedGallery =
+    getSafeGallery(
+      workerRecord.workGallery,
+    );
+
+  const rootGallery =
+    getSafeGallery(
+      data.workGallery,
+    );
+
+  const workGallery =
+    nestedGallery.length > 0
+      ? nestedGallery
+      : rootGallery;
+
+  /* ==========================================================
+     ABOUT
+  ========================================================== */
+
+  const aboutMe =
+    cleanString(
+      workerRecord.aboutMe,
+    ) ||
+    cleanString(
+      workerRecord.about,
     ) ||
     cleanString(
       data.aboutMe,
@@ -290,14 +613,41 @@ export function normalizeProfileData(
       data.about,
     );
 
+  /* ==========================================================
+     RESULT
+  ========================================================== */
+
   return {
+    /* Personal */
+
     fullName,
+
     phoneNumber,
+
     photoUrl,
+
+    /* Professional */
+
+    category,
+
+    subcategory,
+
+    selectedServices,
+
     experience,
+
     hourlyRate,
+
+    /* Location */
+
     location,
+
+    serviceLocation,
+
+    /* Profile */
+
     workGallery,
+
     aboutMe,
   };
 }
@@ -342,11 +692,53 @@ export function validateWorkerProfile(
       profile.hourlyRate,
     );
 
-  const location =
-    profile.location.trim();
-
   const aboutMe =
     profile.aboutMe.trim();
+
+  /* ==========================================================
+     PROFESSIONAL INFORMATION
+  ========================================================== */
+
+  const category =
+    profile.category.trim();
+
+  const subcategory =
+    profile.subcategory.trim();
+
+  const selectedServices =
+    Array.isArray(
+      profile.selectedServices,
+    )
+      ? profile.selectedServices
+          .map(
+            (service) =>
+              service.trim(),
+          )
+          .filter(Boolean)
+      : [];
+
+  /* ==========================================================
+     SERVICE LOCATION
+  ========================================================== */
+
+  const serviceAddress =
+    profile.serviceLocation.address.trim();
+
+  const serviceState =
+    profile.serviceLocation.state.trim();
+
+  const serviceLga =
+    profile.serviceLocation.lga.trim();
+
+  const serviceLatitude =
+    profile.serviceLocation.latitude;
+
+  const serviceLongitude =
+    profile.serviceLocation.longitude;
+
+  /* ==========================================================
+     NAME
+  ========================================================== */
 
   if (!name) {
     return "Please enter your name.";
@@ -358,6 +750,10 @@ export function validateWorkerProfile(
   ) {
     return "Name must be between 2 and 100 characters.";
   }
+
+  /* ==========================================================
+     PHONE
+  ========================================================== */
 
   if (!phoneNumber) {
     return "Please enter your phone number.";
@@ -371,6 +767,59 @@ export function validateWorkerProfile(
     return "Please enter a valid phone number.";
   }
 
+  /* ==========================================================
+     PROFESSIONAL CATEGORY
+  ========================================================== */
+
+  if (!category) {
+    return "Please select your service category.";
+  }
+
+  if (
+    category.length > 100
+  ) {
+    return "Service category is invalid.";
+  }
+
+  /* ==========================================================
+     PROFESSIONAL SUBCATEGORY
+  ========================================================== */
+
+  if (!subcategory) {
+    return "Please select your service subcategory.";
+  }
+
+  if (
+    subcategory.length > 100
+  ) {
+    return "Service subcategory is invalid.";
+  }
+
+  /* ==========================================================
+     SELECTED SERVICES
+  ========================================================== */
+
+  if (
+    selectedServices.length ===
+    0
+  ) {
+    return "Please select at least one service.";
+  }
+
+  if (
+    selectedServices.some(
+      (service) =>
+        service.length >
+        150,
+    )
+  ) {
+    return "One of your selected services is invalid.";
+  }
+
+  /* ==========================================================
+     EXPERIENCE
+  ========================================================== */
+
   if (
     !Number.isInteger(
       experience,
@@ -381,6 +830,10 @@ export function validateWorkerProfile(
     return "Enter a valid experience in years.";
   }
 
+  /* ==========================================================
+     HOURLY RATE
+  ========================================================== */
+
   if (
     !Number.isFinite(rate) ||
     rate <= 0 ||
@@ -389,21 +842,79 @@ export function validateWorkerProfile(
     return "Enter a valid hourly rate.";
   }
 
-  if (!location) {
-    return "Please enter your location.";
+  /* ==========================================================
+     SERVICE STATE
+  ========================================================== */
+
+  if (!serviceState) {
+    return "Please select your service state.";
   }
 
   if (
-    location.length > 200
+    serviceState.length >
+    100
   ) {
-    return "Location is too long.";
+    return "Service state is invalid.";
   }
+
+  /* ==========================================================
+     SERVICE LGA
+  ========================================================== */
+
+  if (!serviceLga) {
+    return "Please select your service local government.";
+  }
+
+  if (
+    serviceLga.length >
+    100
+  ) {
+    return "Service local government is invalid.";
+  }
+
+  /* ==========================================================
+     SERVICE ADDRESS
+  ========================================================== */
+
+  if (!serviceAddress) {
+    return "Please add the service location where customers can reach you.";
+  }
+
+  if (
+    serviceAddress.length < 3 ||
+    serviceAddress.length > 250
+  ) {
+    return "Service address must be between 3 and 250 characters.";
+  }
+
+  /* ==========================================================
+     COORDINATES
+  ========================================================== */
+
+  if (
+    !isValidLatitude(
+      serviceLatitude,
+    ) ||
+    !isValidLongitude(
+      serviceLongitude,
+    )
+  ) {
+    return "Please select a valid service location.";
+  }
+
+  /* ==========================================================
+     ABOUT
+  ========================================================== */
 
   if (
     aboutMe.length > 1000
   ) {
     return "About Me must not exceed 1000 characters.";
   }
+
+  /* ==========================================================
+     PROFILE PHOTO
+  ========================================================== */
 
   if (
     profile.photoUrl &&
@@ -414,9 +925,13 @@ export function validateWorkerProfile(
     return "Your profile photo is not uploaded correctly. Please choose the photo again.";
   }
 
+  /* ==========================================================
+     GALLERY
+  ========================================================== */
+
   if (
     profile.workGallery.some(
-      photo =>
+      (photo) =>
         !isHttpsUrl(photo),
     )
   ) {

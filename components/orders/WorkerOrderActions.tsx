@@ -69,9 +69,9 @@ function WorkerOrderActions({
     status === "completed";
 
   const serviceDisabled =
-    isCompleted ||
     actionDisabled ||
-    actionLoading;
+    actionLoading ||
+    isCompleted;
 
   /* ==========================================================
      SERVICE ACTION
@@ -99,45 +99,120 @@ function WorkerOrderActions({
       serviceDisabled,
     ]);
 
-  /* ==========================================================
-     STATE CONTENT
-  ========================================================== */
-
   const actionLabel =
-    isCompleted
-      ? "COMPLETED"
-      : isAccepted
-        ? "START SERVICE"
-        : "COMPLETE SERVICE";
+    isAccepted
+      ? "Start Service"
+      : "Complete Service";
 
   const actionIcon =
-    isCompleted
-      ? "success"
-      : isAccepted
-        ? "service"
-        : "success";
+    isAccepted
+      ? "service"
+      : "success";
 
   /* ==========================================================
-     RENDER
+     COMPLETED
+
+     Completion is already represented by the status section.
+     Do not render a disabled "COMPLETED" action button.
+  ========================================================== */
+
+  if (isCompleted) {
+    return (
+      <View
+        style={
+          styles.completedContainer
+        }
+      >
+        <Pressable
+          onPress={
+            onCall
+          }
+          disabled={
+            callDisabled
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Call customer"
+          accessibilityHint="Start a Fixxam voice call with the customer"
+          accessibilityState={{
+            disabled:
+              callDisabled,
+          }}
+          style={({
+            pressed,
+          }) => [
+            styles.completedCallButton,
+
+            callDisabled
+              ? styles.callDisabled
+              : null,
+
+            pressed &&
+            !callDisabled
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="phone"
+            role="worker"
+            size="xs"
+            color={
+              callDisabled
+                ? Colors.textMuted
+                : WorkerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="bold"
+            numberOfLines={1}
+            style={[
+              styles.callText,
+
+              callDisabled
+                ? styles.callTextDisabled
+                : null,
+            ]}
+          >
+            Call Customer
+          </AppText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  /* ==========================================================
+     ACCEPTED / IN PROGRESS
   ========================================================== */
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
       {/* ====================================================
           CALL CUSTOMER
       ==================================================== */}
 
       <Pressable
-        onPress={onCall}
-        disabled={callDisabled}
+        onPress={
+          onCall
+        }
+        disabled={
+          callDisabled
+        }
         accessibilityRole="button"
         accessibilityLabel="Call customer"
+        accessibilityHint="Start a Fixxam voice call with the customer"
         accessibilityState={{
-          disabled: callDisabled,
+          disabled:
+            callDisabled,
         }}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.callButton,
 
           callDisabled
@@ -150,26 +225,16 @@ function WorkerOrderActions({
             : null,
         ]}
       >
-        <View
-          style={[
-            styles.callIcon,
-
+        <AppIcon
+          name="phone"
+          role="worker"
+          size="xs"
+          color={
             callDisabled
-              ? styles.callIconDisabled
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="phone"
-            role="worker"
-            size="sm"
-            color={
-              callDisabled
-                ? Colors.textMuted
-                : WorkerColors.primary
-            }
-          />
-        </View>
+              ? Colors.textMuted
+              : WorkerColors.primary
+          }
+        />
 
         <AppText
           variant="caption"
@@ -183,7 +248,7 @@ function WorkerOrderActions({
               : null,
           ]}
         >
-          CALL
+          Call
         </AppText>
       </Pressable>
 
@@ -209,16 +274,12 @@ function WorkerOrderActions({
           busy:
             actionLoading,
         }}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.actionButton,
 
-          isCompleted
-            ? styles.completedButton
-            : null,
-
-          !isCompleted &&
-          (actionDisabled ||
-            actionLoading)
+          serviceDisabled
             ? styles.actionDisabled
             : null,
 
@@ -237,29 +298,16 @@ function WorkerOrderActions({
           />
         ) : (
           <>
-            <View
-              style={[
-                styles.actionIcon,
-
-                isCompleted
-                  ? styles.completedIcon
-                  : null,
-
-                !isCompleted &&
-                actionDisabled
-                  ? styles.actionIconDisabled
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name={actionIcon}
-                role="worker"
-                size="sm"
-                color={
-                  Colors.textInverse
-                }
-              />
-            </View>
+            <AppIcon
+              name={
+                actionIcon
+              }
+              role="worker"
+              size="xs"
+              color={
+                Colors.textInverse
+              }
+            />
 
             <AppText
               variant="caption"
@@ -278,6 +326,13 @@ function WorkerOrderActions({
   );
 }
 
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerOrderActions.displayName =
+  "WorkerOrderActions";
+
 export default memo(
   WorkerOrderActions,
 );
@@ -289,45 +344,55 @@ export default memo(
 const styles =
   StyleSheet.create({
     /* ========================================================
-       CONTAINER
+       ACTIVE CONTAINER
     ======================================================== */
 
     container: {
-      width: "100%",
+      width:
+        "100%",
 
-      marginTop:
-        FixxamTokens.spacing.lg,
+      flexDirection:
+        "row",
 
-      flexDirection: "row",
-
-      alignItems: "stretch",
+      alignItems:
+        "center",
 
       gap:
         FixxamTokens.spacing.sm,
     },
 
     /* ========================================================
-       CALL BUTTON
+       CALL
     ======================================================== */
 
     callButton: {
-      flex: 1,
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       minHeight:
         FixxamTokens.size
-          .buttonHeight,
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         WorkerColors.primary,
@@ -339,31 +404,7 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    callIcon: {
-      width: 38,
-
-      height: 38,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      flexShrink: 0,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
     callText: {
-      letterSpacing: 0.3,
-
       color:
         WorkerColors.primary,
     },
@@ -380,36 +421,40 @@ const styles =
           .disabledOpacity,
     },
 
-    callIconDisabled: {
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
     callTextDisabled: {
       color:
         Colors.textMuted,
     },
 
     /* ========================================================
-       SERVICE BUTTON
+       SERVICE ACTION
     ======================================================== */
 
     actionButton: {
-      flex: 1.35,
+      flex:
+        1.35,
+
+      minWidth:
+        0,
 
       minHeight:
         FixxamTokens.size
-          .buttonHeight,
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
 
       borderRadius:
         FixxamTokens.radius.button,
@@ -418,67 +463,66 @@ const styles =
         WorkerColors.primary,
     },
 
-    actionIcon: {
-      width: 38,
-
-      height: 38,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      flexShrink: 0,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        "rgba(255,255,255,0.18)",
-    },
-
     actionText: {
-      flexShrink: 1,
-
-      letterSpacing: 0.2,
+      flexShrink:
+        1,
 
       color:
         Colors.textInverse,
+    },
+
+    actionDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
 
     /* ========================================================
        COMPLETED
     ======================================================== */
 
-    completedButton: {
-      backgroundColor:
-        Colors.success,
+    completedContainer: {
+      width:
+        "100%",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
-    completedIcon: {
+    completedCallButton: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
       backgroundColor:
-        "rgba(255,255,255,0.18)",
-    },
-
-    /* ========================================================
-       DISABLED
-    ======================================================== */
-
-    actionDisabled: {
-      backgroundColor:
-        Colors.textMuted,
-
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    actionIconDisabled: {
-      backgroundColor:
-        "rgba(255,255,255,0.14)",
+        WorkerColors.primarySoft,
     },
 
     /* ========================================================

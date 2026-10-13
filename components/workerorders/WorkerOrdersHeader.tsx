@@ -1,5 +1,5 @@
 import React, {
-  memo,
+  useCallback,
 } from "react";
 
 import {
@@ -16,48 +16,79 @@ import {
 import {
   Colors,
   FixxamTokens,
-  WorkerColors,
 } from "@/theme";
 
-/* ==============================================================
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
 
-type WorkerOrdersHeaderProps = {
+type Props = {
+  orderId: string;
+
+  createdDate: string;
+
+  refreshing: boolean;
+
+  statusLabel: string;
+
+  statusIcon: React.ComponentProps<
+    typeof AppIcon
+  >["name"];
+
+  statusColor: string;
+
+  statusBackgroundColor: string;
+
   onBack: () => void;
 
-  onManage: () => void;
+  onRefresh: () => void;
+
+  onMore?: () => void;
 };
 
-/* ==============================================================
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
-function WorkerOrdersHeader({
+export default function WorkerMarketOrderHeaderSection({
+  refreshing,
   onBack,
-  onManage,
-}: WorkerOrdersHeaderProps) {
+  onRefresh,
+  onMore,
+}: Props) {
+  const handleMore =
+    useCallback(() => {
+      if (onMore) {
+        onMore();
+
+        return;
+      }
+
+      onRefresh();
+    }, [
+      onMore,
+      onRefresh,
+    ]);
+
   return (
     <View
       style={
         styles.container
       }
     >
-      {/* ========================================================
-          BACK
-      ======================================================== */}
+      {/* BACK */}
 
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={8}
         onPress={
           onBack
         }
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        hitSlop={6}
         style={({
           pressed,
         }) => [
-          styles.iconButton,
+          styles.actionButton,
 
           pressed
             ? styles.pressed
@@ -66,16 +97,14 @@ function WorkerOrdersHeader({
       >
         <AppIcon
           name="back"
-          size="sm"
+          size="md"
           color={
             Colors.textPrimary
           }
         />
       </Pressable>
 
-      {/* ========================================================
-          TITLE
-      ======================================================== */}
+      {/* TITLE */}
 
       <View
         style={
@@ -83,55 +112,71 @@ function WorkerOrdersHeader({
         }
       >
         <AppText
-          variant="heading2"
+          variant="heading1"
           weight="bold"
           numberOfLines={1}
           style={
             styles.title
           }
         >
-          My Jobs
+          Order Details
         </AppText>
 
         <AppText
-          variant="caption"
-          tone="secondary"
+          variant="body"
           numberOfLines={1}
           style={
             styles.subtitle
           }
         >
-          Track and manage your jobs and orders
+          Manage this market order
         </AppText>
       </View>
 
-      {/* ========================================================
-          MANAGE
-      ======================================================== */}
+      {/* MORE */}
 
       <Pressable
-        onPress={
-          onManage
-        }
         accessibilityRole="button"
-        accessibilityLabel="Manage jobs"
-        hitSlop={6}
+        accessibilityLabel={
+          refreshing
+            ? "Refreshing order"
+            : "Order options"
+        }
+        accessibilityState={{
+          busy:
+            refreshing,
+        }}
+        disabled={
+          refreshing
+        }
+        hitSlop={8}
+        onPress={
+          handleMore
+        }
         style={({
           pressed,
         }) => [
-          styles.manageButton,
+          styles.actionButton,
 
-          pressed
+          refreshing
+            ? styles.disabled
+            : null,
+
+          pressed &&
+          !refreshing
             ? styles.pressed
             : null,
         ]}
       >
         <AppIcon
-          name="settings"
-          role="worker"
-          size="sm"
+          name={
+            refreshing
+              ? "refresh"
+              : "more"
+          }
+          size="md"
           color={
-            WorkerColors.primary
+            Colors.textSecondary
           }
         />
       </Pressable>
@@ -139,31 +184,20 @@ function WorkerOrdersHeader({
   );
 }
 
-/* ==============================================================
-   MEMO
-============================================================== */
-
-WorkerOrdersHeader.displayName =
-  "WorkerOrdersHeader";
-
-export default memo(
-  WorkerOrdersHeader,
-);
-
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
     container: {
       width: "100%",
 
-      minHeight:
-        FixxamTokens.size.headerHeight,
-
-      paddingVertical:
+      paddingTop:
         FixxamTokens.spacing.sm,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
 
       flexDirection:
         "row",
@@ -172,16 +206,10 @@ const styles =
         "center",
     },
 
-    /* ==========================================================
-       BUTTONS
-    ========================================================== */
+    actionButton: {
+      width: 52,
 
-    iconButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
+      height: 52,
 
       flexShrink: 0,
 
@@ -194,53 +222,25 @@ const styles =
       borderWidth: 1,
 
       borderColor:
-        Colors.border,
+        Colors.divider,
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
         Colors.surface,
     },
-
-    manageButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        WorkerColors.primarySoft,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    /* ==========================================================
-       TITLE
-    ========================================================== */
 
     titleContainer: {
       flex: 1,
 
       minWidth: 0,
 
-      marginHorizontal:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      justifyContent:
+        "center",
     },
 
     title: {
@@ -256,9 +256,11 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ==========================================================
-       STATE
-    ========================================================== */
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
 
     pressed: {
       opacity:

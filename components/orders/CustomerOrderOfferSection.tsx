@@ -2,31 +2,19 @@ import React, {
   memo,
   useCallback,
   useMemo,
-  useState,
 } from "react";
 
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
-  TextInput,
   View,
 } from "react-native";
 
 import {
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+  router,
+} from "expo-router";
 
 import Toast from "react-native-toast-message";
-
-import {
-  doc,
-  runTransaction,
-  serverTimestamp,
-} from "firebase/firestore";
 
 import {
   AppIcon,
@@ -34,15 +22,9 @@ import {
 } from "@/components/ui";
 
 import {
-  auth,
-  db,
-} from "@/firebase/config";
-
-import {
   Colors,
   CustomerColors,
   FixxamTokens,
-  Typography,
 } from "@/theme";
 
 /* ==============================================================
@@ -73,18 +55,21 @@ type Props = {
   offerStatus: OfferStatus;
 
   offerAmount?: number | null;
+
   offerMessage?: string | null;
 
   counterOfferAmount?: number | null;
+
   counterOfferMessage?: string | null;
 
-  counterOfferStatus?: CounterOfferStatus | null;
+  counterOfferStatus?:
+    | CounterOfferStatus
+    | null;
 
-  counterOfferBy?: CounterOfferBy;
+  counterOfferBy?:
+    CounterOfferBy;
 
   offerRound?: number;
-
-  maxNegotiationRounds?: number;
 
   workerName: string;
 
@@ -96,17 +81,6 @@ type Props = {
 };
 
 /* ==============================================================
-   CONSTANTS
-============================================================== */
-
-const MAX_MESSAGE_LENGTH = 300;
-const MIN_MESSAGE_LENGTH = 3;
-const MAX_AMOUNT = 999_999_999;
-
-const FIRST_WORKER_OFFER_ROUND = 1;
-const CUSTOMER_COUNTER_ROUND = 2;
-
-/* ==============================================================
    HELPERS
 ============================================================== */
 
@@ -116,7 +90,7 @@ function formatAmount(
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    value < 0
+    value <= 0
   ) {
     return "₦0";
   }
@@ -126,19 +100,13 @@ function formatAmount(
   ).toLocaleString("en-NG")}`;
 }
 
-function normalizeRound(
+function isValidAmount(
   value: unknown,
-): number {
-  if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
-  ) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    Math.floor(value),
+): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0
   );
 }
 
@@ -161,17 +129,6 @@ function showError(
   });
 }
 
-function showSuccess(
-  title: string,
-  message: string,
-) {
-  Toast.show({
-    type: "success",
-    text1: title,
-    text2: message,
-  });
-}
-
 /* ==============================================================
    MAIN COMPONENT
 ============================================================== */
@@ -188,51 +145,17 @@ function CustomerOrderOfferSection({
   counterOfferStatus,
   counterOfferBy,
 
-  offerRound =
-    FIRST_WORKER_OFFER_ROUND,
-
-  maxNegotiationRounds = 3,
-
   workerName,
 
   onAcceptOffer,
   onCounterOffer,
   onDeclineOffer,
 }: Props) {
-  /* ==========================================================
-     STATE
-  ========================================================== */
-
-  const [
-    counterVisible,
-    setCounterVisible,
-  ] = useState(false);
-
-  const [
-    amountText,
-    setAmountText,
-  ] = useState("");
-
-  const [
-    message,
-    setMessage,
-  ] = useState("");
-
-  const [
-    submitting,
-    setSubmitting,
-  ] = useState(false);
-
-  /* ==========================================================
-     SAFE VALUES
-  ========================================================== */
-
   const safeWorkerName =
     useMemo(
       () =>
-        cleanText(
-          workerName,
-        ) || "the worker",
+        cleanText(workerName) ||
+        "the worker",
       [workerName],
     );
 
@@ -251,41 +174,71 @@ function CustomerOrderOfferSection({
         cleanText(
           counterOfferMessage,
         ),
-      [
-        counterOfferMessage,
-      ],
+      [counterOfferMessage],
     );
 
   /* ==========================================================
-     NEGOTIATION
+     NEGOTIATION STATE
   ========================================================== */
 
-  const safeOfferRound =
-    normalizeRound(
-      offerRound,
+  const customerCounterSent =
+    offerStatus === "sent" &&
+    counterOfferBy === "customer" &&
+    counterOfferStatus === "sent" &&
+    isValidAmount(
+      counterOfferAmount,
     );
 
-  const safeMaxRounds =
-    typeof maxNegotiationRounds ===
-      "number" &&
-    Number.isFinite(
-      maxNegotiationRounds,
-    ) &&
-    maxNegotiationRounds > 0
-      ? Math.floor(
-          maxNegotiationRounds,
-        )
-      : 3;
+  const workerCounterReceived =
+    offerStatus === "sent" &&
+    counterOfferBy === "worker" &&
+    counterOfferStatus === "sent" &&
+    isValidAmount(
+      counterOfferAmount,
+    );
 
-  const maxRoundReached =
-    safeOfferRound >=
-    safeMaxRounds;
+  const noCounterYet =
+    (
+      !counterOfferStatus ||
+      counterOfferStatus === "none"
+    ) &&
+    (
+      !counterOfferBy ||
+      counterOfferBy === null
+    );
+
+  const initialWorkerOfferReceived =
+    offerStatus === "sent" &&
+    noCounterYet &&
+    isValidAmount(
+      offerAmount,
+    );
+
+  const canCustomerCounter =
+    initialWorkerOfferReceived ||
+    workerCounterReceived;
 
   const activeWorkerAmount =
-    counterOfferBy === "worker" &&
-    counterOfferStatus === "sent"
-      ? counterOfferAmount
-      : offerAmount;
+    useMemo(() => {
+      if (
+        workerCounterReceived
+      ) {
+        return counterOfferAmount;
+      }
+
+      if (
+        initialWorkerOfferReceived
+      ) {
+        return offerAmount;
+      }
+
+      return null;
+    }, [
+      counterOfferAmount,
+      initialWorkerOfferReceived,
+      offerAmount,
+      workerCounterReceived,
+    ]);
 
   /* ==========================================================
      OPEN COUNTER
@@ -293,110 +246,6 @@ function CustomerOrderOfferSection({
 
   const handleOpenCounter =
     useCallback(() => {
-      if (submitting) {
-        return;
-      }
-
-      if (maxRoundReached) {
-        showError(
-          "Negotiation limit reached",
-          `You have reached the maximum of ${safeMaxRounds} negotiation rounds. You can still accept or decline the current offer.`,
-        );
-
-        return;
-      }
-
-      if (
-        typeof activeWorkerAmount !==
-          "number" ||
-        !Number.isFinite(
-          activeWorkerAmount,
-        ) ||
-        activeWorkerAmount <= 0
-      ) {
-        showError(
-          "Offer unavailable",
-          "The current worker offer is not available.",
-        );
-
-        return;
-      }
-
-      setAmountText("");
-      setMessage("");
-      setCounterVisible(true);
-
-      onCounterOffer?.();
-    }, [
-      activeWorkerAmount,
-      maxRoundReached,
-      onCounterOffer,
-      safeMaxRounds,
-      submitting,
-    ]);
-
-  /* ==========================================================
-     CLOSE COUNTER
-  ========================================================== */
-
-  const handleCloseCounter =
-    useCallback(() => {
-      if (submitting) {
-        return;
-      }
-
-      setCounterVisible(false);
-      setAmountText("");
-      setMessage("");
-    }, [submitting]);
-
-  /* ==========================================================
-     AMOUNT INPUT
-  ========================================================== */
-
-  const handleAmountChange =
-    useCallback(
-      (value: string) => {
-        const digits =
-          value.replace(
-            /[^\d]/g,
-            "",
-          );
-
-        setAmountText(
-          digits.slice(
-            0,
-            String(
-              MAX_AMOUNT,
-            ).length,
-          ),
-        );
-      },
-      [],
-    );
-
-  /* ==========================================================
-     SEND CUSTOMER COUNTER
-  ========================================================== */
-
-  const handleSendCounter =
-    useCallback(async () => {
-      if (submitting) {
-        return;
-      }
-
-      const customerId =
-        auth.currentUser?.uid?.trim();
-
-      if (!customerId) {
-        showError(
-          "Sign in required",
-          "Please sign in before sending a counter offer.",
-        );
-
-        return;
-      }
-
       const cleanBookingId =
         bookingId.trim();
 
@@ -409,390 +258,56 @@ function CustomerOrderOfferSection({
         return;
       }
 
-      /* ======================================================
-         AMOUNT
-      ====================================================== */
+      if (!canCustomerCounter) {
+        if (
+          customerCounterSent
+        ) {
+          showError(
+            "Waiting for worker",
+            "Your counter offer is already waiting for the worker.",
+          );
 
-      const cleanAmount =
-        amountText
-          .replace(
-            /,/g,
-            "",
-          )
-          .replace(
-            /₦/gi,
-            "",
-          )
-          .trim();
+          return;
+        }
 
-      const amount =
-        Number(
-          cleanAmount,
-        );
-
-      if (
-        !cleanAmount ||
-        !Number.isFinite(
-          amount,
-        ) ||
-        amount <= 0
-      ) {
         showError(
-          "Invalid amount",
-          "Please enter a valid counter offer amount.",
+          "Counter unavailable",
+          "There is no active worker offer available to counter.",
         );
 
         return;
       }
 
       if (
-        !Number.isInteger(
-          amount,
+        !isValidAmount(
+          activeWorkerAmount,
         )
       ) {
         showError(
-          "Invalid amount",
-          "Please enter a whole number amount.",
+          "Offer unavailable",
+          "The current worker offer amount is unavailable.",
         );
 
         return;
       }
 
-      if (
-        amount >
-        MAX_AMOUNT
-      ) {
-        showError(
-          "Invalid amount",
-          `Please enter an amount no higher than ${formatAmount(
-            MAX_AMOUNT,
-          )}.`,
-        );
+      onCounterOffer?.();
 
-        return;
-      }
+      router.push({
+        pathname:
+          "/(customer)/orders/counter-offer",
 
-      /* ======================================================
-         MESSAGE
-      ====================================================== */
-
-      const cleanMessage =
-        message.trim();
-
-      if (
-        cleanMessage.length >
-        MAX_MESSAGE_LENGTH
-      ) {
-        showError(
-          "Message too long",
-          `Your message cannot be more than ${MAX_MESSAGE_LENGTH} characters.`,
-        );
-
-        return;
-      }
-
-      if (
-        cleanMessage.length > 0 &&
-        cleanMessage.length <
-          MIN_MESSAGE_LENGTH
-      ) {
-        showError(
-          "Message too short",
-          `Please enter at least ${MIN_MESSAGE_LENGTH} characters or leave the message empty.`,
-        );
-
-        return;
-      }
-
-      if (maxRoundReached) {
-        showError(
-          "Negotiation limit reached",
-          `You have reached the maximum of ${safeMaxRounds} negotiation rounds.`,
-        );
-
-        return;
-      }
-
-      try {
-        setSubmitting(true);
-
-        const bookingRef =
-          doc(
-            db,
-            "bookings",
+        params: {
+          bookingId:
             cleanBookingId,
-          );
-
-        await runTransaction(
-          db,
-          async (
-            transaction,
-          ) => {
-            const snapshot =
-              await transaction.get(
-                bookingRef,
-              );
-
-            if (
-              !snapshot.exists()
-            ) {
-              throw new Error(
-                "ORDER_NOT_FOUND",
-              );
-            }
-
-            const data =
-              snapshot.data();
-
-            /* ==================================================
-               CUSTOMER OWNERSHIP
-            ================================================== */
-
-            const bookingCustomerId =
-              typeof data.customerId ===
-              "string"
-                ? data.customerId.trim()
-                : "";
-
-            if (
-              !bookingCustomerId ||
-              bookingCustomerId !==
-                customerId
-            ) {
-              throw new Error(
-                "ACCESS_DENIED",
-              );
-            }
-
-            /* ==================================================
-               OFFER STATUS
-            ================================================== */
-
-            if (
-              data.offerStatus !==
-              "sent"
-            ) {
-              throw new Error(
-                "OFFER_NOT_AVAILABLE",
-              );
-            }
-
-            /* ==================================================
-               CURRENT ROUND
-            ================================================== */
-
-            const currentRound =
-              normalizeRound(
-                data.offerRound,
-              );
-
-            if (
-              currentRound !==
-              FIRST_WORKER_OFFER_ROUND
-            ) {
-              throw new Error(
-                "INVALID_OFFER_ROUND",
-              );
-            }
-
-            if (
-              currentRound >=
-              safeMaxRounds
-            ) {
-              throw new Error(
-                "MAX_ROUNDS_REACHED",
-              );
-            }
-
-            /* ==================================================
-               EXISTING COUNTER
-            ================================================== */
-
-            const currentCounterStatus =
-              data.counterOfferStatus ??
-              "none";
-
-            if (
-              currentCounterStatus !==
-              "none"
-            ) {
-              throw new Error(
-                "COUNTER_ALREADY_EXISTS",
-              );
-            }
-
-            /* ==================================================
-               WORKER OFFER
-            ================================================== */
-
-            const workerOfferAmount =
-              typeof data.offerAmount ===
-                "number" &&
-              Number.isFinite(
-                data.offerAmount,
-              )
-                ? data.offerAmount
-                : null;
-
-            if (
-              workerOfferAmount !==
-                null &&
-              amount ===
-                workerOfferAmount
-            ) {
-              throw new Error(
-                "SAME_AMOUNT",
-              );
-            }
-
-            /* ==================================================
-               WRITE CUSTOMER COUNTER
-            ================================================== */
-
-            transaction.update(
-              bookingRef,
-              {
-                counterOfferAmount:
-                  amount,
-
-                counterOfferMessage:
-                  cleanMessage ||
-                  null,
-
-                counterOfferStatus:
-                  "sent",
-
-                counterOfferBy:
-                  "customer",
-
-                counterOfferSentAt:
-                  serverTimestamp(),
-
-                counterOfferRespondedAt:
-                  null,
-
-                offerRound:
-                  CUSTOMER_COUNTER_ROUND,
-
-                offerStatus:
-                  "countered",
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-            );
-          },
-        );
-
-        setCounterVisible(false);
-        setAmountText("");
-        setMessage("");
-
-        showSuccess(
-          "Counter offer sent",
-          `Your counter offer of ${formatAmount(
-            amount,
-          )} has been sent to ${safeWorkerName}.`,
-        );
-      } catch (error) {
-        console.error(
-          "CUSTOMER_SEND_COUNTER_OFFER_ERROR",
-          error,
-        );
-
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "";
-
-        const firebaseCode =
-          (
-            error as {
-              code?: string;
-            }
-          )?.code;
-
-        switch (
-          errorMessage
-        ) {
-          case "ORDER_NOT_FOUND":
-            showError(
-              "Order not found",
-              "This order no longer exists.",
-            );
-            break;
-
-          case "ACCESS_DENIED":
-            showError(
-              "Access denied",
-              "You cannot send a counter offer for this order.",
-            );
-            break;
-
-          case "OFFER_NOT_AVAILABLE":
-            showError(
-              "Offer unavailable",
-              "The worker offer is no longer available.",
-            );
-            break;
-
-          case "INVALID_OFFER_ROUND":
-            showError(
-              "Negotiation unavailable",
-              "This order has already moved to another negotiation round.",
-            );
-            break;
-
-          case "MAX_ROUNDS_REACHED":
-            showError(
-              "Negotiation limit reached",
-              `You have reached the maximum of ${safeMaxRounds} negotiation rounds.`,
-            );
-            break;
-
-          case "COUNTER_ALREADY_EXISTS":
-            showError(
-              "Counter offer already sent",
-              "A counter offer is already waiting for the worker.",
-            );
-            break;
-
-          case "SAME_AMOUNT":
-            showError(
-              "Same amount",
-              "Your counter offer must be different from the worker's current offer.",
-            );
-            break;
-
-          default:
-            if (
-              firebaseCode ===
-              "permission-denied"
-            ) {
-              showError(
-                "Permission denied",
-                "This counter offer could not be submitted.",
-              );
-            } else {
-              showError(
-                "Unable to send",
-                "We could not send your counter offer. Please try again.",
-              );
-            }
-
-            break;
-        }
-      } finally {
-        setSubmitting(false);
-      }
+        },
+      } as never);
     }, [
-      amountText,
+      activeWorkerAmount,
       bookingId,
-      maxRoundReached,
-      message,
-      safeMaxRounds,
-      safeWorkerName,
-      submitting,
+      canCustomerCounter,
+      customerCounterSent,
+      onCounterOffer,
     ]);
 
   /* ==========================================================
@@ -800,36 +315,33 @@ function CustomerOrderOfferSection({
   ========================================================== */
 
   if (
-    offerStatus ===
-      "accepted" ||
-    counterOfferStatus ===
-      "accepted"
+    offerStatus === "accepted" ||
+    counterOfferStatus === "accepted"
   ) {
-    return (
-      <StatusCard
-        icon="success"
-        title="OFFER ACCEPTED"
-        description="The negotiated offer has been accepted."
-        tone="success"
-      />
-    );
-  }
+return (
+  <StatusCard
+    icon="success"
+    title="Offer accepted"
+    description="Your offer has been accepted. Please wait for the worker to start the service."
+    tone="success"
+  />
+);
+
+}
 
   /* ==========================================================
      DECLINED
   ========================================================== */
 
   if (
-    offerStatus ===
-      "declined" ||
-    counterOfferStatus ===
-      "declined"
+    offerStatus === "declined" ||
+    counterOfferStatus === "declined"
   ) {
     return (
       <StatusCard
         icon="error"
-        title="OFFER DECLINED"
-        description="This offer is no longer active."
+        title="Offer declined"
+        description="The negotiation has ended."
         tone="error"
       />
     );
@@ -839,30 +351,24 @@ function CustomerOrderOfferSection({
      CUSTOMER COUNTER SENT
   ========================================================== */
 
-  const customerCounterSent =
-    counterOfferBy ===
-      "customer" &&
-    counterOfferStatus ===
-      "sent" &&
-    typeof counterOfferAmount ===
-      "number" &&
-    Number.isFinite(
-      counterOfferAmount,
-    ) &&
-    counterOfferAmount > 0;
-
   if (
     customerCounterSent
   ) {
     return (
       <View
-        style={styles.section}
+        style={
+          styles.section
+        }
       >
         <View
-          style={styles.card}
+          style={
+            styles.card
+          }
         >
           <View
-            style={styles.header}
+            style={
+              styles.compactHeader
+            }
           >
             <View
               style={
@@ -872,7 +378,7 @@ function CustomerOrderOfferSection({
               <AppIcon
                 name="refresh"
                 role="customer"
-                size="md"
+                size="xs"
                 color={
                   CustomerColors.primary
                 }
@@ -885,30 +391,33 @@ function CustomerOrderOfferSection({
               }
             >
               <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.primaryTitle
-                }
+                variant="bodyMedium"
+                weight="semibold"
+                numberOfLines={1}
               >
-                COUNTER OFFER SENT
+                Counter offer sent
               </AppText>
 
               <AppText
                 variant="caption"
                 tone="secondary"
+                numberOfLines={1}
                 style={
                   styles.headerSubtitle
                 }
               >
-                Your counter offer is waiting for{" "}
-                {safeWorkerName}.
+                Waiting for {safeWorkerName}
               </AppText>
             </View>
+
+            <StatusPill
+              label="Waiting"
+              tone="warning"
+            />
           </View>
 
-          <AmountBox
-            label="YOUR COUNTER OFFER"
+          <AmountRow
+            label="Your offer"
             amount={
               counterOfferAmount
             }
@@ -921,30 +430,6 @@ function CustomerOrderOfferSection({
               }
             />
           ) : null}
-
-          <View
-            style={
-              styles.waitingBox
-            }
-          >
-            <AppIcon
-              name="clock"
-              size="xs"
-              color={
-                Colors.warning
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.waitingBoxText
-              }
-            >
-              WAITING FOR WORKER
-            </AppText>
-          </View>
         </View>
       </View>
     );
@@ -959,7 +444,9 @@ function CustomerOrderOfferSection({
   ) {
     return (
       <View
-        style={styles.section}
+        style={
+          styles.section
+        }
       >
         <View
           style={
@@ -968,12 +455,12 @@ function CustomerOrderOfferSection({
         >
           <View
             style={
-              styles.warningIcon
+              styles.waitingIcon
             }
           >
             <AppIcon
               name="clock"
-              size="md"
+              size="xs"
               color={
                 Colors.warning
               }
@@ -986,23 +473,25 @@ function CustomerOrderOfferSection({
             }
           >
             <AppText
-              variant="caption"
-              weight="bold"
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={1}
               style={
                 styles.waitingTitle
               }
             >
-              WAITING FOR WORKER OFFER
+              Waiting for worker offer
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
+              numberOfLines={1}
               style={
                 styles.waitingText
               }
             >
-              The worker will review your request and send you an offer.
+              {safeWorkerName} will send you a price.
             </AppText>
           </View>
         </View>
@@ -1011,81 +500,33 @@ function CustomerOrderOfferSection({
   }
 
   /* ==========================================================
-     WORKER COUNTER RECEIVED
+     WORKER COUNTER
   ========================================================== */
-
-  const workerCounterReceived =
-    counterOfferBy ===
-      "worker" &&
-    counterOfferStatus ===
-      "sent" &&
-    typeof counterOfferAmount ===
-      "number" &&
-    Number.isFinite(
-      counterOfferAmount,
-    ) &&
-    counterOfferAmount > 0;
 
   if (
     workerCounterReceived
   ) {
     return (
-      <>
-        <OfferCard
-          title="COUNTER OFFER RECEIVED"
-          subtitle={`${safeWorkerName} has responded to your offer.`}
-          label="WORKER COUNTER OFFER"
-          amount={
-            counterOfferAmount
-          }
-          message={
-            safeCounterMessage
-          }
-          maxRoundReached={
-            maxRoundReached
-          }
-          disabled={
-            submitting
-          }
-          onAccept={
-            onAcceptOffer
-          }
-          onCounter={
-            handleOpenCounter
-          }
-          onDecline={
-            onDeclineOffer
-          }
-        />
-
-        <CounterOfferModal
-          visible={
-            counterVisible
-          }
-          amountText={
-            amountText
-          }
-          message={message}
-          submitting={
-            submitting
-          }
-          currentAmount={
-            counterOfferAmount
-          }
-          onAmountChange={
-            handleAmountChange
-          }
-          onMessageChange={
-            setMessage
-          }
-          onClose={
-            handleCloseCounter
-          }
-          onSubmit={() => {
-            void handleSendCounter();
-          }}
-        />
-      </>
+      <OfferCard
+        title="Counter offer received"
+        subtitle={`${safeWorkerName} sent a new price.`}
+        label="Counter offer"
+        amount={
+          counterOfferAmount
+        }
+        message={
+          safeCounterMessage
+        }
+        onAccept={
+          onAcceptOffer
+        }
+        onCounter={
+          handleOpenCounter
+        }
+        onDecline={
+          onDeclineOffer
+        }
+      />
     );
   }
 
@@ -1093,87 +534,46 @@ function CustomerOrderOfferSection({
      INITIAL WORKER OFFER
   ========================================================== */
 
-  const workerOfferReceived =
-    offerStatus === "sent" &&
-    typeof offerAmount ===
-      "number" &&
-    Number.isFinite(
-      offerAmount,
-    ) &&
-    offerAmount > 0;
-
   if (
-    workerOfferReceived
+    initialWorkerOfferReceived
   ) {
     return (
-      <>
-        <OfferCard
-          title="WORKER OFFER RECEIVED"
-          subtitle={`${safeWorkerName} has sent you an offer.`}
-          label="WORKER OFFER"
-          amount={
-            offerAmount
-          }
-          message={
-            safeOfferMessage
-          }
-          maxRoundReached={
-            maxRoundReached
-          }
-          disabled={
-            submitting
-          }
-          onAccept={
-            onAcceptOffer
-          }
-          onCounter={
-            handleOpenCounter
-          }
-          onDecline={
-            onDeclineOffer
-          }
-        />
-
-        <CounterOfferModal
-          visible={
-            counterVisible
-          }
-          amountText={
-            amountText
-          }
-          message={message}
-          submitting={
-            submitting
-          }
-          currentAmount={
-            offerAmount
-          }
-          onAmountChange={
-            handleAmountChange
-          }
-          onMessageChange={
-            setMessage
-          }
-          onClose={
-            handleCloseCounter
-          }
-          onSubmit={() => {
-            void handleSendCounter();
-          }}
-        />
-      </>
+      <OfferCard
+        title="Worker offer"
+        subtitle={`${safeWorkerName} sent you a price.`}
+        label="Offer"
+        amount={
+          offerAmount
+        }
+        message={
+          safeOfferMessage
+        }
+        onAccept={
+          onAcceptOffer
+        }
+        onCounter={
+          handleOpenCounter
+        }
+        onDecline={
+          onDeclineOffer
+        }
+      />
     );
   }
 
   /* ==========================================================
-     FALLBACK
+     INVALID / UPDATING STATE
   ========================================================== */
 
   return (
     <StatusCard
       icon="info"
-      title="NEGOTIATION UPDATE"
-      description="The offer status is being updated."
+      title="Negotiation update"
+      description={
+        offerStatus === "sent"
+          ? "The latest offer is being updated."
+          : "The offer status is being updated."
+      }
       tone="info"
     />
   );
@@ -1194,10 +594,6 @@ type OfferCardProps = {
 
   message?: string;
 
-  maxRoundReached: boolean;
-
-  disabled: boolean;
-
   onAccept: () => void;
 
   onCounter: () => void;
@@ -1211,21 +607,27 @@ function OfferCard({
   label,
   amount,
   message,
-  maxRoundReached,
-  disabled,
   onAccept,
   onCounter,
   onDecline,
 }: OfferCardProps) {
   return (
     <View
-      style={styles.section}
+      style={
+        styles.section
+      }
     >
       <View
-        style={styles.card}
+        style={
+          styles.card
+        }
       >
+        {/* HEADER */}
+
         <View
-          style={styles.header}
+          style={
+            styles.compactHeader
+          }
         >
           <View
             style={
@@ -1233,9 +635,9 @@ function OfferCard({
             }
           >
             <AppIcon
-              name="refresh"
+              name="wallet"
               role="customer"
-              size="md"
+              size="xs"
               color={
                 CustomerColors.primary
               }
@@ -1248,11 +650,9 @@ function OfferCard({
             }
           >
             <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.primaryTitle
-              }
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={1}
             >
               {title}
             </AppText>
@@ -1260,6 +660,7 @@ function OfferCard({
             <AppText
               variant="caption"
               tone="secondary"
+              numberOfLines={1}
               style={
                 styles.headerSubtitle
               }
@@ -1269,121 +670,85 @@ function OfferCard({
           </View>
         </View>
 
-        <AmountBox
-          label={label}
-          amount={amount}
+        {/* PRICE */}
+
+        <AmountRow
+          label={
+            label
+          }
+          amount={
+            amount
+          }
         />
+
+        {/* MESSAGE */}
 
         {message ? (
           <MessageBox
-            message={message}
+            message={
+              message
+            }
           />
         ) : null}
 
-        {maxRoundReached ? (
-          <View
-            style={
-              styles.limitBox
-            }
-          >
-            <AppIcon
-              name="info"
-              size="xs"
-              color={
-                Colors.warning
-              }
-            />
-
-            <AppText
-              variant="caption"
-              style={
-                styles.limitText
-              }
-            >
-              Negotiation limit reached. You can still accept or decline this offer.
-            </AppText>
-          </View>
-        ) : null}
-
-        {/* ==================================================
-            ACCEPT
-        ================================================== */}
+        {/* ACCEPT */}
 
         <Pressable
-          onPress={onAccept}
-          disabled={disabled}
+          onPress={
+            onAccept
+          }
           accessibilityRole="button"
           accessibilityLabel={`Accept ${formatAmount(
             amount,
           )}`}
-          accessibilityState={{
-            disabled,
-          }}
           style={({
             pressed,
           }) => [
             styles.acceptButton,
 
-            disabled
-              ? styles.disabled
-              : null,
-
-            pressed &&
-            !disabled
+            pressed
               ? styles.pressed
               : null,
           ]}
         >
           <AppIcon
             name="success"
-            size="sm"
+            size="xs"
             color={
               Colors.textInverse
             }
           />
 
           <AppText
-            variant="caption"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
             style={
               styles.acceptText
             }
           >
-            ACCEPT{" "}
-            {formatAmount(
-              amount,
-            )}
+            Accept {formatAmount(amount)}
           </AppText>
         </Pressable>
 
-        {/* ==================================================
-            SECONDARY ACTIONS
-        ================================================== */}
+        {/* SECONDARY ACTIONS */}
 
         <View
-          style={styles.actions}
+          style={
+            styles.actions
+          }
         >
           <Pressable
-            onPress={onCounter}
-            disabled={
-              disabled
+            onPress={
+              onCounter
             }
             accessibilityRole="button"
             accessibilityLabel="Send counter offer"
-            accessibilityState={{
-              disabled,
-            }}
             style={({
               pressed,
             }) => [
-              styles.counterButton,
+              styles.secondaryButton,
 
-              disabled
-                ? styles.disabled
-                : null,
-
-              pressed &&
-              !disabled
+              pressed
                 ? styles.pressed
                 : null,
             ]}
@@ -1399,37 +764,29 @@ function OfferCard({
 
             <AppText
               variant="caption"
-              weight="bold"
+              weight="semibold"
               style={
                 styles.counterText
               }
             >
-              COUNTER
+              Counter
             </AppText>
           </Pressable>
 
           <Pressable
-            onPress={onDecline}
-            disabled={
-              disabled
+            onPress={
+              onDecline
             }
             accessibilityRole="button"
             accessibilityLabel="Decline worker offer"
-            accessibilityState={{
-              disabled,
-            }}
             style={({
               pressed,
             }) => [
+              styles.secondaryButton,
               styles.declineButton,
 
-              disabled
-                ? styles.disabled
-                : null,
-
-              pressed &&
-              !disabled
-                ? styles.pressed
+              pressed
+                ? styles.declinePressed
                 : null,
             ]}
           >
@@ -1443,12 +800,12 @@ function OfferCard({
 
             <AppText
               variant="caption"
-              weight="bold"
+              weight="semibold"
               style={
                 styles.declineText
               }
             >
-              DECLINE
+              Decline
             </AppText>
           </Pressable>
         </View>
@@ -1458,10 +815,10 @@ function OfferCard({
 }
 
 /* ==============================================================
-   AMOUNT BOX
+   AMOUNT
 ============================================================== */
 
-function AmountBox({
+function AmountRow({
   label,
   amount,
 }: {
@@ -1472,13 +829,14 @@ function AmountBox({
   return (
     <View
       style={
-        styles.amountContainer
+        styles.amountRow
       }
     >
       <AppText
         variant="caption"
-        tone="muted"
+        tone="secondary"
         weight="semibold"
+        numberOfLines={1}
         style={
           styles.amountLabel
         }
@@ -1487,9 +845,12 @@ function AmountBox({
       </AppText>
 
       <AppText
-        variant="heading2"
+        variant="bodyLarge"
         weight="bold"
-        style={styles.amount}
+        numberOfLines={1}
+        style={
+          styles.amount
+        }
       >
         {formatAmount(
           amount,
@@ -1500,7 +861,7 @@ function AmountBox({
 }
 
 /* ==============================================================
-   MESSAGE BOX
+   MESSAGE
 ============================================================== */
 
 function MessageBox({
@@ -1525,11 +886,75 @@ function MessageBox({
       <AppText
         variant="caption"
         tone="secondary"
+        numberOfLines={3}
         style={
           styles.messageText
         }
       >
         {message}
+      </AppText>
+    </View>
+  );
+}
+
+/* ==============================================================
+   STATUS PILL
+============================================================== */
+
+function StatusPill({
+  label,
+  tone,
+}: {
+  label: string;
+
+  tone:
+    | "warning"
+    | "success";
+}) {
+  const isSuccess =
+    tone === "success";
+
+  return (
+    <View
+      style={[
+        styles.statusPill,
+
+        {
+          backgroundColor:
+            isSuccess
+              ? Colors.successSoft
+              : Colors.warningSoft,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.statusDot,
+
+          {
+            backgroundColor:
+              isSuccess
+                ? Colors.success
+                : Colors.warning,
+          },
+        ]}
+      />
+
+      <AppText
+        variant="caption"
+        weight="semibold"
+        style={[
+          styles.statusPillText,
+
+          {
+            color:
+              isSuccess
+                ? Colors.success
+                : Colors.warning,
+          },
+        ]}
+      >
+        {label}
       </AppText>
     </View>
   );
@@ -1590,26 +1015,30 @@ function StatusCard({
 
   return (
     <View
-      style={styles.section}
+      style={
+        styles.section
+      }
     >
       <View
-        style={
-          styles.statusCard
-        }
+        style={[
+          styles.statusCard,
+
+          {
+            backgroundColor:
+              config.background,
+          },
+        ]}
       >
         <View
-          style={[
-            styles.statusIcon,
-
-            {
-              backgroundColor:
-                config.background,
-            },
-          ]}
+          style={
+            styles.statusIcon
+          }
         >
           <AppIcon
-            name={icon}
-            size="md"
+            name={
+              icon
+            }
+            size="xs"
             color={
               config.color
             }
@@ -1622,8 +1051,9 @@ function StatusCard({
           }
         >
           <AppText
-            variant="caption"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={1}
             style={{
               color:
                 config.color,
@@ -1635,6 +1065,7 @@ function StatusCard({
           <AppText
             variant="caption"
             tone="secondary"
+            numberOfLines={2}
             style={
               styles.statusDescription
             }
@@ -1648,402 +1079,29 @@ function StatusCard({
 }
 
 /* ==============================================================
-   COUNTER OFFER MODAL
-============================================================== */
-
-type CounterOfferModalProps = {
-  visible: boolean;
-
-  amountText: string;
-
-  message: string;
-
-  submitting: boolean;
-
-  currentAmount?: number | null;
-
-  onAmountChange: (
-    value: string,
-  ) => void;
-
-  onMessageChange: (
-    value: string,
-  ) => void;
-
-  onClose: () => void;
-
-  onSubmit: () => void;
-};
-
-function CounterOfferModal({
-  visible,
-  amountText,
-  message,
-  submitting,
-  currentAmount,
-  onAmountChange,
-  onMessageChange,
-  onClose,
-  onSubmit,
-}: CounterOfferModalProps) {
-  const insets =
-    useSafeAreaInsets();
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={
-        onClose
-      }
-    >
-      <KeyboardAvoidingView
-        style={
-          styles.modalRoot
-        }
-        behavior={
-          Platform.OS === "ios"
-            ? "padding"
-            : undefined
-        }
-      >
-        <Pressable
-          style={
-            styles.backdrop
-          }
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close counter offer"
-        />
-
-        <View
-          style={[
-            styles.modalCard,
-
-            {
-              paddingBottom:
-                Math.max(
-                  insets.bottom,
-                  FixxamTokens
-                    .spacing.lg,
-                ),
-            },
-          ]}
-        >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
-
-          <View
-            style={
-              styles.modalHeader
-            }
-          >
-            <View
-              style={
-                styles.modalHeaderContent
-              }
-            >
-              <AppText
-                variant="bodyLarge"
-                weight="bold"
-              >
-                Send Counter Offer
-              </AppText>
-
-              {typeof currentAmount ===
-                "number" &&
-              Number.isFinite(
-                currentAmount,
-              ) &&
-              currentAmount >
-                0 ? (
-                <AppText
-                  variant="caption"
-                  tone="secondary"
-                  style={
-                    styles.modalSubtitle
-                  }
-                >
-                  Current offer:{" "}
-                  {formatAmount(
-                    currentAmount,
-                  )}
-                </AppText>
-              ) : null}
-            </View>
-
-            <Pressable
-              onPress={onClose}
-              disabled={
-                submitting
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              accessibilityState={{
-                disabled:
-                  submitting,
-              }}
-              style={({
-                pressed,
-              }) => [
-                styles.closeButton,
-
-                pressed &&
-                !submitting
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="close"
-                size="sm"
-                color={
-                  Colors.textPrimary
-                }
-              />
-            </Pressable>
-          </View>
-
-          {/* ==================================================
-              AMOUNT
-          ================================================== */}
-
-          <AppText
-            variant="caption"
-            weight="semibold"
-            style={
-              styles.inputLabel
-            }
-          >
-            Counter amount
-          </AppText>
-
-          <View
-            style={
-              styles.amountInputContainer
-            }
-          >
-            <AppText
-              variant="bodyLarge"
-              weight="bold"
-              style={
-                styles.currency
-              }
-            >
-              ₦
-            </AppText>
-
-            <TextInput
-              value={
-                amountText
-              }
-              onChangeText={
-                onAmountChange
-              }
-              keyboardType="number-pad"
-              returnKeyType="done"
-              placeholder="Enter amount"
-              placeholderTextColor={
-                Colors.textMuted
-              }
-              editable={
-                !submitting
-              }
-              maxLength={
-                String(
-                  MAX_AMOUNT,
-                ).length
-              }
-              style={
-                styles.amountInput
-              }
-              accessibilityLabel="Counter offer amount"
-            />
-          </View>
-
-          {/* ==================================================
-              MESSAGE
-          ================================================== */}
-
-          <View
-            style={
-              styles.messageHeader
-            }
-          >
-            <AppText
-              variant="caption"
-              weight="semibold"
-            >
-              Message
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="muted"
-            >
-              {message.length}/
-              {MAX_MESSAGE_LENGTH}
-            </AppText>
-          </View>
-
-          <TextInput
-            value={message}
-            onChangeText={
-              onMessageChange
-            }
-            editable={
-              !submitting
-            }
-            multiline
-            maxLength={
-              MAX_MESSAGE_LENGTH
-            }
-            textAlignVertical="top"
-            placeholder="Add a short message (optional)"
-            placeholderTextColor={
-              Colors.textMuted
-            }
-            style={
-              styles.messageInput
-            }
-            accessibilityLabel="Counter offer message"
-          />
-
-          {/* ==================================================
-              ACTIONS
-          ================================================== */}
-
-          <View
-            style={
-              styles.modalActions
-            }
-          >
-            <Pressable
-              onPress={onClose}
-              disabled={
-                submitting
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Cancel counter offer"
-              accessibilityState={{
-                disabled:
-                  submitting,
-              }}
-              style={({
-                pressed,
-              }) => [
-                styles.modalCancel,
-
-                submitting
-                  ? styles.disabled
-                  : null,
-
-                pressed &&
-                !submitting
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              <AppText
-                variant="body"
-                weight="semibold"
-                tone="secondary"
-              >
-                Cancel
-              </AppText>
-            </Pressable>
-
-            <Pressable
-              onPress={onSubmit}
-              disabled={
-                submitting
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Send counter offer"
-              accessibilityState={{
-                disabled:
-                  submitting,
-              }}
-              style={({
-                pressed,
-              }) => [
-                styles.modalSubmit,
-
-                submitting
-                  ? styles.disabled
-                  : null,
-
-                pressed &&
-                !submitting
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    Colors.textInverse
-                  }
-                />
-              ) : (
-                <>
-                  <AppIcon
-                    name="refresh"
-                    size="xs"
-                    color={
-                      Colors.textInverse
-                    }
-                  />
-
-                  <AppText
-                    variant="body"
-                    weight="bold"
-                    style={
-                      styles.modalSubmitText
-                    }
-                  >
-                    Send Counter
-                  </AppText>
-                </>
-              )}
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-/* ==============================================================
-   EXPORT
-============================================================== */
-
-export default memo(
-  CustomerOrderOfferSection,
-);
-
-/* ==============================================================
    STYLES
 ============================================================== */
 
 const styles =
   StyleSheet.create({
     section: {
-      width: "100%",
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
+
+    /* ========================================================
+       CARD
+    ======================================================== */
 
     card: {
       padding:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -2053,32 +1111,38 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
        HEADER
     ======================================================== */
 
-    header: {
-      flexDirection: "row",
+    compactHeader: {
+      minHeight:
+        38,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
     },
 
     primaryIcon: {
       width:
-        FixxamTokens.size
-          .iconBox,
+        34,
 
       height:
-        FixxamTokens.size
-          .iconBox,
+        34,
 
-      alignItems: "center",
+      flexShrink:
+        0,
 
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -2088,54 +1152,68 @@ const styles =
     },
 
     headerContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
     },
 
-    primaryTitle: {
-      color:
-        CustomerColors.primary,
-    },
-
     headerSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
+
+      lineHeight:
+        16,
     },
 
     /* ========================================================
        AMOUNT
     ======================================================== */
 
-    amountContainer: {
+    amountRow: {
+      minHeight:
+        44,
+
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.md,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      flexDirection:
+        "row",
 
-      borderColor:
-        Colors.border,
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
 
       borderRadius:
         FixxamTokens.radius.md,
 
       backgroundColor:
-        Colors.background,
+        CustomerColors.primarySoft,
     },
 
     amountLabel: {
-      letterSpacing: 0.6,
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     amount: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+      flexShrink:
+        0,
 
       color:
         Colors.textPrimary,
@@ -2147,12 +1225,13 @@ const styles =
 
     messageContainer: {
       marginTop:
-        FixxamTokens.spacing.sm,
+        8,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        8,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
         "flex-start",
@@ -2160,16 +1239,22 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
         Colors.divider,
     },
 
     messageText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
+
+      lineHeight:
+        17,
     },
 
     /* ========================================================
@@ -2177,51 +1262,57 @@ const styles =
     ======================================================== */
 
     waitingCard: {
-      minHeight: 80,
+      minHeight:
+        56,
 
-      flexDirection: "row",
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+      paddingVertical:
+        8,
 
-      padding:
-        FixxamTokens.spacing.md,
+      flexDirection:
+        "row",
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
+      alignItems:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.lg,
 
       backgroundColor:
-        Colors.surface,
-    },
-
-    warningIcon: {
-      width:
-        FixxamTokens.size
-          .iconBox,
-
-      height:
-        FixxamTokens.size
-          .iconBox,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
         Colors.warningSoft,
     },
 
-    waitingContent: {
-      flex: 1,
+    waitingIcon: {
+      width:
+        34,
 
-      minWidth: 0,
+      height:
+        34,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    waitingContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -2229,92 +1320,36 @@ const styles =
 
     waitingTitle: {
       color:
-        Colors.warning,
+        Colors.textPrimary,
     },
 
     waitingText: {
       marginTop:
-        FixxamTokens.spacing.xxs,
-    },
+        1,
 
-    waitingBox: {
-      minHeight: 40,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.warningSoft,
-    },
-
-    waitingBoxText: {
-      color:
-        Colors.warning,
-    },
-
-    limitBox: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      padding:
-        FixxamTokens.spacing.sm,
-
-      flexDirection: "row",
-
-      alignItems:
-        "flex-start",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.warningSoft,
-    },
-
-    limitText: {
-      flex: 1,
-
-      color:
-        Colors.warning,
+      lineHeight:
+        16,
     },
 
     /* ========================================================
-       ACTIONS
+       ACCEPT
     ======================================================== */
 
     acceptButton: {
       minHeight:
-        FixxamTokens.size
-          .buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -2334,29 +1369,36 @@ const styles =
         Colors.textInverse,
     },
 
+    /* ========================================================
+       SECONDARY ACTIONS
+    ======================================================== */
+
     actions: {
       marginTop:
-        FixxamTokens.spacing.sm,
+        8,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       gap:
         FixxamTokens.spacing.sm,
     },
 
-    counterButton: {
-      flex: 1,
+    secondaryButton: {
+      flex:
+        1,
 
       minHeight:
-        FixxamTokens.size
-          .buttonSmallHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -2364,7 +1406,8 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         CustomerColors.primary,
@@ -2382,35 +1425,8 @@ const styles =
     },
 
     declineButton: {
-      flex: 1,
-
-      minHeight:
-        FixxamTokens.size
-          .buttonSmallHeight,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderWidth: 1,
-
       borderColor:
         Colors.error,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        Colors.surface,
     },
 
     declineText: {
@@ -2419,52 +1435,104 @@ const styles =
     },
 
     /* ========================================================
-       STATUS
+       STATUS PILL
     ======================================================== */
 
-    statusCard: {
-      minHeight: 76,
+    statusPill: {
+      flexShrink:
+        0,
 
-      padding:
-        FixxamTokens.spacing.md,
+      minHeight:
+        22,
 
-      flexDirection: "row",
+      paddingHorizontal:
+        7,
 
-      alignItems: "center",
+      paddingVertical:
+        2,
 
-      borderWidth: 1,
+      flexDirection:
+        "row",
 
-      borderColor:
-        Colors.border,
+      alignItems:
+        "center",
 
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    statusIcon: {
-      width:
-        FixxamTokens.size
-          .iconBox,
-
-      height:
-        FixxamTokens.size
-          .iconBox,
-
-      alignItems: "center",
-
-      justifyContent: "center",
+      gap:
+        4,
 
       borderRadius:
         FixxamTokens.radius.full,
     },
 
-    statusContent: {
-      flex: 1,
+    statusDot: {
+      width:
+        5,
 
-      minWidth: 0,
+      height:
+        5,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    statusPillText: {
+      fontSize:
+        10,
+    },
+
+    /* ========================================================
+       STATUS CARD
+    ======================================================== */
+
+    statusCard: {
+      minHeight:
+        56,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        8,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+    },
+
+    statusIcon: {
+      width:
+        34,
+
+      height:
+        34,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    statusContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -2472,267 +1540,51 @@ const styles =
 
     statusDescription: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
+
+      lineHeight:
+        16,
     },
 
     /* ========================================================
-       MODAL
+       PRESS
     ======================================================== */
-
-    modalRoot: {
-      flex: 1,
-
-      justifyContent:
-        "flex-end",
-    },
-
-    backdrop: {
-      ...StyleSheet.absoluteFillObject,
-
-      backgroundColor:
-        Colors.overlayMedium,
-    },
-
-    modalCard: {
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
-
-      paddingTop:
-        FixxamTokens.spacing.lg,
-
-      borderTopLeftRadius:
-        FixxamTokens.radius.xl,
-
-      borderTopRightRadius:
-        FixxamTokens.radius.xl,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    modalHeader: {
-      flexDirection: "row",
-
-      alignItems:
-        "flex-start",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.md,
-    },
-
-    modalHeaderContent: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    modalSubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    closeButton: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    inputLabel: {
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-    },
-
-    amountInputContainer: {
-      height:
-        FixxamTokens.size
-          .inputHeight,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    currency: {
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    amountInput: {
-      flex: 1,
-
-      height: "100%",
-
-      paddingVertical: 0,
-
-      fontSize:
-        Typography.fontSize.md,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    messageHeader: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "space-between",
-    },
-
-    messageInput: {
-      minHeight: 108,
-
-      maxHeight: 150,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.input,
-
-      backgroundColor:
-        Colors.surface,
-
-      fontSize:
-        Typography.fontSize.md,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    modalActions: {
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      flexDirection: "row",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    modalCancel: {
-      flex: 1,
-
-      minHeight:
-        FixxamTokens.size
-          .buttonHeight,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    modalSubmit: {
-      flex: 1,
-
-      minHeight:
-        FixxamTokens.size
-          .buttonHeight,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
-    modalSubmitText: {
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       STATES
-    ======================================================== */
-
-    disabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
+
+    declinePressed: {
+      backgroundColor:
+        Colors.errorSoft,
+
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
   });
+
+/* ==============================================================
+   EXPORT
+============================================================== */
+
+CustomerOrderOfferSection.displayName =
+  "CustomerOrderOfferSection";
+
+export default memo(
+  CustomerOrderOfferSection,
+);

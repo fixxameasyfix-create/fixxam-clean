@@ -35,7 +35,7 @@ import {
 ============================================================ */
 
 const MARKET_HOME_PRODUCT_LIMIT =
-  4;
+  50;
 
 /* ============================================================
    HELPERS
@@ -91,7 +91,7 @@ export default function MarketScreen() {
         );
 
       return products.filter(
-        (product) => {
+        product => {
           const productName =
             normalizeText(
               product.name,
@@ -128,9 +128,6 @@ export default function MarketScreen() {
 
   /* ==========================================================
      MARKET HOME LIMIT
-
-     Only 4 products appear on the
-     main Market screen.
   ========================================================== */
 
   const marketProducts =
@@ -140,18 +137,24 @@ export default function MarketScreen() {
           0,
           MARKET_HOME_PRODUCT_LIMIT,
         ),
-      [filteredProducts],
+      [
+        filteredProducts,
+      ],
     );
 
   /* ==========================================================
      PRODUCT GRID DATA
+
+     Rating shown on the product card is
+     the rating of the worker who owns
+     the product.
   ========================================================== */
 
   const productGridData =
     useMemo(
       () =>
         marketProducts.map(
-          (product) => ({
+          product => ({
             id:
               product.id,
 
@@ -174,8 +177,13 @@ export default function MarketScreen() {
             thumbnail:
               product.thumbnail,
 
+            /*
+             * Worker rating from:
+             *
+             * workerPublicProfiles/{workerId}
+             */
             rating:
-              product.rating ??
+              product.workerRating ??
               0,
 
             sold:
@@ -183,7 +191,9 @@ export default function MarketScreen() {
               0,
           }),
         ),
-      [marketProducts],
+      [
+        marketProducts,
+      ],
     );
 
   /* ==========================================================
@@ -366,7 +376,8 @@ const styles =
     ======================================================== */
 
     container: {
-      flex: 1,
+      flex:
+        1,
 
       backgroundColor:
         Colors.background,
@@ -382,9 +393,11 @@ const styles =
     ======================================================== */
 
     bannerImage: {
-      width: "auto",
+      width:
+        "auto",
 
-      height: 180,
+      height:
+        180,
 
       marginTop:
         FixxamTokens.spacing.xxs,

@@ -43,6 +43,11 @@ function BookingLocationHeader({
       ],
     );
 
+  const hasAddress =
+    Boolean(
+      cleanAddress,
+    );
+
   return (
     <View
       style={
@@ -75,24 +80,63 @@ function BookingLocationHeader({
           styles.content
         }
       >
-        <AppText
-          variant="bodyMedium"
-          weight="bold"
+        <View
+          style={
+            styles.titleRow
+          }
         >
-          Service Location
-        </AppText>
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            style={
+              styles.title
+            }
+          >
+            Service location
+          </AppText>
+
+          {hasAddress ? (
+            <View
+              style={
+                styles.selectedBadge
+              }
+            >
+              <AppIcon
+                name="check"
+                role="customer"
+                size="xs"
+                state="active"
+              />
+
+              <AppText
+                variant="caption"
+                weight="semibold"
+                style={
+                  styles.selectedText
+                }
+              >
+                Selected
+              </AppText>
+            </View>
+          ) : null}
+        </View>
 
         <AppText
           variant="caption"
           tone="secondary"
-          numberOfLines={2}
+          numberOfLines={
+            hasAddress
+              ? 2
+              : 1
+          }
           ellipsizeMode="tail"
           style={
             styles.address
           }
         >
-          {cleanAddress ||
-            "Where should the worker come?"}
+          {hasAddress
+            ? cleanAddress
+            : "Choose where the worker should come."}
         </AppText>
       </View>
     </View>
@@ -106,11 +150,11 @@ function BookingLocationHeader({
 const styles =
   StyleSheet.create({
     container: {
-      width: "100%",
+      width:
+        "100%",
 
       minHeight:
-        FixxamTokens.size
-          .inputHeight,
+        54,
 
       flexDirection:
         "row",
@@ -119,16 +163,19 @@ const styles =
         "center",
     },
 
+    /* ========================================================
+       ICON
+    ======================================================== */
+
     iconBox: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        44,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        44,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -137,28 +184,90 @@ const styles =
         "center",
 
       marginRight:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.md,
 
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        FixxamTokens.radius.lg,
 
       backgroundColor:
         CustomerColors.primarySoft,
     },
 
-    content: {
-      flex: 1,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-      minWidth: 0,
+    content: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+    },
+
+    titleRow: {
+      minHeight:
+        24,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      flexShrink:
+        1,
+
+      color:
+        Colors.textPrimary,
     },
 
     address: {
       marginTop:
         FixxamTokens.spacing.xxs,
 
+      lineHeight:
+        18,
+
       color:
         Colors.textSecondary,
+    },
+
+    /* ========================================================
+       SELECTED BADGE
+    ======================================================== */
+
+    selectedBadge: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xxs,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    selectedText: {
+      color:
+        CustomerColors.primary,
     },
   });
 

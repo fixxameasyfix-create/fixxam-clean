@@ -64,13 +64,16 @@ function resolveParam(
     | undefined,
 ): string {
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     return value.trim();
   }
 
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value,
+    )
   ) {
     return (
       value[0]?.trim() ||
@@ -99,11 +102,16 @@ function resolveAmount(
       cleaned,
     );
 
-  return Number.isFinite(
-    amount,
-  )
-    ? amount
-    : 0;
+  if (
+    !Number.isFinite(
+      amount,
+    ) ||
+    amount <= 0
+  ) {
+    return 0;
+  }
+
+  return amount;
 }
 
 /* ==============================================================
@@ -115,7 +123,7 @@ export default function OfferSentScreen() {
     useLocalSearchParams<OfferSentParams>();
 
   /* ============================================================
-     RESOLVED DATA
+     DATA
   ============================================================ */
 
   const resolvedOrderId =
@@ -148,9 +156,11 @@ export default function OfferSentScreen() {
     );
 
   const formattedAmount =
-    `₦${numericAmount.toLocaleString(
-      "en-NG",
-    )}`;
+    numericAmount > 0
+      ? `₦${numericAmount.toLocaleString(
+          "en-NG",
+        )}`
+      : "Amount unavailable";
 
   /* ============================================================
      BACK TO ORDERS
@@ -212,9 +222,6 @@ export default function OfferSentScreen() {
         showsVerticalScrollIndicator={
           false
         }
-        showsHorizontalScrollIndicator={
-          false
-        }
       >
         {/* ====================================================
             SUCCESS
@@ -222,177 +229,104 @@ export default function OfferSentScreen() {
 
         <View
           style={
-            styles.successWrapper
+            styles.successSection
           }
         >
           <View
             style={
-              styles.successOuter
-            }
-          >
-            <View
-              style={
-                styles.successCircle
-              }
-            >
-              <AppIcon
-                name="success"
-                size="xl"
-                color={
-                  Colors.textInverse
-                }
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* ====================================================
-            TITLE
-        ==================================================== */}
-
-        <AppText
-          variant="heading2"
-          weight="bold"
-          center
-          style={
-            styles.title
-          }
-        >
-          Offer Sent Successfully
-        </AppText>
-
-        <AppText
-          variant="body"
-          tone="secondary"
-          center
-          style={
-            styles.subtitle
-          }
-        >
-          Your offer has been sent to{" "}
-          {resolvedCustomerName}.
-          {"\n"}
-          They can now review and respond to it.
-        </AppText>
-
-        {/* ====================================================
-            STATUS
-        ==================================================== */}
-
-        <View
-          style={
-            styles.statusCard
-          }
-        >
-          <View
-            style={
-              styles.statusIcon
+              styles.successIcon
             }
           >
             <AppIcon
               name="success"
-              size="md"
+              size="lg"
               color={
                 Colors.success
               }
             />
           </View>
 
-          <View
+          <AppText
+            variant="heading2"
+            weight="bold"
+            center
             style={
-              styles.statusContent
+              styles.title
             }
           >
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.statusTitle
-              }
-            >
-              OFFER SENT
-            </AppText>
+            Offer sent
+          </AppText>
 
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.statusText
-              }
-            >
-              Waiting for the customer to respond.
-            </AppText>
-          </View>
-
-          <View
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
             style={
-              styles.sentBadge
+              styles.subtitle
             }
           >
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.sentBadgeText
-              }
-            >
-              SENT
-            </AppText>
-          </View>
+            Waiting for{" "}
+            {resolvedCustomerName}{" "}
+            to respond.
+          </AppText>
         </View>
 
         {/* ====================================================
-            SUMMARY
+            OFFER
         ==================================================== */}
 
         <View
           style={
-            styles.summaryCard
+            styles.offerCard
           }
         >
           <View
             style={
-              styles.summaryHeader
+              styles.offerTop
             }
           >
-            <View
-              style={
-                styles.summaryIcon
-              }
-            >
-              <AppIcon
-                name="payment"
-                role="worker"
-                size="sm"
-                color={
-                  WorkerColors.primary
-                }
-              />
-            </View>
-
-            <View
-              style={
-                styles.summaryHeaderText
-              }
-            >
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-                style={
-                  styles.summaryTitle
-                }
-              >
-                Offer Summary
-              </AppText>
-
+            <View>
               <AppText
                 variant="caption"
                 tone="secondary"
                 style={
-                  styles.summarySubtitle
+                  styles.offerLabel
                 }
               >
-                Details sent to the customer.
+                Your offer
+              </AppText>
+
+              <AppText
+                variant="heading2"
+                weight="bold"
+                numberOfLines={1}
+                style={
+                  styles.amount
+                }
+              >
+                {formattedAmount}
+              </AppText>
+            </View>
+
+            <View
+              style={
+                styles.sentBadge
+              }
+            >
+              <View
+                style={
+                  styles.sentDot
+                }
+              />
+
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.sentText
+                }
+              >
+                Sent
               </AppText>
             </View>
           </View>
@@ -417,17 +351,9 @@ export default function OfferSentScreen() {
             }
           />
 
-          <SummaryRow
-            label="Offer"
-            value={
-              formattedAmount
-            }
-            strong
-          />
-
           {resolvedOrderId ? (
             <SummaryRow
-              label="Order ID"
+              label="Order"
               value={`#${resolvedOrderId}`}
             />
           ) : null}
@@ -440,59 +366,38 @@ export default function OfferSentScreen() {
         {resolvedMessage ? (
           <View
             style={
-              styles.messageCard
+              styles.messageSection
             }
           >
-            <View
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
               style={
-                styles.messageIcon
+                styles.sectionTitle
               }
             >
-              <AppIcon
-                name="messages"
-                role="worker"
-                size="sm"
-                color={
-                  WorkerColors.primary
-                }
-              />
-            </View>
+              Your note
+            </AppText>
 
-            <View
+            <AppText
+              variant="body"
+              tone="secondary"
               style={
-                styles.messageContent
+                styles.message
               }
             >
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.messageTitle
-                }
-              >
-                YOUR MESSAGE
-              </AppText>
-
-              <AppText
-                variant="body"
-                tone="secondary"
-                style={
-                  styles.messageText
-                }
-              >
-                {resolvedMessage}
-              </AppText>
-            </View>
+              {resolvedMessage}
+            </AppText>
           </View>
         ) : null}
 
         {/* ====================================================
-            INFO
+            WHAT HAPPENS NEXT
         ==================================================== */}
 
         <View
           style={
-            styles.infoCard
+            styles.infoRow
           }
         >
           <View
@@ -503,7 +408,7 @@ export default function OfferSentScreen() {
             <AppIcon
               name="info"
               role="worker"
-              size="sm"
+              size="xs"
               color={
                 WorkerColors.primary
               }
@@ -517,7 +422,7 @@ export default function OfferSentScreen() {
               styles.infoText
             }
           >
-            You will see the customer&apos;s response in your orders when they accept, decline, or send a counter offer.
+            The customer can accept, decline, or send a counter offer. You&apos;ll see their response in the order.
           </AppText>
         </View>
 
@@ -525,54 +430,43 @@ export default function OfferSentScreen() {
             ACTIONS
         ==================================================== */}
 
-        {resolvedOrderId ? (
-          <View
-            style={
-              styles.viewAction
-            }
-          >
+        <View
+          style={
+            styles.actions
+          }
+        >
+          {resolvedOrderId ? (
             <AppButton
               title="View Order"
               role="worker"
-              variant="outline"
+              variant="primary"
               leftIconName="file"
               onPress={
                 handleViewOrder
               }
             />
-          </View>
-        ) : null}
+          ) : null}
 
-        <View
-          style={
-            styles.backAction
-          }
-        >
-          <AppButton
-            title="Back to My Orders"
-            role="worker"
-            variant="primary"
-            leftIconName="jobs"
-            onPress={
-              handleBackToOrders
+          <View
+            style={
+              styles.secondaryAction
             }
-          />
+          >
+            <AppButton
+              title="My Orders"
+              role="worker"
+              variant={
+                resolvedOrderId
+                  ? "ghost"
+                  : "primary"
+              }
+              leftIconName="jobs"
+              onPress={
+                handleBackToOrders
+              }
+            />
+          </View>
         </View>
-
-        {/* ====================================================
-            FOOTER
-        ==================================================== */}
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          center
-          style={
-            styles.footer
-          }
-        >
-          Fixxam Easyfix
-        </AppText>
       </ScrollView>
     </AppScreen>
   );
@@ -587,13 +481,10 @@ const SummaryRow =
     function SummaryRow({
       label,
       value,
-      strong = false,
     }: {
       label: string;
 
       value: string;
-
-      strong?: boolean;
     }) {
       return (
         <View
@@ -612,24 +503,12 @@ const SummaryRow =
           </AppText>
 
           <AppText
-            variant={
-              strong
-                ? "bodyLarge"
-                : "caption"
-            }
-            weight={
-              strong
-                ? "bold"
-                : "medium"
-            }
+            variant="bodyMedium"
+            weight="semibold"
             numberOfLines={2}
-            style={[
-              styles.summaryValue,
-
-              strong
-                ? styles.summaryValueStrong
-                : null,
-            ]}
+            style={
+              styles.summaryValue
+            }
           >
             {value}
           </AppText>
@@ -677,27 +556,24 @@ const styles =
         FixxamTokens.spacing.xxxl,
     },
 
-    /* ==========================================================
+    /* ========================================================
        SUCCESS
-    ========================================================== */
+    ======================================================== */
 
-    successWrapper: {
+    successSection: {
       width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      marginBottom:
-        FixxamTokens.spacing.xl,
 
       alignItems:
         "center",
+
+      paddingTop:
+        FixxamTokens.spacing.lg,
     },
 
-    successOuter: {
-      width: 108,
+    successIcon: {
+      width: 64,
 
-      height: 108,
+      height: 64,
 
       alignItems:
         "center",
@@ -712,47 +588,21 @@ const styles =
         Colors.successSoft,
     },
 
-    successCircle: {
-      width: 80,
-
-      height: 80,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.success,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    /* ==========================================================
-       TITLE
-    ========================================================== */
-
     title: {
       width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.md,
 
       color:
         Colors.textPrimary,
     },
 
     subtitle: {
-      width: "100%",
-
-      maxWidth: 340,
+      maxWidth: 300,
 
       marginTop:
-        FixxamTokens.spacing.sm,
-
-      alignSelf:
-        "center",
+        FixxamTokens.spacing.xs,
 
       lineHeight: 20,
 
@@ -760,113 +610,15 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ==========================================================
-       STATUS
-    ========================================================== */
+    /* ========================================================
+       OFFER
+    ======================================================== */
 
-    statusCard: {
+    offerCard: {
       width: "100%",
-
-      minHeight: 82,
 
       marginTop:
         FixxamTokens.spacing.xl,
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.success,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.successSoft,
-    },
-
-    statusIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    statusContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    statusTitle: {
-      color:
-        Colors.success,
-    },
-
-    statusText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 17,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    sentBadge: {
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    sentBadgeText: {
-      color:
-        Colors.success,
-    },
-
-    /* ==========================================================
-       SUMMARY
-    ========================================================== */
-
-    summaryCard: {
-      width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.lg,
 
       padding:
         FixxamTokens.spacing.md,
@@ -881,11 +633,9 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
-    summaryHeader: {
+    offerTop: {
       width: "100%",
 
       flexDirection:
@@ -893,55 +643,71 @@ const styles =
 
       alignItems:
         "center",
-    },
-
-    summaryIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
 
       justifyContent:
-        "center",
+        "space-between",
 
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
+      gap:
+        FixxamTokens.spacing.md,
     },
 
-    summaryHeaderText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    summaryTitle: {
+    offerLabel: {
       color:
-        Colors.textPrimary,
+        Colors.textMuted,
     },
 
-    summarySubtitle: {
+    amount: {
       marginTop:
         FixxamTokens.spacing.xxs,
 
       color:
-        Colors.textSecondary,
+        WorkerColors.primary,
+    },
+
+    sentBadge: {
+      flexShrink: 0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.successSoft,
+    },
+
+    sentDot: {
+      width: 6,
+
+      height: 6,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    sentText: {
+      color:
+        Colors.success,
     },
 
     divider: {
-      height:
-        StyleSheet.hairlineWidth,
+      height: 1,
 
       marginVertical:
         FixxamTokens.spacing.md,
@@ -953,7 +719,7 @@ const styles =
     summaryRow: {
       width: "100%",
 
-      minHeight: 36,
+      minHeight: 38,
 
       flexDirection:
         "row",
@@ -963,20 +729,22 @@ const styles =
 
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.md,
     },
 
     summaryLabel: {
+      flexShrink: 0,
+
       color:
-        Colors.textSecondary,
+        Colors.textMuted,
     },
 
     summaryValue: {
       flex: 1,
 
-      maxWidth: "65%",
-
-      marginLeft:
-        FixxamTokens.spacing.md,
+      minWidth: 0,
 
       textAlign:
         "right",
@@ -985,101 +753,48 @@ const styles =
         Colors.textPrimary,
     },
 
-    summaryValueStrong: {
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ==========================================================
+    /* ========================================================
        MESSAGE
-    ========================================================== */
+    ======================================================== */
 
-    messageCard: {
+    messageSection: {
       width: "100%",
 
       marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
         FixxamTokens.spacing.md,
 
-      padding:
-        FixxamTokens.spacing.md,
+      borderBottomWidth: 1,
 
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
+      borderBottomColor:
+        Colors.divider,
     },
 
-    messageIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    messageContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    messageTitle: {
-      letterSpacing: 0.6,
-
+    sectionTitle: {
       color:
-        Colors.textSecondary,
+        Colors.textPrimary,
     },
 
-    messageText: {
+    message: {
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 19,
+      lineHeight: 20,
 
       color:
         Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        INFO
-    ========================================================== */
+    ======================================================== */
 
-    infoCard: {
+    infoRow: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.md,
-
-      padding:
         FixxamTokens.spacing.md,
 
       flexDirection:
@@ -1087,12 +802,6 @@ const styles =
 
       alignItems:
         "flex-start",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
     },
 
     infoIcon: {
@@ -1112,7 +821,7 @@ const styles =
         FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.surface,
+        WorkerColors.primarySoft,
     },
 
     infoText: {
@@ -1129,35 +838,21 @@ const styles =
         Colors.textSecondary,
     },
 
-    /* ==========================================================
+    /* ========================================================
        ACTIONS
-    ========================================================== */
+    ======================================================== */
 
-    viewAction: {
+    actions: {
       width: "100%",
 
       marginTop:
         FixxamTokens.spacing.xl,
     },
 
-    backAction: {
+    secondaryAction: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ==========================================================
-       FOOTER
-    ========================================================== */
-
-    footer: {
-      width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textMuted,
+        FixxamTokens.spacing.xs,
     },
   });

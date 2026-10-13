@@ -13,7 +13,6 @@ import {
 } from "expo-image";
 
 import {
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -23,6 +22,10 @@ import {
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+import {
+  auth,
+} from "@/firebase/config";
 
 /* ==============================================================
    TYPES
@@ -43,6 +46,8 @@ type Props = {
 };
 
 type ReviewItemProps = {
+  icon: string;
+
   label: string;
 
   value: string;
@@ -62,6 +67,60 @@ function CustomerReview({
   phone,
   photo,
 }: Props) {
+  /* ============================================================
+     FIREBASE AUTH DETAILS
+  ============================================================ */
+
+  const firebaseUser =
+    auth.currentUser;
+
+  const firebaseEmail =
+    firebaseUser?.email?.trim() ?? "";
+
+  /* ============================================================
+     RESOLVED EMAIL
+     
+     Priority:
+     1. Form email
+     2. Firebase Auth email
+  ============================================================ */
+
+  const resolvedEmail =
+    useMemo(() => {
+      const formEmail =
+        email.trim();
+
+      if (formEmail) {
+        return formEmail;
+      }
+
+      if (firebaseEmail) {
+        return firebaseEmail;
+      }
+
+      return "";
+    }, [
+      email,
+      firebaseEmail,
+    ]);
+
+  /* ============================================================
+     RESOLVED PHONE
+     
+     Phone normally comes from the customer form/profile.
+     Firebase Auth does not always contain a phone number,
+     so we do not pretend it does.
+  ============================================================ */
+
+  const resolvedPhone =
+    useMemo(() => {
+      return phone.trim();
+    }, [phone]);
+
+  /* ============================================================
+     FULL NAME
+  ============================================================ */
+
   const fullName =
     useMemo(
       () =>
@@ -70,38 +129,40 @@ function CustomerReview({
           surname,
           otherName,
         ]
-          .map((value) =>
+          .map(value =>
             value.trim(),
           )
           .filter(Boolean)
           .join(" "),
       [
         firstName,
-        otherName,
         surname,
+        otherName,
       ],
     );
+
+  /* ============================================================
+     PHOTO
+  ============================================================ */
 
   const hasPhoto =
     typeof photo === "string" &&
     photo.trim().length > 0;
 
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <AppCard
-      role="customer"
-      variant="outlined"
-      style={
-        styles.card
-      }
+    <View
+      style={styles.container}
     >
-      {/* ========================================================
+      {/* ======================================================
           PROFILE PHOTO
-      ======================================================== */}
+      ====================================================== */}
 
       <View
-        style={
-          styles.photoSection
-        }
+        style={styles.photoRow}
       >
         {hasPhoto ? (
           <Image
@@ -111,9 +172,7 @@ function CustomerReview({
             contentFit="cover"
             transition={150}
             accessibilityLabel="Profile photo"
-            style={
-              styles.photo
-            }
+            style={styles.photo}
           />
         ) : (
           <View
@@ -125,58 +184,48 @@ function CustomerReview({
             <AppIcon
               name="profile"
               role="customer"
-              size="lg"
+              size="md"
               state="muted"
             />
           </View>
         )}
 
-        <AppText
-          variant="caption"
-          weight="medium"
-          tone="secondary"
-          style={
-            styles.photoLabel
-          }
+        <View
+          style={styles.photoInfo}
         >
-          Profile photo
-        </AppText>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.photoLabel
+            }
+          >
+            Profile photo
+          </AppText>
+
+          <AppText
+            variant="body"
+            weight="medium"
+            style={
+              styles.photoValue
+            }
+          >
+            {hasPhoto
+              ? "Added"
+              : "Not added"}
+          </AppText>
+        </View>
       </View>
 
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <AppText
-        variant="heading2"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        Almost there!
-      </AppText>
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        style={
-          styles.subtitle
-        }
-      >
-        Check your details before creating your account.
-      </AppText>
-
-      {/* ========================================================
+      {/* ======================================================
           DETAILS
-      ======================================================== */}
+      ====================================================== */}
 
       <View
-        style={
-          styles.details
-        }
+        style={styles.details}
       >
         <ReviewItem
+          icon="profile"
           label="Full name"
           value={
             fullName ||
@@ -185,46 +234,39 @@ function CustomerReview({
         />
 
         <ReviewItem
-          label="Account type"
-          value="Customer"
-        />
-
-        <ReviewItem
+          icon="mail"
           label="Email address"
           value={
-            email.trim() ||
+            resolvedEmail ||
             "Not provided"
           }
         />
 
-        <ReviewItem
-          label="Phone number"
-          value={
-            phone.trim() ||
-            "Not provided"
-          }
-        />
+        {resolvedPhone ? (
+          <ReviewItem
+            icon="phone"
+            label="Phone number"
+            value={resolvedPhone}
+          />
+        ) : null}
 
         <ReviewItem
+          icon="lock"
           label="Password"
           value="••••••••"
           last
         />
       </View>
 
-      {/* ========================================================
+      {/* ======================================================
           SECURITY NOTICE
-      ======================================================== */}
+      ====================================================== */}
 
       <View
-        style={
-          styles.notice
-        }
+        style={styles.notice}
       >
         <View
-          style={
-            styles.noticeIcon
-          }
+          style={styles.noticeIcon}
         >
           <AppIcon
             name="shield"
@@ -259,7 +301,7 @@ function CustomerReview({
           </AppText>
         </View>
       </View>
-    </AppCard>
+    </View>
   );
 }
 
@@ -274,6 +316,7 @@ export default memo(
 const ReviewItem =
   memo(
     function ReviewItem({
+      icon,
       label,
       value,
       last = false,
@@ -282,32 +325,51 @@ const ReviewItem =
         <View
           style={[
             styles.item,
-
             last
               ? styles.lastItem
               : null,
           ]}
         >
-          <AppText
-            variant="caption"
-            tone="secondary"
+          <View
             style={
-              styles.label
+              styles.itemIcon
             }
           >
-            {label}
-          </AppText>
+            <AppIcon
+              name={icon}
+              role="customer"
+              size="sm"
+              state="muted"
+            />
+          </View>
 
-          <AppText
-            variant="body"
-            weight="medium"
-            numberOfLines={1}
+          <View
             style={
-              styles.value
+              styles.itemContent
             }
           >
-            {value}
-          </AppText>
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.label
+              }
+            >
+              {label}
+            </AppText>
+
+            <AppText
+              variant="body"
+              weight="medium"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={
+                styles.value
+              }
+            >
+              {value}
+            </AppText>
+          </View>
         </View>
       );
     },
@@ -322,40 +384,51 @@ ReviewItem.displayName =
 
 const styles =
   StyleSheet.create({
-    card: {
+    container: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
+    },
 
-      marginBottom:
-        FixxamTokens.spacing.sm,
+    /* ==========================================================
+       PROFILE PHOTO
+    ========================================================== */
+
+    photoRow: {
+      width: "100%",
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
       paddingVertical:
         FixxamTokens.spacing.md,
-    },
-
-    /* ==========================================================
-       PHOTO
-    ========================================================== */
-
-    photoSection: {
-      alignItems:
-        "center",
 
       marginBottom:
         FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
     },
 
     photo: {
-      width:
-        FixxamTokens.size.avatarXl,
+      width: 52,
 
-      height:
-        FixxamTokens.size.avatarXl,
+      height: 52,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -365,53 +438,39 @@ const styles =
     },
 
     photoPlaceholder: {
-      width:
-        FixxamTokens.size.avatarXl,
+      width: 52,
 
-      height:
-        FixxamTokens.size.avatarXl,
+      height: 52,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
       justifyContent:
         "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
 
       borderRadius:
         FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabledBackground,
+        CustomerColors.primarySoft,
+    },
+
+    photoInfo: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
     photoLabel: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+      marginBottom:
+        FixxamTokens.spacing.xxs,
     },
 
-    /* ==========================================================
-       HEADER
-    ========================================================== */
-
-    title: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
+    photoValue: {
       color:
         Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textSecondary,
     },
 
     /* ==========================================================
@@ -419,8 +478,9 @@ const styles =
     ========================================================== */
 
     details: {
-      overflow:
-        "hidden",
+      width: "100%",
+
+      overflow: "hidden",
 
       borderWidth: 1,
 
@@ -435,16 +495,19 @@ const styles =
     },
 
     item: {
-      minHeight: 54,
+      minHeight: 64,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
       paddingVertical:
         FixxamTokens.spacing.sm,
-
-      justifyContent:
-        "center",
 
       borderBottomWidth: 1,
 
@@ -454,6 +517,26 @@ const styles =
 
     lastItem: {
       borderBottomWidth: 0,
+    },
+
+    itemIcon: {
+      width: 32,
+
+      height: 32,
+
+      alignItems: "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        FixxamTokens.spacing.sm,
+    },
+
+    itemContent: {
+      flex: 1,
+
+      minWidth: 0,
     },
 
     label: {
@@ -470,14 +553,19 @@ const styles =
     },
 
     /* ==========================================================
-       NOTICE
+       SECURITY NOTICE
     ========================================================== */
 
     notice: {
+      width: "100%",
+
       marginTop:
         FixxamTokens.spacing.md,
 
-      padding:
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
         FixxamTokens.spacing.md,
 
       flexDirection:
@@ -520,5 +608,7 @@ const styles =
     noticeText: {
       color:
         Colors.textSecondary,
+
+      lineHeight: 20,
     },
   });

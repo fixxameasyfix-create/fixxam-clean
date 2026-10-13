@@ -1,19 +1,14 @@
 import React, {
   memo,
-  useCallback,
   useMemo,
 } from "react";
 
 import {
-  Linking,
   StyleSheet,
   View,
 } from "react-native";
 
-import Toast from "react-native-toast-message";
-
 import {
-  AppButton,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -21,7 +16,6 @@ import {
 import {
   Colors,
   FixxamTokens,
-  WorkerColors,
 } from "@/theme";
 
 /* ============================================================
@@ -29,45 +23,49 @@ import {
 ============================================================ */
 
 type Props = {
-  customerName: string;
+  customerName?: string | null;
 
-  customerPhone?: string;
+  customerPhone?: string | null;
 
-  orderId: string;
+  /**
+   * Kept temporarily for compatibility with the
+   * existing parent screen.
+   *
+   * Order metadata is already shown in the header.
+   */
+  orderId?: string | null;
 
+  createdDate?: string | null;
+
+  /**
+   * Kept temporarily for compatibility.
+   * Contact actions are handled by the bottom action section.
+   */
   onChat?: () => void;
 };
 
 /* ============================================================
-   PHONE
+   HELPERS
 ============================================================ */
 
-function normalizePhoneForCall(
-  value: string,
+function safeString(
+  value: unknown,
+  fallback = "",
 ): string {
-  const trimmed =
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
+
+  const normalized =
     value.trim();
 
-  if (!trimmed) {
-    return "";
-  }
-
-  const hasLeadingPlus =
-    trimmed.startsWith("+");
-
-  const digits =
-    trimmed.replace(
-      /\D/g,
-      "",
-    );
-
-  if (!digits) {
-    return "";
-  }
-
-  return hasLeadingPlus
-    ? `+${digits}`
-    : digits;
+  return (
+    normalized ||
+    fallback
+  );
 }
 
 /* ============================================================
@@ -77,283 +75,99 @@ function normalizePhoneForCall(
 function WorkerMarketCustomer({
   customerName,
   customerPhone,
-  orderId,
-  onChat,
 }: Props) {
-  /* ==========================================================
-     DISPLAY VALUES
-  ========================================================== */
-
-  const displayName =
+  const name =
     useMemo(
       () =>
-        customerName.trim() ||
-        "Customer",
+        safeString(
+          customerName,
+          "Customer",
+        ),
       [
         customerName,
       ],
     );
 
-  const displayPhone =
+  const phone =
     useMemo(
       () =>
-        customerPhone?.trim() ||
-        "",
+        safeString(
+          customerPhone,
+          "Phone unavailable",
+        ),
       [
         customerPhone,
       ],
     );
 
-  const callablePhone =
-    useMemo(
-      () =>
-        normalizePhoneForCall(
-          displayPhone,
-        ),
-      [
-        displayPhone,
-      ],
-    );
-
-  const hasPhone =
-    callablePhone.length > 0;
-
-  /* ==========================================================
-     CALL
-  ========================================================== */
-
-  const handleCall =
-    useCallback(async () => {
-      if (!hasPhone) {
-        Toast.show({
-          type: "info",
-
-          text1:
-            "Phone unavailable",
-
-          text2:
-            "This customer does not have a valid phone number.",
-        });
-
-        return;
-      }
-
-      const phoneUrl =
-        `tel:${callablePhone}`;
-
-      try {
-        const supported =
-          await Linking.canOpenURL(
-            phoneUrl,
-          );
-
-        if (!supported) {
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Calling unavailable",
-
-            text2:
-              "Your device cannot make phone calls.",
-          });
-
-          return;
-        }
-
-        await Linking.openURL(
-          phoneUrl,
-        );
-      } catch (error) {
-        console.error(
-          "WORKER_MARKET_CALL_ERROR:",
-          error,
-        );
-
-        Toast.show({
-          type: "error",
-
-          text1:
-            "Unable to call customer",
-
-          text2:
-            "Please try again.",
-        });
-      }
-    }, [
-      callablePhone,
-      hasPhone,
-    ]);
-
-  /* ==========================================================
-     CHAT
-  ========================================================== */
-
-  const handleChat =
-    useCallback(() => {
-      if (onChat) {
-        onChat();
-
-        return;
-      }
-
-      Toast.show({
-        type: "info",
-
-        text1:
-          "Chat unavailable",
-
-        text2:
-          "Chat is not available for this order.",
-      });
-    }, [
-      onChat,
-    ]);
-
-  /* ==========================================================
-     RENDER
-  ========================================================== */
+  const phoneAvailable =
+    phone !==
+    "Phone unavailable";
 
   return (
     <View
+      accessible
+      accessibilityLabel={
+        phoneAvailable
+          ? `Customer ${name}. Phone ${phone}.`
+          : `Customer ${name}. Phone unavailable.`
+      }
       style={
         styles.card
       }
     >
       {/* ======================================================
-          HEADER
-      ====================================================== */}
-
-      <AppText
-        variant="heading3"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        Customer
-      </AppText>
-
-      {/* ======================================================
-          CUSTOMER
+          CUSTOMER ICON
       ====================================================== */}
 
       <View
         style={
-          styles.customerRow
+          styles.iconBox
         }
       >
-        <View
-          style={
-            styles.avatar
+        <AppIcon
+          name="profile"
+          size="sm"
+          color={
+            Colors.info
           }
-        >
-          <AppIcon
-            name="profile"
-            role="worker"
-            size="md"
-            color={
-              WorkerColors.primary
-            }
-          />
-        </View>
-
-        <View
-          style={
-            styles.customerInfo
-          }
-        >
-          <AppText
-            variant="bodyMedium"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.customerName
-            }
-          >
-            {displayName}
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={1}
-            style={
-              styles.customerPhone
-            }
-          >
-            {displayPhone ||
-              "Phone number unavailable"}
-          </AppText>
-        </View>
+        />
       </View>
 
       {/* ======================================================
-          ACTIONS
+          CUSTOMER INFO
       ====================================================== */}
 
       <View
         style={
-          styles.actions
+          styles.content
         }
       >
-        <View
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={1}
           style={
-            styles.action
+            styles.name
           }
         >
-          <AppButton
-            title="Chat"
-            role="worker"
-            variant="outline"
-            leftIconName="messages"
-            onPress={
-              handleChat
-            }
-            style={
-              styles.button
-            }
-          />
-        </View>
+          {name}
+        </AppText>
 
-        <View
-          style={
-            styles.action
-          }
+        <AppText
+          variant="caption"
+          numberOfLines={1}
+          style={[
+            styles.phone,
+
+            !phoneAvailable
+              ? styles.phoneUnavailable
+              : null,
+          ]}
         >
-          <AppButton
-            title={
-              hasPhone
-                ? "Call"
-                : "Unavailable"
-            }
-            role="worker"
-            variant="primary"
-            leftIconName="phone"
-            disabled={
-              !hasPhone
-            }
-            onPress={
-              handleCall
-            }
-            style={
-              styles.button
-            }
-          />
-        </View>
+          {phone}
+        </AppText>
       </View>
-
-      {/* ======================================================
-          ORDER CONTEXT FOR ACCESSIBILITY
-      ====================================================== */}
-
-      <View
-        accessible
-        accessibilityLabel={`Customer details for order ${orderId}`}
-        style={
-          styles.accessibilityContext
-        }
-      />
     </View>
   );
 }
@@ -376,56 +190,56 @@ export default memo(
 const styles =
   StyleSheet.create({
     card: {
-      width: "100%",
+      width:
+        "100%",
+
+      minHeight:
+        64,
+
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    title: {
-      color:
-        Colors.textPrimary,
-    },
-
-    /* ========================================================
-       CUSTOMER
-    ======================================================== */
-
-    customerRow: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    avatar: {
+    /* ========================================================
+       ICON
+    ======================================================== */
+
+    iconBox: {
       width:
-        FixxamTokens.size.avatarMd,
+        40,
 
       height:
-        FixxamTokens.size.avatarMd,
+        40,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -434,62 +248,45 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
-        WorkerColors.primarySoft,
+        Colors.infoSoft,
     },
 
-    customerInfo: {
-      flex: 1,
+    /* ========================================================
+       CONTENT
+    ======================================================== */
 
-      minWidth: 0,
+    content: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
-    customerName: {
+    name: {
       color:
         Colors.textPrimary,
     },
 
-    customerPhone: {
+    phone: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        2,
+
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,
     },
 
-    /* ========================================================
-       ACTIONS
-    ======================================================== */
-
-    actions: {
-      marginTop:
-        FixxamTokens.spacing.lg,
-
-      flexDirection:
-        "row",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    action: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    button: {
-      width: "100%",
-    },
-
-    accessibilityContext: {
-      width: 0,
-
-      height: 0,
+    phoneUnavailable: {
+      color:
+        Colors.textMuted,
     },
   });

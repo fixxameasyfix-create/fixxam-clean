@@ -8,6 +8,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -28,6 +29,9 @@ import {
 
 import {
   collection,
+  doc,
+  documentId,
+  getDoc,
   getDocs,
   query,
   where,
@@ -42,8 +46,10 @@ import {
 } from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
+import ProductReviewModal from "@/components/customer/home/ProductReviewModal";
 
 import {
+  auth,
   db,
 } from "@/firebase/config";
 
@@ -52,10 +58,27 @@ import getActiveProductDeals, {
 } from "@/services/deals/getActiveProductDeal";
 
 import {
+  subscribeToProductRatingCount,
+  toggleProductRating,
+} from "@/services/productRatingService";
+
+import {
+  createProductReview,
+  subscribeToProductReviewCount,
+} from "@/services/productReviewService";
+
+import {
   Colors,
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const WORKER_QUERY_BATCH_SIZE =
+  30;
 
 /* ==============================================================
    TYPES
@@ -71,6 +94,8 @@ type Product = {
   thumbnail: string;
 
   rating?: number;
+
+  workerRating?: number;
 
   sold?: number;
 
@@ -106,7 +131,8 @@ function normalizeString(
   value: unknown,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
@@ -119,14 +145,18 @@ function normalizeNumber(
   fallback = 0,
 ): number {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
 
   if (
-    typeof value === "string"
+    typeof value ===
+    "string"
   ) {
     const parsed =
       Number(
@@ -152,7 +182,9 @@ function normalizeStringArray(
   value: unknown,
 ): string[] {
   if (
-    !Array.isArray(value)
+    !Array.isArray(
+      value,
+    )
   ) {
     return [];
   }
@@ -171,9 +203,62 @@ function normalizeStringArray(
           (item) =>
             item.trim(),
         )
-        .filter(Boolean),
+        .filter(
+          Boolean,
+        ),
     ),
   );
+}
+
+function normalizeWorkerRating(
+  value: unknown,
+): number {
+  const parsed =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      parsed,
+    ),
+  );
+}
+
+function chunkWorkerIds(
+  workerIds: string[],
+): string[][] {
+  const batches:
+    string[][] = [];
+
+  for (
+    let index = 0;
+    index <
+    workerIds.length;
+    index +=
+      WORKER_QUERY_BATCH_SIZE
+  ) {
+    batches.push(
+      workerIds.slice(
+        index,
+        index +
+          WORKER_QUERY_BATCH_SIZE,
+      ),
+    );
+  }
+
+  return batches;
 }
 
 function getProductStatus(
@@ -189,7 +274,9 @@ function getProductStatus(
     return "out_of_stock";
   }
 
-  if (stock <= 0) {
+  if (
+    stock <= 0
+  ) {
     return "out_of_stock";
   }
 
@@ -286,11 +373,17 @@ export default function ServiceMaterialsScreen() {
       ? params.serviceName.trim()
       : "Service";
 
+  /* ============================================================
+     STATE
+  ============================================================ */
+
   const [
     products,
     setProducts,
   ] =
-    useState<Product[]>([]);
+    useState<Product[]>(
+      [],
+    );
 
   const [
     loading,
@@ -312,6 +405,53 @@ export default function ServiceMaterialsScreen() {
       string | null
     >(null);
 
+  const [
+    ratingCounts,
+    setRatingCounts,
+  ] =
+    useState<
+      Record<
+        string,
+        number
+      >
+    >({});
+
+  const [
+    reviewCounts,
+    setReviewCounts,
+  ] =
+    useState<
+      Record<
+        string,
+        number
+      >
+    >({});
+
+  const [
+    ratingLoading,
+    setRatingLoading,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const [
+    selectedReviewProduct,
+    setSelectedReviewProduct,
+  ] =
+    useState<
+      Product | null
+    >(null);
+
+  const [
+    reviewSubmitting,
+    setReviewSubmitting,
+  ] =
+    useState(false);
+
   const requestIdRef =
     useRef(0);
 
@@ -331,13 +471,18 @@ export default function ServiceMaterialsScreen() {
         if (
           !serviceId
         ) {
-          setProducts([]);
+          setProducts(
+            [],
+          );
 
           setError(
             "Invalid service. Please go back and select a service again.",
           );
 
-          setLoading(false);
+          setLoading(
+            false,
+          );
+
           setRefreshing(
             false,
           );
@@ -346,13 +491,17 @@ export default function ServiceMaterialsScreen() {
         }
 
         if (
-          mode === "initial"
+          mode ===
+          "initial"
         ) {
-          setLoading(true);
+          setLoading(
+            true,
+          );
         }
 
         if (
-          mode === "refresh"
+          mode ===
+          "refresh"
         ) {
           setRefreshing(
             true,
@@ -360,9 +509,12 @@ export default function ServiceMaterialsScreen() {
         }
 
         if (
-          mode !== "refresh"
+          mode !==
+          "refresh"
         ) {
-          setError(null);
+          setError(
+            null,
+          );
         }
 
         try {
@@ -451,7 +603,7 @@ export default function ServiceMaterialsScreen() {
           );
 
           /* ==================================================
-             NORMALIZE
+             NORMALIZE PRODUCTS
           ================================================== */
 
           const result =
@@ -472,7 +624,9 @@ export default function ServiceMaterialsScreen() {
                     data.name,
                   );
 
-                if (!name) {
+                if (
+                  !name
+                ) {
                   return items;
                 }
 
@@ -512,7 +666,8 @@ export default function ServiceMaterialsScreen() {
                   return items;
                 }
 
-                const product: Product =
+                const product:
+                  Product =
                   {
                     id:
                       productDoc.id,
@@ -531,6 +686,9 @@ export default function ServiceMaterialsScreen() {
                         data.rating,
                         0,
                       ),
+
+                    workerRating:
+                      0,
 
                     sold:
                       normalizeNumber(
@@ -603,11 +761,124 @@ export default function ServiceMaterialsScreen() {
           );
 
           /* ==================================================
+             WORKER IDS
+          ================================================== */
+
+          const workerIds =
+            Array.from(
+              new Set(
+                result
+                  .map(
+                    (
+                      product,
+                    ) =>
+                      product.workerId ??
+                      "",
+                  )
+                  .filter(
+                    Boolean,
+                  ),
+              ),
+            );
+
+          /* ==================================================
+             WORKER RATINGS
+          ================================================== */
+
+          const workerRatings =
+            new Map<
+              string,
+              number
+            >();
+
+          const workerBatches =
+            chunkWorkerIds(
+              workerIds,
+            );
+
+          if (
+            workerBatches.length >
+            0
+          ) {
+            const workerSnapshots =
+              await Promise.all(
+                workerBatches.map(
+                  (
+                    workerBatch,
+                  ) =>
+                    getDocs(
+                      query(
+                        collection(
+                          db,
+                          "workerPublicProfiles",
+                        ),
+                        where(
+                          documentId(),
+                          "in",
+                          workerBatch,
+                        ),
+                      ),
+                    ),
+                ),
+              );
+
+            if (
+              requestId !==
+              requestIdRef.current
+            ) {
+              return;
+            }
+
+            workerSnapshots.forEach(
+              (
+                snapshot,
+              ) => {
+                snapshot.docs.forEach(
+                  (
+                    workerDoc,
+                  ) => {
+                    const data =
+                      workerDoc.data();
+
+                    workerRatings.set(
+                      workerDoc.id,
+                      normalizeWorkerRating(
+                        data.rating,
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          }
+
+          /* ==================================================
+             MERGE WORKER RATINGS
+          ================================================== */
+
+          const productsWithWorkerRatings =
+            result.map(
+              (
+                product,
+              ): Product => ({
+                ...product,
+
+                workerRating:
+                  product.workerId
+                    ? workerRatings.get(
+                        product.workerId,
+                      ) ??
+                      0
+                    : 0,
+              }),
+            );
+
+          /* ==================================================
              DEALS
           ================================================== */
 
           const productIds =
-            result
+            productsWithWorkerRatings
               .map(
                 (
                   product,
@@ -619,7 +890,7 @@ export default function ServiceMaterialsScreen() {
               );
 
           let productsWithDeals =
-            result;
+            productsWithWorkerRatings;
 
           if (
             productIds.length >
@@ -639,7 +910,7 @@ export default function ServiceMaterialsScreen() {
               }
 
               productsWithDeals =
-                result.map(
+                productsWithWorkerRatings.map(
                   (
                     product,
                   ) => ({
@@ -655,17 +926,17 @@ export default function ServiceMaterialsScreen() {
             } catch (
               dealError
             ) {
-              console.error(
-                "SERVICE_MATERIALS_DEAL_LOAD_ERROR:",
-                dealError,
-              );
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "SERVICE_MATERIALS_DEAL_LOAD_ERROR:",
+                  dealError,
+                );
+              }
 
-              /*
-               * Deals are optional.
-               * Products must remain usable.
-               */
               productsWithDeals =
-                result.map(
+                productsWithWorkerRatings.map(
                   (
                     product,
                   ) => ({
@@ -689,14 +960,20 @@ export default function ServiceMaterialsScreen() {
             productsWithDeals,
           );
 
-          setError(null);
+          setError(
+            null,
+          );
         } catch (
           loadError
         ) {
-          console.error(
-            "SERVICE_MATERIALS_LOAD_ERROR:",
-            loadError,
-          );
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "SERVICE_MATERIALS_LOAD_ERROR:",
+              loadError,
+            );
+          }
 
           if (
             requestId !==
@@ -706,14 +983,17 @@ export default function ServiceMaterialsScreen() {
           }
 
           if (
-            mode === "refresh" &&
+            mode ===
+              "refresh" &&
             products.length >
               0
           ) {
             Toast.show({
               type: "error",
+
               text1:
                 "Unable to refresh materials",
+
               text2:
                 "Please try again.",
             });
@@ -721,7 +1001,9 @@ export default function ServiceMaterialsScreen() {
             return;
           }
 
-          setProducts([]);
+          setProducts(
+            [],
+          );
 
           setError(
             "Unable to load materials for this service. Please try again.",
@@ -731,7 +1013,9 @@ export default function ServiceMaterialsScreen() {
             requestId ===
             requestIdRef.current
           ) {
-            setLoading(false);
+            setLoading(
+              false,
+            );
 
             setRefreshing(
               false,
@@ -760,6 +1044,139 @@ export default function ServiceMaterialsScreen() {
     };
   }, [
     loadProducts,
+  ]);
+
+  /* ============================================================
+     PRODUCT IDS
+  ============================================================ */
+
+  const productIds =
+    useMemo(
+      () =>
+        products
+          .map(
+            (
+              product,
+            ) =>
+              product.id.trim(),
+          )
+          .filter(
+            Boolean,
+          ),
+      [
+        products,
+      ],
+    );
+
+  /* ============================================================
+     REALTIME RATING + REVIEW COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setRatingCounts(
+        {},
+      );
+
+      setReviewCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const unsubscribers:
+      Array<
+        () => void
+      > = [];
+
+    productIds.forEach(
+      (
+        productId,
+      ) => {
+        const unsubscribeRating =
+          subscribeToProductRatingCount(
+            productId,
+            (
+              count,
+            ) => {
+              setRatingCounts(
+                (
+                  current,
+                ) => ({
+                  ...current,
+
+                  [productId]:
+                    count,
+                }),
+              );
+            },
+            (
+              subscriptionError,
+            ) => {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "SERVICE_MATERIAL_RATING_COUNT_ERROR:",
+                  subscriptionError,
+                );
+              }
+            },
+          );
+
+        const unsubscribeReview =
+          subscribeToProductReviewCount(
+            productId,
+            (
+              count,
+            ) => {
+              setReviewCounts(
+                (
+                  current,
+                ) => ({
+                  ...current,
+
+                  [productId]:
+                    count,
+                }),
+              );
+            },
+            (
+              subscriptionError,
+            ) => {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "SERVICE_MATERIAL_REVIEW_COUNT_ERROR:",
+                  subscriptionError,
+                );
+              }
+            },
+          );
+
+        unsubscribers.push(
+          unsubscribeRating,
+          unsubscribeReview,
+        );
+      },
+    );
+
+    return () => {
+      unsubscribers.forEach(
+        (
+          unsubscribe,
+        ) => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
   ]);
 
   /* ============================================================
@@ -806,16 +1223,400 @@ export default function ServiceMaterialsScreen() {
       (
         product: Product,
       ) => {
+        const productId =
+          product.id.trim();
+
+        if (
+          !productId
+        ) {
+          return;
+        }
+
         router.push({
           pathname:
             "/(customer)/product/[id]",
 
           params: {
-            id: product.id,
+            id:
+              productId,
           },
         });
       },
       [],
+    );
+
+  /* ============================================================
+     PRODUCT RATING
+  ============================================================ */
+
+  const handleProductRating =
+    useCallback(
+      async (
+        productId: string,
+      ) => {
+        const cleanProductId =
+          productId.trim();
+
+        if (
+          !cleanProductId ||
+          ratingLoading[
+            cleanProductId
+          ]
+        ) {
+          return;
+        }
+
+        if (
+          !auth.currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to rate this product.",
+          );
+
+          return;
+        }
+
+        try {
+          setRatingLoading(
+            (
+              current,
+            ) => ({
+              ...current,
+
+              [cleanProductId]:
+                true,
+            }),
+          );
+
+          await toggleProductRating(
+            cleanProductId,
+          );
+        } catch (
+          ratingError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "SERVICE_MATERIAL_RATING_ERROR:",
+              ratingError,
+            );
+          }
+
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to update rating",
+
+            text2:
+              "Please try again.",
+          });
+        } finally {
+          setRatingLoading(
+            (
+              current,
+            ) => ({
+              ...current,
+
+              [cleanProductId]:
+                false,
+            }),
+          );
+        }
+      },
+      [
+        ratingLoading,
+      ],
+    );
+
+  /* ============================================================
+     OPEN REVIEW
+  ============================================================ */
+
+  const handleReviewPress =
+    useCallback(
+      (
+        product: Product,
+      ) => {
+        const productId =
+          product.id.trim();
+
+        const workerId =
+          product.workerId?.trim() ??
+          "";
+
+        if (
+          !auth.currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to review this product.",
+          );
+
+          return;
+        }
+
+        if (
+          !productId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to review product",
+
+            text2:
+              "Invalid product.",
+          });
+
+          return;
+        }
+
+        if (
+          !workerId
+        ) {
+          Toast.show({
+            type: "error",
+
+            text1:
+              "Unable to review product",
+
+            text2:
+              "Product owner information is missing.",
+          });
+
+          return;
+        }
+
+        setSelectedReviewProduct(
+          product,
+        );
+      },
+      [],
+    );
+
+  /* ============================================================
+     CLOSE REVIEW
+  ============================================================ */
+
+  const handleCloseReview =
+    useCallback(() => {
+      if (
+        reviewSubmitting
+      ) {
+        return;
+      }
+
+      setSelectedReviewProduct(
+        null,
+      );
+    }, [
+      reviewSubmitting,
+    ]);
+
+  /* ============================================================
+     SUBMIT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(
+      async (
+        rating: number,
+        comment: string,
+      ) => {
+        const product =
+          selectedReviewProduct;
+
+        if (
+          !product
+        ) {
+          return;
+        }
+
+        const user =
+          auth.currentUser;
+
+        if (
+          !user
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to review this product.",
+          );
+
+          return;
+        }
+
+        const productId =
+          product.id.trim();
+
+        const workerId =
+          product.workerId?.trim() ??
+          "";
+
+        const cleanComment =
+          comment.trim();
+
+        if (
+          !productId ||
+          !workerId
+        ) {
+          Alert.alert(
+            "Unable to submit review",
+            "The product information is incomplete.",
+          );
+
+          return;
+        }
+
+        if (
+          !Number.isFinite(
+            rating,
+          ) ||
+          rating < 1 ||
+          rating > 5
+        ) {
+          Alert.alert(
+            "Rating required",
+            "Please choose a rating from 1 to 5 stars.",
+          );
+
+          return;
+        }
+
+        if (
+          cleanComment.length <
+          3
+        ) {
+          Alert.alert(
+            "Review too short",
+            "Please write at least 3 characters.",
+          );
+
+          return;
+        }
+
+        if (
+          cleanComment.length >
+          500
+        ) {
+          Alert.alert(
+            "Review too long",
+            "Your review cannot exceed 500 characters.",
+          );
+
+          return;
+        }
+
+        try {
+          setReviewSubmitting(
+            true,
+          );
+
+          const userSnapshot =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                user.uid,
+              ),
+            );
+
+          const userData =
+            userSnapshot.exists()
+              ? userSnapshot.data()
+              : {};
+
+          const fullName =
+            normalizeString(
+              userData.fullName,
+            );
+
+          const generatedName =
+            [
+              normalizeString(
+                userData.firstName,
+              ),
+
+              normalizeString(
+                userData.otherName,
+              ),
+
+              normalizeString(
+                userData.surname,
+              ),
+            ]
+              .filter(
+                Boolean,
+              )
+              .join(
+                " ",
+              );
+
+          const customerName =
+            fullName ||
+            generatedName ||
+            normalizeString(
+              user.displayName,
+            ) ||
+            "Customer";
+
+          await createProductReview({
+            productId,
+
+            productName:
+              product.name,
+
+            workerId,
+
+            customerName,
+
+            rating,
+
+            comment:
+              cleanComment,
+          });
+
+          setSelectedReviewProduct(
+            null,
+          );
+
+          Toast.show({
+            type: "success",
+
+            text1:
+              "Review submitted",
+
+            text2:
+              "Thank you for your review.",
+          });
+        } catch (
+          reviewError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "SERVICE_MATERIAL_REVIEW_SUBMIT_ERROR:",
+              reviewError,
+            );
+          }
+
+          Alert.alert(
+            "Unable to submit review",
+            "Please try again.",
+          );
+        } finally {
+          setReviewSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        selectedReviewProduct,
+      ],
     );
 
   /* ============================================================
@@ -837,7 +1638,9 @@ export default function ServiceMaterialsScreen() {
           >
             <MaterialCommunityIcons
               name="cube-outline"
-              size={30}
+              size={
+                30
+              }
               color={
                 CustomerColors.primary
               }
@@ -862,7 +1665,9 @@ export default function ServiceMaterialsScreen() {
             <AppText
               variant="body"
               tone="secondary"
-              numberOfLines={2}
+              numberOfLines={
+                2
+              }
               style={
                 styles.serviceBannerDescription
               }
@@ -888,38 +1693,85 @@ export default function ServiceMaterialsScreen() {
     >(
       ({
         item,
-      }) => (
-        <View
-          style={
-            styles.gridItem
-          }
-        >
-          <ProductGridCard
-            id={item.id}
-            name={item.name}
-            price={item.price}
-            image={
-              item.thumbnail
+      }) => {
+        const ratingCount =
+          ratingCounts[
+            item.id
+          ] ??
+          0;
+
+        const reviewCount =
+          reviewCounts[
+            item.id
+          ] ??
+          0;
+
+        return (
+          <View
+            style={
+              styles.gridItem
             }
-            activeDeal={
-              item.activeDeal ??
-              null
-            }
-            onPress={() =>
-              handleProductPress(
-                item,
-              )
-            }
-            onBuy={() =>
-              handleProductPress(
-                item,
-              )
-            }
-          />
-        </View>
-      ),
+          >
+            <ProductGridCard
+              id={
+                item.id
+              }
+              workerId={
+                item.workerId
+              }
+              name={
+                item.name
+              }
+              price={
+                item.price
+              }
+              image={
+                item.thumbnail
+              }
+              rating={
+                item.workerRating ??
+                0
+              }
+              ratingCount={
+                ratingCount
+              }
+              reviewCount={
+                reviewCount
+              }
+              activeDeal={
+                item.activeDeal ??
+                null
+              }
+              onRatingPress={() => {
+                void handleProductRating(
+                  item.id,
+                );
+              }}
+              onReviewPress={() => {
+                handleReviewPress(
+                  item,
+                );
+              }}
+              onPress={() =>
+                handleProductPress(
+                  item,
+                )
+              }
+              onBuy={() =>
+                handleProductPress(
+                  item,
+                )
+              }
+            />
+          </View>
+        );
+      },
       [
         handleProductPress,
+        handleProductRating,
+        handleReviewPress,
+        ratingCounts,
+        reviewCounts,
       ],
     );
 
@@ -927,7 +1779,8 @@ export default function ServiceMaterialsScreen() {
     useCallback(
       (
         item: Product,
-      ) => item.id,
+      ) =>
+        item.id,
       [],
     );
 
@@ -935,7 +1788,9 @@ export default function ServiceMaterialsScreen() {
      LOADING
   ============================================================ */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <SafeAreaView
         style={
@@ -960,7 +1815,9 @@ export default function ServiceMaterialsScreen() {
           >
             <MaterialCommunityIcons
               name="cube-outline"
-              size={38}
+              size={
+                38
+              }
               color={
                 CustomerColors.primary
               }
@@ -993,135 +1850,38 @@ export default function ServiceMaterialsScreen() {
   ============================================================ */
 
   return (
-    <SafeAreaView
-      style={
-        styles.container
-      }
-      edges={[
-        "top",
-        "bottom",
-      ]}
-    >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
-
-      <View
+    <>
+      <SafeAreaView
         style={
-          styles.header
+          styles.container
         }
+        edges={[
+          "top",
+          "bottom",
+        ]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={6}
-          onPress={() =>
-            router.back()
-          }
-          style={({
-            pressed,
-          }) => [
-            styles.backButton,
-
-            pressed
-              ? styles.pressed
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="back"
-            role="customer"
-            size="sm"
-            color={
-              Colors.textPrimary
-            }
-          />
-        </Pressable>
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
 
         <View
           style={
-            styles.headerText
+            styles.header
           }
         >
-          <AppText
-            variant="heading2"
-            weight="bold"
-            numberOfLines={1}
-            style={
-              styles.title
-            }
-          >
-            {serviceName}
-          </AppText>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            numberOfLines={1}
-            style={
-              styles.subtitle
-            }
-          >
-            Materials available for this service
-          </AppText>
-        </View>
-      </View>
-
-      {/* ======================================================
-          ERROR
-      ====================================================== */}
-
-      {error ? (
-        <View
-          style={
-            styles.errorContainer
-          }
-        >
-          <View
-            style={
-              styles.errorIcon
-            }
-          >
-            <AppIcon
-              name="error"
-              role="customer"
-              size="xl"
-              state="error"
-            />
-          </View>
-
-          <AppText
-            variant="heading3"
-            weight="bold"
-            center
-            style={
-              styles.errorTitle
-            }
-          >
-            Something went wrong
-          </AppText>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {error}
-          </AppText>
-
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Refresh materials"
-            onPress={
-              handleRetry
+            accessibilityLabel="Go back"
+            hitSlop={
+              6
+            }
+            onPress={() =>
+              router.back()
             }
             style={({
               pressed,
             }) => [
-              styles.retryButton,
+              styles.backButton,
 
               pressed
                 ? styles.pressed
@@ -1129,140 +1889,281 @@ export default function ServiceMaterialsScreen() {
             ]}
           >
             <AppIcon
-              name="refresh"
+              name="back"
               role="customer"
-              size="xs"
+              size="sm"
               color={
-                Colors.textInverse
+                Colors.textPrimary
               }
             />
+          </Pressable>
+
+          <View
+            style={
+              styles.headerText
+            }
+          >
+            <AppText
+              variant="heading2"
+              weight="bold"
+              numberOfLines={
+                1
+              }
+              style={
+                styles.title
+              }
+            >
+              {serviceName}
+            </AppText>
 
             <AppText
-              variant="bodyMedium"
-              weight="bold"
+              variant="body"
+              tone="secondary"
+              numberOfLines={
+                1
+              }
               style={
-                styles.actionText
+                styles.subtitle
               }
             >
-              Refresh
+              Materials available for this service
             </AppText>
-          </Pressable>
+          </View>
         </View>
-      ) : (
-        <FlatList
-          data={products}
-          keyExtractor={
-            keyExtractor
-          }
-          renderItem={
-            renderProduct
-          }
-          numColumns={2}
-          columnWrapperStyle={
-            styles.columnWrapper
-          }
-          contentContainerStyle={
-            styles.listContent
-          }
-          onRefresh={
-            handleRefresh
-          }
-          refreshing={
-            refreshing
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            listHeader
-          }
-          ListEmptyComponent={
+
+        {/* ====================================================
+            ERROR
+        ==================================================== */}
+
+        {error ? (
+          <View
+            style={
+              styles.errorContainer
+            }
+          >
             <View
               style={
-                styles.emptyContainer
+                styles.errorIcon
               }
             >
+              <AppIcon
+                name="error"
+                role="customer"
+                size="xl"
+                state="error"
+              />
+            </View>
+
+            <AppText
+              variant="heading3"
+              weight="bold"
+              center
+              style={
+                styles.errorTitle
+              }
+            >
+              Something went wrong
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.errorText
+              }
+            >
+              {error}
+            </AppText>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Refresh materials"
+              onPress={
+                handleRetry
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.retryButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="refresh"
+                role="customer"
+                size="xs"
+                color={
+                  Colors.textInverse
+                }
+              />
+
+              <AppText
+                variant="bodyMedium"
+                weight="bold"
+                style={
+                  styles.actionText
+                }
+              >
+                Refresh
+              </AppText>
+            </Pressable>
+          </View>
+        ) : (
+          <FlatList
+            data={
+              products
+            }
+            keyExtractor={
+              keyExtractor
+            }
+            renderItem={
+              renderProduct
+            }
+            numColumns={
+              2
+            }
+            columnWrapperStyle={
+              styles.columnWrapper
+            }
+            contentContainerStyle={
+              styles.listContent
+            }
+            onRefresh={
+              handleRefresh
+            }
+            refreshing={
+              refreshing
+            }
+            showsVerticalScrollIndicator={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              listHeader
+            }
+            ListEmptyComponent={
               <View
                 style={
-                  styles.emptyIcon
+                  styles.emptyContainer
                 }
               >
-                <MaterialCommunityIcons
-                  name="cube-off-outline"
-                  size={52}
-                  color={
-                    Colors.textMuted
-                  }
-                />
-              </View>
-
-              <AppText
-                variant="heading3"
-                weight="bold"
-                center
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No Materials Available
-              </AppText>
-
-              <AppText
-                variant="body"
-                tone="secondary"
-                center
-                style={
-                  styles.emptyText
-                }
-              >
-                There are currently no materials available for{" "}
-                {serviceName}.
-              </AppText>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Refresh materials"
-                onPress={
-                  handleRetry
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.emptyButton,
-
-                  pressed
-                    ? styles.pressed
-                    : null,
-                ]}
-              >
-                <AppIcon
-                  name="refresh"
-                  role="customer"
-                  size="xs"
-                  color={
-                    Colors.textInverse
-                  }
-                />
-
-                <AppText
-                  variant="bodyMedium"
-                  weight="bold"
+                <View
                   style={
-                    styles.actionText
+                    styles.emptyIcon
                   }
                 >
-                  Refresh
+                  <MaterialCommunityIcons
+                    name="cube-off-outline"
+                    size={
+                      52
+                    }
+                    color={
+                      Colors.textMuted
+                    }
+                  />
+                </View>
+
+                <AppText
+                  variant="heading3"
+                  weight="bold"
+                  center
+                  style={
+                    styles.emptyTitle
+                  }
+                >
+                  No Materials Available
                 </AppText>
-              </Pressable>
-            </View>
-          }
-          initialNumToRender={6}
-          maxToRenderPerBatch={8}
-          windowSize={7}
-        />
-      )}
-    </SafeAreaView>
+
+                <AppText
+                  variant="body"
+                  tone="secondary"
+                  center
+                  style={
+                    styles.emptyText
+                  }
+                >
+                  There are currently no materials available for{" "}
+                  {serviceName}.
+                </AppText>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Refresh materials"
+                  onPress={
+                    handleRetry
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.emptyButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppIcon
+                    name="refresh"
+                    role="customer"
+                    size="xs"
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+
+                  <AppText
+                    variant="bodyMedium"
+                    weight="bold"
+                    style={
+                      styles.actionText
+                    }
+                  >
+                    Refresh
+                  </AppText>
+                </Pressable>
+              </View>
+            }
+            initialNumToRender={
+              6
+            }
+            maxToRenderPerBatch={
+              8
+            }
+            windowSize={
+              7
+            }
+          />
+        )}
+      </SafeAreaView>
+
+      {/* ======================================================
+          PRODUCT REVIEW MODAL
+      ====================================================== */}
+
+      <ProductReviewModal
+        visible={
+          selectedReviewProduct !==
+          null
+        }
+        productName={
+          selectedReviewProduct?.name ??
+          ""
+        }
+        submitting={
+          reviewSubmitting
+        }
+        onClose={
+          handleCloseReview
+        }
+        onSubmit={
+          handleSubmitReview
+        }
+      />
+    </>
   );
 }
 
@@ -1288,9 +2189,11 @@ const styles =
         FixxamTokens.size
           .headerHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1308,11 +2211,14 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1327,9 +2233,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -1350,11 +2258,14 @@ const styles =
     ======================================================== */
 
     serviceBanner: {
-      minHeight: 110,
+      minHeight:
+        110,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       marginBottom:
         FixxamTokens.spacing.lg,
@@ -1362,7 +2273,8 @@ const styles =
       padding:
         FixxamTokens.spacing.lg,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1375,15 +2287,20 @@ const styles =
     },
 
     serviceBannerIcon: {
-      width: 60,
+      width:
+        60,
 
-      height: 60,
+      height:
+        60,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.lg,
@@ -1393,9 +2310,11 @@ const styles =
     },
 
     serviceBannerContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -1410,7 +2329,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 20,
+      lineHeight:
+        20,
     },
 
     /* ========================================================
@@ -1418,7 +2338,8 @@ const styles =
     ======================================================== */
 
     listContent: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1436,9 +2357,11 @@ const styles =
     },
 
     gridItem: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     /* ========================================================
@@ -1446,11 +2369,14 @@ const styles =
     ======================================================== */
 
     emptyContainer: {
-      minHeight: 380,
+      minHeight:
+        380,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.xxl,
@@ -1460,13 +2386,17 @@ const styles =
     },
 
     emptyIcon: {
-      width: 92,
+      width:
+        92,
 
-      height: 92,
+      height:
+        92,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.xl,
@@ -1484,12 +2414,14 @@ const styles =
     },
 
     emptyText: {
-      maxWidth: 330,
+      maxWidth:
+        330,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 22,
+      lineHeight:
+        22,
     },
 
     emptyButton: {
@@ -1497,11 +2429,14 @@ const styles =
         FixxamTokens.size
           .buttonSmallHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1524,24 +2459,31 @@ const styles =
     ======================================================== */
 
     errorContainer: {
-      flex: 1,
+      flex:
+        1,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.xxl,
     },
 
     errorIcon: {
-      width: 88,
+      width:
+        88,
 
-      height: 88,
+      height:
+        88,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1559,12 +2501,14 @@ const styles =
     },
 
     errorText: {
-      maxWidth: 330,
+      maxWidth:
+        330,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 21,
+      lineHeight:
+        21,
     },
 
     retryButton: {
@@ -1572,11 +2516,14 @@ const styles =
         FixxamTokens.size
           .buttonSmallHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1604,21 +2551,28 @@ const styles =
     ======================================================== */
 
     loadingContainer: {
-      flex: 1,
+      flex:
+        1,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
     },
 
     loadingIcon: {
-      width: 76,
+      width:
+        76,
 
-      height: 76,
+      height:
+        76,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       marginBottom:
         FixxamTokens.spacing.lg,

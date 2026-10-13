@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useMemo,
 } from "react";
 
 import {
@@ -21,7 +22,6 @@ import {
 } from "react-native-safe-area-context";
 
 import {
-  AppButton,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -45,7 +45,7 @@ export type WorkerMarketOrderItem = {
 
   price: number;
 
-  image: string;
+  image?: string;
 };
 
 type Props = {
@@ -54,6 +54,10 @@ type Props = {
   items:
     WorkerMarketOrderItem[];
 
+  /*
+   * Kept for compatibility with chat.tsx.
+   * Gallery intentionally does not display order totals.
+   */
   total: number;
 
   customerName: string;
@@ -65,11 +69,35 @@ type Props = {
    HELPERS
 ============================================================== */
 
+function safeString(
+  value: unknown,
+  fallback = "",
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
+
+  const normalized =
+    value.trim();
+
+  return (
+    normalized ||
+    fallback
+  );
+}
+
 function formatMoney(
-  value: number,
+  value: unknown,
 ): string {
   const safeValue =
-    Number.isFinite(value) &&
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
     value >= 0
       ? value
       : 0;
@@ -80,10 +108,12 @@ function formatMoney(
 }
 
 function getSafeImageUrl(
-  value: string,
+  value: unknown,
 ): string {
   const url =
-    value.trim();
+    safeString(
+      value,
+    );
 
   if (
     url.startsWith(
@@ -100,36 +130,48 @@ function getSafeImageUrl(
 }
 
 function getSafeQuantity(
-  value: number,
+  value: unknown,
 ): number {
   if (
-    !Number.isFinite(value) ||
-    value <= 0
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
   ) {
     return 1;
   }
 
   return Math.max(
     1,
-    Math.floor(value),
+    Math.floor(
+      value,
+    ),
   );
 }
 
 function getSafePrice(
-  value: number,
+  value: unknown,
 ): number {
   if (
-    !Number.isFinite(value) ||
-    value < 0
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
   ) {
     return 0;
   }
 
-  return value;
+  return Math.max(
+    0,
+    value,
+  );
 }
 
 function keyExtractor(
-  item: WorkerMarketOrderItem,
+  item:
+    WorkerMarketOrderItem,
 ): string {
   return item.id;
 }
@@ -141,7 +183,6 @@ function keyExtractor(
 function WorkerMarketOrderItemsModal({
   visible,
   items,
-  total,
   customerName,
   onClose,
 }: Props) {
@@ -149,8 +190,24 @@ function WorkerMarketOrderItemsModal({
     useSafeAreaInsets();
 
   const displayCustomerName =
-    customerName.trim() ||
-    "Customer";
+    useMemo(
+      () =>
+        safeString(
+          customerName,
+          "Customer",
+        ),
+      [
+        customerName,
+      ],
+    );
+
+  const itemCount =
+    items.length;
+
+  const itemCountLabel =
+    itemCount === 1
+      ? "1 item"
+      : `${itemCount} items`;
 
   /* ============================================================
      RENDER ITEM
@@ -161,6 +218,12 @@ function WorkerMarketOrderItemsModal({
       ({
         item,
       }: ListRenderItemInfo<WorkerMarketOrderItem>) => {
+        const itemName =
+          safeString(
+            item.name,
+            "Product",
+          );
+
         const quantity =
           getSafeQuantity(
             item.quantity,
@@ -171,18 +234,10 @@ function WorkerMarketOrderItemsModal({
             item.price,
           );
 
-        const itemTotal =
-          price *
-          quantity;
-
         const imageUrl =
           getSafeImageUrl(
             item.image,
           );
-
-        const itemName =
-          item.name.trim() ||
-          "Product";
 
         return (
           <View
@@ -196,7 +251,7 @@ function WorkerMarketOrderItemsModal({
 
             <View
               style={
-                styles.itemMedia
+                styles.productMedia
               }
             >
               {imageUrl ? (
@@ -206,10 +261,12 @@ function WorkerMarketOrderItemsModal({
                       imageUrl,
                   }}
                   style={
-                    styles.itemImage
+                    styles.productImage
                   }
                   contentFit="cover"
-                  transition={150}
+                  transition={
+                    150
+                  }
                   recyclingKey={
                     imageUrl
                   }
@@ -221,7 +278,7 @@ function WorkerMarketOrderItemsModal({
                 <AppIcon
                   name="package"
                   role="worker"
-                  size="sm"
+                  size="md"
                   color={
                     WorkerColors.primary
                   }
@@ -230,7 +287,7 @@ function WorkerMarketOrderItemsModal({
             </View>
 
             {/* ================================================
-                INFO
+                PRODUCT INFO
             ================================================ */}
 
             <View
@@ -241,7 +298,9 @@ function WorkerMarketOrderItemsModal({
               <AppText
                 variant="bodyMedium"
                 weight="bold"
-                numberOfLines={2}
+                numberOfLines={
+                  2
+                }
                 style={
                   styles.itemName
                 }
@@ -249,46 +308,67 @@ function WorkerMarketOrderItemsModal({
                 {itemName}
               </AppText>
 
-              <AppText
-                variant="caption"
-                tone="secondary"
+              <View
                 style={
-                  styles.itemQuantity
+                  styles.itemMeta
                 }
               >
-                Qty: {quantity}
-              </AppText>
-
-              {quantity >
-              1 ? (
                 <AppText
                   variant="caption"
                   tone="secondary"
+                  numberOfLines={
+                    1
+                  }
                   style={
-                    styles.itemUnitPrice
+                    styles.itemQuantity
+                  }
+                >
+                  Qty: {quantity}
+                </AppText>
+
+                <View
+                  style={
+                    styles.metaDot
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={
+                    1
+                  }
+                  style={
+                    styles.unitPrice
                   }
                 >
                   {formatMoney(
                     price,
-                  )} each
+                  )}
+                  {quantity > 1
+                    ? " each"
+                    : ""}
                 </AppText>
-              ) : null}
+              </View>
             </View>
 
             {/* ================================================
-                PRICE
+                LINE TOTAL
             ================================================ */}
 
             <AppText
               variant="bodyMedium"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
-                styles.itemPrice
+                styles.lineTotal
               }
             >
               {formatMoney(
-                itemTotal,
+                price *
+                  quantity,
               )}
             </AppText>
           </View>
@@ -296,6 +376,17 @@ function WorkerMarketOrderItemsModal({
       },
       [],
     );
+
+  /* ============================================================
+     CLOSE
+  ============================================================ */
+
+  const handleBackdropPress =
+    useCallback(() => {
+      onClose();
+    }, [
+      onClose,
+    ]);
 
   /* ============================================================
      UI
@@ -313,14 +404,20 @@ function WorkerMarketOrderItemsModal({
         onClose
       }
     >
-      <View
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Close gallery"
         style={
-          styles.itemsOverlay
+          styles.overlay
+        }
+        onPress={
+          handleBackdropPress
         }
       >
-        <View
+        <Pressable
+          accessibilityRole="none"
           style={[
-            styles.itemsCard,
+            styles.sheet,
 
             {
               paddingBottom:
@@ -330,6 +427,11 @@ function WorkerMarketOrderItemsModal({
                 ),
             },
           ]}
+          onPress={
+            event => {
+              event.stopPropagation();
+            }
+          }
         >
           {/* ==================================================
               HANDLE
@@ -353,47 +455,56 @@ function WorkerMarketOrderItemsModal({
 
           <View
             style={
-              styles.itemsHeader
+              styles.header
             }
           >
             <View
               style={
-                styles.itemsHeaderInfo
+                styles.headerInfo
               }
             >
               <AppText
                 variant="heading3"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
-                  styles.itemsTitle
+                  styles.title
                 }
               >
-                Order Items
+                Gallery
               </AppText>
 
               <AppText
                 variant="caption"
                 tone="secondary"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
-                  styles.itemsSubtitle
+                  styles.subtitle
                 }
               >
                 {displayCustomerName}
+                {"  •  "}
+                {itemCountLabel}
               </AppText>
             </View>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close gallery"
+              hitSlop={
+                6
+              }
               onPress={
                 onClose
               }
-              accessibilityRole="button"
-              accessibilityLabel="Close order items"
               style={({
                 pressed,
               }) => [
-                styles.closeIconButton,
+                styles.closeButton,
 
                 pressed
                   ? styles.pressed
@@ -402,7 +513,7 @@ function WorkerMarketOrderItemsModal({
             >
               <AppIcon
                 name="close"
-                size="sm"
+                size="md"
                 color={
                   Colors.textPrimary
                 }
@@ -411,53 +522,12 @@ function WorkerMarketOrderItemsModal({
           </View>
 
           {/* ==================================================
-              ITEMS
+              CONTENT
           ================================================== */}
 
-          {items.length ===
+          {itemCount ===
           0 ? (
-            <View
-              style={
-                styles.noItems
-              }
-            >
-              <View
-                style={
-                  styles.noItemsIcon
-                }
-              >
-                <AppIcon
-                  name="package"
-                  role="worker"
-                  size="lg"
-                  color={
-                    WorkerColors.primary
-                  }
-                />
-              </View>
-
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-                center
-                style={
-                  styles.noItemsTitle
-                }
-              >
-                No order items
-              </AppText>
-
-              <AppText
-                variant="body"
-                tone="secondary"
-                center
-                style={
-                  styles.noItemsText
-                }
-              >
-                Product information is not available for this order.
-              </AppText>
-            </View>
+            <EmptyGallery />
           ) : (
             <FlatList<WorkerMarketOrderItem>
               data={
@@ -474,76 +544,12 @@ function WorkerMarketOrderItemsModal({
               }
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={
-                styles.itemsList
+                styles.listContent
               }
             />
           )}
-
-          {/* ==================================================
-              TOTAL
-          ================================================== */}
-
-          <View
-            style={
-              styles.itemsTotal
-            }
-          >
-            <View>
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.itemsTotalCaption
-                }
-              >
-                TOTAL
-              </AppText>
-
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-                style={
-                  styles.itemsTotalLabel
-                }
-              >
-                Order Total
-              </AppText>
-            </View>
-
-            <AppText
-              variant="bodyLarge"
-              weight="bold"
-              numberOfLines={1}
-              style={
-                styles.itemsTotalValue
-              }
-            >
-              {formatMoney(
-                total,
-              )}
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              CLOSE
-          ================================================== */}
-
-          <View
-            style={
-              styles.closeAction
-            }
-          >
-            <AppButton
-              title="Close"
-              role="worker"
-              variant="primary"
-              onPress={
-                onClose
-              }
-            />
-          </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -553,17 +559,75 @@ export default memo(
 );
 
 /* ==============================================================
+   EMPTY
+============================================================== */
+
+const EmptyGallery =
+  memo(
+    function EmptyGallery() {
+      return (
+        <View
+          style={
+            styles.emptyContainer
+          }
+        >
+          <View
+            style={
+              styles.emptyIcon
+            }
+          >
+            <AppIcon
+              name="package"
+              role="worker"
+              size="lg"
+              color={
+                WorkerColors.primary
+              }
+            />
+          </View>
+
+          <AppText
+            variant="heading3"
+            weight="bold"
+            center
+            style={
+              styles.emptyTitle
+            }
+          >
+            No items available
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.emptyText
+            }
+          >
+            Product information is not available for this order.
+          </AppText>
+        </View>
+      );
+    },
+  );
+
+EmptyGallery.displayName =
+  "WorkerMarketEmptyGallery";
+
+/* ==============================================================
    STYLES
 ============================================================== */
 
 const styles =
   StyleSheet.create({
     /* ==========================================================
-       MODAL
+       OVERLAY
     ========================================================== */
 
-    itemsOverlay: {
-      flex: 1,
+    overlay: {
+      flex:
+        1,
 
       justifyContent:
         "flex-end",
@@ -572,10 +636,16 @@ const styles =
         Colors.overlayMedium,
     },
 
-    itemsCard: {
-      maxHeight: "80%",
+    /* ==========================================================
+       SHEET
+    ========================================================== */
 
-      minHeight: 320,
+    sheet: {
+      minHeight:
+        "42%",
+
+      maxHeight:
+        "86%",
 
       overflow:
         "hidden",
@@ -595,7 +665,8 @@ const styles =
     ========================================================== */
 
     handleArea: {
-      height: 20,
+      height:
+        24,
 
       alignItems:
         "center",
@@ -605,9 +676,11 @@ const styles =
     },
 
     handle: {
-      width: 40,
+      width:
+        42,
 
-      height: 4,
+      height:
+        4,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -620,8 +693,9 @@ const styles =
        HEADER
     ========================================================== */
 
-    itemsHeader: {
-      minHeight: 64,
+    header: {
+      minHeight:
+        64,
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -632,9 +706,6 @@ const styles =
       alignItems:
         "center",
 
-      justifyContent:
-        "space-between",
-
       borderBottomWidth:
         StyleSheet.hairlineWidth,
 
@@ -642,21 +713,23 @@ const styles =
         Colors.divider,
     },
 
-    itemsHeaderInfo: {
-      flex: 1,
+    headerInfo: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginRight:
         FixxamTokens.spacing.sm,
     },
 
-    itemsTitle: {
+    title: {
       color:
         Colors.textPrimary,
     },
 
-    itemsSubtitle: {
+    subtitle: {
       marginTop:
         FixxamTokens.spacing.xxs,
 
@@ -664,14 +737,15 @@ const styles =
         Colors.textSecondary,
     },
 
-    closeIconButton: {
+    closeButton: {
       width:
         FixxamTokens.size.minimumTouchTarget,
 
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -680,7 +754,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.disabledBackground,
@@ -690,16 +764,20 @@ const styles =
        LIST
     ========================================================== */
 
-    itemsList: {
+    listContent: {
       paddingHorizontal:
         FixxamTokens.spacing.lg,
 
-      paddingVertical:
-        FixxamTokens.spacing.sm,
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      paddingBottom:
+        FixxamTokens.spacing.lg,
     },
 
     itemRow: {
-      minHeight: 72,
+      minHeight:
+        84,
 
       paddingVertical:
         FixxamTokens.spacing.sm,
@@ -721,14 +799,15 @@ const styles =
        PRODUCT
     ========================================================== */
 
-    itemMedia: {
+    productMedia: {
       width:
-        FixxamTokens.size.iconBox,
+        64,
 
       height:
-        FixxamTokens.size.iconBox,
+        64,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       overflow:
         "hidden",
@@ -746,16 +825,20 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    itemImage: {
-      width: "100%",
+    productImage: {
+      width:
+        "100%",
 
-      height: "100%",
+      height:
+        "100%",
     },
 
     itemInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -766,24 +849,50 @@ const styles =
         Colors.textPrimary,
     },
 
-    itemQuantity: {
+    itemMeta: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens.spacing.xs,
 
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      flexWrap:
+        "wrap",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    itemQuantity: {
       color:
         Colors.textSecondary,
     },
 
-    itemUnitPrice: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
+    unitPrice: {
       color:
+        Colors.textSecondary,
+    },
+
+    metaDot: {
+      width:
+        3,
+
+      height:
+        3,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
         Colors.textMuted,
     },
 
-    itemPrice: {
-      maxWidth: "34%",
+    lineTotal: {
+      maxWidth:
+        "30%",
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -799,10 +908,12 @@ const styles =
        EMPTY
     ========================================================== */
 
-    noItems: {
-      flex: 1,
+    emptyContainer: {
+      flex:
+        1,
 
-      minHeight: 220,
+      minHeight:
+        260,
 
       paddingHorizontal:
         FixxamTokens.spacing.xl,
@@ -814,7 +925,7 @@ const styles =
         "center",
     },
 
-    noItemsIcon: {
+    emptyIcon: {
       width:
         FixxamTokens.size.avatarLg,
 
@@ -828,13 +939,13 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         WorkerColors.primarySoft,
     },
 
-    noItemsTitle: {
+    emptyTitle: {
       marginTop:
         FixxamTokens.spacing.md,
 
@@ -842,77 +953,18 @@ const styles =
         Colors.textPrimary,
     },
 
-    noItemsText: {
-      maxWidth: 280,
+    emptyText: {
+      maxWidth:
+        300,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 20,
+      lineHeight:
+        20,
 
       color:
         Colors.textSecondary,
-    },
-
-    /* ==========================================================
-       TOTAL
-    ========================================================== */
-
-    itemsTotal: {
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
-
-      paddingTop:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
-      borderTopWidth: 1,
-
-      borderTopColor:
-        Colors.border,
-    },
-
-    itemsTotalCaption: {
-      letterSpacing: 0.7,
-
-      color:
-        Colors.textMuted,
-    },
-
-    itemsTotalLabel: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    itemsTotalValue: {
-      marginLeft:
-        FixxamTokens.spacing.md,
-
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ==========================================================
-       ACTION
-    ========================================================== */
-
-    closeAction: {
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
-
-      marginTop:
-        FixxamTokens.spacing.md,
     },
 
     /* ==========================================================

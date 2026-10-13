@@ -1,6 +1,7 @@
 import React, {
   memo,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -59,20 +60,43 @@ function MarketOrderSummaryComponent({
   const itemCount =
     items.length;
 
+  const firstItem =
+    items[0] ??
+    null;
+
+  const remainingCount =
+    Math.max(
+      0,
+      itemCount - 1,
+    );
+
+  const accessibilityLabel =
+    useMemo(() => {
+      const itemText =
+        itemCount === 1
+          ? "1 item"
+          : `${itemCount} items`;
+
+      return `Order ${shortOrderId(
+        orderId,
+      )}. ${itemText}. Total ${formatMoney(
+        total,
+      )}.`;
+    }, [
+      itemCount,
+      orderId,
+      total,
+    ]);
+
   return (
     <View
       style={
         styles.orderSummary
       }
-      accessibilityLabel={`Order ${shortOrderId(
-        orderId,
-      )}. ${itemCount} ${
-        itemCount === 1
-          ? "item"
-          : "items"
-      }. Total ${formatMoney(
-        total,
-      )}.`}
+      accessible
+      accessibilityLabel={
+        accessibilityLabel
+      }
     >
       {/* ======================================================
           HEADER
@@ -89,13 +113,13 @@ function MarketOrderSummaryComponent({
           }
         >
           <AppText
-            variant="body"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
             style={
               styles.orderSummaryTitle
             }
           >
-            Order items
+            Order
           </AppText>
 
           <AppText
@@ -109,6 +133,15 @@ function MarketOrderSummaryComponent({
             {shortOrderId(
               orderId,
             )}
+            {remainingCount >
+            0
+              ? ` · +${remainingCount} more ${
+                  remainingCount ===
+                  1
+                    ? "item"
+                    : "items"
+                }`
+              : ""}
           </AppText>
         </View>
 
@@ -119,21 +152,13 @@ function MarketOrderSummaryComponent({
         >
           <AppText
             variant="caption"
-            weight="bold"
+            weight="semibold"
             style={
               styles.orderCountText
             }
           >
             {itemCount}
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.orderCountLabel
-            }
-          >
+            {" "}
             {itemCount === 1
               ? "item"
               : "items"}
@@ -142,10 +167,16 @@ function MarketOrderSummaryComponent({
       </View>
 
       {/* ======================================================
-          ITEMS
+          FIRST ITEM ONLY
       ====================================================== */}
 
-      {itemCount === 0 ? (
+      {firstItem ? (
+        <OrderItemRow
+          item={
+            firstItem
+          }
+        />
+      ) : (
         <View
           style={
             styles.noItems
@@ -169,21 +200,6 @@ function MarketOrderSummaryComponent({
             No item information available.
           </AppText>
         </View>
-      ) : (
-        items.map(
-          (
-            item,
-          ) => (
-            <OrderItemRow
-              key={
-                item.id
-              }
-              item={
-                item
-              }
-            />
-          ),
-        )
       )}
 
       {/* ======================================================
@@ -197,17 +213,18 @@ function MarketOrderSummaryComponent({
       >
         <AppText
           variant="caption"
-          weight="bold"
+          tone="secondary"
           style={
             styles.orderTotalLabel
           }
         >
-          Order total
+          Total
         </AppText>
 
         <AppText
-          variant="body"
-          weight="bold"
+          variant="bodyMedium"
+          weight="semibold"
+          numberOfLines={1}
           style={
             styles.orderTotalValue
           }
@@ -238,42 +255,79 @@ const OrderItemRow =
       ] =
         useState(false);
 
+      const safeImage =
+        typeof item.image ===
+          "string"
+          ? item.image.trim()
+          : "";
+
       useEffect(() => {
         setImageFailed(
           false,
         );
       }, [
-        item.image,
+        safeImage,
       ]);
 
       const showImage =
         Boolean(
-          item.image,
-        ) &&
-        !imageFailed;
+          safeImage &&
+          !imageFailed,
+        );
+
+      const safePrice =
+        Number.isFinite(
+          item.price,
+        )
+          ? Math.max(
+              0,
+              item.price,
+            )
+          : 0;
+
+      const safeQuantity =
+        Number.isFinite(
+          item.quantity,
+        )
+          ? Math.max(
+              1,
+              Math.floor(
+                item.quantity,
+              ),
+            )
+          : 1;
 
       const itemTotal =
-        item.price *
-        item.quantity;
+        safePrice *
+        safeQuantity;
+
+      const productName =
+        typeof item.name ===
+          "string" &&
+        item.name.trim()
+          ? item.name.trim()
+          : "Product";
 
       return (
         <View
           style={
             styles.orderItem
           }
-          accessibilityLabel={`${item.name}, quantity ${item.quantity}, ${formatMoney(
+          accessible
+          accessibilityLabel={`${productName}. Quantity ${safeQuantity}. ${formatMoney(
             itemTotal,
-          )}`}
+          )}.`}
         >
           {showImage ? (
             <Image
               source={{
                 uri:
-                  item.image!,
+                  safeImage,
               }}
               contentFit="cover"
+              cachePolicy="memory-disk"
               transition={150}
-              accessibilityLabel={`${item.name} product image`}
+              accessibilityLabel={`${productName} product image`}
               onError={() => {
                 setImageFailed(
                   true,
@@ -307,33 +361,35 @@ const OrderItemRow =
           >
             <AppText
               variant="caption"
-              weight="bold"
+              weight="semibold"
               numberOfLines={1}
+              ellipsizeMode="tail"
               style={
                 styles.orderItemName
               }
             >
-              {item.name}
+              {productName}
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
+              numberOfLines={1}
               style={
                 styles.orderItemQuantity
               }
             >
-              {formatMoney(
-                item.price,
-              )}
+              {safeQuantity}
               {" × "}
-              {item.quantity}
+              {formatMoney(
+                safePrice,
+              )}
             </AppText>
           </View>
 
           <AppText
             variant="caption"
-            weight="bold"
+            weight="semibold"
             numberOfLines={1}
             style={
               styles.orderItemTotal
@@ -347,6 +403,9 @@ const OrderItemRow =
       );
     },
   );
+
+OrderItemRow.displayName =
+  "OrderItemRow";
 
 /* ============================================================
    MEMO

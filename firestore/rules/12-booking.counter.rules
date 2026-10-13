@@ -1,0 +1,417 @@
+/* ============================================================
+   12-BOOKING.COUNTER.RULES
+
+   Booking price negotiation:
+   - Worker initial offer
+   - Customer counter-offer
+   - Worker counter-offer
+   - Offer acceptance
+   - Offer decline
+============================================================ */
+
+match /bookings/{bookingId} {
+
+  /* ==========================================================
+     INITIAL OFFER EXPIRY
+  ========================================================== */
+
+  function initialOfferNotExpired() {
+    return resource.data.offerExpiresAt is timestamp
+      && resource.data.offerExpiresAt > request.time;
+  }
+
+
+  /* ==========================================================
+     INITIAL WORKER OFFER ACTIVE
+  ========================================================== */
+
+  function initialWorkerOfferActive() {
+    return resource.data.status == "pending"
+      && resource.data.offerStatus == "sent"
+      && validOfferAmount(resource.data.offerAmount)
+      && resource.data.counterOfferStatus == "none"
+      && resource.data.counterOfferBy == null;
+  }
+
+
+  /* ==========================================================
+     ACTIVE COUNTER OFFER
+  ========================================================== */
+
+  function activeCounterBy(role) {
+    return resource.data.status == "pending"
+      && resource.data.offerStatus == "sent"
+      && resource.data.counterOfferStatus == "sent"
+      && resource.data.counterOfferBy == role
+      && validOfferAmount(resource.data.counterOfferAmount);
+  }
+
+
+  /* ==========================================================
+     WORKER SENDS INITIAL OFFER
+  ========================================================== */
+
+  function canWorkerSendInitialOffer() {
+    return isBookingWorker(bookingId)
+      && resource.data.status == "pending"
+      && resource.data.offerStatus == "none"
+      && resource.data.offerRound == 0
+      && resource.data.counterOfferStatus == "none"
+      && resource.data.counterOfferBy == null
+      && request.resource.data.status == "pending"
+      && request.resource.data.offerStatus == "sent"
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerRound == 1
+      && validOfferAmount(request.resource.data.offerAmount)
+      && validOfferMessage(request.resource.data.offerMessage)
+      && request.resource.data.offerWorkerId == request.auth.uid
+      && request.resource.data.offerSentAt == request.time
+      && request.resource.data.offerRespondedAt == null
+      && (
+        request.resource.data.offerExpiresAt == null
+        || (
+          request.resource.data.offerExpiresAt is timestamp
+          && request.resource.data.offerExpiresAt > request.time
+        )
+      )
+      && request.resource.data.counterOfferAmount == null
+      && request.resource.data.counterOfferMessage == null
+      && request.resource.data.counterOfferBy == null
+      && request.resource.data.counterOfferStatus == "none"
+      && request.resource.data.counterOfferSentAt == null
+      && request.resource.data.counterOfferRespondedAt == null
+      && request.resource.data.negotiationStatus == "negotiating"
+      && request.resource.data.agreedPrice == resource.data.agreedPrice
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "offerAmount",
+        "offerMessage",
+        "offerRound",
+        "offerStatus",
+        "offerExpiresAt",
+        "offerSentAt",
+        "offerRespondedAt",
+        "offerWorkerId",
+        "counterOfferAmount",
+        "counterOfferMessage",
+        "counterOfferBy",
+        "counterOfferStatus",
+        "counterOfferSentAt",
+        "counterOfferRespondedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER COUNTER-OFFER
+  ========================================================== */
+
+  function canCustomerCounter() {
+    return isBookingCustomer(bookingId)
+      && resource.data.status == "pending"
+      && resource.data.offerStatus == "sent"
+      && validOfferRound(resource.data.offerRound)
+      && resource.data.offerRound >= 1
+      && request.resource.data.status == "pending"
+      && request.resource.data.offerStatus == resource.data.offerStatus
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerAmount == resource.data.offerAmount
+      && request.resource.data.offerMessage == resource.data.offerMessage
+      && request.resource.data.offerWorkerId == resource.data.offerWorkerId
+      && request.resource.data.counterOfferBy == "customer"
+      && request.resource.data.counterOfferStatus == "sent"
+      && validOfferAmount(request.resource.data.counterOfferAmount)
+      && validOfferMessage(request.resource.data.counterOfferMessage)
+      && (
+        (
+          resource.data.counterOfferStatus == "none"
+          && resource.data.counterOfferBy == null
+          && validOfferAmount(resource.data.offerAmount)
+          && initialOfferNotExpired()
+          && request.resource.data.counterOfferAmount != resource.data.offerAmount
+        )
+        ||
+        (
+          activeCounterBy("worker")
+          && request.resource.data.counterOfferAmount != resource.data.counterOfferAmount
+        )
+      )
+      && request.resource.data.counterOfferSentAt == request.time
+      && request.resource.data.counterOfferRespondedAt == null
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.offerRound == resource.data.offerRound + 1
+      && request.resource.data.agreedPrice == resource.data.agreedPrice
+      && request.resource.data.negotiationStatus == "negotiating"
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "counterOfferAmount",
+        "counterOfferMessage",
+        "counterOfferBy",
+        "counterOfferStatus",
+        "counterOfferSentAt",
+        "counterOfferRespondedAt",
+        "offerRound",
+        "offerRespondedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     WORKER COUNTER-OFFER
+  ========================================================== */
+
+  function canWorkerCounter() {
+    return isBookingWorker(bookingId)
+      && activeCounterBy("customer")
+      && validOfferRound(resource.data.offerRound)
+      && resource.data.offerRound >= 2
+      && request.resource.data.status == "pending"
+      && request.resource.data.offerStatus == resource.data.offerStatus
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerAmount == resource.data.offerAmount
+      && request.resource.data.offerMessage == resource.data.offerMessage
+      && request.resource.data.offerWorkerId == resource.data.offerWorkerId
+      && request.resource.data.counterOfferBy == "worker"
+      && request.resource.data.counterOfferStatus == "sent"
+      && validOfferAmount(request.resource.data.counterOfferAmount)
+      && request.resource.data.counterOfferAmount != resource.data.counterOfferAmount
+      && validOfferMessage(request.resource.data.counterOfferMessage)
+      && request.resource.data.counterOfferSentAt == request.time
+      && request.resource.data.counterOfferRespondedAt == null
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.offerRound == resource.data.offerRound + 1
+      && request.resource.data.agreedPrice == resource.data.agreedPrice
+      && request.resource.data.negotiationStatus == "negotiating"
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "counterOfferAmount",
+        "counterOfferMessage",
+        "counterOfferBy",
+        "counterOfferStatus",
+        "counterOfferSentAt",
+        "counterOfferRespondedAt",
+        "offerRound",
+        "offerRespondedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER ACCEPTS INITIAL OFFER
+  ========================================================== */
+
+  function canCustomerAcceptInitialOffer() {
+    return isBookingCustomer(bookingId)
+      && initialWorkerOfferActive()
+      && initialOfferNotExpired()
+      && request.resource.data.status == "accepted"
+      && request.resource.data.offerStatus == "accepted"
+      && request.resource.data.agreedPrice == resource.data.offerAmount
+      && request.resource.data.amount == resource.data.offerAmount
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.offerAcceptedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "agreedPrice",
+        "amount",
+        "offerStatus",
+        "offerRespondedAt",
+        "offerAcceptedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER ACCEPTS WORKER COUNTER
+  ========================================================== */
+
+  function canCustomerAcceptWorkerCounter() {
+    return isBookingCustomer(bookingId)
+      && activeCounterBy("worker")
+      && request.resource.data.status == "accepted"
+      && request.resource.data.offerStatus == "accepted"
+      && request.resource.data.counterOfferStatus == "accepted"
+      && request.resource.data.agreedPrice == resource.data.counterOfferAmount
+      && request.resource.data.amount == resource.data.counterOfferAmount
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.offerAcceptedAt == request.time
+      && request.resource.data.counterOfferRespondedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "agreedPrice",
+        "amount",
+        "offerStatus",
+        "counterOfferStatus",
+        "offerRespondedAt",
+        "offerAcceptedAt",
+        "counterOfferRespondedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     WORKER ACCEPTS CUSTOMER COUNTER
+  ========================================================== */
+
+  function canWorkerAcceptCustomerCounter() {
+    return isBookingWorker(bookingId)
+      && activeCounterBy("customer")
+      && request.resource.data.status == "accepted"
+      && request.resource.data.offerStatus == "accepted"
+      && request.resource.data.counterOfferStatus == "accepted"
+      && request.resource.data.agreedPrice == resource.data.counterOfferAmount
+      && request.resource.data.amount == resource.data.counterOfferAmount
+      && bookingPartiesUnchanged()
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.offerAcceptedAt == request.time
+      && request.resource.data.counterOfferRespondedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "agreedPrice",
+        "amount",
+        "offerStatus",
+        "counterOfferStatus",
+        "offerRespondedAt",
+        "offerAcceptedAt",
+        "counterOfferRespondedAt",
+        "negotiationStatus",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER DECLINES INITIAL OFFER
+  ========================================================== */
+
+  function canCustomerDeclineInitialOffer() {
+    return isBookingCustomer(bookingId)
+      && initialWorkerOfferActive()
+      && initialOfferNotExpired()
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.offerStatus == "declined"
+      && request.resource.data.cancelledBy == "customer"
+      && request.resource.data.cancellationReason == "customer_cancelled"
+      && request.resource.data.cancelledAt == request.time
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && bookingPartiesUnchanged()
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "offerStatus",
+        "offerRespondedAt",
+        "negotiationStatus",
+        "cancellationReason",
+        "cancelledBy",
+        "cancelledAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER DECLINES WORKER COUNTER
+  ========================================================== */
+
+  function canCustomerDeclineWorkerCounter() {
+    return isBookingCustomer(bookingId)
+      && activeCounterBy("worker")
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.offerStatus == "declined"
+      && request.resource.data.counterOfferStatus == "declined"
+      && request.resource.data.cancelledBy == "customer"
+      && request.resource.data.cancellationReason == "customer_cancelled"
+      && request.resource.data.cancelledAt == request.time
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.counterOfferRespondedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && bookingPartiesUnchanged()
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "offerStatus",
+        "counterOfferStatus",
+        "offerRespondedAt",
+        "counterOfferRespondedAt",
+        "negotiationStatus",
+        "cancellationReason",
+        "cancelledBy",
+        "cancelledAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     WORKER DECLINES CUSTOMER COUNTER
+  ========================================================== */
+
+  function canWorkerDeclineCustomerCounter() {
+    return isBookingWorker(bookingId)
+      && activeCounterBy("customer")
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.offerStatus == "declined"
+      && request.resource.data.counterOfferStatus == "declined"
+      && request.resource.data.cancelledBy == "worker"
+      && request.resource.data.cancellationReason == "worker_cancelled"
+      && request.resource.data.cancelledAt == request.time
+      && request.resource.data.offerRespondedAt == request.time
+      && request.resource.data.counterOfferRespondedAt == request.time
+      && request.resource.data.negotiationStatus == "completed"
+      && bookingPartiesUnchanged()
+      && request.resource.data.updatedAt == request.time
+      && bookingChangedOnly([
+        "status",
+        "offerStatus",
+        "counterOfferStatus",
+        "offerRespondedAt",
+        "counterOfferRespondedAt",
+        "negotiationStatus",
+        "cancellationReason",
+        "cancelledBy",
+        "cancelledAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     PRICE NEGOTIATION UPDATE PERMISSIONS
+  ========================================================== */
+
+  allow update:
+    if signedIn()
+    && (
+      canWorkerSendInitialOffer()
+      || canCustomerCounter()
+      || canWorkerCounter()
+      || canCustomerAcceptInitialOffer()
+      || canCustomerAcceptWorkerCounter()
+      || canWorkerAcceptCustomerCounter()
+      || canCustomerDeclineInitialOffer()
+      || canCustomerDeclineWorkerCounter()
+      || canWorkerDeclineCustomerCounter()
+    );
+}

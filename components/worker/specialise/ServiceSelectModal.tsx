@@ -16,6 +16,8 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
+import CategoryCard from "@/components/categories/CategoryCard";
+
 import {
   AppIcon,
   AppText,
@@ -35,6 +37,12 @@ export type ServiceOption = {
   id: string;
 
   name: string;
+
+  icon: string;
+
+  iconColor: string;
+
+  backgroundColor: string;
 };
 
 type Props = {
@@ -51,154 +59,20 @@ type Props = {
   onClose: () => void;
 };
 
-type ServiceItemProps = {
-  item: ServiceOption;
-
-  selected: boolean;
-
-  onSelect: (
-    item: ServiceOption,
-  ) => void;
-};
-
-/* ============================================================
-   SERVICE ITEM
-============================================================ */
-
-const ServiceItem =
-  memo(
-    function ServiceItem({
-      item,
-      selected,
-      onSelect,
-    }: ServiceItemProps) {
-      const handlePress =
-        useCallback(() => {
-          onSelect(
-            item,
-          );
-        }, [
-          item,
-          onSelect,
-        ]);
-
-      return (
-        <Pressable
-          onPress={
-            handlePress
-          }
-          accessibilityRole="button"
-          accessibilityLabel={`Select ${item.name}`}
-          accessibilityState={{
-            selected,
-          }}
-          style={({
-            pressed,
-          }) => [
-            styles.serviceOption,
-
-            selected
-              ? styles.selectedOption
-              : null,
-
-            pressed
-              ? styles.optionPressed
-              : null,
-          ]}
-        >
-          {/* ==================================================
-              ICON
-          ================================================== */}
-
-          <View
-            style={[
-              styles.serviceIcon,
-
-              selected
-                ? styles.selectedIcon
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="professional"
-              role="worker"
-              size="sm"
-              color={
-                selected
-                  ? WorkerColors.primary
-                  : Colors.textSecondary
-              }
-            />
-          </View>
-
-          {/* ==================================================
-              NAME
-          ================================================== */}
-
-          <AppText
-            variant="bodyMedium"
-            weight={
-              selected
-                ? "bold"
-                : "regular"
-            }
-            numberOfLines={2}
-            style={[
-              styles.serviceName,
-
-              selected
-                ? styles.selectedName
-                : null,
-            ]}
-          >
-            {item.name}
-          </AppText>
-
-          {/* ==================================================
-              SELECTED
-          ================================================== */}
-
-          <View
-            style={
-              styles.checkContainer
-            }
-          >
-            {selected ? (
-              <View
-                style={
-                  styles.checkIcon
-                }
-              >
-                <AppIcon
-                  name="check"
-                  role="worker"
-                  size="xs"
-                  color={
-                    Colors.textInverse
-                  }
-                />
-              </View>
-            ) : null}
-          </View>
-        </Pressable>
-      );
-    },
-  );
-
-ServiceItem.displayName =
-  "ServiceSelectModalItem";
-
 /* ============================================================
    COMPONENT
 ============================================================ */
 
-function ServiceSelectModal({
-  visible,
-  services,
-  selectedId,
-  onSelect,
-  onClose,
-}: Props) {
+function ServiceSelectModal(
+  props: Props,
+) {
+  const {
+    visible,
+    services,
+    onSelect,
+    onClose,
+  } = props;
+
   const insets =
     useSafeAreaInsets();
 
@@ -212,23 +86,29 @@ function ServiceSelectModal({
         item,
       }: ListRenderItemInfo<ServiceOption>) => {
         return (
-          <ServiceItem
-            item={
-              item
+          <CategoryCard
+            icon={
+              item.icon
             }
-            selected={
-              item.id ===
-              selectedId
+            iconColor={
+              item.iconColor
             }
-            onSelect={
-              onSelect
+            backgroundColor={
+              item.backgroundColor
             }
+            title={
+              item.name
+            }
+            onPress={() => {
+              onSelect(
+                item,
+              );
+            }}
           />
         );
       },
       [
         onSelect,
-        selectedId,
       ],
     );
 
@@ -240,9 +120,30 @@ function ServiceSelectModal({
     useCallback(
       (
         item: ServiceOption,
-      ) => item.id,
+      ) =>
+        item.id,
       [],
     );
+
+  /* ==========================================================
+     SEPARATOR
+  ========================================================== */
+
+  const renderSeparator =
+    useCallback(
+      () => (
+        <View
+          style={
+            styles.separator
+          }
+        />
+      ),
+      [],
+    );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
@@ -252,34 +153,37 @@ function ServiceSelectModal({
       transparent
       animationType="slide"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={
         onClose
       }
     >
-      {/* ======================================================
-          OVERLAY
-      ====================================================== */}
-
-      <Pressable
+      <View
         style={
           styles.overlay
         }
-        onPress={
-          onClose
-        }
-        accessibilityRole="button"
-        accessibilityLabel="Close service selection"
       >
-        {/* ====================================================
-            SHEET
-        ==================================================== */}
+        {/* ==================================================
+            BACKDROP
+        ================================================== */}
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close service selection"
           onPress={
-            event => {
-              event.stopPropagation();
-            }
+            onClose
           }
+          style={
+            StyleSheet.absoluteFill
+          }
+        />
+
+        {/* ==================================================
+            SHEET
+        ================================================== */}
+
+        <View
+          accessibilityViewIsModal
           style={[
             styles.sheet,
 
@@ -334,7 +238,9 @@ function ServiceSelectModal({
               <AppText
                 variant="heading2"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.title
                 }
@@ -345,7 +251,9 @@ function ServiceSelectModal({
               <AppText
                 variant="caption"
                 tone="secondary"
-                numberOfLines={2}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.subtitle
                 }
@@ -360,7 +268,9 @@ function ServiceSelectModal({
               }
               accessibilityRole="button"
               accessibilityLabel="Close service selection"
-              hitSlop={6}
+              hitSlop={
+                8
+              }
               style={({
                 pressed,
               }) => [
@@ -395,6 +305,9 @@ function ServiceSelectModal({
             keyExtractor={
               keyExtractor
             }
+            ItemSeparatorComponent={
+              renderSeparator
+            }
             showsVerticalScrollIndicator={
               false
             }
@@ -402,7 +315,8 @@ function ServiceSelectModal({
             contentContainerStyle={[
               styles.list,
 
-              services.length === 0
+              services.length ===
+              0
                 ? styles.emptyList
                 : null,
             ]}
@@ -419,6 +333,7 @@ function ServiceSelectModal({
                 >
                   <AppIcon
                     name="service"
+                    role="worker"
                     size="lg"
                     color={
                       Colors.textMuted
@@ -449,12 +364,19 @@ function ServiceSelectModal({
                 </AppText>
               </View>
             }
-            initialNumToRender={10}
-            maxToRenderPerBatch={12}
-            windowSize={7}
+            initialNumToRender={
+              10
+            }
+            maxToRenderPerBatch={
+              12
+            }
+            windowSize={
+              7
+            }
+            removeClippedSubviews
           />
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -481,7 +403,8 @@ const styles =
     ======================================================== */
 
     overlay: {
-      flex: 1,
+      flex:
+        1,
 
       justifyContent:
         "flex-end",
@@ -491,9 +414,11 @@ const styles =
     },
 
     sheet: {
-      width: "100%",
+      width:
+        "100%",
 
-      maxHeight: "78%",
+      maxHeight:
+        "78%",
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -512,15 +437,17 @@ const styles =
     },
 
     handle: {
-      width: 42,
+      width:
+        42,
 
-      height: 4,
+      height:
+        4,
 
       alignSelf:
         "center",
 
       marginBottom:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -534,6 +461,9 @@ const styles =
     ======================================================== */
 
     header: {
+      minHeight:
+        56,
+
       marginBottom:
         FixxamTokens.spacing.md,
 
@@ -554,7 +484,8 @@ const styles =
       height:
         FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -570,9 +501,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     title: {
@@ -595,7 +528,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -603,7 +537,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -627,116 +562,9 @@ const styles =
         FixxamTokens.spacing.sm,
     },
 
-    serviceOption: {
-      minHeight: 60,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    selectedOption: {
-      borderColor:
-        WorkerColors.primary,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    serviceIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
+    separator: {
       height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      marginRight:
-        FixxamTokens.spacing.md,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    selectedIcon: {
-      backgroundColor:
-        Colors.surface,
-    },
-
-    serviceName: {
-      flex: 1,
-
-      minWidth: 0,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    selectedName: {
-      color:
-        WorkerColors.primary,
-    },
-
-    checkContainer: {
-      width: 30,
-
-      flexShrink: 0,
-
-      marginLeft:
         FixxamTokens.spacing.sm,
-
-      alignItems:
-        "flex-end",
-
-      justifyContent:
-        "center",
-    },
-
-    checkIcon: {
-      width: 24,
-
-      height: 24,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        WorkerColors.primary,
     },
 
     /* ========================================================
@@ -744,14 +572,16 @@ const styles =
     ======================================================== */
 
     emptyList: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       justifyContent:
         "center",
     },
 
     empty: {
-      minHeight: 200,
+      minHeight:
+        220,
 
       paddingVertical:
         FixxamTokens.spacing.xl,
@@ -805,21 +635,13 @@ const styles =
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
-    },
-
-    optionPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
     },
   });

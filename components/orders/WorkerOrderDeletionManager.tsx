@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
@@ -46,6 +47,10 @@ import {
   WorkerColors,
 } from "@/theme";
 
+import type {
+  WorkerFilterType,
+} from "@/types/workerOrders";
+
 /* ============================================================
    TYPES
 ============================================================ */
@@ -57,22 +62,15 @@ export type WorkerOrderDeletionCounts = {
   cancelled: number;
 };
 
-export type WorkerOrderDeletionFilter =
-  | "all"
-  | "pending"
-  | "active"
-  | "completed"
-  | "cancelled";
-
 type DeletableStatus =
   | "completed"
   | "cancelled";
 
 type RowFilter =
-  | "pending"
-  | "active"
-  | "completed"
-  | "cancelled";
+  Exclude<
+    WorkerFilterType,
+    "all"
+  >;
 
 type RowTone =
   | "pending"
@@ -95,27 +93,63 @@ type RowConfig = {
   deletable: boolean;
 };
 
+type HistoryCollection =
+  | "bookings"
+  | "orders"
+  | "shopRequests";
+
+type HistoryTarget = {
+  collectionName:
+    HistoryCollection;
+
+  id: string;
+};
+
 type Props = {
   visible: boolean;
 
-  counts: WorkerOrderDeletionCounts;
+  counts:
+    WorkerOrderDeletionCounts;
 
-  selectedFilter: WorkerOrderDeletionFilter;
+  selectedFilter:
+    WorkerFilterType;
 
-  onClose: () => void;
+  onClose:
+    () => void;
 
   onFilterSelect: (
-    filter: WorkerOrderDeletionFilter,
+    filter:
+      WorkerFilterType,
   ) => void;
 
-  onDeleted?: () => void;
+  onDeleted?:
+    () => void;
 };
 
 /* ============================================================
    CONSTANTS
 ============================================================ */
 
-const BATCH_LIMIT = 450;
+/**
+ * Firestore batches support up to 500 writes.
+ * Keep some headroom for future batch operations.
+ */
+const BATCH_LIMIT =
+  450;
+
+/**
+ * All worker-history collections.
+ *
+ * bookings     -> Service jobs
+ * orders       -> Market jobs
+ * shopRequests -> Shop service requests
+ */
+const HISTORY_COLLECTIONS:
+  readonly HistoryCollection[] = [
+    "bookings",
+    "orders",
+    "shopRequests",
+  ];
 
 /* ============================================================
    HELPERS
@@ -125,15 +159,20 @@ function normalizeCount(
   value: unknown,
 ): number {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
   ) {
     return 0;
   }
 
   return Math.max(
     0,
-    Math.floor(value),
+    Math.floor(
+      value,
+    ),
   );
 }
 
@@ -142,9 +181,30 @@ function showError(
   message: string,
 ) {
   Toast.show({
-    type: "error",
-    text1: title,
-    text2: message,
+    type:
+      "error",
+
+    text1:
+      title,
+
+    text2:
+      message,
+  });
+}
+
+function showInfo(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type:
+      "info",
+
+    text1:
+      title,
+
+    text2:
+      message,
   });
 }
 
@@ -153,9 +213,14 @@ function showSuccess(
   message: string,
 ) {
   Toast.show({
-    type: "success",
-    text1: title,
-    text2: message,
+    type:
+      "success",
+
+    text1:
+      title,
+
+    text2:
+      message,
   });
 }
 
@@ -202,6 +267,43 @@ function getToneColors(
 }
 
 /* ============================================================
+   DELETION STATUSES
+============================================================ */
+
+/**
+ * Maps the UI history category to every persisted status that
+ * belongs to that category across:
+ *
+ * - bookings
+ * - orders
+ * - shopRequests
+ *
+ * Shop requests may be "declined", which is treated as cancelled
+ * history in the worker UI.
+ */
+function getDeletionStatuses(
+  status:
+    DeletableStatus,
+): readonly string[] {
+  if (
+    status ===
+    "completed"
+  ) {
+    return [
+      "completed",
+      "delivered",
+    ];
+  }
+
+  return [
+    "cancelled",
+    "canceled",
+    "expired",
+    "declined",
+  ];
+}
+
+/* ============================================================
    COMPONENT
 ============================================================ */
 
@@ -220,9 +322,9 @@ function WorkerOrderDeletionManager({
     deletingStatus,
     setDeletingStatus,
   ] =
-    useState<DeletableStatus | null>(
-      null,
-    );
+    useState<
+      DeletableStatus | null
+    >(null);
 
   /* ==========================================================
      SAFE COUNTS
@@ -252,10 +354,10 @@ function WorkerOrderDeletionManager({
           ),
       }),
       [
-        counts.pending,
         counts.active,
-        counts.completed,
         counts.cancelled,
+        counts.completed,
+        counts.pending,
       ],
     );
 
@@ -270,53 +372,95 @@ function WorkerOrderDeletionManager({
   ========================================================== */
 
   const rows =
-    useMemo<RowConfig[]>(
+    useMemo<
+      RowConfig[]
+    >(
       () => [
         {
-          filter: "pending",
-          label: "New Requests",
+          filter:
+            "pending",
+
+          label:
+            "New Requests",
+
           count:
             safeCounts.pending,
-          icon: "clock",
-          tone: "pending",
-          deletable: false,
+
+          icon:
+            "clock",
+
+          tone:
+            "pending",
+
+          deletable:
+            false,
         },
 
         {
-          filter: "active",
-          label: "Active",
+          filter:
+            "active",
+
+          label:
+            "Active",
+
           count:
             safeCounts.active,
-          icon: "service",
-          tone: "active",
-          deletable: false,
+
+          icon:
+            "service",
+
+          tone:
+            "active",
+
+          deletable:
+            false,
         },
 
         {
-          filter: "completed",
-          label: "Completed",
+          filter:
+            "completed",
+
+          label:
+            "Completed",
+
           count:
             safeCounts.completed,
-          icon: "success",
-          tone: "completed",
-          deletable: true,
+
+          icon:
+            "success",
+
+          tone:
+            "completed",
+
+          deletable:
+            true,
         },
 
         {
-          filter: "cancelled",
-          label: "Cancelled",
+          filter:
+            "cancelled",
+
+          label:
+            "Cancelled",
+
           count:
             safeCounts.cancelled,
-          icon: "error",
-          tone: "cancelled",
-          deletable: true,
+
+          icon:
+            "error",
+
+          tone:
+            "cancelled",
+
+          deletable:
+            true,
         },
       ],
       [
-        safeCounts.pending,
         safeCounts.active,
-        safeCounts.completed,
         safeCounts.cancelled,
+        safeCounts.completed,
+        safeCounts.pending,
       ],
     );
 
@@ -327,7 +471,8 @@ function WorkerOrderDeletionManager({
   const handleClose =
     useCallback(() => {
       if (
-        deletingStatus !== null
+        deletingStatus !==
+        null
       ) {
         return;
       }
@@ -346,10 +491,11 @@ function WorkerOrderDeletionManager({
     useCallback(
       (
         filter:
-          WorkerOrderDeletionFilter,
+          WorkerFilterType,
       ) => {
         if (
-          deletingStatus !== null
+          deletingStatus !==
+          null
         ) {
           return;
         }
@@ -368,38 +514,197 @@ function WorkerOrderDeletionManager({
     );
 
   /* ==========================================================
+     FIND HISTORY TARGETS
+
+     Searches:
+     - bookings
+     - orders
+     - shopRequests
+
+     Only documents belonging to the authenticated worker are
+     returned.
+
+     Documents already hidden from the worker are ignored.
+  ========================================================== */
+
+  const getHistoryTargets =
+    useCallback(
+      async (
+        workerId: string,
+        status:
+          DeletableStatus,
+      ): Promise<
+        HistoryTarget[]
+      > => {
+        const normalizedWorkerId =
+          workerId.trim();
+
+        if (
+          !normalizedWorkerId
+        ) {
+          return [];
+        }
+
+        const statuses =
+          getDeletionStatuses(
+            status,
+          );
+
+        const queryJobs:
+          Promise<
+            HistoryTarget[]
+          >[] = [];
+
+        for (
+          const collectionName of
+          HISTORY_COLLECTIONS
+        ) {
+          for (
+            const targetStatus of
+            statuses
+          ) {
+            queryJobs.push(
+              (async () => {
+                const historyQuery =
+                  query(
+                    collection(
+                      db,
+                      collectionName,
+                    ),
+
+                    where(
+                      "workerId",
+                      "==",
+                      normalizedWorkerId,
+                    ),
+
+                    where(
+                      "status",
+                      "==",
+                      targetStatus,
+                    ),
+                  );
+
+                const snapshot =
+                  await getDocs(
+                    historyQuery,
+                  );
+
+                return snapshot.docs
+                  .filter(
+                    document => {
+                      const data =
+                        document.data();
+
+                      return (
+                        data.deletedByWorker !==
+                        true
+                      );
+                    },
+                  )
+                  .map(
+                    document => ({
+                      collectionName,
+
+                      id:
+                        document.id,
+                    }),
+                  );
+              })(),
+            );
+          }
+        }
+
+        const groups =
+          await Promise.all(
+            queryJobs,
+          );
+
+        /*
+         * Defensive deduplication.
+         *
+         * A document should normally only match one status query,
+         * but this ensures no document can accidentally receive
+         * duplicate writes.
+         */
+        const uniqueTargets =
+          new Map<
+            string,
+            HistoryTarget
+          >();
+
+        for (
+          const target of
+          groups.flat()
+        ) {
+          uniqueTargets.set(
+            `${target.collectionName}:${target.id}`,
+            target,
+          );
+        }
+
+        return Array.from(
+          uniqueTargets.values(),
+        );
+      },
+      [],
+    );
+
+  /* ==========================================================
      BATCH SOFT DELETE
+
+     IMPORTANT:
+     Documents are NOT physically deleted.
+
+     They remain available for:
+     - Customer records
+     - Platform records
+     - Audit/history
+
+     Only the worker's own history view is hidden.
   ========================================================== */
 
   const softDeleteOrders =
     useCallback(
       async (
-        orderIds: string[],
-      ) => {
+        targets:
+          HistoryTarget[],
+      ): Promise<void> => {
+        if (
+          targets.length ===
+          0
+        ) {
+          return;
+        }
+
         for (
           let start = 0;
           start <
-          orderIds.length;
-          start += BATCH_LIMIT
+          targets.length;
+          start +=
+            BATCH_LIMIT
         ) {
           const chunk =
-            orderIds.slice(
+            targets.slice(
               start,
               start +
                 BATCH_LIMIT,
             );
 
           const batch =
-            writeBatch(db);
+            writeBatch(
+              db,
+            );
 
           for (
-            const orderId of chunk
+            const target of
+            chunk
           ) {
             const orderRef =
               doc(
                 db,
-                "bookings",
-                orderId,
+                target.collectionName,
+                target.id,
               );
 
             batch.update(
@@ -408,7 +713,7 @@ function WorkerOrderDeletionManager({
                 deletedByWorker:
                   true,
 
-                deletedAt:
+                deletedByWorkerAt:
                   serverTimestamp(),
 
                 updatedAt:
@@ -430,21 +735,27 @@ function WorkerOrderDeletionManager({
   const executeDelete =
     useCallback(
       async (
-        status: DeletableStatus,
+        status:
+          DeletableStatus,
       ) => {
         if (
-          deletingStatus !== null
+          deletingStatus !==
+          null
         ) {
           return;
         }
 
         const workerId =
-          auth.currentUser?.uid?.trim();
+          auth.currentUser
+            ?.uid
+            ?.trim();
 
-        if (!workerId) {
+        if (
+          !workerId
+        ) {
           showError(
             "Sign in required",
-            "Please sign in again before deleting your job history.",
+            "Please sign in again before removing your job history.",
           );
 
           return;
@@ -455,173 +766,68 @@ function WorkerOrderDeletionManager({
             status,
           );
 
-          const bookingsRef =
-            collection(
-              db,
-              "bookings",
+          /* ================================================
+             FIND SERVICE + MARKET + SHOP HISTORY
+          ================================================ */
+
+          const targets =
+            await getHistoryTargets(
+              workerId,
+              status,
             );
 
-          let targetOrderIds:
-            string[] = [];
-
-          /* ==================================================
-             COMPLETED
-          ================================================== */
-
           if (
-            status ===
-            "completed"
-          ) {
-            const completedQuery =
-              query(
-                bookingsRef,
-
-                where(
-                  "workerId",
-                  "==",
-                  workerId,
-                ),
-
-                where(
-                  "status",
-                  "==",
-                  "completed",
-                ),
-              );
-
-            const snapshot =
-              await getDocs(
-                completedQuery,
-              );
-
-            targetOrderIds =
-              snapshot.docs
-                .filter(
-                  (order) =>
-                    order.data()
-                      .deletedByWorker !==
-                    true,
-                )
-                .map(
-                  (order) =>
-                    order.id,
-                );
-          }
-
-          /* ==================================================
-             CANCELLED + EXPIRED
-          ================================================== */
-
-          if (
-            status ===
-            "cancelled"
-          ) {
-            const cancelledQuery =
-              query(
-                bookingsRef,
-
-                where(
-                  "workerId",
-                  "==",
-                  workerId,
-                ),
-
-                where(
-                  "status",
-                  "==",
-                  "cancelled",
-                ),
-              );
-
-            const expiredQuery =
-              query(
-                bookingsRef,
-
-                where(
-                  "workerId",
-                  "==",
-                  workerId,
-                ),
-
-                where(
-                  "status",
-                  "==",
-                  "expired",
-                ),
-              );
-
-            const [
-              cancelledSnapshot,
-              expiredSnapshot,
-            ] =
-              await Promise.all([
-                getDocs(
-                  cancelledQuery,
-                ),
-
-                getDocs(
-                  expiredQuery,
-                ),
-              ]);
-
-            const combinedDocs = [
-              ...cancelledSnapshot.docs,
-              ...expiredSnapshot.docs,
-            ];
-
-            targetOrderIds =
-              combinedDocs
-                .filter(
-                  (order) =>
-                    order.data()
-                      .deletedByWorker !==
-                    true,
-                )
-                .map(
-                  (order) =>
-                    order.id,
-                );
-          }
-
-          /* ==================================================
-             NOTHING TO DELETE
-          ================================================== */
-
-          if (
-            targetOrderIds.length ===
+            targets.length ===
             0
           ) {
-            showError(
-              "Nothing to delete",
+            showInfo(
+              "Nothing to remove",
+
               status ===
-                "completed"
+              "completed"
                 ? "There are no completed jobs available to remove."
-                : "There are no cancelled or expired jobs available to remove.",
+                : "There are no cancelled, declined, or expired jobs available to remove.",
             );
 
             return;
           }
 
-          /* ==================================================
+          /* ================================================
              SOFT DELETE
-          ================================================== */
+          ================================================ */
 
           await softDeleteOrders(
-            targetOrderIds,
+            targets,
           );
 
+          /* ================================================
+             CLOSE MODAL
+          ================================================ */
+
           onClose();
+
+          /* ================================================
+             OPTIONAL CALLBACK
+          ================================================ */
 
           try {
             onDeleted?.();
           } catch (
             callbackError
           ) {
-            console.error(
-              "WORKER_ORDER_DELETE_CALLBACK_ERROR",
-              callbackError,
-            );
+            if (
+              __DEV__
+            ) {
+              console.error(
+                "WORKER_ORDER_DELETE_CALLBACK_ERROR",
+                callbackError,
+              );
+            }
           }
+
+          /* ================================================
+             SUCCESS
+          ================================================ */
 
           const label =
             status ===
@@ -631,18 +837,25 @@ function WorkerOrderDeletionManager({
 
           showSuccess(
             "History removed",
-            `${targetOrderIds.length} ${label} ${
-              targetOrderIds.length ===
+
+            `${targets.length} ${label} ${
+              targets.length ===
               1
                 ? "job"
                 : "jobs"
-            } removed from your history.`,
+            } removed from your worker history.`,
           );
-        } catch (error) {
-          console.error(
-            "WORKER_ORDER_SOFT_DELETE_ERROR",
-            error,
-          );
+        } catch (
+          error
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "WORKER_ORDER_SOFT_DELETE_ERROR",
+              error,
+            );
+          }
 
           const firebaseCode =
             (
@@ -657,14 +870,40 @@ function WorkerOrderDeletionManager({
           ) {
             showError(
               "Permission denied",
-              "You do not have permission to remove these jobs.",
+              "You do not have permission to remove one or more of these jobs.",
             );
-          } else {
-            showError(
-              "Unable to delete",
-              "We could not remove these jobs from your history. Please check your connection and try again.",
-            );
+
+            return;
           }
+
+          if (
+            firebaseCode ===
+            "failed-precondition"
+          ) {
+            showError(
+              "Unable to remove history",
+              "A Firestore index may be required for this operation.",
+            );
+
+            return;
+          }
+
+          if (
+            firebaseCode ===
+            "unavailable"
+          ) {
+            showError(
+              "Connection unavailable",
+              "Please check your internet connection and try again.",
+            );
+
+            return;
+          }
+
+          showError(
+            "Unable to remove history",
+            "We could not remove these jobs. Please check your connection and try again.",
+          );
         } finally {
           setDeletingStatus(
             null,
@@ -673,6 +912,7 @@ function WorkerOrderDeletionManager({
       },
       [
         deletingStatus,
+        getHistoryTargets,
         onClose,
         onDeleted,
         softDeleteOrders,
@@ -686,10 +926,12 @@ function WorkerOrderDeletionManager({
   const handleDelete =
     useCallback(
       (
-        status: DeletableStatus,
+        status:
+          DeletableStatus,
       ) => {
         if (
-          deletingStatus !== null
+          deletingStatus !==
+          null
         ) {
           return;
         }
@@ -700,9 +942,11 @@ function WorkerOrderDeletionManager({
             ? safeCounts.completed
             : safeCounts.cancelled;
 
-        if (count <= 0) {
-          showError(
-            "Nothing to delete",
+        if (
+          count <= 0
+        ) {
+          showInfo(
+            "Nothing to remove",
             "There are no jobs available to remove.",
           );
 
@@ -720,35 +964,33 @@ function WorkerOrderDeletionManager({
             ? "job"
             : "jobs";
 
-        /*
-         * Native Alert stays here because
-         * deletion requires explicit
-         * destructive confirmation.
-         */
-
         Alert.alert(
-          `Delete ${statusLabel.toLowerCase()} ${jobLabel}?`,
+          `Remove ${statusLabel.toLowerCase()} ${jobLabel}?`,
 
-          `You have ${count} ${statusLabel.toLowerCase()} ${jobLabel}.\n\nThey will be removed from your job history. The customer's order will not be deleted.\n\nThis action cannot be undone.`,
+          `You have ${count} ${statusLabel.toLowerCase()} ${jobLabel}.\n\nService, market, and shop history in this category will be hidden from your worker history. Customer and platform records will remain intact.`,
 
           [
             {
-              text: "Keep",
-              style: "cancel",
+              text:
+                "Keep",
+
+              style:
+                "cancel",
             },
 
             {
               text:
-                `Delete ${count}`,
+                `Remove ${count}`,
 
               style:
                 "destructive",
 
-              onPress: () => {
-                void executeDelete(
-                  status,
-                );
-              },
+              onPress:
+                () => {
+                  void executeDelete(
+                    status,
+                  );
+                },
             },
           ],
         );
@@ -768,7 +1010,8 @@ function WorkerOrderDeletionManager({
   const renderRow =
     useCallback(
       (
-        row: RowConfig,
+        row:
+          RowConfig,
       ) => {
         const {
           filter,
@@ -777,10 +1020,12 @@ function WorkerOrderDeletionManager({
           icon,
           tone,
           deletable,
-        } = row;
+        } =
+          row;
 
         const busy =
-          deletingStatus !== null;
+          deletingStatus !==
+          null;
 
         const isSelected =
           selectedFilter ===
@@ -797,11 +1042,13 @@ function WorkerOrderDeletionManager({
 
         return (
           <View
-            key={filter}
-            style={styles.row}
+            key={
+              filter
+            }
+            style={
+              styles.row
+            }
           >
-            {/* STATUS ICON */}
-
             <View
               style={[
                 styles.rowIcon,
@@ -813,7 +1060,9 @@ function WorkerOrderDeletionManager({
               ]}
             >
               <AppIcon
-                name={icon}
+                name={
+                  icon
+                }
                 role="worker"
                 size="sm"
                 color={
@@ -822,10 +1071,10 @@ function WorkerOrderDeletionManager({
               />
             </View>
 
-            {/* CATEGORY */}
-
             <Pressable
-              disabled={busy}
+              disabled={
+                busy
+              }
               onPress={() =>
                 handleFilter(
                   filter,
@@ -859,7 +1108,9 @@ function WorkerOrderDeletionManager({
                 <AppText
                   variant="body"
                   weight="bold"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                   style={
                     styles.rowLabel
                   }
@@ -899,8 +1150,6 @@ function WorkerOrderDeletionManager({
               </AppText>
             </Pressable>
 
-            {/* DELETE / LOCK */}
-
             {deletable ? (
               <Pressable
                 disabled={
@@ -909,11 +1158,12 @@ function WorkerOrderDeletionManager({
                 }
                 onPress={() =>
                   handleDelete(
-                    filter as DeletableStatus,
+                    filter as
+                      DeletableStatus,
                   )
                 }
                 accessibilityRole="button"
-                accessibilityLabel={`Delete ${label.toLowerCase()} jobs`}
+                accessibilityLabel={`Remove ${label.toLowerCase()} jobs`}
                 accessibilityState={{
                   disabled:
                     busy ||
@@ -969,7 +1219,7 @@ function WorkerOrderDeletionManager({
                           : null,
                       ]}
                     >
-                      Delete
+                      Remove
                     </AppText>
                   </>
                 )}
@@ -977,7 +1227,7 @@ function WorkerOrderDeletionManager({
             ) : (
               <View
                 accessible
-                accessibilityLabel={`${label} jobs cannot be deleted`}
+                accessibilityLabel={`${label} jobs cannot be removed`}
                 style={
                   styles.lockedButton
                 }
@@ -1008,10 +1258,13 @@ function WorkerOrderDeletionManager({
 
   return (
     <Modal
-      visible={visible}
+      visible={
+        visible
+      }
       transparent
       animationType="slide"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={
         handleClose
       }
@@ -1021,8 +1274,6 @@ function WorkerOrderDeletionManager({
           styles.modalOverlay
         }
       >
-        {/* BACKDROP */}
-
         <Pressable
           style={
             styles.backdrop
@@ -1031,38 +1282,28 @@ function WorkerOrderDeletionManager({
             handleClose
           }
           disabled={
-            deletingStatus !== null
+            deletingStatus !==
+            null
           }
           accessibilityRole="button"
           accessibilityLabel="Close job management"
         />
 
-        {/* SHEET */}
-
         <View
           accessibilityViewIsModal
-          style={[
-            styles.modalCard,
-
-            {
-              paddingBottom:
-                Math.max(
-                  insets.bottom,
-                  FixxamTokens
-                    .spacing.lg,
-                ),
-            },
-          ]}
+          style={
+            styles.modalCard
+          }
         >
-          {/* HANDLE */}
-
           <View
             style={
               styles.sheetHandle
             }
           />
 
-          {/* HEADER */}
+          {/* ==================================================
+              HEADER
+          ================================================== */}
 
           <View
             style={
@@ -1124,13 +1365,15 @@ function WorkerOrderDeletionManager({
                 handleClose
               }
               disabled={
-                deletingStatus !== null
+                deletingStatus !==
+                null
               }
               accessibilityRole="button"
               accessibilityLabel="Close job management"
               accessibilityState={{
                 disabled:
-                  deletingStatus !== null,
+                  deletingStatus !==
+                  null,
               }}
               style={({
                 pressed,
@@ -1138,7 +1381,8 @@ function WorkerOrderDeletionManager({
                 styles.closeButton,
 
                 pressed &&
-                deletingStatus === null
+                deletingStatus ===
+                  null
                   ? styles.closePressed
                   : null,
               ]}
@@ -1153,128 +1397,170 @@ function WorkerOrderDeletionManager({
             </Pressable>
           </View>
 
-          {/* DESCRIPTION */}
+          {/* ==================================================
+              CONTENT
+          ================================================== */}
 
-          <AppText
-            variant="body"
-            tone="secondary"
-            style={
-              styles.description
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={
+              styles.scrollContent
             }
           >
-            Choose a category to view, or remove completed and cancelled job history.
-          </AppText>
-
-          {/* ROWS */}
-
-          <View
-            style={
-              styles.rows
-            }
-          >
-            {rows.map(
-              renderRow,
-            )}
-          </View>
-
-          {/* SECURITY INFO */}
-
-          <View
-            style={
-              styles.infoBox
-            }
-          >
-            <View
+            <AppText
+              variant="body"
+              tone="secondary"
               style={
-                styles.infoIcon
+                styles.description
               }
             >
-              <AppIcon
-                name="verified"
-                role="worker"
-                size="sm"
-                color={
-                  WorkerColors.primary
-                }
-              />
+              Choose a category to view, or remove completed and cancelled job history.
+            </AppText>
+
+            <View
+              style={
+                styles.rows
+              }
+            >
+              {rows.map(
+                renderRow,
+              )}
             </View>
 
             <View
               style={
-                styles.infoContent
+                styles.infoBox
               }
             >
+              <View
+                style={
+                  styles.infoIcon
+                }
+              >
+                <AppIcon
+                  name="verified"
+                  role="worker"
+                  size="sm"
+                  color={
+                    WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.infoContent
+                }
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.infoTitle
+                  }
+                >
+                  Job history protection
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.infoText
+                  }
+                >
+                  New requests and active jobs are protected. Completed, cancelled, declined, and expired jobs can only be hidden from your worker history.
+                </AppText>
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* ==================================================
+              DONE
+          ================================================== */}
+
+          <View
+            style={[
+              styles.footer,
+
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
+                    FixxamTokens
+                      .spacing.md,
+                  ),
+              },
+            ]}
+          >
+            <Pressable
+              onPress={
+                handleClose
+              }
+              disabled={
+                deletingStatus !==
+                null
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Done managing jobs"
+              accessibilityState={{
+                disabled:
+                  deletingStatus !==
+                  null,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.doneButton,
+
+                deletingStatus !==
+                  null
+                  ? styles.doneDisabled
+                  : null,
+
+                pressed &&
+                deletingStatus ===
+                  null
+                  ? styles.donePressed
+                  : null,
+              ]}
+            >
+              {deletingStatus !==
+              null ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+              ) : (
+                <AppIcon
+                  name="check"
+                  role="worker"
+                  size="sm"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+              )}
+
               <AppText
                 variant="body"
                 weight="bold"
                 style={
-                  styles.infoTitle
+                  styles.doneText
                 }
               >
-                Job history protection
+                {deletingStatus !==
+                null
+                  ? "UPDATING..."
+                  : "DONE"}
               </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.infoText
-                }
-              >
-                New requests and active jobs are protected. Completed, cancelled, and expired history can be removed from your view.
-              </AppText>
-            </View>
+            </Pressable>
           </View>
-
-          {/* DONE */}
-
-          <Pressable
-            onPress={
-              handleClose
-            }
-            disabled={
-              deletingStatus !== null
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Done managing jobs"
-            accessibilityState={{
-              disabled:
-                deletingStatus !== null,
-            }}
-            style={({
-              pressed,
-            }) => [
-              styles.doneButton,
-
-              deletingStatus !== null
-                ? styles.doneDisabled
-                : null,
-
-              pressed &&
-              deletingStatus === null
-                ? styles.donePressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="check"
-              role="worker"
-              size="sm"
-              color={
-                Colors.textInverse
-              }
-            />
-
-            <AppText
-              variant="body"
-              weight="bold"
-              style={
-                styles.doneText
-              }
-            >
-              DONE
-            </AppText>
-          </Pressable>
         </View>
       </View>
     </Modal>
@@ -1291,12 +1577,9 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       MODAL
-    ======================================================== */
-
     modalOverlay: {
-      flex: 1,
+      flex:
+        1,
 
       justifyContent:
         "flex-end",
@@ -1310,13 +1593,17 @@ const styles =
     },
 
     modalCard: {
-      width: "100%",
+      width:
+        "100%",
 
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+      maxHeight:
+        "92%",
 
       paddingTop:
         FixxamTokens.spacing.sm,
+
+      overflow:
+        "hidden",
 
       borderTopLeftRadius:
         FixxamTokens.radius.xl,
@@ -1331,11 +1618,14 @@ const styles =
     },
 
     sheetHandle: {
-      width: 42,
+      width:
+        42,
 
-      height: 4,
+      height:
+        4,
 
-      alignSelf: "center",
+      alignSelf:
+        "center",
 
       marginBottom:
         FixxamTokens.spacing.md,
@@ -1352,9 +1642,14 @@ const styles =
     ======================================================== */
 
     modalHeader: {
-      flexDirection: "row",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
 
-      alignItems: "center",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
@@ -1364,13 +1659,17 @@ const styles =
     },
 
     headerInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     headerIcon: {
@@ -1382,9 +1681,11 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1397,9 +1698,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -1424,9 +1727,11 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1444,11 +1749,24 @@ const styles =
           .pressedOpacity,
     },
 
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
+    scrollContent: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
+    },
+
     description: {
       marginTop:
         FixxamTokens.spacing.md,
 
-      lineHeight: 20,
+      lineHeight:
+        20,
     },
 
     /* ========================================================
@@ -1464,7 +1782,8 @@ const styles =
     },
 
     row: {
-      minHeight: 68,
+      minHeight:
+        68,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -1472,11 +1791,14 @@ const styles =
       paddingVertical:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1489,13 +1811,17 @@ const styles =
     },
 
     rowIcon: {
-      width: 42,
+      width:
+        42,
 
-      height: 42,
+      height:
+        42,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1505,11 +1831,14 @@ const styles =
     },
 
     rowInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      alignSelf: "stretch",
+      alignSelf:
+        "stretch",
 
       justifyContent:
         "center",
@@ -1528,9 +1857,11 @@ const styles =
     },
 
     rowTitleLine: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1547,11 +1878,14 @@ const styles =
     },
 
     selectedIndicator: {
-      width: 22,
+      width:
+        22,
 
-      height: 22,
+      height:
+        22,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1568,7 +1902,8 @@ const styles =
     ======================================================== */
 
     deleteButton: {
-      minWidth: 76,
+      minWidth:
+        86,
 
       minHeight:
         FixxamTokens.size
@@ -1577,9 +1912,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1587,7 +1924,8 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.error,
@@ -1644,9 +1982,11 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1669,12 +2009,14 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
         "flex-start",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1687,13 +2029,17 @@ const styles =
     },
 
     infoIcon: {
-      width: 36,
+      width:
+        36,
 
-      height: 36,
+      height:
+        36,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1706,9 +2052,11 @@ const styles =
     },
 
     infoContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -1723,27 +2071,44 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xxs,
 
-      lineHeight: 17,
+      lineHeight:
+        17,
     },
 
     /* ========================================================
-       DONE
+       FOOTER
     ======================================================== */
+
+    footer: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
+    },
 
     doneButton: {
       minHeight:
         FixxamTokens.size
           .buttonHeight,
 
-      marginTop:
-        FixxamTokens.spacing.lg,
-
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",

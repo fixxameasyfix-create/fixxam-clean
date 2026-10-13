@@ -10,11 +10,15 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
 
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+
 import Toast from "react-native-toast-message";
 
 import {
@@ -77,17 +81,6 @@ type OrderTone =
   | "completed"
   | "cancelled";
 
-type Props = {
-  visible: boolean;
-  counts: OrderDeletionCounts;
-  selectedFilter: OrderDeletionFilter;
-  onClose: () => void;
-  onFilterSelect: (
-    filter: OrderDeletionFilter,
-  ) => void;
-  onDeleted?: () => void;
-};
-
 type RowIcon =
   | "clock"
   | "service"
@@ -103,11 +96,43 @@ type RowConfig = {
   deletable: boolean;
 };
 
+type HistoryCollection =
+  | "bookings"
+  | "orders"
+  | "shopRequests";
+
+type HistoryTarget = {
+  collectionName: HistoryCollection;
+  id: string;
+  persistedStatus: string;
+};
+
+type Props = {
+  visible: boolean;
+
+  counts: OrderDeletionCounts;
+
+  selectedFilter: OrderDeletionFilter;
+
+  onClose: () => void;
+
+  onFilterSelect: (
+    filter: OrderDeletionFilter,
+  ) => void;
+
+  onDeleted?: () => void;
+};
+
 /* ============================================================
    CONSTANTS
 ============================================================ */
 
-const BATCH_LIMIT = 450;
+const HISTORY_COLLECTIONS:
+  readonly HistoryCollection[] = [
+    "bookings",
+    "orders",
+    "shopRequests",
+  ];
 
 /* ============================================================
    HELPERS
@@ -135,6 +160,17 @@ function showError(
 ) {
   Toast.show({
     type: "error",
+    text1: title,
+    text2: message,
+  });
+}
+
+function showInfo(
+  title: string,
+  message: string,
+) {
+  Toast.show({
+    type: "info",
     text1: title,
     text2: message,
   });
@@ -186,6 +222,28 @@ function getToneColors(
 }
 
 /* ============================================================
+   STATUS MAPPING
+============================================================ */
+
+function getDeletionStatuses(
+  status: DeletableStatus,
+): readonly string[] {
+  if (status === "completed") {
+    return [
+      "completed",
+      "delivered",
+    ];
+  }
+
+  return [
+    "cancelled",
+    "canceled",
+    "expired",
+    "declined",
+  ];
+}
+
+/* ============================================================
    COMPONENT
 ============================================================ */
 
@@ -204,9 +262,9 @@ function OrderDeletionManager({
     deletingStatus,
     setDeletingStatus,
   ] =
-    useState<DeletableStatus | null>(
-      null,
-    );
+    useState<
+      DeletableStatus | null
+    >(null);
 
   /* ==========================================================
      SAFE COUNTS
@@ -236,10 +294,10 @@ function OrderDeletionManager({
           ),
       }),
       [
-        counts.pending,
         counts.active,
-        counts.completed,
         counts.cancelled,
+        counts.completed,
+        counts.pending,
       ],
     );
 
@@ -297,10 +355,10 @@ function OrderDeletionManager({
         },
       ],
       [
-        safeCounts.pending,
         safeCounts.active,
-        safeCounts.completed,
         safeCounts.cancelled,
+        safeCounts.completed,
+        safeCounts.pending,
       ],
     );
 
@@ -329,7 +387,8 @@ function OrderDeletionManager({
   const handleFilter =
     useCallback(
       (
-        filter: OrderDeletionFilter,
+        filter:
+          OrderDeletionFilter,
       ) => {
         if (
           deletingStatus !== null
@@ -337,10 +396,7 @@ function OrderDeletionManager({
           return;
         }
 
-        onFilterSelect(
-          filter,
-        );
-
+        onFilterSelect(filter);
         onClose();
       },
       [
@@ -351,13 +407,448 @@ function OrderDeletionManager({
     );
 
   /* ==========================================================
+     GET HISTORY TARGETS
+  ========================================================== */
+
+  const getHistoryTargets =
+    useCallback(
+      async (
+        customerId: string,
+        status:
+          DeletableStatus,
+      ): Promise<
+        HistoryTarget[]
+      > => {
+        const normalizedCustomerId =
+          customerId.trim();
+
+        if (
+          !normalizedCustomerId
+        ) {
+          return [];
+        }
+
+        const statuses =
+          getDeletionStatuses(
+            status,
+          );
+
+        const groups =
+          await Promise.all(
+            HISTORY_COLLECTIONS.map(
+              async (
+                collectionName,
+              ): Promise<
+                HistoryTarget[]
+              > => {
+                const historyQuery =
+                  query(
+                    collection(
+                      db,
+                      collectionName,
+                    ),
+
+                    where(
+                      "customerId",
+                      "==",
+                      normalizedCustomerId,
+                    ),
+
+                    where(
+                      "status",
+                      "in",
+                      [...statuses],
+                    ),
+                  );
+
+                const snapshot =
+                  await getDocs(
+                    historyQuery,
+                  );
+
+                const targets =
+                  snapshot.docs
+                    .filter(
+                      document => {
+                        const data =
+                          document.data();
+
+                        return (
+                          data.deletedByCustomer !==
+                          true
+                        );
+                      },
+                    )
+                    .map(
+                      document => {
+                        const data =
+                          document.data();
+
+                        return {
+                          collectionName,
+
+                          id:
+                            document.id,
+
+                          persistedStatus:
+                            typeof data.status ===
+                            "string"
+                              ? data.status
+                              : "",
+                        };
+                      },
+                    );
+
+                if (__DEV__) {
+                  console.log(
+                    "CUSTOMER_ORDER_HISTORY_TARGETS",
+                    {
+                      collectionName,
+
+                      count:
+                        targets.length,
+
+                      documentIds:
+                        targets.map(
+                          target =>
+                            target.id,
+                        ),
+
+                      persistedStatuses:
+                        targets.map(
+                          target =>
+                            target.persistedStatus,
+                        ),
+
+                      status,
+                    },
+                  );
+                }
+
+                return targets;
+              },
+            ),
+          );
+
+        const uniqueTargets =
+          new Map<
+            string,
+            HistoryTarget
+          >();
+
+        for (
+          const group
+          of groups
+        ) {
+          for (
+            const target
+            of group
+          ) {
+            uniqueTargets.set(
+              `${target.collectionName}:${target.id}`,
+              target,
+            );
+          }
+        }
+
+        return [
+          ...uniqueTargets.values(),
+        ];
+      },
+      [],
+    );
+
+  /* ==========================================================
+     WRITE ONE HISTORY TARGET
+  ========================================================== */
+
+  const softDeleteSingleTarget =
+    useCallback(
+      async (
+        target:
+          HistoryTarget,
+      ): Promise<void> => {
+        const historyRef =
+          doc(
+            db,
+            target.collectionName,
+            target.id,
+          );
+
+        const batch =
+          writeBatch(db);
+
+        batch.update(
+          historyRef,
+          {
+            deletedByCustomer:
+              true,
+
+            deletedByCustomerAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          },
+        );
+
+        try {
+          await batch.commit();
+
+          if (__DEV__) {
+            console.log(
+              "CUSTOMER_ORDER_DOCUMENT_SOFT_DELETE_SUCCESS",
+              {
+                collectionName:
+                  target.collectionName,
+
+                documentId:
+                  target.id,
+
+                persistedStatus:
+                  target.persistedStatus,
+              },
+            );
+          }
+        } catch (error) {
+          const firebaseCode =
+            (
+              error as {
+                code?: string;
+              }
+            )?.code;
+
+          if (__DEV__) {
+            console.error(
+              "CUSTOMER_ORDER_DOCUMENT_SOFT_DELETE_ERROR",
+              {
+                code:
+                  firebaseCode ??
+                  "unknown",
+
+                collectionName:
+                  target.collectionName,
+
+                documentId:
+                  target.id,
+
+                persistedStatus:
+                  target.persistedStatus,
+
+                message:
+                  error instanceof
+                  Error
+                    ? error.message
+                    : String(
+                        error,
+                      ),
+              },
+            );
+          }
+
+          throw {
+            originalError:
+              error,
+
+            code:
+              firebaseCode,
+
+            collectionName:
+              target.collectionName,
+
+            documentId:
+              target.id,
+
+            persistedStatus:
+              target.persistedStatus,
+          };
+        }
+      },
+      [],
+    );
+
+  /* ==========================================================
+     CUSTOMER SOFT DELETE
+  ========================================================== */
+
+  const softDeleteOrders =
+    useCallback(
+      async (
+        targets:
+          HistoryTarget[],
+
+        customerId:
+          string,
+
+        status:
+          DeletableStatus,
+      ): Promise<number> => {
+        if (
+          targets.length === 0
+        ) {
+          return 0;
+        }
+
+        if (__DEV__) {
+          const collectionCounts =
+            targets.reduce<
+              Record<
+                HistoryCollection,
+                number
+              >
+            >(
+              (
+                result,
+                target,
+              ) => {
+                result[
+                  target.collectionName
+                ] += 1;
+
+                return result;
+              },
+              {
+                bookings: 0,
+                orders: 0,
+                shopRequests: 0,
+              },
+            );
+
+          console.log(
+            "CUSTOMER_ORDER_SOFT_DELETE_START",
+            {
+              customerId,
+              status,
+
+              total:
+                targets.length,
+
+              ...collectionCounts,
+            },
+          );
+        }
+
+        let removedCount = 0;
+
+        for (
+          const collectionName
+          of HISTORY_COLLECTIONS
+        ) {
+          const collectionTargets =
+            targets.filter(
+              target =>
+                target.collectionName ===
+                collectionName,
+            );
+
+          if (
+            collectionTargets.length ===
+            0
+          ) {
+            continue;
+          }
+
+          if (__DEV__) {
+            console.log(
+              "CUSTOMER_ORDER_COLLECTION_SOFT_DELETE_START",
+              {
+                collectionName,
+
+                count:
+                  collectionTargets.length,
+              },
+            );
+          }
+
+          for (
+            const target
+            of collectionTargets
+          ) {
+            try {
+              await softDeleteSingleTarget(
+                target,
+              );
+
+              removedCount += 1;
+            } catch (failure) {
+              const details =
+                failure as {
+                  originalError?:
+                    unknown;
+
+                  code?:
+                    string;
+
+                  collectionName?:
+                    HistoryCollection;
+
+                  documentId?:
+                    string;
+
+                  persistedStatus?:
+                    string;
+                };
+
+              if (__DEV__) {
+                console.error(
+                  "CUSTOMER_ORDER_PERMISSION_DIAGNOSTIC",
+                  {
+                    customerId,
+
+                    requestedCategory:
+                      status,
+
+                    collection:
+                      details.collectionName ??
+                      target.collectionName,
+
+                    documentId:
+                      details.documentId ??
+                      target.id,
+
+                    persistedStatus:
+                      details.persistedStatus ??
+                      target.persistedStatus,
+
+                    removedBeforeFailure:
+                      removedCount,
+                  },
+                );
+              }
+
+              throw failure;
+            }
+          }
+
+          if (__DEV__) {
+            console.log(
+              "CUSTOMER_ORDER_COLLECTION_SOFT_DELETE_SUCCESS",
+              {
+                collectionName,
+
+                count:
+                  collectionTargets.length,
+              },
+            );
+          }
+        }
+
+        return removedCount;
+      },
+      [
+        softDeleteSingleTarget,
+      ],
+    );
+
+  /* ==========================================================
      EXECUTE DELETE
   ========================================================== */
 
   const executeDelete =
     useCallback(
       async (
-        status: DeletableStatus,
+        status:
+          DeletableStatus,
       ) => {
         if (
           deletingStatus !== null
@@ -365,125 +856,52 @@ function OrderDeletionManager({
           return;
         }
 
-        const userId =
-          auth.currentUser?.uid?.trim();
+        const customerId =
+          auth.currentUser
+            ?.uid
+            ?.trim();
 
-        if (!userId) {
+        if (!customerId) {
           showError(
             "Sign in required",
-            "Please sign in again before deleting order history.",
+            "Please sign in again before removing your order history.",
           );
 
           return;
         }
-
-        const statusLabel =
-          status === "completed"
-            ? "Completed"
-            : "Cancelled";
 
         try {
           setDeletingStatus(
             status,
           );
 
-          const bookingsRef =
-            collection(
-              db,
-              "bookings",
-            );
-
-          const ordersQuery =
-            query(
-              bookingsRef,
-
-              where(
-                "customerId",
-                "==",
-                userId,
-              ),
-
-              where(
-                "status",
-                "==",
-                status,
-              ),
-            );
-
-          const snapshot =
-            await getDocs(
-              ordersQuery,
-            );
-
-          const targetOrders =
-            snapshot.docs.filter(
-              (order) =>
-                order.data()
-                  .deletedByCustomer !==
-                true,
+          const targets =
+            await getHistoryTargets(
+              customerId,
+              status,
             );
 
           if (
-            targetOrders.length === 0
+            targets.length === 0
           ) {
-            showError(
-              "Nothing to delete",
-              `There are no ${statusLabel.toLowerCase()} orders available to remove.`,
+            showInfo(
+              "Nothing to remove",
+
+              status ===
+                "completed"
+                ? "There are no completed orders available to remove."
+                : "There are no cancelled, declined, or expired orders available to remove.",
             );
 
             return;
           }
 
-          /* ==================================================
-             FIRESTORE BATCHES
-
-             Firestore max = 500 writes.
-             We intentionally use 450.
-          ================================================== */
-
-          for (
-            let start = 0;
-            start <
-            targetOrders.length;
-            start += BATCH_LIMIT
-          ) {
-            const chunk =
-              targetOrders.slice(
-                start,
-                start +
-                  BATCH_LIMIT,
-              );
-
-            const batch =
-              writeBatch(db);
-
-            for (
-              const order of chunk
-            ) {
-              const orderRef =
-                doc(
-                  db,
-                  "bookings",
-                  order.id,
-                );
-
-              batch.update(
-                orderRef,
-                {
-                  deletedByCustomer:
-                    true,
-
-                  deletedAt:
-                    serverTimestamp(),
-
-                  updatedAt:
-                    serverTimestamp(),
-                },
-              );
-            }
-
-            await batch.commit();
-          }
+          const removedCount =
+            await softDeleteOrders(
+              targets,
+              customerId,
+              status,
+            );
 
           onClose();
 
@@ -492,47 +910,117 @@ function OrderDeletionManager({
           } catch (
             callbackError
           ) {
-            console.error(
-              "CUSTOMER_ORDER_DELETE_CALLBACK_ERROR",
-              callbackError,
-            );
+            if (__DEV__) {
+              console.error(
+                "CUSTOMER_ORDER_DELETE_CALLBACK_ERROR",
+                callbackError,
+              );
+            }
           }
+
+          const label =
+            status ===
+            "completed"
+              ? "completed"
+              : "cancelled";
 
           showSuccess(
             "History removed",
-            `${targetOrders.length} ${statusLabel.toLowerCase()} ${
-              targetOrders.length === 1
+
+            `${removedCount} ${label} ${
+              removedCount === 1
                 ? "order"
                 : "orders"
             } removed from your history.`,
           );
         } catch (error) {
-          console.error(
-            "CUSTOMER_ORDER_SOFT_DELETE_ERROR",
-            error,
-          );
+          if (__DEV__) {
+            console.error(
+              "CUSTOMER_ORDER_SOFT_DELETE_ERROR",
+              error,
+            );
+          }
+
+          const failure =
+            error as {
+              originalError?: {
+                code?: string;
+              };
+
+              code?: string;
+
+              collectionName?:
+                HistoryCollection;
+
+              documentId?:
+                string;
+
+              persistedStatus?:
+                string;
+            };
 
           const firebaseCode =
-            (
-              error as {
-                code?: string;
-              }
-            )?.code;
+            failure.code ??
+            failure
+              .originalError
+              ?.code;
 
           if (
             firebaseCode ===
             "permission-denied"
           ) {
+            if (__DEV__) {
+              console.error(
+                "CUSTOMER_ORDER_PERMISSION_DENIED",
+                {
+                  collection:
+                    failure.collectionName,
+
+                  documentId:
+                    failure.documentId,
+
+                  persistedStatus:
+                    failure.persistedStatus,
+                },
+              );
+            }
+
             showError(
               "Permission denied",
-              "You do not have permission to remove these orders.",
+              "One order could not be removed because its Firestore record does not satisfy the history rules.",
             );
-          } else {
-            showError(
-              "Unable to delete",
-              "We could not remove these orders from your history. Please try again.",
-            );
+
+            return;
           }
+
+          if (
+            firebaseCode ===
+            "failed-precondition"
+          ) {
+            showError(
+              "Unable to remove history",
+              "Firestore requires an index for this history query. Create the requested index and try again.",
+            );
+
+            return;
+          }
+
+          if (
+            firebaseCode ===
+            "unavailable"
+          ) {
+            showError(
+              "Connection unavailable",
+              "Please check your internet connection and try again.",
+            );
+
+            return;
+          }
+
+          showError(
+            "Unable to remove history",
+            "We could not remove these orders from your history. Please try again.",
+          );
         } finally {
           setDeletingStatus(
             null,
@@ -541,8 +1029,10 @@ function OrderDeletionManager({
       },
       [
         deletingStatus,
+        getHistoryTargets,
         onClose,
         onDeleted,
+        softDeleteOrders,
       ],
     );
 
@@ -553,7 +1043,8 @@ function OrderDeletionManager({
   const handleDelete =
     useCallback(
       (
-        status: DeletableStatus,
+        status:
+          DeletableStatus,
       ) => {
         if (
           deletingStatus !== null
@@ -562,13 +1053,14 @@ function OrderDeletionManager({
         }
 
         const count =
-          status === "completed"
+          status ===
+          "completed"
             ? safeCounts.completed
             : safeCounts.cancelled;
 
         if (count <= 0) {
-          showError(
-            "Nothing to delete",
+          showInfo(
+            "Nothing to remove",
             "There are no orders available to remove.",
           );
 
@@ -576,23 +1068,20 @@ function OrderDeletionManager({
         }
 
         const statusLabel =
-          status === "completed"
+          status ===
+          "completed"
             ? "Completed"
             : "Cancelled";
 
-        /*
-         * Keep Alert only here because this
-         * is a destructive confirmation.
-         */
+        const orderLabel =
+          count === 1
+            ? "order"
+            : "orders";
 
         Alert.alert(
-          `Delete ${statusLabel} orders?`,
+          `Remove ${statusLabel.toLowerCase()} ${orderLabel}?`,
 
-          `You have ${count} ${statusLabel.toLowerCase()} ${
-            count === 1
-              ? "order"
-              : "orders"
-          }.\n\nThey will be removed from your order history. This action cannot be undone.`,
+          `You have ${count} ${statusLabel.toLowerCase()} ${orderLabel}.\n\nService, market, and shop history in this category will be hidden from your order history. Worker and platform records will remain intact.`,
 
           [
             {
@@ -602,7 +1091,8 @@ function OrderDeletionManager({
 
             {
               text:
-                `Delete ${count}`,
+                `Remove ${count}`,
+
               style:
                 "destructive",
 
@@ -618,8 +1108,8 @@ function OrderDeletionManager({
       [
         deletingStatus,
         executeDelete,
-        safeCounts.completed,
         safeCounts.cancelled,
+        safeCounts.completed,
       ],
     );
 
@@ -630,7 +1120,8 @@ function OrderDeletionManager({
   const renderRow =
     useCallback(
       (
-        row: RowConfig,
+        row:
+          RowConfig,
       ) => {
         const {
           filter,
@@ -645,21 +1136,23 @@ function OrderDeletionManager({
           deletingStatus !== null;
 
         const isSelected =
-          selectedFilter === filter;
+          selectedFilter ===
+          filter;
 
         const isDeleting =
-          deletingStatus === filter;
+          deletingStatus ===
+          filter;
 
         const toneColors =
-          getToneColors(tone);
+          getToneColors(
+            tone,
+          );
 
         return (
           <View
             key={filter}
             style={styles.row}
           >
-            {/* STATUS */}
-
             <View
               style={[
                 styles.rowIcon,
@@ -671,6 +1164,7 @@ function OrderDeletionManager({
             >
               <AppIcon
                 name={icon}
+                role="customer"
                 size="sm"
                 color={
                   toneColors.color
@@ -678,20 +1172,19 @@ function OrderDeletionManager({
               />
             </View>
 
-            {/* FILTER */}
-
             <Pressable
+              disabled={busy}
               onPress={() =>
                 handleFilter(
                   filter,
                 )
               }
-              disabled={busy}
               accessibilityRole="button"
               accessibilityLabel={`View ${label.toLowerCase()} orders`}
               accessibilityState={{
                 selected:
                   isSelected,
+
                 disabled:
                   busy,
               }}
@@ -730,6 +1223,7 @@ function OrderDeletionManager({
                   >
                     <AppIcon
                       name="check"
+                      role="customer"
                       size="xs"
                       color={
                         CustomerColors.primary
@@ -753,25 +1247,25 @@ function OrderDeletionManager({
               </AppText>
             </Pressable>
 
-            {/* DELETE / LOCK */}
-
             {deletable ? (
               <Pressable
-                onPress={() =>
-                  handleDelete(
-                    filter as DeletableStatus,
-                  )
-                }
                 disabled={
                   busy ||
                   count === 0
                 }
+                onPress={() =>
+                  handleDelete(
+                    filter as
+                      DeletableStatus,
+                  )
+                }
                 accessibilityRole="button"
-                accessibilityLabel={`Delete ${label.toLowerCase()} orders`}
+                accessibilityLabel={`Remove ${label.toLowerCase()} orders`}
                 accessibilityState={{
                   disabled:
                     busy ||
                     count === 0,
+
                   busy:
                     isDeleting,
                 }}
@@ -822,7 +1316,7 @@ function OrderDeletionManager({
                           : null,
                       ]}
                     >
-                      Delete
+                      Remove
                     </AppText>
                   </>
                 )}
@@ -830,7 +1324,7 @@ function OrderDeletionManager({
             ) : (
               <View
                 accessible
-                accessibilityLabel={`${label} orders cannot be deleted`}
+                accessibilityLabel={`${label} orders cannot be removed`}
                 style={
                   styles.lockedButton
                 }
@@ -865,6 +1359,7 @@ function OrderDeletionManager({
       transparent
       animationType="slide"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={
         handleClose
       }
@@ -874,8 +1369,6 @@ function OrderDeletionManager({
           styles.modalOverlay
         }
       >
-        {/* BACKDROP */}
-
         <Pressable
           style={
             styles.backdrop
@@ -890,31 +1383,17 @@ function OrderDeletionManager({
           accessibilityLabel="Close order management"
         />
 
-        {/* SHEET */}
-
         <View
           accessibilityViewIsModal
-          style={[
-            styles.modalCard,
-            {
-              paddingBottom:
-                Math.max(
-                  insets.bottom,
-                  FixxamTokens
-                    .spacing.lg,
-                ),
-            },
-          ]}
+          style={
+            styles.modalCard
+          }
         >
-          {/* HANDLE */}
-
           <View
             style={
               styles.sheetHandle
             }
           />
-
-          {/* HEADER */}
 
           <View
             style={
@@ -990,7 +1469,8 @@ function OrderDeletionManager({
                 styles.closeButton,
 
                 pressed &&
-                deletingStatus === null
+                deletingStatus ===
+                  null
                   ? styles.closePressed
                   : null,
               ]}
@@ -1005,142 +1485,165 @@ function OrderDeletionManager({
             </Pressable>
           </View>
 
-          {/* DESCRIPTION */}
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            style={
-              styles.description
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={
+              styles.scrollContent
             }
           >
-            Choose a category to view, or remove completed and cancelled order history.
-          </AppText>
-
-          {/* ROWS */}
-
-          <View
-            style={styles.rows}
-          >
-            {rows.map(
-              renderRow,
-            )}
-          </View>
-
-          {/* INFO */}
-
-          <View
-            style={styles.infoBox}
-          >
-            <View
+            <AppText
+              variant="body"
+              tone="secondary"
               style={
-                styles.infoIcon
+                styles.description
               }
             >
-              <AppIcon
-                name="verified"
-                size="sm"
-                color={
-                  Colors.info
-                }
-              />
+              Choose a category to view, or remove completed and cancelled order history.
+            </AppText>
+
+            <View
+              style={
+                styles.rows
+              }
+            >
+              {rows.map(
+                renderRow,
+              )}
             </View>
 
             <View
               style={
-                styles.infoContent
+                styles.infoBox
               }
             >
-              <AppText
-                variant="body"
-                weight="bold"
+              <View
                 style={
-                  styles.infoTitle
+                  styles.infoIcon
                 }
               >
-                History protection
-              </AppText>
+                <AppIcon
+                  name="verified"
+                  role="customer"
+                  size="sm"
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
 
-              <AppText
-                variant="caption"
-                tone="secondary"
+              <View
                 style={
-                  styles.infoText
+                  styles.infoContent
                 }
               >
-                Pending and active orders cannot be deleted. Only completed and cancelled history can be removed.
-              </AppText>
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.infoTitle
+                  }
+                >
+                  Order history protection
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.infoText
+                  }
+                >
+                  Pending and active orders are protected. Completed, cancelled, declined, and expired orders can only be hidden from your order history.
+                </AppText>
+              </View>
             </View>
-          </View>
+          </ScrollView>
 
-          {/* DONE */}
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom:
+                  Math.max(
+                    insets.bottom,
 
-          <Pressable
-            onPress={
-              handleClose
-            }
-            disabled={
-              deletingStatus !== null
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Done managing orders"
-            accessibilityState={{
-              disabled:
-                deletingStatus !== null,
-            }}
-            style={({
-              pressed,
-            }) => [
-              styles.doneButton,
-
-              deletingStatus !== null
-                ? styles.doneDisabled
-                : null,
-
-              pressed &&
-              deletingStatus === null
-                ? styles.donePressed
-                : null,
+                    FixxamTokens
+                      .spacing.md,
+                  ),
+              },
             ]}
           >
-            {deletingStatus ? (
-              <ActivityIndicator
-                size="small"
-                color={
-                  Colors.textInverse
-                }
-              />
-            ) : (
-              <>
+            <Pressable
+              onPress={
+                handleClose
+              }
+              disabled={
+                deletingStatus !== null
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Done managing orders"
+              accessibilityState={{
+                disabled:
+                  deletingStatus !== null,
+              }}
+              style={({
+                pressed,
+              }) => [
+                styles.doneButton,
+
+                deletingStatus !==
+                null
+                  ? styles.doneDisabled
+                  : null,
+
+                pressed &&
+                deletingStatus ===
+                  null
+                  ? styles.donePressed
+                  : null,
+              ]}
+            >
+              {deletingStatus !==
+              null ? (
+                <ActivityIndicator
+                  size="small"
+                  color={
+                    Colors.textInverse
+                  }
+                />
+              ) : (
                 <AppIcon
                   name="check"
+                  role="customer"
                   size="sm"
                   color={
                     Colors.textInverse
                   }
                 />
+              )}
 
-                <AppText
-                  variant="body"
-                  weight="bold"
-                  style={
-                    styles.doneText
-                  }
-                >
-                  Done
-                </AppText>
-              </>
-            )}
-          </Pressable>
+              <AppText
+                variant="body"
+                weight="bold"
+                style={
+                  styles.doneText
+                }
+              >
+                {deletingStatus !==
+                null
+                  ? "UPDATING..."
+                  : "DONE"}
+              </AppText>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
   );
 }
-
-/* ============================================================
-   EXPORT
-============================================================ */
 
 export default memo(
   OrderDeletionManager,
@@ -1160,18 +1663,19 @@ const styles =
 
     backdrop: {
       ...StyleSheet.absoluteFillObject,
+
       backgroundColor:
         Colors.overlayMedium,
     },
 
     modalCard: {
       width: "100%",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+      maxHeight: "92%",
 
       paddingTop:
         FixxamTokens.spacing.sm,
+
+      overflow: "hidden",
 
       borderTopLeftRadius:
         FixxamTokens.radius.xl,
@@ -1201,13 +1705,13 @@ const styles =
         Colors.disabled,
     },
 
-    /* ========================================================
-       HEADER
-    ======================================================== */
-
     modalHeader: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
       flexDirection: "row",
       alignItems: "center",
+
       justifyContent:
         "space-between",
 
@@ -1232,6 +1736,8 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
+      flexShrink: 0,
+
       alignItems: "center",
       justifyContent:
         "center",
@@ -1240,7 +1746,8 @@ const styles =
         FixxamTokens.radius.md,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        CustomerColors
+          .primarySoft,
     },
 
     headerText: {
@@ -1270,6 +1777,8 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
+      flexShrink: 0,
+
       alignItems: "center",
       justifyContent:
         "center",
@@ -1278,13 +1787,22 @@ const styles =
         FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabledBackground,
+        Colors
+          .disabledBackground,
     },
 
     closePressed: {
       opacity:
         FixxamTokens.motion
           .pressedOpacity,
+    },
+
+    scrollContent: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
     },
 
     description: {
@@ -1294,13 +1812,25 @@ const styles =
       lineHeight: 20,
     },
 
-    /* ========================================================
-       ROWS
-    ======================================================== */
-
     rows: {
       marginTop:
         FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    row: {
+      minHeight: 68,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      flexDirection: "row",
+      alignItems: "center",
 
       borderWidth: 1,
 
@@ -1310,28 +1840,8 @@ const styles =
       borderRadius:
         FixxamTokens.radius.lg,
 
-      overflow: "hidden",
-
       backgroundColor:
-        Colors.surface,
-    },
-
-    row: {
-      minHeight: 72,
-
-      flexDirection: "row",
-      alignItems: "center",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        Colors.divider,
+        Colors.background,
     },
 
     rowIcon: {
@@ -1399,19 +1909,19 @@ const styles =
         FixxamTokens.radius.full,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        CustomerColors
+          .primarySoft,
     },
 
-    /* ========================================================
-       DELETE
-    ======================================================== */
-
     deleteButton: {
-      minWidth: 78,
+      minWidth: 86,
 
       minHeight:
         FixxamTokens.size
           .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
       flexDirection: "row",
       alignItems: "center",
@@ -1420,9 +1930,6 @@ const styles =
 
       gap:
         FixxamTokens.spacing.xs,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
@@ -1434,28 +1941,6 @@ const styles =
 
       backgroundColor:
         Colors.errorSoft,
-    },
-
-    deleteText: {
-      color:
-        Colors.error,
-    },
-
-    deleteTextDisabled: {
-      color:
-        Colors.textMuted,
-    },
-
-    disabledButton: {
-      borderColor:
-        Colors.border,
-
-      backgroundColor:
-        Colors.disabledBackground,
-
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
     },
 
     deletePressed: {
@@ -1472,6 +1957,29 @@ const styles =
       ],
     },
 
+    disabledButton: {
+      borderColor:
+        Colors.border,
+
+      backgroundColor:
+        Colors
+          .disabledBackground,
+
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    deleteText: {
+      color:
+        Colors.error,
+    },
+
+    deleteTextDisabled: {
+      color:
+        Colors.textMuted,
+    },
+
     lockedButton: {
       width:
         FixxamTokens.size
@@ -1481,6 +1989,8 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
+      flexShrink: 0,
+
       alignItems: "center",
       justifyContent:
         "center",
@@ -1489,12 +1999,9 @@ const styles =
         FixxamTokens.radius.md,
 
       backgroundColor:
-        Colors.disabledBackground,
+        Colors
+          .disabledBackground,
     },
-
-    /* ========================================================
-       INFO
-    ======================================================== */
 
     infoBox: {
       marginTop:
@@ -1516,7 +2023,8 @@ const styles =
         FixxamTokens.radius.lg,
 
       backgroundColor:
-        Colors.infoSoft,
+        CustomerColors
+          .primarySoft,
     },
 
     infoIcon: {
@@ -1546,7 +2054,7 @@ const styles =
 
     infoTitle: {
       color:
-        Colors.textPrimary,
+        CustomerColors.primary,
     },
 
     infoText: {
@@ -1556,17 +2064,27 @@ const styles =
       lineHeight: 17,
     },
 
-    /* ========================================================
-       DONE
-    ======================================================== */
+    footer: {
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      paddingTop:
+        FixxamTokens.spacing.sm,
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
+
+      backgroundColor:
+        Colors.surface,
+    },
 
     doneButton: {
       minHeight:
         FixxamTokens.size
           .buttonHeight,
-
-      marginTop:
-        FixxamTokens.spacing.lg,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -1591,12 +2109,6 @@ const styles =
         Colors.textInverse,
     },
 
-    doneDisabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
     donePressed: {
       opacity:
         FixxamTokens.motion
@@ -1609,5 +2121,11 @@ const styles =
               .scalePressed,
         },
       ],
+    },
+
+    doneDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -14,8 +15,10 @@ import {
   doc,
   onSnapshot,
   query,
+  serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 import {
@@ -40,6 +43,13 @@ type DashboardStats = {
   reviewCount: number;
 };
 
+type PublicWorkerProfile = {
+  rating?: number;
+  totalReviews?: number;
+
+  online?: boolean;
+};
+
 /* ==============================================================
    DEFAULTS
 ============================================================== */
@@ -52,6 +62,45 @@ const EMPTY_STATS: DashboardStats = {
   rating: 0,
   reviewCount: 0,
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function getSafeRating(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
+function getSafeReviewCount(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.floor(value),
+  );
+}
 
 /* ==============================================================
    HOOK
@@ -113,19 +162,43 @@ export default function useWorkerDashboard() {
   const [
     online,
     setOnline,
-  ] = useState<boolean>(false);
+  ] = useState<boolean>(
+    false,
+  );
+
+  const [
+    updatingOnline,
+    setUpdatingOnline,
+  ] = useState<boolean>(
+    false,
+  );
+
+  /* ============================================================
+     REFS
+  ============================================================ */
+
+  const onlineRef =
+    useRef<boolean>(
+      false,
+    );
+
+  const updatingOnlineRef =
+    useRef<boolean>(
+      false,
+    );
 
   /* ============================================================
      AUTH STATE
   ============================================================ */
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
     const unsubscribe =
       onAuthStateChanged(
         auth,
-        (currentUser) => {
+        currentUser => {
           if (!mounted) {
             return;
           }
@@ -137,10 +210,23 @@ export default function useWorkerDashboard() {
       );
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
+
       unsubscribe();
     };
   }, []);
+
+  /* ============================================================
+     KEEP ONLINE REF CURRENT
+  ============================================================ */
+
+  useEffect(() => {
+    onlineRef.current =
+      online;
+  }, [
+    online,
+  ]);
 
   /* ============================================================
      RESET DASHBOARD
@@ -172,7 +258,19 @@ export default function useWorkerDashboard() {
         EMPTY_STATS.reviewCount,
       );
 
-      setOnline(false);
+      setOnline(
+        false,
+      );
+
+      onlineRef.current =
+        false;
+
+      setUpdatingOnline(
+        false,
+      );
+
+      updatingOnlineRef.current =
+        false;
     }, []);
 
   /* ============================================================
@@ -181,7 +279,8 @@ export default function useWorkerDashboard() {
 
   useEffect(() => {
     const workerId =
-      user?.uid?.trim() ?? "";
+      user?.uid?.trim() ??
+      "";
 
     /* ==========================================================
        NO AUTHENTICATED USER
@@ -189,17 +288,29 @@ export default function useWorkerDashboard() {
 
     if (!workerId) {
       resetDashboard();
-      setLoading(false);
+
+      setLoading(
+        false,
+      );
 
       return;
     }
 
-    let mounted = true;
+    let mounted =
+      true;
 
-    let profileReady = false;
-    let bookingsReady = false;
+    let userProfileReady =
+      false;
 
-    setLoading(true);
+    let publicProfileReady =
+      false;
+
+    let bookingsReady =
+      false;
+
+    setLoading(
+      true,
+    );
 
     /* ==========================================================
        LOADING CONTROL
@@ -212,15 +323,21 @@ export default function useWorkerDashboard() {
         }
 
         if (
-          profileReady &&
+          userProfileReady &&
+          publicProfileReady &&
           bookingsReady
         ) {
-          setLoading(false);
+          setLoading(
+            false,
+          );
         }
       };
 
     /* ==========================================================
-       WORKER PROFILE
+       PRIVATE WORKER PROFILE
+
+       Canonical worker-side source for online/offline.
+       users/{workerId}
     ========================================================== */
 
     const profileRef =
@@ -234,7 +351,7 @@ export default function useWorkerDashboard() {
       onSnapshot(
         profileRef,
 
-        (snapshot) => {
+        snapshot => {
           if (!mounted) {
             return;
           }
@@ -242,9 +359,16 @@ export default function useWorkerDashboard() {
           if (
             !snapshot.exists()
           ) {
-            setOnline(false);
+            setOnline(
+              false,
+            );
 
-            profileReady = true;
+            onlineRef.current =
+              false;
+
+            userProfileReady =
+              true;
+
             finishLoading();
 
             return;
@@ -253,22 +377,33 @@ export default function useWorkerDashboard() {
           const data =
             snapshot.data();
 
+          const nextOnline =
+            data.online ===
+            true;
+
           setOnline(
-            data.online === true,
+            nextOnline,
           );
 
-          profileReady = true;
+          onlineRef.current =
+            nextOnline;
+
+          userProfileReady =
+            true;
+
           finishLoading();
         },
 
-        (error) => {
+        error => {
           console.error(
             "FIXXAM_WORKER_DASHBOARD_PROFILE_ERROR",
             {
               code:
                 error.code,
+
               message:
                 error.message,
+
               workerId,
             },
           );
@@ -277,15 +412,127 @@ export default function useWorkerDashboard() {
             return;
           }
 
-          setOnline(false);
+          setOnline(
+            false,
+          );
 
-          profileReady = true;
+          onlineRef.current =
+            false;
+
+          userProfileReady =
+            true;
+
+          finishLoading();
+        },
+      );
+
+    /* ==========================================================
+       PUBLIC WORKER PROFILE
+
+       Canonical public source for:
+       - worker rating
+       - total reviews
+       - public online availability
+
+       workerPublicProfiles/{workerId}
+    ========================================================== */
+
+    const publicProfileRef =
+      doc(
+        db,
+        "workerPublicProfiles",
+        workerId,
+      );
+
+    const unsubscribePublicProfile =
+      onSnapshot(
+        publicProfileRef,
+
+        snapshot => {
+          if (!mounted) {
+            return;
+          }
+
+          if (
+            !snapshot.exists()
+          ) {
+            setRating(
+              0,
+            );
+
+            setReviewCount(
+              0,
+            );
+
+            publicProfileReady =
+              true;
+
+            finishLoading();
+
+            return;
+          }
+
+          const data =
+            snapshot.data() as PublicWorkerProfile;
+
+          setRating(
+            getSafeRating(
+              data.rating,
+            ),
+          );
+
+          setReviewCount(
+            getSafeReviewCount(
+              data.totalReviews,
+            ),
+          );
+
+          publicProfileReady =
+            true;
+
+          finishLoading();
+        },
+
+        error => {
+          console.error(
+            "FIXXAM_WORKER_DASHBOARD_PUBLIC_PROFILE_ERROR",
+            {
+              code:
+                error.code,
+
+              message:
+                error.message,
+
+              workerId,
+            },
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          setRating(
+            0,
+          );
+
+          setReviewCount(
+            0,
+          );
+
+          publicProfileReady =
+            true;
+
           finishLoading();
         },
       );
 
     /* ==========================================================
        WORKER BOOKINGS
+
+       Used only for existing dashboard job statistics.
+
+       Home job overview may use useWorkerOrderCounts instead,
+       but these values remain here for existing callers.
     ========================================================== */
 
     const bookingsQuery =
@@ -294,6 +541,7 @@ export default function useWorkerDashboard() {
           db,
           "bookings",
         ),
+
         where(
           "workerId",
           "==",
@@ -305,81 +553,59 @@ export default function useWorkerDashboard() {
       onSnapshot(
         bookingsQuery,
 
-        (snapshot) => {
+        snapshot => {
           if (!mounted) {
             return;
           }
 
-          let pendingCount = 0;
-          let activeCount = 0;
-          let negotiatingCount = 0;
-          let completedCount = 0;
+          let pendingCount =
+            0;
 
-          let totalRating = 0;
-          let ratings = 0;
+          let activeCount =
+            0;
+
+          let negotiatingCount =
+            0;
+
+          let completedCount =
+            0;
 
           snapshot.forEach(
-            (bookingDoc) => {
+            bookingDoc => {
               const booking =
                 bookingDoc.data();
 
               const status =
                 booking.status;
 
-              /* ==================================================
-                 STATUS
-              ================================================== */
-
               switch (status) {
                 case BOOKING_STATUS.PENDING_ESTIMATE:
-                  pendingCount += 1;
+                  pendingCount +=
+                    1;
                   break;
 
                 case BOOKING_STATUS.NEGOTIATING:
-                  negotiatingCount += 1;
+                  negotiatingCount +=
+                    1;
                   break;
 
                 case BOOKING_STATUS.ACCEPTED:
                 case BOOKING_STATUS.ON_THE_WAY:
                 case BOOKING_STATUS.IN_PROGRESS:
-                  activeCount += 1;
+                  activeCount +=
+                    1;
                   break;
 
                 case BOOKING_STATUS.COMPLETED:
-                  completedCount += 1;
+                  completedCount +=
+                    1;
                   break;
 
                 default:
                   break;
               }
-
-              /* ==================================================
-                 RATING
-              ================================================== */
-
-              const bookingRating =
-                booking.rating;
-
-              if (
-                typeof bookingRating ===
-                  "number" &&
-                Number.isFinite(
-                  bookingRating,
-                ) &&
-                bookingRating >= 1 &&
-                bookingRating <= 5
-              ) {
-                totalRating +=
-                  bookingRating;
-
-                ratings += 1;
-              }
             },
           );
-
-          /* ======================================================
-             UPDATE STATE
-          ====================================================== */
 
           setPending(
             pendingCount,
@@ -397,33 +623,22 @@ export default function useWorkerDashboard() {
             completedCount,
           );
 
-          setReviewCount(
-            ratings,
-          );
+          bookingsReady =
+            true;
 
-          setRating(
-            ratings > 0
-              ? Number(
-                  (
-                    totalRating /
-                    ratings
-                  ).toFixed(1),
-                )
-              : 0,
-          );
-
-          bookingsReady = true;
           finishLoading();
         },
 
-        (error) => {
+        error => {
           console.error(
             "FIXXAM_WORKER_DASHBOARD_BOOKINGS_ERROR",
             {
               code:
                 error.code,
+
               message:
                 error.message,
+
               workerId,
             },
           );
@@ -432,20 +647,25 @@ export default function useWorkerDashboard() {
             return;
           }
 
-          /*
-           * Keep Worker Home usable
-           * even when Firestore denies
-           * the booking listener.
-           */
+          setPending(
+            0,
+          );
 
-          setPending(0);
-          setActive(0);
-          setNegotiating(0);
-          setCompleted(0);
-          setRating(0);
-          setReviewCount(0);
+          setActive(
+            0,
+          );
 
-          bookingsReady = true;
+          setNegotiating(
+            0,
+          );
+
+          setCompleted(
+            0,
+          );
+
+          bookingsReady =
+            true;
+
           finishLoading();
         },
       );
@@ -455,9 +675,13 @@ export default function useWorkerDashboard() {
     ========================================================== */
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
 
       unsubscribeProfile();
+
+      unsubscribePublicProfile();
+
       unsubscribeBookings();
     };
   }, [
@@ -467,6 +691,13 @@ export default function useWorkerDashboard() {
 
   /* ============================================================
      TOGGLE ONLINE
+
+     Writes availability to BOTH:
+     - users/{workerId}
+     - workerPublicProfiles/{workerId}
+
+     This keeps the private worker account and public customer
+     view synchronized.
   ============================================================ */
 
   const toggleOnline =
@@ -475,36 +706,114 @@ export default function useWorkerDashboard() {
         value: boolean,
       ) => {
         const workerId =
-          user?.uid?.trim() ?? "";
+          user?.uid?.trim() ??
+          "";
 
         if (!workerId) {
           return;
         }
 
+        /* ======================================================
+           PREVENT DUPLICATE / RAPID WRITES
+        ====================================================== */
+
+        if (
+          updatingOnlineRef.current
+        ) {
+          return;
+        }
+
+        if (
+          value ===
+          onlineRef.current
+        ) {
+          return;
+        }
+
         const previousValue =
-          online;
+          onlineRef.current;
 
-        /* ------------------------------------------------------
-           Optimistic UI
-        ------------------------------------------------------ */
+        updatingOnlineRef.current =
+          true;
 
-        setOnline(value);
+        setUpdatingOnline(
+          true,
+        );
+
+        /* ======================================================
+           OPTIMISTIC UI
+        ====================================================== */
+
+        onlineRef.current =
+          value;
+
+        setOnline(
+          value,
+        );
 
         try {
-          await updateDoc(
+          const batch =
+            writeBatch(
+              db,
+            );
+
+          const privateProfileRef =
             doc(
               db,
               "users",
               workerId,
-            ),
+            );
+
+          const publicProfileRef =
+            doc(
+              db,
+              "workerPublicProfiles",
+              workerId,
+            );
+
+          const timestamp =
+            serverTimestamp();
+
+          /* ====================================================
+             PRIVATE PROFILE
+          ==================================================== */
+
+          batch.update(
+            privateProfileRef,
             {
-              online: value,
+              online:
+                value,
+
+              onlineUpdatedAt:
+                timestamp,
             },
           );
+
+          /* ====================================================
+             PUBLIC PROFILE
+          ==================================================== */
+
+          batch.update(
+            publicProfileRef,
+            {
+              online:
+                value,
+
+              onlineUpdatedAt:
+                timestamp,
+            },
+          );
+
+          await batch.commit();
         } catch (error) {
-          /* ----------------------------------------------------
-             Rollback
-          ---------------------------------------------------- */
+          /* ====================================================
+             ROLLBACK UI
+
+             onSnapshot will also restore the server truth.
+          ==================================================== */
+
+          onlineRef.current =
+            previousValue;
 
           setOnline(
             previousValue,
@@ -516,30 +825,45 @@ export default function useWorkerDashboard() {
               code:
                 typeof error ===
                   "object" &&
-                error !== null &&
-                "code" in error
+                error !==
+                  null &&
+                "code" in
+                  error
                   ? String(
                       (
                         error as {
-                          code: unknown;
+                          code:
+                            unknown;
                         }
                       ).code,
                     )
                   : "unknown",
 
               message:
-                error instanceof Error
+                error instanceof
+                Error
                   ? error.message
-                  : String(error),
+                  : String(
+                      error,
+                    ),
 
               workerId,
+
+              requestedOnline:
+                value,
             },
+          );
+        } finally {
+          updatingOnlineRef.current =
+            false;
+
+          setUpdatingOnline(
+            false,
           );
         }
       },
       [
         user?.uid,
-        online,
       ],
     );
 
@@ -559,6 +883,7 @@ export default function useWorkerDashboard() {
     reviewCount,
 
     online,
+    updatingOnline,
     toggleOnline,
   };
 }

@@ -70,12 +70,12 @@ const Stat = memo(
         accessibilityLabel={`${item.value} ${item.label}`}
       >
         <AppText
-          variant="heading3"
+          variant="bodyMedium"
           weight="bold"
           numberOfLines={1}
           style={styles.value}
         >
-          {item.value}
+          {item.value.toLocaleString()}
         </AppText>
 
         <AppText
@@ -95,7 +95,7 @@ const Stat = memo(
    COMPONENT
 ============================================================ */
 
-export default function CustomerStats({
+function CustomerStats({
   orders,
   saved,
   reviews,
@@ -105,20 +105,25 @@ export default function CustomerStats({
       () => [
         {
           label: "Orders",
+
           value:
             normalizeCount(
               orders,
             ),
         },
+
         {
           label: "Saved",
+
           value:
             normalizeCount(
               saved,
             ),
         },
+
         {
           label: "Reviews",
+
           value:
             normalizeCount(
               reviews,
@@ -134,7 +139,9 @@ export default function CustomerStats({
 
   return (
     <View
-      style={styles.container}
+      style={
+        styles.container
+      }
     >
       {stats.map(
         (
@@ -142,7 +149,9 @@ export default function CustomerStats({
           index,
         ) => (
           <React.Fragment
-            key={item.label}
+            key={
+              item.label
+            }
           >
             {index > 0 ? (
               <View
@@ -153,7 +162,9 @@ export default function CustomerStats({
             ) : null}
 
             <Stat
-              item={item}
+              item={
+                item
+              }
             />
           </React.Fragment>
         ),
@@ -161,6 +172,10 @@ export default function CustomerStats({
     </View>
   );
 }
+
+export default memo(
+  CustomerStats,
+);
 
 /* ============================================================
    STYLES
@@ -173,7 +188,8 @@ const styles =
     ======================================================== */
 
     container: {
-      minHeight: 88,
+      minHeight:
+        88,
 
       paddingVertical:
         FixxamTokens.spacing.md,
@@ -181,9 +197,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       backgroundColor:
         Colors.surface,
@@ -194,16 +212,26 @@ const styles =
     ======================================================== */
 
     item: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
-      alignItems: "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xxs,
 
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
     },
 
     value: {
+      textAlign:
+        "center",
+
       color:
         CustomerColors.primary,
     },
@@ -211,6 +239,9 @@ const styles =
     label: {
       marginTop:
         FixxamTokens.spacing.xxs,
+
+      textAlign:
+        "center",
 
       color:
         Colors.textSecondary,
@@ -221,9 +252,11 @@ const styles =
     ======================================================== */
 
     divider: {
-      width: 1,
+      width:
+        1,
 
-      height: 38,
+      height:
+        38,
 
       backgroundColor:
         Colors.divider,

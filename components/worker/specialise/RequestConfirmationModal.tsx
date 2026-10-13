@@ -10,6 +10,8 @@ import {
   View,
 } from "react-native";
 
+import CategoryCard from "@/components/categories/CategoryCard";
+
 import {
   AppButton,
   AppIcon,
@@ -33,6 +35,12 @@ type Props = {
 
   service: string;
 
+  serviceIcon?: string | null;
+
+  serviceIconColor?: string | null;
+
+  serviceBackgroundColor?: string | null;
+
   location: string;
 
   phone: string;
@@ -45,6 +53,19 @@ type Props = {
 };
 
 /* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const DEFAULT_SERVICE_ICON =
+  "hammer-wrench";
+
+const DEFAULT_SERVICE_COLOR =
+  "#2563EB";
+
+const DEFAULT_SERVICE_BACKGROUND =
+  "#EFF6FF";
+
+/* ==============================================================
    HELPERS
 ============================================================== */
 
@@ -55,8 +76,33 @@ function normalizeText(
   const normalized =
     value.trim();
 
-  return normalized ||
-    fallback;
+  return (
+    normalized ||
+    fallback
+  );
+}
+
+function normalizeOptionalText(
+  value:
+    | string
+    | null
+    | undefined,
+  fallback: string,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
+
+  const normalized =
+    value.trim();
+
+  return (
+    normalized ||
+    fallback
+  );
 }
 
 /* ==============================================================
@@ -67,18 +113,18 @@ function RequestConfirmationModal({
   visible,
   workerName,
   service,
+  serviceIcon,
+  serviceIconColor,
+  serviceBackgroundColor,
   location,
   phone,
   loading = false,
   onCancel,
   onConfirm,
 }: Props) {
-  /*
-   * Do not copy these props into local state.
-   *
-   * The modal must always display the latest
-   * values received from the parent screen.
-   */
+  /* ============================================================
+     DISPLAY VALUES
+  ============================================================ */
 
   const displayWorkerName =
     useMemo(
@@ -87,7 +133,9 @@ function RequestConfirmationModal({
           workerName,
           "Worker",
         ),
-      [workerName],
+      [
+        workerName,
+      ],
     );
 
   const displayService =
@@ -97,7 +145,9 @@ function RequestConfirmationModal({
           service,
           "Not specified",
         ),
-      [service],
+      [
+        service,
+      ],
     );
 
   const displayLocation =
@@ -107,7 +157,9 @@ function RequestConfirmationModal({
           location,
           "Not specified",
         ),
-      [location],
+      [
+        location,
+      ],
     );
 
   const displayPhone =
@@ -117,7 +169,45 @@ function RequestConfirmationModal({
           phone,
           "Not specified",
         ),
-      [phone],
+      [
+        phone,
+      ],
+    );
+
+  const resolvedServiceIcon =
+    useMemo(
+      () =>
+        normalizeOptionalText(
+          serviceIcon,
+          DEFAULT_SERVICE_ICON,
+        ),
+      [
+        serviceIcon,
+      ],
+    );
+
+  const resolvedServiceColor =
+    useMemo(
+      () =>
+        normalizeOptionalText(
+          serviceIconColor,
+          DEFAULT_SERVICE_COLOR,
+        ),
+      [
+        serviceIconColor,
+      ],
+    );
+
+  const resolvedServiceBackground =
+    useMemo(
+      () =>
+        normalizeOptionalText(
+          serviceBackgroundColor,
+          DEFAULT_SERVICE_BACKGROUND,
+        ),
+      [
+        serviceBackgroundColor,
+      ],
     );
 
   /* ============================================================
@@ -132,8 +222,11 @@ function RequestConfirmationModal({
       transparent
       animationType="fade"
       statusBarTranslucent
+      hardwareAccelerated
       onRequestClose={() => {
-        if (!loading) {
+        if (
+          !loading
+        ) {
           onCancel();
         }
       }}
@@ -144,6 +237,7 @@ function RequestConfirmationModal({
         }
       >
         <View
+          accessibilityViewIsModal
           style={
             styles.modal
           }
@@ -152,7 +246,10 @@ function RequestConfirmationModal({
             showsVerticalScrollIndicator={
               false
             }
-            bounces={false}
+            bounces={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={
               styles.content
             }
@@ -189,7 +286,9 @@ function RequestConfirmationModal({
                 <AppText
                   variant="heading2"
                   weight="bold"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                   style={
                     styles.title
                   }
@@ -200,6 +299,9 @@ function RequestConfirmationModal({
                 <AppText
                   variant="caption"
                   tone="secondary"
+                  numberOfLines={
+                    2
+                  }
                   style={
                     styles.subtitle
                   }
@@ -251,7 +353,9 @@ function RequestConfirmationModal({
                 <AppText
                   variant="bodyMedium"
                   weight="bold"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                   style={
                     styles.workerName
                   }
@@ -259,6 +363,34 @@ function RequestConfirmationModal({
                   {displayWorkerName}
                 </AppText>
               </View>
+            </View>
+
+            {/* ==================================================
+                SERVICE
+            ================================================== */}
+
+            <View
+              style={
+                styles.serviceSection
+              }
+            >
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.sectionLabel
+                }
+              >
+                Service
+              </AppText>
+
+<CategoryCard
+  icon={resolvedServiceIcon}
+  iconColor={resolvedServiceColor}
+  backgroundColor={resolvedServiceBackground}
+  title={displayService}
+  onPress={() => {}}
+/>
             </View>
 
             {/* ==================================================
@@ -271,20 +403,14 @@ function RequestConfirmationModal({
               }
             >
               <DetailRow
-                icon="service"
-                label="Service"
-                value={
-                  displayService
-                }
-              />
-
-              <DetailRow
                 icon="location"
                 label="Location"
                 value={
                   displayLocation
                 }
-                numberOfLines={3}
+                numberOfLines={
+                  3
+                }
               />
 
               <DetailRow
@@ -297,7 +423,7 @@ function RequestConfirmationModal({
             </View>
 
             {/* ==================================================
-                INFORMATION
+                INFO
             ================================================== */}
 
             <View
@@ -327,7 +453,8 @@ function RequestConfirmationModal({
                   styles.infoText
                 }
               >
-                Your request will be sent to up to 5 customers in {displayLocation}.
+                Your request will be sent to up to 5 customers in{" "}
+                {displayLocation}.
               </AppText>
             </View>
 
@@ -408,7 +535,6 @@ function DetailRow({
   numberOfLines = 1,
 }: {
   icon:
-    | "service"
     | "location"
     | "phone";
 
@@ -490,7 +616,8 @@ export default memo(
 const styles =
   StyleSheet.create({
     overlay: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         "center",
@@ -506,11 +633,17 @@ const styles =
     },
 
     modal: {
-      width: "100%",
+      width:
+        "100%",
 
-      maxWidth: 430,
+      maxWidth:
+        430,
 
-      maxHeight: "90%",
+      maxHeight:
+        "90%",
+
+      overflow:
+        "hidden",
 
       borderRadius:
         FixxamTokens.radius.xl,
@@ -551,7 +684,8 @@ const styles =
       height:
         FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -567,9 +701,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     title: {
@@ -602,7 +738,8 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -621,7 +758,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       marginRight:
         FixxamTokens.spacing.md,
@@ -640,9 +778,11 @@ const styles =
     },
 
     workerInfo: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     workerName: {
@@ -654,6 +794,23 @@ const styles =
     },
 
     smallLabel: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ==========================================================
+       SERVICE
+    ========================================================== */
+
+    serviceSection: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    sectionLabel: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+
       color:
         Colors.textMuted,
     },
@@ -691,7 +848,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       marginRight:
         FixxamTokens.spacing.md,
@@ -710,9 +868,11 @@ const styles =
     },
 
     detailContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
     },
 
     value: {
@@ -743,7 +903,8 @@ const styles =
       gap:
         FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         WorkerColors.primarySoft,
@@ -756,11 +917,14 @@ const styles =
     },
 
     infoIcon: {
-      width: 30,
+      width:
+        30,
 
-      height: 30,
+      height:
+        30,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -776,9 +940,11 @@ const styles =
     },
 
     infoText: {
-      flex: 1,
+      flex:
+        1,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
 
       color:
         Colors.textSecondary,
@@ -797,14 +963,17 @@ const styles =
     },
 
     cancelAction: {
-      flex: 0.9,
+      flex:
+        0.9,
     },
 
     confirmAction: {
-      flex: 1.1,
+      flex:
+        1.1,
     },
 
     actionButton: {
-      width: "100%",
+      width:
+        "100%",
     },
   });

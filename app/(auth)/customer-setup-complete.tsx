@@ -1,6 +1,8 @@
 import React, {
   useCallback,
   useEffect,
+  useRef,
+  useState,
 } from "react";
 
 import {
@@ -15,8 +17,14 @@ import {
 } from "expo-router";
 
 import {
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
+
+import { auth } from "@/firebase/config";
+
+import {
   AppButton,
-  AppCard,
   AppIcon,
   AppScreen,
   AppText,
@@ -32,6 +40,37 @@ import {
 ============================================================ */
 
 export default function CustomerSetupComplete() {
+  const [user, setUser] =
+    useState<User | null>(
+      null,
+    );
+
+  const [authLoading, setAuthLoading] =
+    useState(true);
+
+  const navigationStarted =
+    useRef(false);
+
+  /* ==========================================================
+     LISTEN TO FIREBASE AUTH
+  ========================================================== */
+
+  useEffect(() => {
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        firebaseUser => {
+          setUser(
+            firebaseUser,
+          );
+
+          setAuthLoading(false);
+        },
+      );
+
+    return unsubscribe;
+  }, []);
+
   /* ==========================================================
      BLOCK BACK
   ========================================================== */
@@ -49,17 +88,59 @@ export default function CustomerSetupComplete() {
   }, []);
 
   /* ==========================================================
-     CONTINUE
+     NAVIGATE TO CUSTOMER HOME
   ========================================================== */
 
-  const handleContinue =
+  const navigateToCustomerHome =
     useCallback(() => {
-      router.dismissAll();
+      if (
+        authLoading ||
+        !user ||
+        navigationStarted.current
+      ) {
+        return;
+      }
+
+      navigationStarted.current =
+        true;
 
       router.replace(
         "/(customer)/(tabs)/home",
       );
-    }, []);
+    }, [
+      authLoading,
+      user,
+    ]);
+
+  /* ==========================================================
+     AUTO CONTINUE AFTER AUTH IS READY
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      authLoading ||
+      !user
+    ) {
+      return;
+    }
+
+    navigateToCustomerHome();
+  }, [
+    authLoading,
+    navigateToCustomerHome,
+    user,
+  ]);
+
+  /* ==========================================================
+     CONTINUE BUTTON
+  ========================================================== */
+
+  const handleContinue =
+    useCallback(() => {
+      navigateToCustomerHome();
+    }, [
+      navigateToCustomerHome,
+    ]);
 
   /* ==========================================================
      RENDER
@@ -85,73 +166,84 @@ export default function CustomerSetupComplete() {
             styles.container
           }
         >
-          <AppCard
+          {/* ==================================================
+              SUCCESS ICON
+          ================================================== */}
+
+          <View
             style={
-              styles.card
+              styles.successIcon
             }
           >
-            <View
-              style={
-                styles.successIcon
+            <AppIcon
+              name="success"
+              role="customer"
+              state="active"
+              size="xl"
+              color={
+                Colors.success
               }
-            >
-              <AppIcon
-                name="success"
-                size="xl"
-                color={
-                  Colors.success
-                }
-              />
-            </View>
+            />
+          </View>
 
-            <AppText
-              variant="heading2"
-              weight="bold"
-              center
-              style={
-                styles.title
-              }
-            >
-              Setup Complete
-            </AppText>
+          {/* ==================================================
+              TITLE
+          ================================================== */}
 
-            <AppText
-              variant="body"
-              tone="secondary"
-              center
-              style={
-                styles.description
-              }
-            >
-              Your customer profile has been created successfully.
-            </AppText>
+          <AppText
+            variant="heading1"
+            weight="bold"
+            center
+            style={
+              styles.title
+            }
+          >
+            Welcome to Fixxam!
+          </AppText>
 
-            <AppText
-              variant="body"
-              tone="secondary"
-              center
-              style={
-                styles.subtitle
-              }
-            >
-              You can now start requesting services from trusted workers.
-            </AppText>
+          {/* ==================================================
+              DESCRIPTION
+          ================================================== */}
 
-            <View
-              style={
-                styles.buttonContainer
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.description
+            }
+          >
+            Your account has been created successfully.
+          </AppText>
+
+          {/* ==================================================
+              CONTINUE
+          ================================================== */}
+
+          <View
+            style={
+              styles.buttonContainer
+            }
+          >
+            <AppButton
+              title={
+                authLoading
+                  ? "Preparing your account..."
+                  : "Continue to Home"
               }
-            >
-              <AppButton
-                title="Go to Home"
-                role="customer"
-                variant="primary"
-                onPress={
-                  handleContinue
-                }
-              />
-            </View>
-          </AppCard>
+              role="customer"
+              variant="primary"
+              size="md"
+              onPress={
+                handleContinue
+              }
+              disabled={
+                authLoading ||
+                !user ||
+                navigationStarted.current
+              }
+            />
+          </View>
         </View>
       </AppScreen>
     </>
@@ -174,38 +266,28 @@ const styles =
     container: {
       flex: 1,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+      alignItems: "center",
 
       justifyContent:
         "center",
-    },
 
-    card: {
       paddingHorizontal:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
 
-      paddingVertical:
+      paddingBottom:
         FixxamTokens.spacing.xxl,
-
-      alignItems:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.xl,
-
-      ...FixxamTokens.shadow.card,
     },
+
+    /* ==========================================================
+       SUCCESS ICON
+    ========================================================== */
 
     successIcon: {
-      width:
-        FixxamTokens.size.avatarXl,
+      width: 96,
 
-      height:
-        FixxamTokens.size.avatarXl,
+      height: 96,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
       justifyContent:
         "center",
@@ -217,13 +299,21 @@ const styles =
         Colors.successSoft,
     },
 
+    /* ==========================================================
+       TITLE
+    ========================================================== */
+
     title: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.xl,
 
       color:
         Colors.textPrimary,
     },
+
+    /* ==========================================================
+       DESCRIPTION
+    ========================================================== */
 
     description: {
       maxWidth: 320,
@@ -237,22 +327,14 @@ const styles =
         Colors.textSecondary,
     },
 
-    subtitle: {
-      maxWidth: 320,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 21,
-
-      color:
-        Colors.textSecondary,
-    },
+    /* ==========================================================
+       BUTTON
+    ========================================================== */
 
     buttonContainer: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.xxl,
     },
   });

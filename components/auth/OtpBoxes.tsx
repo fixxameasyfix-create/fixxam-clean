@@ -1,340 +1,640 @@
 import React, {
   memo,
   useCallback,
-  useMemo,
+  useEffect,
   useRef,
   useState,
 } from "react";
 
 import {
+  Platform,
   StyleSheet,
   TextInput,
-  type TextInputKeyPressEventData,
-  type NativeSyntheticEvent,
   View,
 } from "react-native";
 
-import AppText from "@/components/ui/AppText";
-
 import {
-  CustomerColors,
   FixxamTokens,
-  Typography,
-  WorkerColors,
   type FixxamRole,
 } from "@/theme";
 
-const OTP_LENGTH = 6;
-
-export interface OtpBoxesProps {
+interface OtpBoxesProps {
   value: string;
 
-  onChange: (value: string) => void;
+  onChange: (
+    value: string,
+  ) => void;
 
-  onComplete?: (value: string) => void;
+  onComplete?: (
+    value: string,
+  ) => void;
 
   role?: FixxamRole;
-
-  /*
-   * Legacy support.
-   */
-  variant?: "customer" | "worker";
 
   editable?: boolean;
 
   error?: string;
-
-  helperText?: string;
-
-  autoFocus?: boolean;
 }
+
+const OTP_LENGTH = 6;
 
 function OtpBoxes({
   value,
   onChange,
   onComplete,
-
-  role = "customer",
-  variant,
-
   editable = true,
-
   error,
-  helperText,
-
-  autoFocus = false,
 }: OtpBoxesProps) {
-  const inputs =
-    useRef<Array<TextInput | null>>([]);
+  const inputRefs =
+    useRef<
+      Array<
+        TextInput | null
+      >
+    >([]);
+
+  const focusTimerRef =
+    useRef<
+      ReturnType<
+        typeof setTimeout
+      > | null
+    >(null);
+
+  const previousValueRef =
+    useRef(value);
 
   const [focusedIndex, setFocusedIndex] =
     useState<number | null>(null);
 
-  const resolvedRole: FixxamRole =
-    variant ?? role;
+  /* ============================================================
+     FOCUS FIRST BOX
+  ============================================================ */
 
-  const colors =
-    resolvedRole === "worker"
-      ? WorkerColors
-      : CustomerColors;
-
-  const sanitizedValue = useMemo(
-    () =>
-      value
-        .replace(/\D/g, "")
-        .slice(0, OTP_LENGTH),
-    [value],
-  );
-
-  const digits = useMemo(
-    () =>
-      Array.from(
-        { length: OTP_LENGTH },
-        (_, index) =>
-          sanitizedValue[index] ?? "",
-      ),
-    [sanitizedValue],
-  );
-
-  const emitValue = useCallback(
-    (nextValue: string) => {
-      const sanitized = nextValue
-        .replace(/\D/g, "")
-        .slice(0, OTP_LENGTH);
-
-      onChange(sanitized);
-
-      if (sanitized.length === OTP_LENGTH) {
-        onComplete?.(sanitized);
-      }
-    },
-    [onChange, onComplete],
-  );
-
-  const handleChange = useCallback(
-    (text: string, index: number) => {
-      const incoming = text.replace(
-        /\D/g,
-        "",
-      );
-
-      if (!incoming) {
-        const next =
-          sanitizedValue.split("");
-
-        next.splice(index, 1);
-
-        emitValue(next.join(""));
+  const focusFirstBox =
+    useCallback(() => {
+      if (!editable) {
         return;
       }
 
-      /*
-       * Supports typing a single digit
-       * and pasting multiple OTP digits.
-       */
-      if (incoming.length > 1) {
-        const prefix =
-          sanitizedValue.slice(0, index);
+      if (
+        focusTimerRef.current
+      ) {
+        clearTimeout(
+          focusTimerRef.current,
+        );
+      }
 
-        const suffix =
-          sanitizedValue.slice(
-            index + incoming.length,
-          );
+      focusTimerRef.current =
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 120);
+    }, [editable]);
 
-        const next = (
-          prefix +
-          incoming +
-          suffix
-        ).slice(0, OTP_LENGTH);
+  /* ============================================================
+     INITIAL AUTOFOCUS
+  ============================================================ */
 
-        emitValue(next);
+  useEffect(() => {
+    focusFirstBox();
 
-        const nextFocusIndex = Math.min(
-          index + incoming.length,
-          OTP_LENGTH - 1,
+    return () => {
+      if (
+        focusTimerRef.current
+      ) {
+        clearTimeout(
+          focusTimerRef.current,
+        );
+      }
+    };
+  }, [focusFirstBox]);
+
+  /* ============================================================
+     REFOCUS AFTER OTP CLEAR
+  ============================================================ */
+
+  useEffect(() => {
+    const previousValue =
+      previousValueRef.current;
+
+    previousValueRef.current =
+      value;
+
+    if (
+      previousValue.length > 0 &&
+      value.length === 0 &&
+      editable
+    ) {
+      focusFirstBox();
+    }
+  }, [
+    editable,
+    focusFirstBox,
+    value,
+  ]);
+
+  /* ============================================================
+     RESET FOCUS STATE WHEN DISABLED
+  ============================================================ */
+
+  useEffect(() => {
+    if (!editable) {
+      setFocusedIndex(null);
+    }
+  }, [editable]);
+
+  /* ============================================================
+     CLEANUP
+  ============================================================ */
+
+  useEffect(() => {
+    return () => {
+      if (
+        focusTimerRef.current
+      ) {
+        clearTimeout(
+          focusTimerRef.current,
+        );
+      }
+    };
+  }, []);
+
+  /* ============================================================
+     COMPLETE OTP
+
+     Pass the completed value directly to onComplete()
+     instead of waiting for React state.
+  ============================================================ */
+
+  const completeOtp =
+    useCallback(
+      (nextValue: string) => {
+        const sanitized =
+          nextValue
+            .replace(/\D/g, "")
+            .slice(
+              0,
+              OTP_LENGTH,
+            );
+
+        onChange(
+          sanitized,
         );
 
-        inputs.current[
-          next.length >= OTP_LENGTH
-            ? OTP_LENGTH - 1
-            : nextFocusIndex
-        ]?.focus();
+        if (
+          sanitized.length ===
+          OTP_LENGTH
+        ) {
+          requestAnimationFrame(
+            () => {
+              onComplete?.(
+                sanitized,
+              );
+            },
+          );
+        }
+      },
+      [
+        onChange,
+        onComplete,
+      ],
+    );
 
-        return;
-      }
+  /* ============================================================
+     BUILD VALUE
+  ============================================================ */
 
-      const next =
-        sanitizedValue
-          .padEnd(OTP_LENGTH, " ")
-          .split("");
+  const buildNextValue =
+    useCallback(
+      (
+        index: number,
+        digit: string,
+      ): string => {
+        const current =
+          value
+            .replace(/\D/g, "")
+            .slice(
+              0,
+              OTP_LENGTH,
+            )
+            .split("");
 
-      next[index] = incoming;
+        while (
+          current.length <
+          OTP_LENGTH
+        ) {
+          current.push("");
+        }
 
-      const nextValue = next
-        .join("")
-        .replace(/\s/g, "");
+        current[index] =
+          digit;
 
-      emitValue(nextValue);
+        return current
+          .join("")
+          .slice(
+            0,
+            OTP_LENGTH,
+          );
+      },
+      [value],
+    );
 
-      if (index < OTP_LENGTH - 1) {
-        inputs.current[index + 1]?.focus();
-      }
-    },
-    [emitValue, sanitizedValue],
-  );
+  /* ============================================================
+     CHANGE DIGIT
+  ============================================================ */
 
-  const handleKeyPress = useCallback(
-    (
-      event: NativeSyntheticEvent<TextInputKeyPressEventData>,
-      index: number,
-    ) => {
-      if (
-        event.nativeEvent.key ===
-          "Backspace" &&
-        !digits[index] &&
-        index > 0
-      ) {
-        inputs.current[index - 1]?.focus();
-      }
-    },
-    [digits],
-  );
+  const handleChange =
+    useCallback(
+      (
+        index: number,
+        text: string,
+      ) => {
+        if (!editable) {
+          return;
+        }
+
+        const digits =
+          text.replace(
+            /\D/g,
+            "",
+          );
+
+        if (!digits) {
+          return;
+        }
+
+        /* ------------------------------------------------------
+           PASTE / AUTOFILL
+        ------------------------------------------------------ */
+
+        if (
+          digits.length > 1
+        ) {
+          const pasted =
+            digits.slice(
+              0,
+              OTP_LENGTH,
+            );
+
+          completeOtp(
+            pasted,
+          );
+
+          const lastIndex =
+            Math.min(
+              pasted.length,
+              OTP_LENGTH,
+            ) - 1;
+
+          if (
+            lastIndex >= 0 &&
+            pasted.length <
+              OTP_LENGTH
+          ) {
+            inputRefs.current[
+              lastIndex
+            ]?.focus();
+          }
+
+          return;
+        }
+
+        /* ------------------------------------------------------
+           SINGLE DIGIT
+        ------------------------------------------------------ */
+
+        const nextValue =
+          buildNextValue(
+            index,
+            digits,
+          );
+
+        completeOtp(
+          nextValue,
+        );
+
+        if (
+          index <
+          OTP_LENGTH - 1
+        ) {
+          inputRefs.current[
+            index + 1
+          ]?.focus();
+        }
+      },
+      [
+        buildNextValue,
+        completeOtp,
+        editable,
+      ],
+    );
+
+  /* ============================================================
+     BACKSPACE
+  ============================================================ */
+
+  const handleKeyPress =
+    useCallback(
+      (
+        index: number,
+        key: string,
+      ) => {
+        if (
+          !editable ||
+          key !== "Backspace"
+        ) {
+          return;
+        }
+
+        const digits =
+          value
+            .replace(/\D/g, "")
+            .slice(
+              0,
+              OTP_LENGTH,
+            );
+
+        /* ------------------------------------------------------
+           CURRENT BOX HAS A DIGIT
+        ------------------------------------------------------ */
+
+        if (
+          digits[index]
+        ) {
+          const current =
+            digits.split("");
+
+          current[index] =
+            "";
+
+          onChange(
+            current
+              .join("")
+              .slice(
+                0,
+                OTP_LENGTH,
+              ),
+          );
+
+          return;
+        }
+
+        /* ------------------------------------------------------
+           CURRENT BOX EMPTY
+        ------------------------------------------------------ */
+
+        if (
+          index > 0
+        ) {
+          const previousIndex =
+            index - 1;
+
+          const current =
+            digits.split("");
+
+          current[
+            previousIndex
+          ] = "";
+
+          onChange(
+            current
+              .join("")
+              .slice(
+                0,
+                OTP_LENGTH,
+              ),
+          );
+
+          inputRefs.current[
+            previousIndex
+          ]?.focus();
+        }
+      },
+      [
+        editable,
+        onChange,
+        value,
+      ],
+    );
+
+  /* ============================================================
+     CURRENT DIGITS
+  ============================================================ */
+
+  const digits =
+    value
+      .replace(/\D/g, "")
+      .slice(
+        0,
+        OTP_LENGTH,
+      );
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.wrapper}>
-      <View
-        accessibilityLabel="One-time verification code"
-        style={styles.container}
-      >
-        {digits.map((digit, index) => {
-          const focused =
-            focusedIndex === index;
+    <View
+      style={styles.container}
+      accessibilityLabel="One-time verification code"
+    >
+      <View style={styles.boxRow}>
+        {Array.from(
+          {
+            length:
+              OTP_LENGTH,
+          },
+          (_, index) => {
+            const digit =
+              digits[index] ??
+              "";
 
-          const borderColor = error
-            ? colors.error
-            : focused
-              ? colors.primary
-              : digit
-                ? colors.borderStrong
-                : colors.border;
+            const isFocused =
+              focusedIndex ===
+              index;
 
-          return (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                inputs.current[index] = ref;
-              }}
-              value={digit}
-              editable={editable}
-              autoFocus={
-                autoFocus && index === 0
-              }
-              keyboardType="number-pad"
-              inputMode="numeric"
-              maxLength={OTP_LENGTH}
-              autoComplete="one-time-code"
-              textContentType="oneTimeCode"
-              importantForAutofill="yes"
-              selectTextOnFocus
-              textAlign="center"
-              cursorColor={colors.primary}
-              selectionColor={colors.primary}
-              accessibilityLabel={`OTP digit ${
-                index + 1
-              } of ${OTP_LENGTH}`}
-              accessibilityState={{
-                disabled: !editable,
-              }}
-              onFocus={() =>
-                setFocusedIndex(index)
-              }
-              onBlur={() =>
-                setFocusedIndex((current) =>
-                  current === index
-                    ? null
-                    : current,
-                )
-              }
-              onChangeText={(text) =>
-                handleChange(text, index)
-              }
-              onKeyPress={(event) =>
-                handleKeyPress(event, index)
-              }
-              style={[
-                styles.box,
-                Typography.styles.heading3,
-                {
-                  borderColor,
-                  color: editable
-                    ? colors.textPrimary
-                    : colors.textMuted,
-                  backgroundColor: editable
-                    ? colors.surface
-                    : colors.disabledBackground,
-                },
-              ]}
-            />
-          );
-        })}
+            return (
+              <TextInput
+                key={index}
+                ref={ref => {
+                  inputRefs.current[
+                    index
+                  ] = ref;
+                }}
+                value={digit}
+                onChangeText={text =>
+                  handleChange(
+                    index,
+                    text,
+                  )
+                }
+                onKeyPress={({
+                  nativeEvent,
+                }) =>
+                  handleKeyPress(
+                    index,
+                    nativeEvent.key,
+                  )
+                }
+                onFocus={() =>
+                  setFocusedIndex(
+                    index,
+                  )
+                }
+                onBlur={() =>
+                  setFocusedIndex(
+                    current =>
+                      current ===
+                      index
+                        ? null
+                        : current,
+                  )
+                }
+                keyboardType="number-pad"
+                inputMode="numeric"
+                textContentType={
+                  index === 0
+                    ? "oneTimeCode"
+                    : "none"
+                }
+                autoComplete={
+                  index === 0
+                    ? "one-time-code"
+                    : "off"
+                }
+                autoFocus={
+                  index === 0
+                }
+                maxLength={1}
+                editable={
+                  editable
+                }
+                selectTextOnFocus
+                returnKeyType="done"
+                blurOnSubmit={false}
+                importantForAutofill={
+                  index === 0
+                    ? "yes"
+                    : "no"
+                }
+                style={[
+                  styles.box,
+
+                  isFocused &&
+                    editable
+                    ? styles.boxFocused
+                    : null,
+
+                  error
+                    ? styles.boxError
+                    : null,
+
+                  !editable
+                    ? styles.boxDisabled
+                    : null,
+
+                  digit
+                    ? styles.boxFilled
+                    : null,
+                ]}
+                accessibilityLabel={`Verification digit ${
+                  index + 1
+                }`}
+              />
+            );
+          },
+        )}
       </View>
-
-      {error ? (
-        <AppText
-          variant="caption"
-          tone="error"
-          style={styles.supportingText}
-        >
-          {error}
-        </AppText>
-      ) : helperText ? (
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={styles.supportingText}
-        >
-          {helperText}
-        </AppText>
-      ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    width: "100%",
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+    },
 
-  container: {
-    width: "100%",
+    boxRow: {
+      width: "100%",
 
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+      flexDirection:
+        "row",
 
-    gap: FixxamTokens.spacing.sm,
-  },
+      justifyContent:
+        "space-between",
 
-  box: {
-    flex: 1,
+      alignItems:
+        "center",
 
-    minWidth: 0,
+      gap:
+        FixxamTokens.spacing.xs,
+    },
 
-    height: FixxamTokens.size.otpBox,
+    box: {
+      flex: 1,
 
-    borderWidth: 1,
+      minWidth: 0,
 
-    borderRadius:
-      FixxamTokens.radius.input,
+      height: 64,
 
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-  },
+      borderWidth: 1,
 
-  supportingText: {
-    marginTop:
-      FixxamTokens.spacing.sm,
-  },
-});
+      borderColor:
+        "#D5DDE8",
 
-export default memo(OtpBoxes);
+      borderRadius: 16,
+
+      backgroundColor:
+        "#F4F7FB",
+
+      textAlign: "center",
+
+      fontSize: 24,
+
+      fontWeight: "600",
+
+      color: "#172033",
+
+      paddingVertical: 0,
+
+      ...(Platform.OS ===
+      "android"
+        ? {
+            includeFontPadding:
+              false,
+          }
+        : {}),
+    },
+
+    boxFocused: {
+      borderColor:
+        "#2563EB",
+
+      borderWidth: 2,
+
+      backgroundColor:
+        "#FFFFFF",
+    },
+
+    boxFilled: {
+      borderColor:
+        "#B8C5D6",
+
+      backgroundColor:
+        "#F0F4F9",
+    },
+
+    boxError: {
+      borderColor:
+        "#DC2626",
+
+      borderWidth: 1.5,
+    },
+
+    boxDisabled: {
+      opacity: 0.65,
+    },
+  });
+
+export default memo(
+  OtpBoxes,
+);

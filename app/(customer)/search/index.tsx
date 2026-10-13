@@ -48,6 +48,10 @@ import type {
   ServiceCardData,
 } from "@/firebase/mappers/serviceMapper";
 
+import {
+  isServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
 /* ============================================================
    TYPES
 ============================================================ */
@@ -198,24 +202,39 @@ export default function SearchScreen() {
           return;
         }
 
-        /*
-         * Preserve the exact Firebase
-         * presentation used by CategoryCard.
-         */
+        /* ====================================================
+           SERVICE PRESENTATION
+        ==================================================== */
+
         const serviceIcon =
           getString(
             service.icon,
           );
 
-        const serviceIconColor =
+        const serviceColor =
           getString(
             service.color,
           );
 
-        const serviceIconBackground =
+        const serviceBackgroundColor =
           getString(
             service.backgroundColor,
           );
+
+        /* ====================================================
+           FULFILLMENT
+        ==================================================== */
+
+        const fulfillmentMode =
+          isServiceFulfillmentMode(
+            service.fulfillmentMode,
+          )
+            ? service.fulfillmentMode
+            : "needs_review";
+
+        /* ====================================================
+           OPEN WORKERS
+        ==================================================== */
 
         router.push({
           pathname:
@@ -227,12 +246,19 @@ export default function SearchScreen() {
 
             serviceId,
 
+            serviceName,
+
             /*
-             * WorkersScreen expects
-             * the service name as `service`.
+             * WorkersScreen supports both
+             * serviceName and service.
              */
             service:
               serviceName,
+
+            /*
+             * Validated fulfillment mode.
+             */
+            fulfillmentMode,
 
             ...(serviceIcon
               ? {
@@ -240,15 +266,15 @@ export default function SearchScreen() {
                 }
               : {}),
 
-            ...(serviceIconColor
+            ...(serviceColor
               ? {
-                  serviceIconColor,
+                  serviceColor,
                 }
               : {}),
 
-            ...(serviceIconBackground
+            ...(serviceBackgroundColor
               ? {
-                  serviceIconBackground,
+                  serviceBackgroundColor,
                 }
               : {}),
           },

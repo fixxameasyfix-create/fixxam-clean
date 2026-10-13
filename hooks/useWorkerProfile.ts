@@ -5,26 +5,22 @@ import {
   useState,
 } from "react";
 
-import {
-  Alert,
-} from "react-native";
+import { Alert } from "react-native";
 
 import * as ImagePicker from "expo-image-picker";
 
-import Toast from "react-native-toast-message";
+import { onAuthStateChanged } from "firebase/auth";
+
+import { auth } from "@/firebase/config";
 
 import {
-  onAuthStateChanged,
-} from "firebase/auth";
-
-import {
-  auth,
-} from "@/firebase/config";
-
-import {
-  EMPTY_WORKER_PROFILE,
   MAX_GALLERY_PHOTOS,
-  type WorkerProfile,
+  MAX_IMAGE_BYTES,
+  EMPTY_WORKER_PROFILE,
+  EMPTY_WORKER_SERVICE_LOCATION,
+  WorkerProfile,
+  WorkerProfileField,
+  WorkerServiceLocation,
 } from "@/types/workerProfile";
 
 import {
@@ -35,29 +31,15 @@ import {
   uploadWorkerImage,
 } from "@/services/worker/workerProfileService";
 
-import {
-  cleanString,
-  isHttpsUrl,
-  validateImageSize,
-  validateWorkerProfile,
-} from "@/utils/workerProfile";
-
 /* ============================================================
    TYPES
 ============================================================ */
 
-type WorkerProfileField =
-  keyof WorkerProfile;
-
 export type UseWorkerProfileReturn = {
   profile: WorkerProfile;
-
   loading: boolean;
-
   saving: boolean;
-
   uploadingPhoto: boolean;
-
   uploadingGallery: boolean;
 
   updateField: <
@@ -71,12 +53,329 @@ export type UseWorkerProfileReturn = {
 
   addGalleryPhoto: () => Promise<void>;
 
+  replaceGalleryPhoto: (
+    index: number,
+  ) => Promise<void>;
+
   removeGalleryPhoto: (
     index: number,
-  ) => void;
+  ) => Promise<void>;
 
   saveProfile: () => Promise<void>;
 };
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+
+const IMAGE_PICKER_QUALITY = 0.85;
+
+const PROFILE_IMAGE_FOLDER = "profile" as const;
+
+const GALLERY_IMAGE_FOLDER = "gallery" as const;
+
+const PROFILE_PHOTO_FALLBACK = "";
+
+const MAX_NAME_LENGTH = 100;
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function createEmptyWorkerProfile(): WorkerProfile {
+  return {
+    ...EMPTY_WORKER_PROFILE,
+
+    selectedServices: [
+      ...(EMPTY_WORKER_PROFILE.selectedServices ?? []),
+    ],
+
+    serviceLocation: {
+      ...EMPTY_WORKER_SERVICE_LOCATION,
+    },
+
+    workGallery: [],
+  };
+}
+
+/* ------------------------------------------------------------
+   PHOTO URL
+------------------------------------------------------------ */
+
+function normalizePhotoUrl(
+  value: unknown,
+): string {
+  if (typeof value !== "string") {
+    return PROFILE_PHOTO_FALLBACK;
+  }
+
+  const url = value.trim();
+
+  if (!url) {
+    return PROFILE_PHOTO_FALLBACK;
+  }
+
+  return /^https:\/\//i.test(url)
+    ? url
+    : PROFILE_PHOTO_FALLBACK;
+}
+
+/* ------------------------------------------------------------
+   GALLERY
+------------------------------------------------------------ */
+
+function normalizeGallery(
+  gallery: unknown,
+): string[] {
+  if (!Array.isArray(gallery)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      gallery
+        .filter(
+          (url): url is string =>
+            typeof url === "string",
+        )
+        .map((url) => url.trim())
+        .filter(
+          (url) =>
+            url.length > 0 &&
+            /^https:\/\//i.test(url),
+        ),
+    ),
+  ).slice(0, MAX_GALLERY_PHOTOS);
+}
+
+/* ------------------------------------------------------------
+   SERVICE LOCATION
+------------------------------------------------------------ */
+
+function normalizeServiceLocation(
+  location:
+    | WorkerServiceLocation
+    | undefined,
+): WorkerServiceLocation {
+  if (!location) {
+    return {
+      ...EMPTY_WORKER_SERVICE_LOCATION,
+    };
+  }
+
+  const latitude =
+    typeof location.latitude === "number" &&
+    Number.isFinite(location.latitude)
+      ? location.latitude
+      : null;
+
+  const longitude =
+    typeof location.longitude === "number" &&
+    Number.isFinite(location.longitude)
+      ? location.longitude
+      : null;
+
+  return {
+    address:
+      typeof location.address === "string"
+        ? location.address.trim()
+        : "",
+
+    state:
+      typeof location.state === "string"
+        ? location.state.trim()
+        : "",
+
+    lga:
+      typeof location.lga === "string"
+        ? location.lga.trim()
+        : "",
+
+    latitude,
+    longitude,
+  };
+}
+
+/* ------------------------------------------------------------
+   CLONE PROFILE
+------------------------------------------------------------ */
+
+function cloneWorkerProfile(
+  profile: WorkerProfile,
+): WorkerProfile {
+  return {
+    ...profile,
+
+    photoUrl: normalizePhotoUrl(
+      profile.photoUrl,
+    ),
+
+    selectedServices: Array.from(
+      new Set(
+        (profile.selectedServices ?? [])
+          .filter(
+            (item): item is string =>
+              typeof item === "string",
+          )
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    ),
+
+    workGallery: normalizeGallery(
+      profile.workGallery ?? [],
+    ),
+
+    serviceLocation:
+      normalizeServiceLocation(
+        profile.serviceLocation,
+      ),
+  };
+}
+
+/* ------------------------------------------------------------
+   PROFILE VALUE COMPARISON
+------------------------------------------------------------ */
+
+function areProfileValuesEqual(
+  first: unknown,
+  second: unknown,
+): boolean {
+  if (Object.is(first, second)) {
+    return true;
+  }
+
+  if (
+    first === null ||
+    second === null ||
+    typeof first !== "object" ||
+    typeof second !== "object"
+  ) {
+    return false;
+  }
+
+  try {
+    return (
+      JSON.stringify(first) ===
+      JSON.stringify(second)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------
+   FILE SIZE
+------------------------------------------------------------ */
+
+async function getLocalFileSize(
+  uri: string,
+): Promise<number | null> {
+  try {
+    const response = await fetch(uri);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const blob = await response.blob();
+
+    return Number.isFinite(blob.size)
+      ? blob.size
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getAssetFileSize(
+  asset: ImagePicker.ImagePickerAsset,
+): Promise<number | null> {
+  if (
+    typeof asset.fileSize === "number" &&
+    Number.isFinite(asset.fileSize) &&
+    asset.fileSize >= 0
+  ) {
+    return asset.fileSize;
+  }
+
+  return getLocalFileSize(asset.uri);
+}
+
+/* ------------------------------------------------------------
+   ERROR MESSAGE
+------------------------------------------------------------ */
+
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (
+    error instanceof Error &&
+    error.message.trim()
+  ) {
+    return error.message.trim();
+  }
+
+  return fallback;
+}
+
+/* ------------------------------------------------------------
+   FILE NAME
+------------------------------------------------------------ */
+
+function getImageFileName(
+  fileName: string | null | undefined,
+  fallback: string,
+): string {
+  if (
+    typeof fileName === "string" &&
+    fileName.trim()
+  ) {
+    return fileName.trim();
+  }
+
+  return fallback;
+}
+
+/* ------------------------------------------------------------
+   IMAGE PERMISSION
+------------------------------------------------------------ */
+
+async function requestImagePermission(
+  message: string,
+): Promise<boolean> {
+  try {
+    const permission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (
+      permission.status !==
+      ImagePicker.PermissionStatus.GRANTED
+    ) {
+      Alert.alert(
+        "Permission Required",
+        message,
+      );
+
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error(
+      "[useWorkerProfile] Permission error:",
+      error,
+    );
+
+    Alert.alert(
+      "Permission Error",
+      "Unable to access your photo library.",
+    );
+
+    return false;
+  }
+}
 
 /* ============================================================
    HOOK
@@ -87,43 +386,39 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
      STATE
   ========================================================== */
 
-  const [
-    profile,
-    setProfile,
-  ] =
-    useState<WorkerProfile>({
-      ...EMPTY_WORKER_PROFILE,
+  const [profile, setProfile] =
+    useState<WorkerProfile>(
+      createEmptyWorkerProfile,
+    );
 
-      workGallery: [],
-    });
-
-  const [
-    loading,
-    setLoading,
-  ] =
+  const [loading, setLoading] =
     useState(true);
 
-  const [
-    saving,
-    setSaving,
-  ] =
+  const [saving, setSaving] =
     useState(false);
 
-  const [
-    uploadingPhoto,
-    setUploadingPhoto,
-  ] =
+  const [uploadingPhoto, setUploadingPhoto] =
     useState(false);
 
-  const [
-    uploadingGallery,
-    setUploadingGallery,
-  ] =
+  const [uploadingGallery, setUploadingGallery] =
     useState(false);
 
   /* ==========================================================
      REFS
   ========================================================== */
+
+  const profileRef =
+    useRef<WorkerProfile>(
+      createEmptyWorkerProfile(),
+    );
+
+  const mountedRef =
+    useRef(true);
+
+  const dirtyFieldsRef =
+    useRef<Set<WorkerProfileField>>(
+      new Set(),
+    );
 
   const savingRef =
     useRef(false);
@@ -134,67 +429,26 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
   const uploadingGalleryRef =
     useRef(false);
 
-  /*
-   * Keep the latest profile available
-   * inside async callbacks.
-   */
-  const profileRef =
-    useRef<WorkerProfile>(
-      profile,
-    );
-
-  /*
-   * Prevent realtime Firestore snapshots
-   * from replacing fields the worker is
-   * currently editing.
-   */
-  const dirtyFieldsRef =
-    useRef<
-      Set<WorkerProfileField>
-    >(
-      new Set(),
-    );
-
   /* ==========================================================
-     KEEP PROFILE REF UPDATED
-  ========================================================== */
-
-  useEffect(() => {
-    profileRef.current =
-      profile;
-  }, [profile]);
-
-  /* ==========================================================
-     UPDATE PROFILE STATE
+     REPLACE PROFILE
   ========================================================== */
 
   const replaceProfile =
     useCallback(
       (
-        updater:
-          | WorkerProfile
-          | ((
-              current:
-                WorkerProfile,
-            ) =>
-              WorkerProfile),
+        nextProfile: WorkerProfile,
       ) => {
-        setProfile(
-          current => {
-            const nextProfile =
-              typeof updater ===
-              "function"
-                ? updater(
-                    current,
-                  )
-                : updater;
+        const normalized =
+          cloneWorkerProfile(
+            nextProfile,
+          );
 
-            profileRef.current =
-              nextProfile;
+        profileRef.current =
+          normalized;
 
-            return nextProfile;
-          },
-        );
+        if (mountedRef.current) {
+          setProfile(normalized);
+        }
       },
       [],
     );
@@ -215,25 +469,31 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
           field,
         );
 
-        replaceProfile(
-          current => ({
-            ...current,
+        const current =
+          profileRef.current;
 
-            [field]:
-              value,
-          }),
-        );
+        const next = {
+          ...current,
+          [field]: value,
+        } as WorkerProfile;
+
+        profileRef.current =
+          next;
+
+        if (mountedRef.current) {
+          setProfile(next);
+        }
       },
-      [
-        replaceProfile,
-      ],
+      [],
     );
 
   /* ==========================================================
-     LOAD PROFILE
+     AUTH + REALTIME PROFILE
   ========================================================== */
 
   useEffect(() => {
+    mountedRef.current = true;
+
     let unsubscribeProfile:
       | (() => void)
       | undefined;
@@ -241,7 +501,7 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
     const unsubscribeAuth =
       onAuthStateChanged(
         auth,
-        user => {
+        (user) => {
           unsubscribeProfile?.();
 
           unsubscribeProfile =
@@ -250,197 +510,396 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
           dirtyFieldsRef.current.clear();
 
           if (!user) {
-            replaceProfile({
-              ...EMPTY_WORKER_PROFILE,
+            const empty =
+              createEmptyWorkerProfile();
 
-              workGallery: [],
-            });
+            profileRef.current =
+              empty;
 
-            setLoading(false);
+            if (mountedRef.current) {
+              setProfile(empty);
+              setLoading(false);
+              setSaving(false);
+              setUploadingPhoto(false);
+              setUploadingGallery(false);
+            }
 
             return;
           }
 
-          setLoading(true);
-
-          try {
-            unsubscribeProfile =
-              subscribeToWorkerProfile(
-                user.uid,
-
-                incomingProfile => {
-                  replaceProfile(
-                    current => {
-                      const dirty =
-                        dirtyFieldsRef.current;
-
-                      return {
-                        fullName:
-                          dirty.has(
-                            "fullName",
-                          )
-                            ? current.fullName
-                            : incomingProfile.fullName,
-
-                        phoneNumber:
-                          dirty.has(
-                            "phoneNumber",
-                          )
-                            ? current.phoneNumber
-                            : incomingProfile.phoneNumber,
-
-                        photoUrl:
-                          dirty.has(
-                            "photoUrl",
-                          )
-                            ? current.photoUrl
-                            : incomingProfile.photoUrl,
-
-                        experience:
-                          dirty.has(
-                            "experience",
-                          )
-                            ? current.experience
-                            : incomingProfile.experience,
-
-                        hourlyRate:
-                          dirty.has(
-                            "hourlyRate",
-                          )
-                            ? current.hourlyRate
-                            : incomingProfile.hourlyRate,
-
-                        location:
-                          dirty.has(
-                            "location",
-                          )
-                            ? current.location
-                            : incomingProfile.location,
-
-                        workGallery:
-                          dirty.has(
-                            "workGallery",
-                          )
-                            ? current.workGallery
-                            : incomingProfile.workGallery,
-
-                        aboutMe:
-                          dirty.has(
-                            "aboutMe",
-                          )
-                            ? current.aboutMe
-                            : incomingProfile.aboutMe,
-                      };
-                    },
-                  );
-
-                  setLoading(false);
-                },
-
-                error => {
-                  console.error(
-                    "BUILD_PROFILE_LISTENER_ERROR:",
-                    error,
-                  );
-
-                  setLoading(false);
-
-                  Toast.show({
-                    type: "error",
-
-                    text1:
-                      "Unable to load profile",
-
-                    text2:
-                      "Please check your connection and try again.",
-                  });
-                },
-              );
-          } catch (error) {
-            console.error(
-              "BUILD_PROFILE_SUBSCRIPTION_ERROR:",
-              error,
-            );
-
-            setLoading(false);
-
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Unable to load profile",
-
-              text2:
-                "Please try again.",
-            });
+          if (mountedRef.current) {
+            setLoading(true);
           }
+
+          unsubscribeProfile =
+            subscribeToWorkerProfile(
+              user.uid,
+              (incomingProfile) => {
+                if (!mountedRef.current) {
+                  return;
+                }
+
+                const current =
+                  profileRef.current;
+
+                const dirty =
+                  dirtyFieldsRef.current;
+
+                const merged =
+                  cloneWorkerProfile(
+                    incomingProfile,
+                  );
+
+                /* ------------------------------------------
+                   DIRTY FIELD RECONCILIATION
+                ------------------------------------------ */
+
+                if (
+                  dirty.has("fullName")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.fullName,
+                      current.fullName,
+                    )
+                  ) {
+                    dirty.delete(
+                      "fullName",
+                    );
+                  } else {
+                    merged.fullName =
+                      current.fullName;
+                  }
+                }
+
+                if (
+                  dirty.has(
+                    "phoneNumber",
+                  )
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.phoneNumber,
+                      current.phoneNumber,
+                    )
+                  ) {
+                    dirty.delete(
+                      "phoneNumber",
+                    );
+                  } else {
+                    merged.phoneNumber =
+                      current.phoneNumber;
+                  }
+                }
+
+                /* ------------------------------------------
+                   PHOTO
+                ------------------------------------------ */
+
+                if (
+                  dirty.has("photoUrl")
+                ) {
+                  const incomingPhoto =
+                    normalizePhotoUrl(
+                      merged.photoUrl,
+                    );
+
+                  const currentPhoto =
+                    normalizePhotoUrl(
+                      current.photoUrl,
+                    );
+
+                  if (
+                    areProfileValuesEqual(
+                      incomingPhoto,
+                      currentPhoto,
+                    )
+                  ) {
+                    dirty.delete(
+                      "photoUrl",
+                    );
+
+                    merged.photoUrl =
+                      currentPhoto;
+                  } else {
+                    /**
+                     * Keep the latest local photo
+                     * until Firestore confirms it.
+                     */
+                    merged.photoUrl =
+                      currentPhoto;
+                  }
+                }
+
+                if (
+                  dirty.has("category")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.category,
+                      current.category,
+                    )
+                  ) {
+                    dirty.delete(
+                      "category",
+                    );
+                  } else {
+                    merged.category =
+                      current.category;
+                  }
+                }
+
+                if (
+                  dirty.has("subcategory")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.subcategory,
+                      current.subcategory,
+                    )
+                  ) {
+                    dirty.delete(
+                      "subcategory",
+                    );
+                  } else {
+                    merged.subcategory =
+                      current.subcategory;
+                  }
+                }
+
+                if (
+                  dirty.has(
+                    "selectedServices",
+                  )
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.selectedServices,
+                      current.selectedServices,
+                    )
+                  ) {
+                    dirty.delete(
+                      "selectedServices",
+                    );
+                  } else {
+                    merged.selectedServices =
+                      [
+                        ...current.selectedServices,
+                      ];
+                  }
+                }
+
+                if (
+                  dirty.has("experience")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.experience,
+                      current.experience,
+                    )
+                  ) {
+                    dirty.delete(
+                      "experience",
+                    );
+                  } else {
+                    merged.experience =
+                      current.experience;
+                  }
+                }
+
+                if (
+                  dirty.has("hourlyRate")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.hourlyRate,
+                      current.hourlyRate,
+                    )
+                  ) {
+                    dirty.delete(
+                      "hourlyRate",
+                    );
+                  } else {
+                    merged.hourlyRate =
+                      current.hourlyRate;
+                  }
+                }
+
+                if (
+                  dirty.has("location")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.location,
+                      current.location,
+                    )
+                  ) {
+                    dirty.delete(
+                      "location",
+                    );
+                  } else {
+                    merged.location =
+                      current.location;
+                  }
+                }
+
+                if (
+                  dirty.has(
+                    "serviceLocation",
+                  )
+                ) {
+                  const incomingLocation =
+                    normalizeServiceLocation(
+                      merged.serviceLocation,
+                    );
+
+                  const currentLocation =
+                    normalizeServiceLocation(
+                      current.serviceLocation,
+                    );
+
+                  if (
+                    areProfileValuesEqual(
+                      incomingLocation,
+                      currentLocation,
+                    )
+                  ) {
+                    dirty.delete(
+                      "serviceLocation",
+                    );
+                  } else {
+                    merged.serviceLocation =
+                      currentLocation;
+                  }
+                }
+
+                if (
+                  dirty.has(
+                    "workGallery",
+                  )
+                ) {
+                  const incomingGallery =
+                    normalizeGallery(
+                      merged.workGallery,
+                    );
+
+                  const currentGallery =
+                    normalizeGallery(
+                      current.workGallery,
+                    );
+
+                  if (
+                    areProfileValuesEqual(
+                      incomingGallery,
+                      currentGallery,
+                    )
+                  ) {
+                    dirty.delete(
+                      "workGallery",
+                    );
+                  } else {
+                    merged.workGallery = [
+                      ...currentGallery,
+                    ];
+                  }
+                }
+
+                if (
+                  dirty.has("aboutMe")
+                ) {
+                  if (
+                    areProfileValuesEqual(
+                      merged.aboutMe,
+                      current.aboutMe,
+                    )
+                  ) {
+                    dirty.delete(
+                      "aboutMe",
+                    );
+                  } else {
+                    merged.aboutMe =
+                      current.aboutMe;
+                  }
+                }
+
+                replaceProfile(
+                  merged,
+                );
+
+                setLoading(false);
+              },
+              (error) => {
+                if (!mountedRef.current) {
+                  return;
+                }
+
+                setLoading(false);
+
+                console.error(
+                  "[useWorkerProfile] Profile subscription error:",
+                  error,
+                );
+
+                Alert.alert(
+                  "Profile Error",
+                  getErrorMessage(
+                    error,
+                    "Unable to load your worker profile.",
+                  ),
+                );
+              },
+            );
         },
       );
 
     return () => {
-      unsubscribeProfile?.();
+      mountedRef.current = false;
 
+      unsubscribeProfile?.();
       unsubscribeAuth();
     };
-  }, [
-    replaceProfile,
-  ]);
+  }, [replaceProfile]);
 
   /* ==========================================================
-     PICK PROFILE PHOTO
+     PROFILE PHOTO
   ========================================================== */
 
   const pickProfilePhoto =
     useCallback(
-      async () => {
+      async (): Promise<void> => {
         if (
-          uploadingPhotoRef.current ||
-          uploadingGalleryRef.current ||
-          savingRef.current
+          uploadingPhotoRef.current
         ) {
           return;
         }
 
         try {
-          const permission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          uploadingPhotoRef.current =
+            true;
 
-          if (
-            !permission.granted
-          ) {
-            Toast.show({
-              type: "error",
+          if (mountedRef.current) {
+            setUploadingPhoto(true);
+          }
 
-              text1:
-                "Photo permission required",
+          const hasPermission =
+            await requestImagePermission(
+              "Please allow photo library access to choose your profile photo.",
+            );
 
-              text2:
-                "Allow photo access to choose your profile photo.",
-            });
-
+          if (!hasPermission) {
             return;
           }
 
           const result =
             await ImagePicker.launchImageLibraryAsync(
               {
-                mediaTypes: [
-                  "images",
-                ],
-
-                allowsEditing:
-                  true,
-
-                aspect: [
-                  1,
-                  1,
-                ],
-
+                mediaTypes: ["images"],
+                allowsEditing: true,
+                aspect: [1, 1],
+                allowsMultipleSelection: false,
+                selectionLimit: 1,
                 quality:
-                  0.85,
-
-                selectionLimit:
-                  1,
+                  IMAGE_PICKER_QUALITY,
               },
             );
 
@@ -454,194 +913,182 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
           const asset =
             result.assets[0];
 
+          if (!asset?.uri) {
+            throw new Error(
+              "The selected image could not be read.",
+            );
+          }
+
+          const fileSize =
+            await getAssetFileSize(
+              asset,
+            );
+
           if (
-            !validateImageSize(
-              asset.fileSize,
-            )
+            fileSize !== null &&
+            fileSize > MAX_IMAGE_BYTES
           ) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Photo is too large",
-
-              text2:
-                "Please choose an image smaller than 10 MB.",
-            });
-
-            return;
+            throw new Error(
+              "Profile photo must be smaller than 10 MB.",
+            );
           }
 
-          const localUri =
-            cleanString(
-              asset.uri,
+          const uid =
+            auth.currentUser?.uid;
+
+          if (!uid) {
+            throw new Error(
+              "Your session has expired. Please sign in again.",
+            );
+          }
+
+          const fileName =
+            getImageFileName(
+              asset.fileName,
+              `profile-${Date.now()}.jpg`,
             );
 
-          if (!localUri) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Invalid photo",
-
-              text2:
-                "Please choose another image.",
-            });
-
-            return;
-          }
-
-          const user =
-            auth.currentUser;
-
-          if (!user) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Session expired",
-
-              text2:
-                "Please sign in again.",
-            });
-
-            return;
-          }
-
-          uploadingPhotoRef.current =
-            true;
-
-          setUploadingPhoto(
-            true,
-          );
-
-          const downloadURL =
+          const uploadedPhotoUrl =
             await uploadWorkerImage(
-              localUri,
-
-              `workerProfiles/${user.uid}/profile.jpg`,
-
-              asset.mimeType ??
-                "image/jpeg",
+              uid,
+              asset.uri,
+              fileName,
+              PROFILE_IMAGE_FOLDER,
             );
 
-          updateField(
-            "photoUrl",
-            downloadURL,
-          );
+          const photoUrl =
+            normalizePhotoUrl(
+              uploadedPhotoUrl,
+            );
 
+          if (!photoUrl) {
+            throw new Error(
+              "The uploaded profile photo is invalid.",
+            );
+          }
+
+          /**
+           * IMPORTANT:
+           *
+           * Persist Firestore first.
+           * Only after Firestore succeeds do
+           * we update the local profile.
+           */
           await saveWorkerProfilePhoto(
-            user.uid,
-            downloadURL,
+            uid,
+            photoUrl,
           );
 
-          dirtyFieldsRef.current.delete(
+          if (!mountedRef.current) {
+            return;
+          }
+
+          /**
+           * Keep the photo dirty until the
+           * realtime listener confirms the
+           * same URL.
+           */
+          dirtyFieldsRef.current.add(
             "photoUrl",
+          );
+
+          const nextProfile = {
+            ...profileRef.current,
+            photoUrl,
+          };
+
+          profileRef.current =
+            nextProfile;
+
+          setProfile(nextProfile);
+
+          Alert.alert(
+            "Photo Updated",
+            "Your profile photo has been updated successfully.",
           );
         } catch (error) {
           console.error(
-            "PROFILE_PHOTO_UPLOAD_ERROR:",
+            "[useWorkerProfile] Profile photo error:",
             error,
           );
 
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Upload failed",
-
-            text2:
-              "Unable to upload your profile photo. Please try again.",
-          });
+          Alert.alert(
+            "Photo Upload Failed",
+            getErrorMessage(
+              error,
+              "Unable to update your profile photo.",
+            ),
+          );
         } finally {
           uploadingPhotoRef.current =
             false;
 
-          setUploadingPhoto(
-            false,
-          );
+          if (mountedRef.current) {
+            setUploadingPhoto(false);
+          }
         }
       },
-      [
-        updateField,
-      ],
+      [],
     );
 
   /* ==========================================================
-     ADD GALLERY PHOTOS
+     ADD GALLERY PHOTO
   ========================================================== */
 
   const addGalleryPhoto =
     useCallback(
-      async () => {
+      async (): Promise<void> => {
         if (
-          uploadingGalleryRef.current ||
-          uploadingPhotoRef.current ||
-          savingRef.current
+          uploadingGalleryRef.current
         ) {
           return;
         }
 
         const currentGallery =
-          profileRef.current
-            .workGallery;
+          normalizeGallery(
+            profileRef.current
+              .workGallery,
+          );
 
-        if (
-          currentGallery.length >=
-          MAX_GALLERY_PHOTOS
-        ) {
-          Toast.show({
-            type: "info",
+        const remaining =
+          MAX_GALLERY_PHOTOS -
+          currentGallery.length;
 
-            text1:
-              "Gallery is full",
-
-            text2:
-              `You can add up to ${MAX_GALLERY_PHOTOS} work photos.`,
-          });
+        if (remaining <= 0) {
+          Alert.alert(
+            "Gallery Limit",
+            `You can upload a maximum of ${MAX_GALLERY_PHOTOS} gallery photos.`,
+          );
 
           return;
         }
 
         try {
-          const permission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
+          uploadingGalleryRef.current =
+            true;
 
-          if (
-            !permission.granted
-          ) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Photo permission required",
-
-              text2:
-                "Allow photo access to add work photos.",
-            });
-
-            return;
+          if (mountedRef.current) {
+            setUploadingGallery(true);
           }
 
-          const remaining =
-            MAX_GALLERY_PHOTOS -
-            currentGallery.length;
+          const hasPermission =
+            await requestImagePermission(
+              "Please allow photo library access to choose work photos.",
+            );
+
+          if (!hasPermission) {
+            return;
+          }
 
           const result =
             await ImagePicker.launchImageLibraryAsync(
               {
-                mediaTypes: [
-                  "images",
-                ],
-
-                allowsMultipleSelection:
-                  true,
-
-                selectionLimit:
-                  remaining,
-
+                mediaTypes: ["images"],
+                allowsEditing: false,
+                allowsMultipleSelection: true,
+                selectionLimit: remaining,
                 quality:
-                  0.85,
+                  IMAGE_PICKER_QUALITY,
               },
             );
 
@@ -652,210 +1099,369 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
             return;
           }
 
-          const user =
-            auth.currentUser;
-
-          if (!user) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Session expired",
-
-              text2:
-                "Please sign in again.",
-            });
-
-            return;
-          }
-
-          uploadingGalleryRef.current =
-            true;
-
-          setUploadingGallery(
-            true,
-          );
-
-          const selectedAssets =
+          const assets =
             result.assets.slice(
               0,
               remaining,
             );
 
-          /*
-           * Maximum gallery size is six,
-           * therefore bounded parallel
-           * uploads are safe here.
-           */
-          const uploadResults =
-            await Promise.allSettled(
-              selectedAssets.map(
-                async (
-                  asset,
-                  index,
-                ) => {
-                  if (
-                    !validateImageSize(
-                      asset.fileSize,
-                    )
-                  ) {
-                    throw new Error(
-                      "Image exceeds 10 MB.",
-                    );
-                  }
+          const uid =
+            auth.currentUser?.uid;
 
-                  const localUri =
-                    cleanString(
-                      asset.uri,
-                    );
-
-                  if (!localUri) {
-                    throw new Error(
-                      "Invalid gallery image URI.",
-                    );
-                  }
-
-                  const uniqueId =
-                    `${Date.now()}-${index}-${Math.random()
-                      .toString(36)
-                      .slice(2, 9)}`;
-
-                  return uploadWorkerImage(
-                    localUri,
-
-                    `workerProfiles/${user.uid}/gallery/${uniqueId}.jpg`,
-
-                    asset.mimeType ??
-                      "image/jpeg",
-                  );
-                },
-              ),
+          if (!uid) {
+            throw new Error(
+              "Your session has expired. Please sign in again.",
             );
+          }
 
-          const uploadedURLs =
-            uploadResults
-              .filter(
-                (
-                  result,
-                ): result is PromiseFulfilledResult<string> =>
-                  result.status ===
-                    "fulfilled" &&
-                  isHttpsUrl(
-                    result.value,
-                  ),
-              )
-              .map(
-                result =>
-                  result.value,
+          const uploadedUrls: string[] =
+            [];
+
+          let failedUploads = 0;
+
+          for (
+            const asset of assets
+          ) {
+            if (!asset?.uri) {
+              failedUploads += 1;
+              continue;
+            }
+
+            const fileSize =
+              await getAssetFileSize(
+                asset,
               );
 
-          uploadResults.forEach(
-            (
-              result,
-              index,
-            ) => {
-              if (
-                result.status ===
-                "rejected"
-              ) {
-                console.error(
-                  "SINGLE_GALLERY_UPLOAD_ERROR:",
-                  {
-                    index,
+            if (
+              fileSize !== null &&
+              fileSize > MAX_IMAGE_BYTES
+            ) {
+              failedUploads += 1;
+              continue;
+            }
 
-                    error:
-                      result.reason,
-                  },
+            try {
+              const fileName =
+                getImageFileName(
+                  asset.fileName,
+                  `gallery-${Date.now()}-${uploadedUrls.length}.jpg`,
                 );
+
+              const uploadedUrl =
+                await uploadWorkerImage(
+                  uid,
+                  asset.uri,
+                  fileName,
+                  GALLERY_IMAGE_FOLDER,
+                );
+
+              const validUrl =
+                normalizePhotoUrl(
+                  uploadedUrl,
+                );
+
+              if (!validUrl) {
+                failedUploads += 1;
+                continue;
               }
-            },
-          );
 
-          if (
-            uploadedURLs.length ===
-            0
-          ) {
-            throw new Error(
-              "No gallery images were uploaded.",
-            );
+              uploadedUrls.push(
+                validUrl,
+              );
+            } catch (error) {
+              failedUploads += 1;
+
+              console.error(
+                "[useWorkerProfile] Gallery image upload error:",
+                error,
+              );
+            }
           }
 
-          /*
-           * Get the latest gallery again
-           * in case state changed while the
-           * image picker was open.
-           */
-          const latestGallery =
-            profileRef.current
-              .workGallery;
-
-          const newGallery =
-            Array.from(
-              new Set([
-                ...latestGallery,
-
-                ...uploadedURLs,
-              ]),
-            ).slice(
-              0,
-              MAX_GALLERY_PHOTOS,
+          if (!uploadedUrls.length) {
+            Alert.alert(
+              "Upload Failed",
+              "None of the selected photos could be uploaded.",
             );
 
-          updateField(
-            "workGallery",
-            newGallery,
-          );
+            return;
+          }
 
-          await saveWorkerGallery(
-            user.uid,
-            newGallery,
-          );
+          const nextGallery =
+            normalizeGallery([
+              ...currentGallery,
+              ...uploadedUrls,
+            ]);
 
-          dirtyFieldsRef.current.delete(
+          const previousGallery =
+            [...currentGallery];
+
+          dirtyFieldsRef.current.add(
             "workGallery",
           );
 
-          if (
-            uploadedURLs.length <
-            selectedAssets.length
-          ) {
-            Toast.show({
-              type: "info",
-
-              text1:
-                "Some photos were skipped",
-
-              text2:
-                `${uploadedURLs.length} of ${selectedAssets.length} photos uploaded successfully.`,
-            });
+          if (mountedRef.current) {
+            updateField(
+              "workGallery",
+              nextGallery,
+            );
           }
+
+          try {
+            await saveWorkerGallery(
+              uid,
+              nextGallery,
+            );
+          } catch (error) {
+            dirtyFieldsRef.current.delete(
+              "workGallery",
+            );
+
+            if (mountedRef.current) {
+              replaceProfile({
+                ...profileRef.current,
+                workGallery:
+                  previousGallery,
+              });
+            }
+
+            throw error;
+          }
+
+          Alert.alert(
+            "Gallery Updated",
+            failedUploads > 0
+              ? `${uploadedUrls.length} photo(s) uploaded. ${failedUploads} photo(s) could not be uploaded.`
+              : "Your work gallery has been updated successfully.",
+          );
         } catch (error) {
           console.error(
-            "WORK_GALLERY_UPLOAD_ERROR:",
+            "[useWorkerProfile] Gallery error:",
             error,
           );
 
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Upload failed",
-
-            text2:
-              "Unable to upload the selected work photos. Please try again.",
-          });
+          Alert.alert(
+            "Gallery Upload Failed",
+            getErrorMessage(
+              error,
+              "Unable to update your work gallery.",
+            ),
+          );
         } finally {
           uploadingGalleryRef.current =
             false;
 
-          setUploadingGallery(
-            false,
-          );
+          if (mountedRef.current) {
+            setUploadingGallery(false);
+          }
         }
       },
-      [
-        updateField,
-      ],
+      [replaceProfile, updateField],
+    );
+
+  /* ==========================================================
+     REPLACE GALLERY PHOTO
+  ========================================================== */
+
+  const replaceGalleryPhoto =
+    useCallback(
+      async (
+        index: number,
+      ): Promise<void> => {
+        if (
+          uploadingGalleryRef.current
+        ) {
+          return;
+        }
+
+        const currentGallery =
+          normalizeGallery(
+            profileRef.current
+              .workGallery,
+          );
+
+        if (
+          index < 0 ||
+          index >= currentGallery.length
+        ) {
+          Alert.alert(
+            "Photo Not Found",
+            "The selected gallery photo is no longer available.",
+          );
+
+          return;
+        }
+
+        const uid =
+          auth.currentUser?.uid;
+
+        if (!uid) {
+          Alert.alert(
+            "Session Expired",
+            "Please sign in again and try again.",
+          );
+
+          return;
+        }
+
+        const previousGallery =
+          [...currentGallery];
+
+        try {
+          uploadingGalleryRef.current =
+            true;
+
+          if (mountedRef.current) {
+            setUploadingGallery(true);
+          }
+
+          const hasPermission =
+            await requestImagePermission(
+              "Please allow photo library access to change your work photo.",
+            );
+
+          if (!hasPermission) {
+            return;
+          }
+
+          const result =
+            await ImagePicker.launchImageLibraryAsync(
+              {
+                mediaTypes: ["images"],
+                allowsEditing: true,
+                aspect: [1, 1],
+                allowsMultipleSelection: false,
+                selectionLimit: 1,
+                quality:
+                  IMAGE_PICKER_QUALITY,
+              },
+            );
+
+          if (
+            result.canceled ||
+            !result.assets?.length
+          ) {
+            return;
+          }
+
+          const asset =
+            result.assets[0];
+
+          if (!asset?.uri) {
+            throw new Error(
+              "The selected image could not be read.",
+            );
+          }
+
+          const fileSize =
+            await getAssetFileSize(
+              asset,
+            );
+
+          if (
+            fileSize !== null &&
+            fileSize > MAX_IMAGE_BYTES
+          ) {
+            throw new Error(
+              "The new gallery photo must be smaller than 10 MB.",
+            );
+          }
+
+          const fileName =
+            getImageFileName(
+              asset.fileName,
+              `gallery-replace-${Date.now()}.jpg`,
+            );
+
+          const uploadedUrl =
+            await uploadWorkerImage(
+              uid,
+              asset.uri,
+              fileName,
+              GALLERY_IMAGE_FOLDER,
+            );
+
+          const newPhotoUrl =
+            normalizePhotoUrl(
+              uploadedUrl,
+            );
+
+          if (!newPhotoUrl) {
+            throw new Error(
+              "The new photo could not be uploaded.",
+            );
+          }
+
+          const nextGallery =
+            currentGallery.map(
+              (
+                photoUrl,
+                photoIndex,
+              ) =>
+                photoIndex === index
+                  ? newPhotoUrl
+                  : photoUrl,
+            );
+
+          dirtyFieldsRef.current.add(
+            "workGallery",
+          );
+
+          if (mountedRef.current) {
+            updateField(
+              "workGallery",
+              nextGallery,
+            );
+          }
+
+          try {
+            await saveWorkerGallery(
+              uid,
+              nextGallery,
+            );
+          } catch (error) {
+            dirtyFieldsRef.current.delete(
+              "workGallery",
+            );
+
+            if (mountedRef.current) {
+              replaceProfile({
+                ...profileRef.current,
+                workGallery:
+                  previousGallery,
+              });
+            }
+
+            throw error;
+          }
+
+          Alert.alert(
+            "Photo Changed",
+            "Your work gallery photo has been replaced successfully.",
+          );
+        } catch (error) {
+          console.error(
+            "[useWorkerProfile] Replace gallery photo error:",
+            error,
+          );
+
+          Alert.alert(
+            "Change Failed",
+            getErrorMessage(
+              error,
+              "Unable to change this gallery photo.",
+            ),
+          );
+        } finally {
+          uploadingGalleryRef.current =
+            false;
+
+          if (mountedRef.current) {
+            setUploadingGallery(false);
+          }
+        }
+      },
+      [replaceProfile, updateField],
     );
 
   /* ==========================================================
@@ -864,139 +1470,116 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
 
   const removeGalleryPhoto =
     useCallback(
-      (
+      async (
         index: number,
-      ) => {
+      ): Promise<void> => {
         if (
-          uploadingGalleryRef.current ||
-          savingRef.current
+          uploadingGalleryRef.current
         ) {
           return;
         }
 
         const currentGallery =
-          profileRef.current
-            .workGallery;
+          normalizeGallery(
+            profileRef.current
+              .workGallery,
+          );
 
         if (
           index < 0 ||
-          index >=
-            currentGallery.length
+          index >= currentGallery.length
         ) {
           return;
         }
 
-        Alert.alert(
-          "Remove photo?",
+        const previousGallery =
+          [...currentGallery];
 
-          "This photo will be removed from your public gallery.",
+        const nextGallery =
+          previousGallery.filter(
+            (_, itemIndex) =>
+              itemIndex !== index,
+          );
 
-          [
-            {
-              text:
-                "Cancel",
+        const uid =
+          auth.currentUser?.uid;
 
-              style:
-                "cancel",
-            },
+        if (!uid) {
+          Alert.alert(
+            "Session Expired",
+            "Please sign in again and try again.",
+          );
 
-            {
-              text:
-                "Remove",
+          return;
+        }
 
-              style:
-                "destructive",
+        try {
+          uploadingGalleryRef.current =
+            true;
 
-              onPress:
-                async () => {
-                  const user =
-                    auth.currentUser;
+          if (mountedRef.current) {
+            setUploadingGallery(true);
+          }
 
-                  if (!user) {
-                    Toast.show({
-                      type: "error",
+          dirtyFieldsRef.current.add(
+            "workGallery",
+          );
 
-                      text1:
-                        "Session expired",
+          if (mountedRef.current) {
+            updateField(
+              "workGallery",
+              nextGallery,
+            );
+          }
 
-                      text2:
-                        "Please sign in again.",
-                    });
+          try {
+            await saveWorkerGallery(
+              uid,
+              nextGallery,
+            );
+          } catch (error) {
+            dirtyFieldsRef.current.delete(
+              "workGallery",
+            );
 
-                    return;
-                  }
+            if (mountedRef.current) {
+              replaceProfile({
+                ...profileRef.current,
+                workGallery:
+                  previousGallery,
+              });
+            }
 
-                  const previousGallery =
-                    profileRef.current
-                      .workGallery;
+            throw error;
+          }
 
-                  const newGallery =
-                    previousGallery.filter(
-                      (
-                        _,
-                        photoIndex,
-                      ) =>
-                        photoIndex !==
-                        index,
-                    );
+          Alert.alert(
+            "Photo Removed",
+            "The gallery photo has been removed successfully.",
+          );
+        } catch (error) {
+          console.error(
+            "[useWorkerProfile] Gallery removal error:",
+            error,
+          );
 
-                  updateField(
-                    "workGallery",
-                    newGallery,
-                  );
+          Alert.alert(
+            "Remove Failed",
+            getErrorMessage(
+              error,
+              "Unable to remove this photo.",
+            ),
+          );
+        } finally {
+          uploadingGalleryRef.current =
+            false;
 
-                  try {
-                    await saveWorkerGallery(
-                      user.uid,
-                      newGallery,
-                    );
-
-                    dirtyFieldsRef.current.delete(
-                      "workGallery",
-                    );
-                  } catch (error) {
-                    console.error(
-                      "REMOVE_GALLERY_PHOTO_ERROR:",
-                      error,
-                    );
-
-                    /*
-                     * Remove dirty state before
-                     * rolling back so Firestore
-                     * can continue syncing.
-                     */
-                    dirtyFieldsRef.current.delete(
-                      "workGallery",
-                    );
-
-                    replaceProfile(
-                      current => ({
-                        ...current,
-
-                        workGallery:
-                          previousGallery,
-                      }),
-                    );
-
-                    Toast.show({
-                      type: "error",
-
-                      text1:
-                        "Unable to remove photo",
-
-                      text2:
-                        "Please try again.",
-                    });
-                  }
-                },
-            },
-          ],
-        );
+          if (mountedRef.current) {
+            setUploadingGallery(false);
+          }
+        }
       },
-      [
-        replaceProfile,
-        updateField,
-      ],
+      [replaceProfile, updateField],
     );
 
   /* ==========================================================
@@ -1005,98 +1588,136 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
 
   const saveProfile =
     useCallback(
-      async () => {
-        if (
-          savingRef.current ||
-          uploadingPhotoRef.current ||
-          uploadingGalleryRef.current
-        ) {
+      async (): Promise<void> => {
+        if (savingRef.current) {
           return;
         }
 
-        const user =
-          auth.currentUser;
+        const uid =
+          auth.currentUser?.uid;
 
-        if (!user) {
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Session expired",
-
-            text2:
-              "Please sign in again.",
-          });
+        if (!uid) {
+          Alert.alert(
+            "Session Expired",
+            "Please sign in again before saving your profile.",
+          );
 
           return;
         }
 
         const currentProfile =
-          profileRef.current;
-
-        const validationError =
-          validateWorkerProfile(
-            currentProfile,
+          cloneWorkerProfile(
+            profileRef.current,
           );
 
-        if (
-          validationError
-        ) {
-          Toast.show({
-            type: "error",
+        currentProfile.photoUrl =
+          normalizePhotoUrl(
+            currentProfile.photoUrl,
+          );
 
-            text1:
-              "Check your profile",
+        currentProfile.workGallery =
+          normalizeGallery(
+            currentProfile.workGallery,
+          );
 
-            text2:
-              validationError,
-          });
+        currentProfile.serviceLocation =
+          normalizeServiceLocation(
+            currentProfile.serviceLocation,
+          );
+
+        currentProfile.selectedServices =
+          Array.from(
+            new Set(
+              (
+                currentProfile.selectedServices ??
+                []
+              )
+                .filter(
+                  (item): item is string =>
+                    typeof item === "string",
+                )
+                .map((item) => item.trim())
+                .filter(Boolean),
+            ),
+          );
+
+        currentProfile.fullName =
+          currentProfile.fullName.trim();
+
+        if (!currentProfile.fullName) {
+          Alert.alert(
+            "Profile Incomplete",
+            "Please enter your full name.",
+          );
 
           return;
         }
 
-        savingRef.current =
-          true;
+        if (
+          currentProfile.fullName.length >
+          MAX_NAME_LENGTH
+        ) {
+          Alert.alert(
+            "Invalid Name",
+            "Your name is too long.",
+          );
 
-        setSaving(true);
+          return;
+        }
 
         try {
+          savingRef.current = true;
+
+          if (mountedRef.current) {
+            setSaving(true);
+          }
+
+          /**
+           * saveWorkerProfile() also protects
+           * the persisted photo at service level.
+           */
           await saveWorkerProfile(
-            user.uid,
+            uid,
             currentProfile,
           );
 
-          dirtyFieldsRef.current.clear();
+          if (mountedRef.current) {
+            const savedProfile =
+              cloneWorkerProfile(
+                currentProfile,
+              );
 
-          Toast.show({
-            type: "success",
+            profileRef.current =
+              savedProfile;
 
-            text1:
-              "Profile published",
+            setProfile(
+              savedProfile,
+            );
+          }
 
-            text2:
-              "Your worker profile has been updated successfully.",
-          });
+          Alert.alert(
+            "Profile Published",
+            "Your worker profile has been saved and published successfully.",
+          );
         } catch (error) {
           console.error(
-            "SAVE_WORKER_PROFILE_ERROR:",
+            "[useWorkerProfile] Save profile error:",
             error,
           );
 
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Save failed",
-
-            text2:
-              "Unable to save your profile. Please try again.",
-          });
+          Alert.alert(
+            "Save Failed",
+            getErrorMessage(
+              error,
+              "Unable to save your worker profile.",
+            ),
+          );
         } finally {
-          savingRef.current =
-            false;
+          savingRef.current = false;
 
-          setSaving(false);
+          if (mountedRef.current) {
+            setSaving(false);
+          }
         }
       },
       [],
@@ -1108,13 +1729,9 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
 
   return {
     profile,
-
     loading,
-
     saving,
-
     uploadingPhoto,
-
     uploadingGallery,
 
     updateField,
@@ -1123,8 +1740,12 @@ export function useWorkerProfile(): UseWorkerProfileReturn {
 
     addGalleryPhoto,
 
+    replaceGalleryPhoto,
+
     removeGalleryPhoto,
 
     saveProfile,
   };
 }
+
+export default useWorkerProfile;

@@ -1,4 +1,6 @@
-import React from "react";
+import React, {
+  useMemo,
+} from "react";
 
 import {
   AppScreen,
@@ -10,11 +12,48 @@ import {
   FixxamTokens,
 } from "@/theme";
 
+import {
+  useLocalSearchParams,
+} from "expo-router";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type RegistrationSource =
+  | "customer"
+  | "new";
+
 /* ============================================================
    SCREEN
 ============================================================ */
 
 export default function WorkerSignup() {
+  const params =
+    useLocalSearchParams<{
+      source?: string;
+    }>();
+
+  /* ==========================================================
+     REGISTRATION SOURCE
+
+     customer → prefill worker registration from
+                existing customer details.
+
+     new      → start worker registration with
+                independent personal details.
+  ========================================================== */
+
+  const source =
+    useMemo<RegistrationSource>(
+      () =>
+        params.source ===
+        "customer"
+          ? "customer"
+          : "new",
+      [params.source],
+    );
+
   return (
     <AppScreen
       role="worker"
@@ -30,7 +69,11 @@ export default function WorkerSignup() {
           FixxamTokens.spacing.xxl,
       }}
     >
-      <WorkerSignupForm />
+      <WorkerSignupForm
+        registrationSource={
+          source
+        }
+      />
     </AppScreen>
   );
 }

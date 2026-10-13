@@ -1,0 +1,1240 @@
+/* ============================================================
+   SHOP HELPERS
+
+   Shared helpers from 01-core.rules:
+
+   signedIn()
+   isOwner(uid)
+============================================================ */
+
+function validShopCategory(value) {
+  return value is string
+    && value in [
+      "plumbing",
+      "electrical-repair",
+      "phone-repair",
+      "car-repair",
+      "ac-repair",
+      "generator-repair",
+      "solar-installation",
+      "appliance-repair",
+      "computer-repair",
+      "tailoring",
+      "cleaning-services",
+      "carpentry",
+      "house-painting",
+      "welding",
+      "refrigerator-repair",
+      "barbing",
+      "hairdressing",
+      "laundry",
+      "pest-control",
+      "cctv-installation",
+
+      "auto-mechanic",
+      "auto-electrician",
+      "car-diagnostics",
+      "car-ac-repair",
+      "brake-repair",
+      "engine-repair",
+      "gearbox-repair",
+      "tyre-repair",
+      "wheel-alignment",
+      "vulcanizing",
+      "panel-beating",
+      "car-painting",
+      "car-wash",
+      "car-detailing",
+      "motorcycle-repair",
+      "car-battery-service",
+
+      "tablet-repair",
+      "phone-screen-repair",
+      "phone-battery-repair",
+      "charging-port-repair",
+      "laptop-repair",
+      "desktop-repair",
+      "printer-repair",
+      "photocopier-repair",
+      "tv-repair",
+      "decoder-repair",
+      "satellite-installation",
+      "washing-machine-repair",
+      "microwave-repair",
+      "electric-cooker-repair",
+      "water-dispenser-repair",
+      "sound-system-repair",
+      "electronics-repair",
+
+      "house-wiring",
+      "electrical-installation",
+      "inverter-installation",
+      "inverter-repair",
+      "solar-repair",
+      "solar-battery-service",
+      "generator-installation",
+
+      "pipe-repair",
+      "drain-unblocking",
+      "toilet-repair",
+      "water-pump-repair",
+      "borehole-service",
+      "water-tank-installation",
+      "ac-installation",
+      "ac-servicing",
+      "freezer-repair",
+
+      "building-construction",
+      "masonry",
+      "bricklaying",
+      "roofing",
+      "tiling",
+      "flooring",
+      "pop-ceiling",
+      "interlocking",
+      "glasswork",
+      "aluminium-work",
+      "window-installation",
+      "door-installation",
+      "gate-fabrication",
+      "furniture-making",
+      "furniture-repair",
+      "upholstery",
+      "interior-decoration",
+      "waterproofing",
+
+      "house-cleaning",
+      "office-cleaning",
+      "deep-cleaning",
+      "post-construction-cleaning",
+      "fumigation",
+      "dry-cleaning",
+      "carpet-cleaning",
+      "sofa-cleaning",
+      "waste-disposal",
+      "gardening",
+      "landscaping",
+
+      "fashion-design",
+      "clothing-alteration",
+      "shoe-repair",
+      "leather-work",
+      "makeup",
+      "nail-care",
+      "braiding",
+      "wig-installation",
+      "spa-services",
+      "massage",
+
+      "catering",
+      "baking",
+      "event-planning",
+      "event-decoration",
+      "dj-services",
+      "mc-services",
+      "photography",
+      "videography",
+      "printing",
+      "branding",
+      "graphic-design",
+
+      "internet-installation",
+      "networking",
+      "data-recovery",
+      "software-installation",
+      "website-development",
+      "mobile-app-development",
+      "pos-repair",
+      "accounting",
+      "bookkeeping",
+      "business-consulting",
+
+      "security-services",
+      "alarm-installation",
+      "electric-fence",
+      "locksmith",
+      "property-maintenance",
+      "land-surveying",
+      "real-estate-services",
+
+      "farm-services",
+      "poultry-services",
+      "fish-farming",
+      "livestock-services",
+      "irrigation-installation",
+
+      "physiotherapy",
+      "home-care",
+      "elderly-care",
+      "childcare",
+
+      "delivery-services",
+      "courier-services",
+      "moving-services",
+      "furniture-moving",
+      "haulage"
+    ];
+}
+
+function validShopCoordinate(latitude, longitude) {
+  return latitude is number
+    && latitude >= -90
+    && latitude <= 90
+    && longitude is number
+    && longitude >= -180
+    && longitude <= 180;
+}
+
+function validShopHttpsUrl(value) {
+  return value is string
+    && value.size() > 0
+    && value.size() <= 2048
+    && value.matches("^https://.*");
+}
+
+/* ============================================================
+   BUSINESS HOURS
+============================================================ */
+
+function validShopBusinessHourShape(value) {
+  return value is map
+    && value.keys().hasOnly([
+      "id",
+      "day",
+      "isOpen",
+      "openTime",
+      "closeTime"
+    ]);
+}
+
+function validShopBusinessHours(hours) {
+  return hours is list
+    && hours.size() >= 1
+    && hours.size() <= 7
+
+    && validShopBusinessHourShape(hours[0])
+
+    && (
+      hours.size() < 2
+      || validShopBusinessHourShape(hours[1])
+    )
+
+    && (
+      hours.size() < 3
+      || validShopBusinessHourShape(hours[2])
+    )
+
+    && (
+      hours.size() < 4
+      || validShopBusinessHourShape(hours[3])
+    )
+
+    && (
+      hours.size() < 5
+      || validShopBusinessHourShape(hours[4])
+    )
+
+    && (
+      hours.size() < 6
+      || validShopBusinessHourShape(hours[5])
+    )
+
+    && (
+      hours.size() < 7
+      || validShopBusinessHourShape(hours[6])
+    );
+}
+
+/* ============================================================
+   SHOP DOCUMENT
+============================================================ */
+
+function validShopDocument(data) {
+  return data.ownerId is string
+    && data.ownerId.size() > 0
+    && data.ownerId.size() <= 128
+
+    && data.name is string
+    && data.name.size() >= 2
+    && data.name.size() <= 100
+
+    && validShopCategory(data.category)
+
+    && data.description is string
+    && data.description.size() >= 1
+    && data.description.size() <= 500
+
+    && data.phone is string
+    && data.phone.size() >= 7
+    && data.phone.size() <= 30
+
+    && data.address is string
+    && data.address.size() >= 3
+    && data.address.size() <= 300
+
+    && validShopCoordinate(
+      data.latitude,
+      data.longitude
+    )
+
+    && validShopHttpsUrl(data.coverPhotoUrl)
+    && validShopHttpsUrl(data.logoUrl)
+
+    && validShopBusinessHours(data.businessHours)
+
+    && data.isActive is bool
+
+    && data.rating is number
+    && data.rating >= 0
+    && data.rating <= 5
+
+    && data.reviewCount is number
+    && data.reviewCount >= 0
+
+    && data.serviceCount is number
+    && data.serviceCount >= 0
+    && data.serviceCount <= 30
+
+    && (
+      data.minimumStartingPrice == null
+      || (
+        data.minimumStartingPrice is number
+        && data.minimumStartingPrice > 0
+        && data.minimumStartingPrice <= 100000000
+      )
+    )
+
+    && data.createdAt is timestamp
+    && data.updatedAt is timestamp;
+}
+
+/* ============================================================
+   SHOP SERVICE
+============================================================ */
+
+function validShopService(data, serviceId) {
+  return data.id is string
+    && data.id == serviceId
+
+    && data.name is string
+    && data.name.size() >= 1
+    && data.name.size() <= 100
+
+    && data.description is string
+    && data.description.size() >= 1
+    && data.description.size() <= 1000
+
+    && data.startingPrice is number
+    && data.startingPrice > 0
+    && data.startingPrice <= 100000000
+
+    && validShopHttpsUrl(data.imageUrl)
+
+    && data.isActive is bool
+    && data.updatedAt is timestamp;
+}
+
+/* ============================================================
+   SHOPS
+============================================================ */
+
+match /shops/{shopId} {
+
+  /* ==========================================================
+     READ
+  ========================================================== */
+
+  allow get:
+    if resource.data.isActive == true
+    || (
+      signedIn()
+      && request.auth.uid == shopId
+    );
+
+  allow list:
+    if resource.data.isActive == true;
+
+  /* ==========================================================
+     CREATE
+  ========================================================== */
+
+  allow create:
+    if signedIn()
+
+    && request.auth.uid == shopId
+
+    && request.resource.data.keys().hasAll([
+      "ownerId",
+      "name",
+      "category",
+      "description",
+      "phone",
+      "address",
+      "latitude",
+      "longitude",
+      "coverPhotoUrl",
+      "logoUrl",
+      "businessHours",
+      "isActive",
+      "rating",
+      "reviewCount",
+      "serviceCount",
+      "minimumStartingPrice",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    && request.resource.data.keys().hasOnly([
+      "ownerId",
+      "name",
+      "category",
+      "description",
+      "phone",
+      "address",
+      "latitude",
+      "longitude",
+      "coverPhotoUrl",
+      "logoUrl",
+      "businessHours",
+      "isActive",
+      "rating",
+      "reviewCount",
+      "serviceCount",
+      "minimumStartingPrice",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    && request.resource.data.ownerId == request.auth.uid
+    && request.resource.data.ownerId == shopId
+
+    && request.resource.data.isActive == true
+    && request.resource.data.rating == 0
+    && request.resource.data.reviewCount == 0
+
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time
+
+    && validShopDocument(
+      request.resource.data
+    );
+
+  /* ==========================================================
+     UPDATE
+  ========================================================== */
+
+  allow update:
+    if signedIn()
+
+    && request.auth.uid == shopId
+    && resource.data.ownerId == request.auth.uid
+
+    && request.resource.data.ownerId
+      == resource.data.ownerId
+
+    && request.resource.data.ownerId
+      == shopId
+
+    && request.resource.data.createdAt
+      == resource.data.createdAt
+
+    && request.resource.data.rating
+      == resource.data.rating
+
+    && request.resource.data.reviewCount
+      == resource.data.reviewCount
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && request.resource.data.keys().hasAll([
+      "ownerId",
+      "name",
+      "category",
+      "description",
+      "phone",
+      "address",
+      "latitude",
+      "longitude",
+      "coverPhotoUrl",
+      "logoUrl",
+      "businessHours",
+      "isActive",
+      "rating",
+      "reviewCount",
+      "serviceCount",
+      "minimumStartingPrice",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    && request.resource.data.keys().hasOnly([
+      "ownerId",
+      "name",
+      "category",
+      "description",
+      "phone",
+      "address",
+      "latitude",
+      "longitude",
+      "coverPhotoUrl",
+      "logoUrl",
+      "businessHours",
+      "isActive",
+      "rating",
+      "reviewCount",
+      "serviceCount",
+      "minimumStartingPrice",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    && validShopDocument(
+      request.resource.data
+    );
+
+  /* ==========================================================
+     DELETE
+  ========================================================== */
+
+  allow delete: if false;
+
+  /* ==========================================================
+     SERVICES
+  ========================================================== */
+
+  match /services/{serviceId} {
+
+    /* ========================================================
+       READ
+    ======================================================== */
+
+    allow get:
+      if (
+        exists(
+          /databases/$(database)/documents/shops/$(shopId)
+        )
+        && get(
+          /databases/$(database)/documents/shops/$(shopId)
+        ).data.isActive == true
+        && resource.data.isActive == true
+      )
+      || (
+        signedIn()
+        && request.auth.uid == shopId
+      );
+
+    allow list:
+      if (
+        exists(
+          /databases/$(database)/documents/shops/$(shopId)
+        )
+        && get(
+          /databases/$(database)/documents/shops/$(shopId)
+        ).data.isActive == true
+        && resource.data.isActive == true
+      )
+      || (
+        signedIn()
+        && request.auth.uid == shopId
+      );
+
+    /* ========================================================
+       CREATE
+    ======================================================== */
+
+    allow create:
+      if signedIn()
+
+      && request.auth.uid == shopId
+
+      && existsAfter(
+        /databases/$(database)/documents/shops/$(shopId)
+      )
+
+      && getAfter(
+        /databases/$(database)/documents/shops/$(shopId)
+      ).data.ownerId == request.auth.uid
+
+      && request.resource.data.keys().hasAll([
+        "id",
+        "name",
+        "description",
+        "startingPrice",
+        "imageUrl",
+        "isActive",
+        "updatedAt"
+      ])
+
+      && request.resource.data.keys().hasOnly([
+        "id",
+        "name",
+        "description",
+        "startingPrice",
+        "imageUrl",
+        "isActive",
+        "updatedAt"
+      ])
+
+      && request.resource.data.id == serviceId
+      && request.resource.data.updatedAt == request.time
+
+      && validShopService(
+        request.resource.data,
+        serviceId
+      );
+
+    /* ========================================================
+       UPDATE
+    ======================================================== */
+
+    allow update:
+      if signedIn()
+
+      && request.auth.uid == shopId
+
+      && existsAfter(
+        /databases/$(database)/documents/shops/$(shopId)
+      )
+
+      && getAfter(
+        /databases/$(database)/documents/shops/$(shopId)
+      ).data.ownerId == request.auth.uid
+
+      && resource.data.id == serviceId
+      && request.resource.data.id == resource.data.id
+      && request.resource.data.id == serviceId
+
+      && request.resource.data.keys().hasAll([
+        "id",
+        "name",
+        "description",
+        "startingPrice",
+        "imageUrl",
+        "isActive",
+        "updatedAt"
+      ])
+
+      && request.resource.data.keys().hasOnly([
+        "id",
+        "name",
+        "description",
+        "startingPrice",
+        "imageUrl",
+        "isActive",
+        "updatedAt"
+      ])
+
+      && request.resource.data.updatedAt == request.time
+
+      && validShopService(
+        request.resource.data,
+        serviceId
+      );
+
+    /* ========================================================
+       DELETE
+    ======================================================== */
+
+    allow delete:
+      if signedIn()
+
+      && request.auth.uid == shopId
+      && resource.data.id == serviceId
+
+      && exists(
+        /databases/$(database)/documents/shops/$(shopId)
+      )
+
+      && get(
+        /databases/$(database)/documents/shops/$(shopId)
+      ).data.ownerId == request.auth.uid;
+  }
+}
+
+/* ============================================================
+   SHOP REQUEST HELPERS
+============================================================ */
+
+function currentShopForRequest(shopId) {
+  return get(
+    /databases/$(database)/documents/shops/$(shopId)
+  ).data;
+}
+
+function currentServiceForRequest(shopId, serviceId) {
+  return get(
+    /databases/$(database)/documents/shops/$(shopId)/services/$(serviceId)
+  ).data;
+}
+
+/* ============================================================
+   REQUEST PHOTOS
+============================================================ */
+
+function validRequestPhotoUrl(value) {
+  return value is string
+    && value.size() > 0
+    && value.size() <= 2048
+    && value.matches("^https://.*");
+}
+
+function validRequestPhotoUrls(photos) {
+  return photos is list
+    && photos.size() <= 4
+
+    && (
+      photos.size() < 1
+      || validRequestPhotoUrl(photos[0])
+    )
+
+    && (
+      photos.size() < 2
+      || validRequestPhotoUrl(photos[1])
+    )
+
+    && (
+      photos.size() < 3
+      || validRequestPhotoUrl(photos[2])
+    )
+
+    && (
+      photos.size() < 4
+      || validRequestPhotoUrl(photos[3])
+    );
+}
+
+/* ============================================================
+   REQUEST MEDIA
+============================================================ */
+
+function validShopRequestMediaUrl(value) {
+  return value is string
+    && value.size() > 0
+    && value.size() <= 2048
+    && value.matches("^https://.*");
+}
+
+function validOptionalShopRequestMediaUrl(value) {
+  return value == null
+    || validShopRequestMediaUrl(value);
+}
+
+/* ============================================================
+   REQUEST STATUS
+============================================================ */
+
+function validShopRequestStatus(status) {
+  return status is string
+    && status in [
+      "pending",
+      "accepted",
+      "declined",
+      "completed",
+      "cancelled"
+    ];
+}
+
+function validShopRequestTransition(
+  oldStatus,
+  newStatus
+) {
+  return (
+    oldStatus == "pending"
+    && (
+      newStatus == "accepted"
+      || newStatus == "declined"
+    )
+  )
+  || (
+    oldStatus == "accepted"
+    && newStatus == "completed"
+  );
+}
+
+function validCustomerShopRequestCancellation(
+  oldStatus,
+  newStatus
+) {
+  return oldStatus == "pending"
+    && newStatus == "cancelled";
+}
+
+/* ============================================================
+   SHOP REQUEST HISTORY HELPERS
+============================================================ */
+
+function shopRequestPartiesUnchanged() {
+  return request.resource.data.id
+      == resource.data.id
+
+    && request.resource.data.shopId
+      == resource.data.shopId
+
+    && request.resource.data.workerId
+      == resource.data.workerId
+
+    && request.resource.data.customerId
+      == resource.data.customerId
+
+    && request.resource.data.serviceId
+      == resource.data.serviceId
+
+    && request.resource.data.createdAt
+      == resource.data.createdAt;
+}
+
+function terminalShopRequestStatus() {
+  return resource.data.status in [
+    "completed",
+    "cancelled",
+    "declined"
+  ];
+}
+
+/* ============================================================
+   CUSTOMER SOFT DELETE
+============================================================ */
+
+function canCustomerHideShopRequest() {
+  return signedIn()
+
+    && resource.data.customerId
+      == request.auth.uid
+
+    && terminalShopRequestStatus()
+
+    && shopRequestPartiesUnchanged()
+
+    && request.resource.data.status
+      == resource.data.status
+
+    && resource.data.get(
+      "deletedByCustomer",
+      false
+    ) != true
+
+    && request.resource.data.deletedByCustomer
+      == true
+
+    && request.resource.data.deletedByCustomerAt
+      == request.time
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        "deletedByCustomer",
+        "deletedByCustomerAt",
+        "updatedAt"
+      ]);
+}
+
+/* ============================================================
+   WORKER SOFT DELETE
+============================================================ */
+
+function canWorkerHideShopRequest() {
+  return signedIn()
+
+    && resource.data.workerId
+      == request.auth.uid
+
+    && terminalShopRequestStatus()
+
+    && shopRequestPartiesUnchanged()
+
+    && request.resource.data.status
+      == resource.data.status
+
+    && resource.data.get(
+      "deletedByWorker",
+      false
+    ) != true
+
+    && request.resource.data.deletedByWorker
+      == true
+
+    && request.resource.data.deletedByWorkerAt
+      == request.time
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        "deletedByWorker",
+        "deletedByWorkerAt",
+        "updatedAt"
+      ]);
+}
+
+/* ============================================================
+   SHOP REQUEST DOCUMENT
+============================================================ */
+
+function validShopRequestDocument(data) {
+  return data.id is string
+    && data.id.size() > 0
+    && data.id.size() <= 128
+
+    && data.shopId is string
+    && data.shopId.size() > 0
+    && data.shopId.size() <= 128
+
+    && data.shopName is string
+    && data.shopName.size() > 0
+    && data.shopName.size() <= 100
+
+    /* Shop media */
+    && validShopRequestMediaUrl(
+      data.shopPhotoUrl
+    )
+
+    && validShopRequestMediaUrl(
+      data.shopLogoUrl
+    )
+
+    && data.workerId is string
+    && data.workerId.size() > 0
+    && data.workerId.size() <= 128
+
+    && data.customerId is string
+    && data.customerId.size() > 0
+    && data.customerId.size() <= 128
+
+    && data.customerName is string
+    && data.customerName.size() > 0
+    && data.customerName.size() <= 120
+
+    /* Customer media can legitimately be null */
+    && validOptionalShopRequestMediaUrl(
+      data.customerPhotoUrl
+    )
+
+    && data.serviceId is string
+    && data.serviceId.size() > 0
+    && data.serviceId.size() <= 128
+
+    && data.serviceName is string
+    && data.serviceName.size() > 0
+    && data.serviceName.size() <= 100
+
+    && data.servicePrice is number
+    && data.servicePrice > 0
+    && data.servicePrice <= 100000000
+
+    /* Service media */
+    && validShopRequestMediaUrl(
+      data.serviceImageUrl
+    )
+
+    && data.requestedDateKey is string
+    && data.requestedDateKey.size() > 0
+    && data.requestedDateKey.size() <= 30
+
+    && data.requestedDateLabel is string
+    && data.requestedDateLabel.size() > 0
+    && data.requestedDateLabel.size() <= 100
+
+    && data.requestedTime is string
+    && data.requestedTime.size() > 0
+    && data.requestedTime.size() <= 50
+
+    && data.description is string
+    && data.description.size() <= 500
+
+    && validRequestPhotoUrls(
+      data.photoUrls
+    )
+
+    && validShopRequestStatus(
+      data.status
+    )
+
+    && data.deletedByCustomer is bool
+
+    && (
+      data.deletedByCustomerAt == null
+      || data.deletedByCustomerAt is timestamp
+    )
+
+    && data.deletedByWorker is bool
+
+    && (
+      data.deletedByWorkerAt == null
+      || data.deletedByWorkerAt is timestamp
+    )
+
+    && data.createdAt is timestamp
+    && data.updatedAt is timestamp;
+}
+
+/* ============================================================
+   SHOP REQUESTS
+============================================================ */
+
+match /shopRequests/{requestId} {
+
+  /* ==========================================================
+     READ ONE
+  ========================================================== */
+
+  allow get:
+    if signedIn()
+    && (
+      resource.data.customerId == request.auth.uid
+      || resource.data.workerId == request.auth.uid
+    );
+
+  /* ==========================================================
+     LIST
+  ========================================================== */
+
+  allow list:
+    if signedIn()
+    && (
+      resource.data.customerId == request.auth.uid
+      || resource.data.workerId == request.auth.uid
+    );
+
+  /* ==========================================================
+     CREATE
+  ========================================================== */
+
+  allow create:
+    if signedIn()
+
+    && request.resource.data.keys().hasAll([
+      "id",
+      "shopId",
+      "shopName",
+      "shopPhotoUrl",
+      "shopLogoUrl",
+      "workerId",
+      "customerId",
+      "customerName",
+      "customerPhotoUrl",
+      "serviceId",
+      "serviceName",
+      "servicePrice",
+      "serviceImageUrl",
+      "requestedDateKey",
+      "requestedDateLabel",
+      "requestedTime",
+      "description",
+      "photoUrls",
+      "status",
+      "deletedByCustomer",
+      "deletedByCustomerAt",
+      "deletedByWorker",
+      "deletedByWorkerAt",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    && request.resource.data.keys().hasOnly([
+      "id",
+      "shopId",
+      "shopName",
+      "shopPhotoUrl",
+      "shopLogoUrl",
+      "workerId",
+      "customerId",
+      "customerName",
+      "customerPhotoUrl",
+      "serviceId",
+      "serviceName",
+      "servicePrice",
+      "serviceImageUrl",
+      "requestedDateKey",
+      "requestedDateLabel",
+      "requestedTime",
+      "description",
+      "photoUrls",
+      "status",
+      "deletedByCustomer",
+      "deletedByCustomerAt",
+      "deletedByWorker",
+      "deletedByWorkerAt",
+      "createdAt",
+      "updatedAt"
+    ])
+
+    /* Document identity */
+    && request.resource.data.id == requestId
+
+    /* Customer ownership */
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    /* Initial state */
+    && request.resource.data.status
+      == "pending"
+
+    && request.resource.data.deletedByCustomer
+      == false
+
+    && request.resource.data.deletedByCustomerAt
+      == null
+
+    && request.resource.data.deletedByWorker
+      == false
+
+    && request.resource.data.deletedByWorkerAt
+      == null
+
+    /* Shop must exist and be active */
+    && currentShopForRequest(
+      request.resource.data.shopId
+    ).isActive == true
+
+    /* Worker must be the real shop owner */
+    && request.resource.data.workerId
+      == currentShopForRequest(
+        request.resource.data.shopId
+      ).ownerId
+
+    /* Customer cannot request own shop */
+    && request.resource.data.workerId
+      != request.auth.uid
+
+    /* Shop name must come from Firestore */
+    && request.resource.data.shopName
+      == currentShopForRequest(
+        request.resource.data.shopId
+      ).name
+
+    /* Shop media must match authoritative shop data */
+    && request.resource.data.shopPhotoUrl
+      == currentShopForRequest(
+        request.resource.data.shopId
+      ).coverPhotoUrl
+
+    && request.resource.data.shopLogoUrl
+      == currentShopForRequest(
+        request.resource.data.shopId
+      ).logoUrl
+
+    /* Service must belong to that shop and be active */
+    && currentServiceForRequest(
+      request.resource.data.shopId,
+      request.resource.data.serviceId
+    ).isActive == true
+
+    /* Service name must come from Firestore */
+    && request.resource.data.serviceName
+      == currentServiceForRequest(
+        request.resource.data.shopId,
+        request.resource.data.serviceId
+      ).name
+
+    /* Service price must come from Firestore */
+    && request.resource.data.servicePrice
+      == currentServiceForRequest(
+        request.resource.data.shopId,
+        request.resource.data.serviceId
+      ).startingPrice
+
+    /* Service image must match authoritative service data */
+    && request.resource.data.serviceImageUrl
+      == currentServiceForRequest(
+        request.resource.data.shopId,
+        request.resource.data.serviceId
+      ).imageUrl
+
+    /* Server timestamps */
+    && request.resource.data.createdAt
+      == request.time
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    /* Complete schema validation */
+    && validShopRequestDocument(
+      request.resource.data
+    );
+
+  /* ==========================================================
+     STATUS UPDATE
+  ========================================================== */
+
+  allow update:
+    if signedIn()
+
+    && request.resource.data
+      .diff(resource.data)
+      .affectedKeys()
+      .hasOnly([
+        "status",
+        "updatedAt"
+      ])
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && validShopRequestStatus(
+      request.resource.data.status
+    )
+
+    && shopRequestPartiesUnchanged()
+
+    && (
+      (
+        resource.data.workerId
+          == request.auth.uid
+
+        && resource.data.get(
+          "deletedByWorker",
+          false
+        ) != true
+
+        && validShopRequestTransition(
+          resource.data.status,
+          request.resource.data.status
+        )
+      )
+
+      ||
+
+      (
+        resource.data.customerId
+          == request.auth.uid
+
+        && resource.data.get(
+          "deletedByCustomer",
+          false
+        ) != true
+
+        && validCustomerShopRequestCancellation(
+          resource.data.status,
+          request.resource.data.status
+        )
+      )
+    );
+
+  /* ==========================================================
+     CUSTOMER SOFT DELETE
+  ========================================================== */
+
+  allow update:
+    if canCustomerHideShopRequest();
+
+  /* ==========================================================
+     WORKER SOFT DELETE
+  ========================================================== */
+
+  allow update:
+    if canWorkerHideShopRequest();
+
+  /* ==========================================================
+     HARD DELETE DISABLED
+  ========================================================== */
+
+  allow delete: if false;
+}

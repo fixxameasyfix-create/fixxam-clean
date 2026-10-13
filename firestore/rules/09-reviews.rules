@@ -1,0 +1,1153 @@
+/* ============================================================
+REVIEWS
+
+Supports:
+
+1. Worker reviews
+targetType = "worker"
+Rating 1-5 + comment
+
+
+2. Product reviews
+targetType = "product"
+Rating 1-5 + comment
+
+Product review also stores workerId
+so the product owner can receive the
+separate fixed 3-star worker rating.
+
+
+3. Shop reviews
+targetType = "shop"
+Rating 1-5
+Comment optional
+
+
+
+Worker review fields:
+
+customerId
+customerName
+workerId
+workerName
+targetId
+targetType
+rating
+comment
+createdAt
+updatedAt
+
+
+Product review fields:
+
+customerId
+customerName
+productId
+productName
+workerId
+targetId
+targetType
+rating
+comment
+createdAt
+updatedAt
+
+
+Shop review fields:
+
+customerId
+customerName
+shopId
+targetId
+targetType
+rating
+comment
+createdAt
+updatedAt
+============================================================ */
+
+
+match /reviews/{reviewId} {
+
+/* ==========================================================
+COMMON HELPERS
+========================================================== */
+
+function validReviewComment() {
+  return request.resource.data.comment is string
+    && request.resource.data.comment.size() >= 3
+    && request.resource.data.comment.size() <= 500;
+}
+
+function validReviewCustomerName() {
+  return request.resource.data.customerName is string
+    && request.resource.data.customerName.size() > 0
+    && request.resource.data.customerName.size() <= 150;
+}
+
+function validReviewRating() {
+  return request.resource.data.rating is number
+    && request.resource.data.rating >= 1
+    && request.resource.data.rating <= 5;
+}
+
+
+/* ==========================================================
+WORKER REVIEW HELPERS
+========================================================== */
+
+function validWorkerReviewWorkerName() {
+  return request.resource.data.workerName is string
+    && request.resource.data.workerName.size() > 0
+    && request.resource.data.workerName.size() <= 150;
+}
+
+function validWorkerReviewFields() {
+  return request.resource.data.keys().hasOnly([
+    "customerId",
+    "customerName",
+    "workerId",
+    "workerName",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+function hasRequiredWorkerReviewFields() {
+  return request.resource.data.keys().hasAll([
+    "customerId",
+    "customerName",
+    "workerId",
+    "workerName",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+function validWorkerReviewData() {
+  return signedIn()
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId is string
+
+    && request.resource.data.customerId.size() > 0
+
+    && request.resource.data.workerId is string
+
+    && request.resource.data.workerId.size() > 0
+
+    && request.resource.data.workerId
+      != request.auth.uid
+
+    && request.resource.data.targetType
+      == "worker"
+
+    && request.resource.data.targetId
+      == request.resource.data.workerId
+
+    && validReviewRating()
+
+    && validReviewComment()
+
+    && validReviewCustomerName()
+
+    && validWorkerReviewWorkerName()
+
+    && hasRequiredWorkerReviewFields()
+
+    && validWorkerReviewFields();
+}
+
+
+/* ==========================================================
+PRODUCT REVIEW HELPERS
+========================================================== */
+
+function validProductReviewProductName() {
+  return request.resource.data.productName is string
+    && request.resource.data.productName.size() > 0
+    && request.resource.data.productName.size() <= 200;
+}
+
+function validProductReviewWorkerId() {
+  return request.resource.data.workerId is string
+    && request.resource.data.workerId.size() > 0
+    && request.resource.data.workerId
+      != request.auth.uid;
+}
+
+function validProductReviewFields() {
+  return request.resource.data.keys().hasOnly([
+    "customerId",
+    "customerName",
+    "productId",
+    "productName",
+    "workerId",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+function hasRequiredProductReviewFields() {
+  return request.resource.data.keys().hasAll([
+    "customerId",
+    "customerName",
+    "productId",
+    "productName",
+    "workerId",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+function validProductReviewData() {
+  return signedIn()
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId is string
+
+    && request.resource.data.customerId.size() > 0
+
+    && request.resource.data.productId is string
+
+    && request.resource.data.productId.size() > 0
+
+    && exists(
+      /databases/$(database)/documents/products/$(request.resource.data.productId)
+    )
+
+    && validProductReviewWorkerId()
+
+    && request.resource.data.targetType
+      == "product"
+
+    && request.resource.data.targetId
+      == request.resource.data.productId
+
+    && validReviewRating()
+
+    && validReviewComment()
+
+    && validReviewCustomerName()
+
+    && validProductReviewProductName()
+
+    && hasRequiredProductReviewFields()
+
+    && validProductReviewFields();
+}
+
+
+/* ==========================================================
+SHOP REVIEW HELPERS
+========================================================== */
+
+function validShopReviewComment() {
+  return request.resource.data.comment is string
+
+    && request.resource.data.comment.size() <= 500
+
+    && (
+      request.resource.data.comment.size() == 0
+      ||
+      request.resource.data.comment.size() >= 3
+    );
+}
+
+function validShopReviewFields() {
+  return request.resource.data.keys().hasOnly([
+    "customerId",
+    "customerName",
+    "shopId",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+function hasRequiredShopReviewFields() {
+  return request.resource.data.keys().hasAll([
+    "customerId",
+    "customerName",
+    "shopId",
+    "targetId",
+    "targetType",
+    "rating",
+    "comment",
+    "createdAt",
+    "updatedAt"
+  ]);
+}
+
+
+/* ==========================================================
+SHOP REVIEW CUSTOMER NAME SECURITY
+
+The review name must match the authenticated
+customer's saved profile.
+
+Supported profile formats:
+
+1. fullName
+
+OR
+
+2. firstName + surname
+
+OR
+
+3. firstName + otherName + surname
+
+This matches the customer name construction
+used by shopReviewService.ts.
+========================================================== */
+
+function validShopReviewCustomerName() {
+  return signedIn()
+
+    && request.resource.data.customerId is string
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerName is string
+
+    && request.resource.data.customerName.size() > 0
+
+    && request.resource.data.customerName.size() <= 150
+
+    && exists(
+      /databases/$(database)/documents/users/$(request.auth.uid)
+    )
+
+    && (
+      /* ----------------------------------------------
+         OPTION 1: fullName
+      ---------------------------------------------- */
+
+      (
+        get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.fullName is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.fullName.size() > 0
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.fullName.size() <= 150
+
+        && request.resource.data.customerName
+          ==
+          get(
+            /databases/$(database)/documents/users/$(request.auth.uid)
+          ).data.fullName
+      )
+
+      ||
+
+      /* ----------------------------------------------
+         OPTION 2: firstName + otherName + surname
+      ---------------------------------------------- */
+
+      (
+        get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.firstName is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.firstName.size() > 0
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.otherName is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.otherName.size() > 0
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.surname is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.surname.size() > 0
+
+        && request.resource.data.customerName
+          ==
+          (
+            get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.firstName
+
+            + " "
+
+            + get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.otherName
+
+            + " "
+
+            + get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.surname
+          )
+      )
+
+      ||
+
+      /* ----------------------------------------------
+         OPTION 3: firstName + surname
+      ---------------------------------------------- */
+
+      (
+        get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.firstName is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.firstName.size() > 0
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.surname is string
+
+        && get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.surname.size() > 0
+
+        && (
+          !(
+            get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.otherName is string
+          )
+
+          ||
+
+          get(
+            /databases/$(database)/documents/users/$(request.auth.uid)
+          ).data.otherName.size() == 0
+        )
+
+        && request.resource.data.customerName
+          ==
+          (
+            get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.firstName
+
+            + " "
+
+            + get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.surname
+          )
+      )
+    );
+}
+
+
+function validShopReviewData() {
+  return signedIn()
+
+    /* Customer must be themselves */
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId is string
+
+    && request.resource.data.customerId.size() > 0
+
+    /* Shop ID */
+
+    && request.resource.data.shopId is string
+
+    && request.resource.data.shopId.size() > 0
+
+    /* Shop must exist */
+
+    && exists(
+      /databases/$(database)/documents/shops/$(request.resource.data.shopId)
+    )
+
+    /* Shop must be active */
+
+    && get(
+      /databases/$(database)/documents/shops/$(request.resource.data.shopId)
+    ).data.isActive == true
+
+    /* Owner cannot review own shop */
+
+    && get(
+      /databases/$(database)/documents/shops/$(request.resource.data.shopId)
+    ).data.ownerId
+      != request.auth.uid
+
+    /* Target */
+
+    && request.resource.data.targetType
+      == "shop"
+
+    && request.resource.data.targetId
+      == request.resource.data.shopId
+
+    /* Rating 1-5 */
+
+    && validReviewRating()
+
+    /* Optional comment */
+
+    && validShopReviewComment()
+
+    /* Customer name */
+
+    && validShopReviewCustomerName()
+
+    /* Schema */
+
+    && hasRequiredShopReviewFields()
+
+    && validShopReviewFields();
+}
+
+
+/* ==========================================================
+CREATE
+========================================================== */
+
+function validReviewCreate() {
+  return (
+    validWorkerReviewData()
+
+    ||
+
+    validProductReviewData()
+
+    ||
+
+    validShopReviewData()
+  )
+
+  && request.resource.data.createdAt
+    == request.time
+
+  && request.resource.data.updatedAt
+    == request.time;
+}
+
+
+/* ==========================================================
+WORKER REVIEW UPDATE
+========================================================== */
+
+function validWorkerReviewUpdate() {
+  return signedIn()
+
+    && resource.data.targetType
+      == "worker"
+
+    && resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId
+      == resource.data.customerId
+
+    && request.resource.data.workerId
+      == resource.data.workerId
+
+    && request.resource.data.targetId
+      == resource.data.targetId
+
+    && request.resource.data.targetType
+      == resource.data.targetType
+
+    && request.resource.data.createdAt
+      == resource.data.createdAt
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && validWorkerReviewData();
+}
+
+
+/* ==========================================================
+PRODUCT REVIEW UPDATE
+========================================================== */
+
+function validProductReviewUpdate() {
+  return signedIn()
+
+    && resource.data.targetType
+      == "product"
+
+    && resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId
+      == resource.data.customerId
+
+    && request.resource.data.productId
+      == resource.data.productId
+
+    && request.resource.data.workerId
+      == resource.data.workerId
+
+    && request.resource.data.targetId
+      == resource.data.targetId
+
+    && request.resource.data.targetType
+      == resource.data.targetType
+
+    && request.resource.data.createdAt
+      == resource.data.createdAt
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    && validProductReviewData();
+}
+
+
+/* ==========================================================
+SHOP REVIEW UPDATE
+========================================================== */
+
+function validShopReviewUpdate() {
+  return signedIn()
+
+    && resource.data.targetType
+      == "shop"
+
+    && resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    /* Identity cannot change */
+
+    && request.resource.data.customerId
+      == resource.data.customerId
+
+    && request.resource.data.shopId
+      == resource.data.shopId
+
+    && request.resource.data.targetId
+      == resource.data.targetId
+
+    && request.resource.data.targetType
+      == resource.data.targetType
+
+    /* Created timestamp cannot change */
+
+    && request.resource.data.createdAt
+      == resource.data.createdAt
+
+    /* Updated timestamp */
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    /* Final document */
+
+    && validShopReviewData();
+}
+
+
+function validReviewUpdate() {
+  return validWorkerReviewUpdate()
+
+    ||
+
+    validProductReviewUpdate()
+
+    ||
+
+    validShopReviewUpdate();
+}
+
+
+/* ==========================================================
+READ
+========================================================== */
+
+allow read:
+  if signedIn();
+
+
+/* ==========================================================
+CREATE
+========================================================== */
+
+allow create:
+  if validReviewCreate();
+
+
+/* ==========================================================
+UPDATE
+========================================================== */
+
+allow update:
+  if validReviewUpdate();
+
+
+/* ==========================================================
+DELETE
+
+Reviews cannot be deleted from client.
+
+========================================================== */
+
+allow delete:
+  if false;
+}
+
+
+/* ============================================================
+WORKER RATINGS
+
+Quick Rate:
+Customer gives worker fixed 3 stars.
+
+Also used after Product Review:
+Product review rating may be 1-5,
+but worker receives fixed 3 stars only.
+
+One customer = one quick rating per worker.
+
+Document ID:
+{workerId}_{customerId}
+
+Rate   -> create
+Unrate -> delete
+============================================================ */
+
+match /workerRatings/{ratingId} {
+
+  function validWorkerRatingFields() {
+    return request.resource.data.keys().hasOnly([
+      "customerId",
+      "workerId",
+      "rating",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function hasRequiredWorkerRatingFields() {
+    return request.resource.data.keys().hasAll([
+      "customerId",
+      "workerId",
+      "rating",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function validWorkerRatingId() {
+    return ratingId
+      ==
+      request.resource.data.workerId
+      + "_"
+      + request.auth.uid;
+  }
+
+  function validWorkerRatingData() {
+    return signedIn()
+
+      && request.resource.data.customerId
+        == request.auth.uid
+
+      && request.resource.data.customerId is string
+
+      && request.resource.data.customerId.size() > 0
+
+      && request.resource.data.workerId is string
+
+      && request.resource.data.workerId.size() > 0
+
+      && request.resource.data.workerId
+        != request.auth.uid
+
+      && request.resource.data.rating is number
+
+      && request.resource.data.rating
+        == 3
+
+      && validWorkerRatingId()
+
+      && hasRequiredWorkerRatingFields()
+
+      && validWorkerRatingFields();
+  }
+
+  function validWorkerRatingCreate() {
+    return validWorkerRatingData()
+
+      && request.resource.data.createdAt
+        == request.time
+
+      && request.resource.data.updatedAt
+        == request.time;
+  }
+
+  allow read:
+    if signedIn();
+
+  allow create:
+    if validWorkerRatingCreate();
+
+  allow update:
+    if false;
+
+  allow delete:
+    if signedIn()
+
+      && resource.data.customerId is string
+
+      && resource.data.customerId
+        == request.auth.uid
+
+      && resource.data.workerId is string
+
+      && resource.data.workerId.size() > 0
+
+      && resource.data.workerId
+        != request.auth.uid
+
+      && resource.data.rating is number
+
+      && resource.data.rating
+        == 3
+
+      && ratingId
+        == resource.data.workerId
+        + "_"
+        + request.auth.uid;
+}
+
+
+/* ============================================================
+PRODUCT RATINGS
+
+Rating action from Product Card menu.
+
+Separate from:
+
+workerRating displayed on product card
+
+1-5 star Product Review rating
+
+One customer = one product rating.
+
+Document ID:
+{productId}_{customerId}
+
+Rating -> create
+Unrate -> delete
+============================================================ */
+
+match /productRatings/{ratingId} {
+
+  function validProductRatingFields() {
+    return request.resource.data.keys().hasOnly([
+      "customerId",
+      "productId",
+      "createdAt"
+    ]);
+  }
+
+  function hasRequiredProductRatingFields() {
+    return request.resource.data.keys().hasAll([
+      "customerId",
+      "productId",
+      "createdAt"
+    ]);
+  }
+
+  function validProductRatingId() {
+    return ratingId
+      ==
+      request.resource.data.productId
+      + "_"
+      + request.auth.uid;
+  }
+
+  function validProductRatingCreate() {
+    return signedIn()
+
+      && request.resource.data.customerId
+        == request.auth.uid
+
+      && request.resource.data.customerId is string
+
+      && request.resource.data.customerId.size() > 0
+
+      && request.resource.data.productId is string
+
+      && request.resource.data.productId.size() > 0
+
+      && exists(
+        /databases/$(database)/documents/products/$(request.resource.data.productId)
+      )
+
+      && validProductRatingId()
+
+      && hasRequiredProductRatingFields()
+
+      && validProductRatingFields()
+
+      && request.resource.data.createdAt
+        == request.time;
+  }
+
+  allow read:
+    if signedIn();
+
+  allow create:
+    if validProductRatingCreate();
+
+  allow update:
+    if false;
+
+  allow delete:
+    if signedIn()
+
+      && resource.data.customerId is string
+
+      && resource.data.customerId
+        == request.auth.uid
+
+      && resource.data.productId is string
+
+      && resource.data.productId.size() > 0
+
+      && ratingId
+        == resource.data.productId
+        + "_"
+        + request.auth.uid;
+}
+
+
+/* ============================================================
+PUBLIC WORKER REVIEWS
+
+Public-safe mirror for Worker Reviews.
+
+IMPORTANT:
+This collection intentionally does NOT contain:
+
+customerId
+
+private customer profile data
+
+Public fields:
+
+customerName
+workerId
+workerName
+rating
+comment
+createdAt
+
+READ:
+Public
+
+CREATE:
+Only allowed when the matching private
+/reviews/{reviewId} document is created
+in the same atomic transaction.
+
+UPDATE:
+Not allowed from client.
+
+DELETE:
+Not allowed from client.
+============================================================ */
+
+match /publicWorkerReviews/{reviewId} {
+
+
+/* ==========================================================
+FIELD VALIDATION
+========================================================== */
+
+function validPublicWorkerReviewFields() {
+  return request.resource.data.keys().hasOnly([
+    "customerName",
+    "workerId",
+    "workerName",
+    "rating",
+    "comment",
+    "createdAt"
+  ]);
+}
+
+
+function hasRequiredPublicWorkerReviewFields() {
+  return request.resource.data.keys().hasAll([
+    "customerName",
+    "workerId",
+    "workerName",
+    "rating",
+    "comment",
+    "createdAt"
+  ]);
+}
+
+
+function validPublicWorkerReviewData() {
+  return request.resource.data.customerName is string
+
+    && request.resource.data.customerName.size() > 0
+
+    && request.resource.data.customerName.size() <= 150
+
+    && request.resource.data.workerId is string
+
+    && request.resource.data.workerId.size() > 0
+
+    && request.resource.data.workerName is string
+
+    && request.resource.data.workerName.size() > 0
+
+    && request.resource.data.workerName.size() <= 150
+
+    && request.resource.data.rating is number
+
+    && request.resource.data.rating >= 1
+
+    && request.resource.data.rating <= 5
+
+    && request.resource.data.comment is string
+
+    && request.resource.data.comment.size() >= 3
+
+    && request.resource.data.comment.size() <= 500;
+}
+
+
+/* ==========================================================
+READ
+
+Worker reviews are public content.
+
+========================================================== */
+
+allow read:
+  if true;
+
+
+/* ==========================================================
+CREATE
+
+The public document can only be created together with
+the matching private review document.
+
+This prevents a client from creating arbitrary
+fake public reviews directly.
+
+========================================================== */
+
+allow create:
+  if signedIn()
+
+    && validPublicWorkerReviewData()
+
+    && validPublicWorkerReviewFields()
+
+    && hasRequiredPublicWorkerReviewFields()
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.targetType
+      == "worker"
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.workerId
+      == request.resource.data.workerId
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.workerName
+      == request.resource.data.workerName
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.customerName
+      == request.resource.data.customerName
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.rating
+      == request.resource.data.rating
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.comment
+      == request.resource.data.comment
+
+    && getAfter(
+      /databases/$(database)/documents/reviews/$(reviewId)
+    ).data.createdAt
+      == request.resource.data.createdAt;
+
+
+/* ==========================================================
+UPDATE
+
+Public mirrors cannot be edited directly.
+
+========================================================== */
+
+allow update:
+  if false;
+
+
+/* ==========================================================
+DELETE
+
+Public mirrors cannot be deleted from client.
+
+========================================================== */
+
+allow delete:
+  if false;
+}

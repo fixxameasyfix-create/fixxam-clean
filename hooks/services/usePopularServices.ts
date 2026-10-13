@@ -12,7 +12,14 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "@/firebase/config";
+import {
+  db,
+} from "@/firebase/config";
+
+import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
 
 /* ============================================================
    TYPES
@@ -33,6 +40,9 @@ export interface PopularService {
 
   subcategoryId: string;
 
+  fulfillmentMode:
+    ServiceFulfillmentMode;
+
   order: number;
 
   bookingCount: number;
@@ -46,9 +56,14 @@ export interface PopularService {
    DEFAULTS
 ============================================================ */
 
-const DEFAULT_ICON = "tools";
-const DEFAULT_COLOR = "#2563EB";
-const DEFAULT_BACKGROUND_COLOR = "#EFF6FF";
+const DEFAULT_ICON =
+  "tools";
+
+const DEFAULT_COLOR =
+  "#2563EB";
+
+const DEFAULT_BACKGROUND_COLOR =
+  "#EFF6FF";
 
 /* ============================================================
    HELPERS
@@ -57,7 +72,8 @@ const DEFAULT_BACKGROUND_COLOR = "#EFF6FF";
 function toString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
@@ -65,8 +81,11 @@ function toString(
 function toNumber(
   value: unknown,
 ): number {
-  return typeof value === "number" &&
-    Number.isFinite(value)
+  return typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
     ? value
     : 0;
 }
@@ -79,14 +98,16 @@ export default function usePopularServices() {
   const [
     services,
     setServices,
-  ] = useState<PopularService[]>(
-    [],
-  );
+  ] =
+    useState<
+      PopularService[]
+    >([]);
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   useEffect(() => {
     /*
@@ -97,38 +118,53 @@ export default function usePopularServices() {
      * migrateCompletedServiceCounts.ts
      */
 
-    const servicesQuery = query(
-      collection(
-        db,
-        "services",
-      ),
+    const servicesQuery =
+      query(
+        collection(
+          db,
+          "services",
+        ),
 
-      where(
-        "active",
-        "==",
-        true,
-      ),
+        where(
+          "active",
+          "==",
+          true,
+        ),
 
-      orderBy(
-        "completedCount",
-        "desc",
-      ),
+        orderBy(
+          "completedCount",
+          "desc",
+        ),
 
-      limit(10),
-    );
+        limit(10),
+      );
 
     const unsubscribe =
       onSnapshot(
         servicesQuery,
-        (snapshot) => {
-          const nextServices: PopularService[] =
+
+        (
+          snapshot,
+        ) => {
+          const nextServices:
+            PopularService[] =
             snapshot.docs.map(
-              (serviceDoc) => {
+              (
+                serviceDoc,
+              ) => {
                 const data =
                   serviceDoc.data();
 
+                const fulfillmentMode =
+                  isServiceFulfillmentMode(
+                    data.fulfillmentMode,
+                  )
+                    ? data.fulfillmentMode
+                    : "needs_review";
+
                 return {
-                  id: serviceDoc.id,
+                  id:
+                    serviceDoc.id,
 
                   name:
                     toString(
@@ -163,6 +199,8 @@ export default function usePopularServices() {
                       data.subcategoryId,
                     ),
 
+                  fulfillmentMode,
+
                   order:
                     toNumber(
                       data.order,
@@ -193,13 +231,18 @@ export default function usePopularServices() {
             false,
           );
         },
-        (error) => {
+
+        (
+          error,
+        ) => {
           console.error(
             "Failed to load most booked services:",
             error,
           );
 
-          setServices([]);
+          setServices(
+            [],
+          );
 
           setLoading(
             false,

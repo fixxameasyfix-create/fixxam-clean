@@ -1,0 +1,4316 @@
+{
+  "projectId": "fixxam-clean",
+  "collection": "services",
+  "createdAt": "2026-09-18T23:15:32.992Z",
+  "totalServices": 1077,
+  "services": [
+    {
+      "serviceId": "ac-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-gas-refill",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-relocation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-servicing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ac-troubleshooting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "academic-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "access-control-gate-system",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "access-control-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "access-control-power-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "access-control-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "access-point-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "account-reconciliation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "acne-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "acrylic-nails",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "adult-education",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "adult-haircut",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "agbada-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "agbada-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "agricultural-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "airbrush-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "airport-dropoff",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "airport-pickup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "alarm-system-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "alternator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-cladding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-door-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-fence-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-partitioning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-railings",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-roofing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-showcase-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aluminium-window-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ambulance-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "animal-feed-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "animal-health-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "animation-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "anniversary-cake-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "anti-slip-floor-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "apartment-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "apartment-moving",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "api-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "appliance-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aquaculture-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "arc-welding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "armed-security-guard",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aromatherapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "artificial-flower-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "artificial-grass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "artificial-turf-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aso-ebi-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "aso-ebi-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "audio-mastering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "audio-mixing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "audiobook-narration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "auditing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "auto-electrical-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "automatic-changeover-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "automatic-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "automotive-locksmith",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "award-night-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "backdrop-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "backend-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bakery-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "balcony-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "balcony-rail-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "balloon-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bank-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "banner-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bar-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bathroom-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "battery-bank-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "battery-charging",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "battery-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beaded-jewelry-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beam-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beard-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beard-trimming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beat-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "beauty-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bee-keeping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "biology-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "biometric-system-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-cake-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-event-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-event-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "birthday-party-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "blanket-washing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "blender-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "block-laying",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "blood-pressure-check",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "blood-sugar-testing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "body-massage",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "body-polishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "body-scrub",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "body-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bodyguard-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bookkeeping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-casing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-drilling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-flushing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-plumbing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-rehabilitation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "borehole-water-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bracelet-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "brake-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "brand-identity-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "branding-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bread-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bricklaying",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bridal-dress-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bridal-hair-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bridal-jewelry-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bridal-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "brochure-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "budget-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "buffet-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-construction",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "building-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-estimation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-extension",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-maintenance",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "building-remodeling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "building-renovation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bulk-bakery-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bulk-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bulk-food-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bulk-item-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bullet-camera-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bumper-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bus-hire",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "bus-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-card-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-courier-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-delivery-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-plan-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-registration-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-tax-advisory",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "business-website-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cake-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cake-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "camera-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-ac-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-ac-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-detailing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-hire",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-key-programming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-painting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-servicing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "car-wash",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "career-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "caregiver-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "caregiver-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cargo-transportation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "carpet-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "casement-window-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cashflow-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cassava-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "catering-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "catering-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "catfish-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cattle-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-monitoring-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-power-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cctv-upgrade",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ceiling-finishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ceiling-light-channel-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ceiling-light-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ceiling-renovation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ceiling-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "chair-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "chandelier-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "charging-port-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "chauffeur-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "chemistry-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "child-care-assistant",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "children-clothing-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "children-hair-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "chin-chin-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "circuit-breaker-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cleaning-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cloth-alteration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cloth-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "club-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "clutch-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cocktail-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "coding-lessons",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cold-room-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "column-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-building-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-fish-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-landscaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-laundry",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-property-leasing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-video-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "commercial-waste-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "companionship-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "compliance-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "compliance-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "compound-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "computer-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "computer-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "computer-network-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "computer-training",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concert-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concert-hosting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concert-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concierge-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concrete-casting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concrete-fish-pond-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concrete-floor-finishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "concrete-work",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "conference-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "conference-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "conference-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "construction-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "construction-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "construction-waste-removal",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "consumer-unit-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "continental-meals-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "contract-drafting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cookies-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cooling-system-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-event-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-event-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-event-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-event-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-law-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-transportation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-video-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "corporate-wear-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cost-accounting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "courier-tracking-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "crack-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "crop-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "crowd-control",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cupcake-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "curtain-wall-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "curtain-washing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "custom-cake-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "custom-clothing-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "custom-jewelry-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "customer-service-training",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "cybersecurity-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "data-recovery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "database-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "decking-work",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "decorative-ceiling-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "decorative-paving",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "deep-cleansing-facial",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "deep-house-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "deep-tissue-massage",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "demolition-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "desktop-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dessert-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "diesel-generator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "digital-lock-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "digital-transformation-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "disability-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dishwasher-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "distribution-board-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "distribution-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "document-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "documentary-narration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "documentary-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dome-camera-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "door-glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "door-lock-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "door-lock-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "door-lock-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "door-to-door-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "doughnut-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "drainage-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dreadlocks-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dreadlocks-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "driveway-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "drone-photography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "drone-videography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dryer-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dumpster-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "duvet-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "dvr-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "e-learning-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "earring-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "earthing-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ecommerce-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ecommerce-website-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "editorial-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "education-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "elderly-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "elderly-physiotherapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "electric-cooker-repair",
+      "fulfillmentMode": "flexible"
+    },
+    {
+      "serviceId": "electric-fence-installation",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "electric-gate-installation",
+      "fulfillmentMode": "worker_visits_customer "
+    },
+    {
+      "serviceId": "electric-kettle-repair",
+      "fulfillmentMode": "flexible "
+    },
+    {
+      "serviceId": "electric-meter-installation",
+      "fulfillmentMode": "flexible "
+    },
+    {
+      "serviceId": "electrical-fault-diagnosis",
+      "fulfillmentMode": "worker_visits_customer "
+    },
+    {
+      "serviceId": "electrical-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "electrical-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "electrical-maintenance",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "electrical-repair",
+      "fulfillmentMode": "flexible"
+    },
+    {
+      "serviceId": "electrical-wiring",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "emergency-lockout-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "employment-law-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "energy-audit",
+      "fulfillmentMode": "flexible "
+    },
+    {
+      "serviceId": "engagement-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engagement-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engagement-party-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engagement-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engine-overhaul",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engine-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engineered-wood-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "engineering-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "english-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "entrance-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "environmental-cleanup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "epoxy-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "estate-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "estate-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "estate-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-baking-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-budget-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-coordination",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-decoration-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-grooming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-hosting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-logistics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-photography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-playlist-curation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-scheduling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-sound-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-transportation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-videography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "event-waiters-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "exam-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "excavation-work",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "executive-haircut",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "exhaust-system-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "express-courier",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "express-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "eyebrow-shaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "eyelash-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "facial-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "facility-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "facility-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "false-ceiling-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "family-law-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fan-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "farm-consultancy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "farm-harvesting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "farm-irrigation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "farm-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fashion-alteration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fashion-brand-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fashion-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fashion-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fashion-sketching",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "feasibility-study",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fence-wall-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fencing-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fertilizer-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "festival-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "financial-accounting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "financial-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "financial-reporting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fire-alarm-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-farm-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-feed-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-fingerlings-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-harvesting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-hatchery-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-health-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-packaging",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-pond-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-pond-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-processing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fish-smoking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fleet-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "floor-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "floor-polishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "floor-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "floor-restoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "flooring-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "flower-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "flower-garden-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "flower-planting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "flyer-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fondant-cake-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "food-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "food-delivery-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "food-packaging-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "forensic-audit",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "foundation-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "foundation-work",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fragile-item-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fragile-item-moving",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "freezer-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "freight-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "french-lessons",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "french-manicure",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "front-desk-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "frontend-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fuel-system-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "full-event-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "fullstack-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "furniture-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "furniture-moving",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-cleanup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-irrigation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-landscaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "garden-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gas-cooker-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-alignment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-automation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-installation-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-lock-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-motor-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-sensor-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gate-welding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gatehouse-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gearbox-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gel-polish",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gele-tying",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "general-auto-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "general-mechanic",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-fault-diagnosis",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-overhaul",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-panel-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-servicing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "generator-wiring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "geophysical-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "geospatial-mapping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-cutting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-polishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "glass-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "goat-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gold-jewelry-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gps-surveying",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "granite-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "graphic-design-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "grass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "greenhouse-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "grill-and-bbq-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "grocery-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ground-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "groundnut-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "guest-house-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "guest-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gutter-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gutter-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "gypsum-ceiling-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-braiding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-coloring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-dye",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-extension-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-line-fix",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-relaxing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hair-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "haircut",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hairdressing-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hall-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hard-drive-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hardwood-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "haulage-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "healthcare-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hedge-trimming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-appliance-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-appliance-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-appliance-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-barbing-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-beauty-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-caregiver",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-cooking-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-health-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-healthcare",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-network-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-nursing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-physiotherapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-renovation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "home-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hospital-caregiver",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hospitality-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hot-stone-massage",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hotel-laundry-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hotel-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hotel-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "house-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "house-party-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "house-relocation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "house-wiring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "housekeeping-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "hr-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ielts-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "immigration-law-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "import-export-logistics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "indoor-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "indoor-event-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-ac-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-borehole-drilling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-water-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-welding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "industrial-wiring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interior-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interlocking-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interlocking-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interlocking-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interlocking-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "internal-audit",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interstate-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interstate-logistics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "interstate-moving",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "inventory-accounting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "inverter-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "inverter-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "investment-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ip-camera-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ironing-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "it-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "it-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jamb-coaching",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jamb-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "janitorial-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jewelry-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jewelry-polishing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jewelry-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "jingle-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "joint-mobility-therapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "kaftan-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "karaoke-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "kerbstone-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "key-cutting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "key-duplication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "keyboard-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "kids-haircut",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "kitchen-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laboratory-sample-collection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laminate-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lan-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "land-clearing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "land-demarcation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "land-documentation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "land-sales",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "land-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "landing-page-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "landscape-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "landscape-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "landscape-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "landscaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "language-training",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laptop-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "last-mile-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laundry-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laundry-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laundry-pickup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "laundry-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lawn-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lawn-mowing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "legal-advisory-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "legal-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "legal-document-review",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "legal-representation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "light-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lighting-and-sound-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lighting-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "lintel-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "live-dj-performance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "live-in-caregiver",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "livestock-breeding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "livestock-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "livestock-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "livestock-vaccination",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "livestream-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "loading-services",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "loan-documentation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "local-delivery",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "local-moving",
+      "fulfillmentMode": "worker_visits_customer"
+    },
+    {
+      "serviceId": "locksmith-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "logistics-consultation",
+      "fulfillmentMode": "flexible "
+    },
+    {
+      "serviceId": "logistics-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "logo-design",
+      "fulfillmentMode": "flexible "
+    },
+    {
+      "serviceId": "maize-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "makeup-application",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "makeup-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "makeup-training",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "management-accounting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "management-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "manicure",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "manual-changeover-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "manual-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "marble-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "marketing-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "masonry-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "masonry-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "master-of-ceremony-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mathematics-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mattress-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mc-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "meal-plan-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "meal-preparation-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "measurement-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "meat-pie-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mechanic-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "medical-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "medication-reminder",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mens-wear-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mental-health-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "metal-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "microblading",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "microphone-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "microwave-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mixer-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-app-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-barber-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-dj-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-hairdressing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-nail-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobile-repair-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "mobility-assistance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "motherboard-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "motion-graphics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "motorcycle-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "move-in-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "move-out-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "moving-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "moving-truck-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "multilingual-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "muscle-rehabilitation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "music-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "music-mixing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "music-recording",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "music-video-audio",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "music-video-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nail-art",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nail-care-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nail-extension",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nail-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nail-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "native-wear-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "native-wear-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "natural-hair-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "necklace-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "neco-coaching",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "network-cabling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "network-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "network-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "network-security-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "newborn-care-support",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "next-day-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "night-care-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "night-watch-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "notary-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nutrition-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "nvr-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "off-grid-solar-system",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-barbing-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-glass-partition",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-network-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-partition-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-relocation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-renovation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "office-wiring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "offloading-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "oil-change",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "on-site-event-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "online-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "operating-system-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "operations-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ornamental-fish-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "outdoor-beautification",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "outdoor-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "outdoor-event-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "outdoor-landscaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "outdoor-lighting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "oven-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "overhead-tank-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pa-system-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "package-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "packaging-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "packing-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pain-management-therapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "painting-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "panel-beating",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "parcel-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "parking-lot-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "parquet-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "part-time-caregiver",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "party-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pastry-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "patient-care-assistance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "patrol-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "paving-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "payroll-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pedicure",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "perimeter-wall-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "personal-hygiene-assistance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "petrol-generator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pharmacy-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "phone-battery-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "phone-diagnostics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "phone-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "phone-screen-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "phone-unlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "photoshoot-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "physical-assessment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "physics-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "physiotherapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "physiotherapy-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pickup-and-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pickup-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pig-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "plastering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "plumbing-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "podcast-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "podcast-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pop-ceiling-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pop-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "portfolio-website-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "portrait-photography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "post-construction-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "post-surgery-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "post-surgery-rehabilitation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "poster-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "poultry-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "pre-purchase-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "prepaid-meter-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "presentation-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "printer-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "printer-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "private-chef-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "product-launch-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "product-photography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "project-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "project-management-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-boundary-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-law-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-maintenance-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-renovation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-rental",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-sales",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "property-valuation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ptz-camera-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "public-speaking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "quantity-surveying",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "rabbit-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "radiator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "radio-jingle-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ram-upgrade",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ready-to-wear-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "real-estate-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "real-estate-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "real-estate-investment-advisory",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "recirculating-aquaculture-system",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "recruitment-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "recycling-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "red-carpet-hosting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "refrigerator-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "religious-event-sound",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "remote-control-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "remote-viewing-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "rendering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-borehole-drilling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-building-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-landscaping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "residential-waste-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "respite-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "restaurant-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "retail-store-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "retaining-wall-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "reverse-osmosis-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "rice-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ring-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "risk-management-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "road-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roadside-assistance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-framing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roof-waterproofing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "roofing-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "room-attendant-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "router-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "rug-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "safe-lock-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "safe-lock-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sales-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "same-day-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sausage-roll-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "scalp-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "scheduled-delivery",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "school-event-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "school-transportation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "school-uniform-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "science-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "screeding",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "screen-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-camera-networking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-guard-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-light-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-lock-upgrade",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-risk-assessment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-supervisor",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-system-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "security-system-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "seed-supply",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "seminar-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "senator-wear-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "septic-waste-removal",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "server-network-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sheep-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "shopfront-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "short-circuit-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "shortlet-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "shower-glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "silver-jewelry-making",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "site-clearing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "site-leveling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "site-mapping",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "site-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "site-supervision",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "skin-care-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sliding-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sliding-window-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "small-appliance-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "small-chops-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "small-chops-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "smart-home-electrical-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "smart-lock-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "social-media-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "socket-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sofa-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-flashing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "software-testing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "soil-testing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-battery-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-energy-audit",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-inverter-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-panel-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-panel-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-street-light-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-system-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "solar-water-pump-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "songwriting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sound-equipment-rental",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "soybean-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "spa-beauty-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "spa-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "spa-therapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "speaker-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "special-effects-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "special-needs-care",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "special-needs-tutoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sports-floor-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "sports-physiotherapy",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ssd-upgrade",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "staff-transportation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "stage-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "staircase-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "staircase-rail-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "staircase-rail-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "starter-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "startup-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "steam-ironing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "steel-door-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "steel-gate-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "steering-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "stone-coated-roofing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "stone-masonry",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "storage-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "storefront-glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "strategy-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "stroke-rehabilitation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "structural-construction",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "structural-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "studio-session",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "submersible-pump-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "supply-chain-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "surface-pump-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "surge-protection-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "survey-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "survey-plan-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "suspended-ceiling-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "suspension-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "swedish-massage",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "swing-gate-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "switch-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "system-integration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "table-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tablet-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tailoring-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tank-fabrication",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tarpaulin-fish-pond-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tax-consulting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tax-filing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tax-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "telemedicine",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tempered-glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tent-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "terrazzo-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tilapia-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "topographic-survey",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tractor-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-event-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-meals-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-wedding-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-wedding-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "traditional-wedding-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tree-planting",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "truck-hire",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "truck-hire-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "truck-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tutoring-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tv-ad-voice-over",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tv-film-makeup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "twists-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tyre-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "tyre-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ui-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ui-ux-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "unarmed-security-guard",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "uniform-laundry",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "uniform-production",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "unpacking-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ups-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ups-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "ux-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vacuum-cleaner-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vat-services",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vegetable-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vehicle-diagnostics",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vehicle-inspection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vehicle-registration-assistance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vehicle-servicing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vehicle-towing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vendor-management",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "venue-sourcing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "video-door-phone-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "video-editing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "video-production-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vinyl-flooring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vip-barbing-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vip-beauty-service",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "vip-protection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "virus-removal",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "voice-over-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "voice-over-recording",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waec-coaching",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waec-preparation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "walkway-interlocking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wan-setup",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "warehouse-cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "warehouse-security",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "warehousing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wash-and-fold",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "washing-machine-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waste-collection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waste-disposal",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waste-management-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-damage-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-detection",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-dispenser-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-filtration-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-heater-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-pump-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-pump-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-purification",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-quality-testing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-reticulation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-softener-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-tank-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-treatment-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-treatment-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-treatment-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "water-treatment-system-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "waves-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "weaving-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "web-application-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "web-development-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "website-maintenance",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-cake-baking",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-catering",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-decoration",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-dj",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-gown-design",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-groom-styling",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-mc",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-photography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-planning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wedding-videography",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "weed-control",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "welding-consultation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "welding-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wellness-treatment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wheat-farming",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wheel-alignment",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wheel-balancing",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wifi-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wig-customization",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wig-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "window-burglary-proof",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "window-cleaning",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "window-frame-repair",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "window-glass-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "windows-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "windshield-replacement",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wired-cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wireless-cctv-installation",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "womens-wear-tailoring",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "wordpress-development",
+      "fulfillmentMode": null
+    },
+    {
+      "serviceId": "yam-farming",
+      "fulfillmentMode": null
+    }
+  ]
+}

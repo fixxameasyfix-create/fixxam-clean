@@ -37,7 +37,7 @@ type Props = {
 };
 
 /* ============================================================
-   CONSTANTS
+   DATA
 ============================================================ */
 
 const STATE_OPTIONS =
@@ -59,6 +59,10 @@ function LocationSelector({
   setState,
   setLga,
 }: Props) {
+  /* ==========================================================
+     LGA OPTIONS
+  ========================================================== */
+
   const availableLgas =
     useMemo(() => {
       if (!state) {
@@ -71,13 +75,17 @@ function LocationSelector({
       );
     }, [state]);
 
+  /* ==========================================================
+     STATE SELECT
+  ========================================================== */
+
   const handleStateSelect =
     useCallback(
-      (
-        value: string,
-      ) => {
+      (value: string) => {
         setState(value);
 
+        // State change invalidates
+        // the previous LGA.
         setLga("");
       },
       [
@@ -86,15 +94,21 @@ function LocationSelector({
       ],
     );
 
+  /* ==========================================================
+     LGA SELECT
+  ========================================================== */
+
   const handleLgaSelect =
     useCallback(
-      (
-        value: string,
-      ) => {
+      (value: string) => {
         setLga(value);
       },
       [setLga],
     );
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <View
@@ -105,15 +119,12 @@ function LocationSelector({
       <SearchableModalPicker
         label="State"
         placeholder="Select State"
-        value={
-          state
-        }
-        data={
-          STATE_OPTIONS
-        }
+        value={state}
+        data={STATE_OPTIONS}
         onSelect={
           handleStateSelect
         }
+        icon="location-outline"
       />
 
       <View
@@ -123,17 +134,14 @@ function LocationSelector({
       />
 
       <SearchableModalPicker
-        label="Local Government"
+        label="Local Government Area"
         placeholder="Select LGA"
-        value={
-          lga
-        }
-        data={
-          availableLgas
-        }
+        value={lga}
+        data={availableLgas}
         onSelect={
           handleLgaSelect
         }
+        icon="map-outline"
       />
     </View>
   );
@@ -151,11 +159,10 @@ const styles =
   StyleSheet.create({
     container: {
       marginBottom:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.sm,
     },
 
     space: {
-      height:
-        FixxamTokens.spacing.md,
+      height: 4,
     },
   });

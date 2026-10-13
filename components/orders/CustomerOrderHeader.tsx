@@ -29,89 +29,65 @@ import type {
 
 type Props = {
   orderId: string;
-
   status: BookingStatus;
-
   onBack: () => void;
 };
 
 type StatusConfig = {
   label: string;
-
   backgroundColor: string;
-
   color: string;
 };
 
 /* ==============================================================
-   HELPERS
+   STATUS
 ============================================================== */
 
 function getStatusConfig(
   status: BookingStatus,
 ): StatusConfig {
   switch (status) {
-    case "pending":
-      return {
-        label: "PENDING",
-        backgroundColor:
-          Colors.warningSoft,
-        color:
-          Colors.warning,
-      };
-
     case "accepted":
       return {
-        label: "ACCEPTED",
-        backgroundColor:
-          Colors.infoSoft,
-        color:
-          Colors.info,
+        label: "Accepted",
+        backgroundColor: Colors.infoSoft,
+        color: Colors.info,
       };
 
     case "in-progress":
       return {
-        label: "IN PROGRESS",
-        backgroundColor:
-          Colors.infoSoft,
-        color:
-          Colors.info,
+        label: "In progress",
+        backgroundColor: Colors.infoSoft,
+        color: Colors.info,
       };
 
     case "completed":
       return {
-        label: "COMPLETED",
-        backgroundColor:
-          Colors.successSoft,
-        color:
-          Colors.success,
+        label: "Completed",
+        backgroundColor: Colors.successSoft,
+        color: Colors.success,
       };
 
     case "cancelled":
       return {
-        label: "CANCELLED",
-        backgroundColor:
-          Colors.errorSoft,
-        color:
-          Colors.error,
+        label: "Cancelled",
+        backgroundColor: Colors.errorSoft,
+        color: Colors.error,
       };
 
     case "expired":
       return {
-        label: "EXPIRED",
-        backgroundColor:
-          Colors.disabledBackground,
-        color:
-          Colors.textSecondary,
+        label: "Expired",
+        backgroundColor: Colors.disabledBackground,
+        color: Colors.textSecondary,
       };
 
+    case "pending":
     default:
       return {
-        label: "PENDING",
-        backgroundColor:
-          Colors.warningSoft,
-        color:
-          Colors.warning,
+        label: "Pending",
+        backgroundColor: Colors.warningSoft,
+        color: Colors.warning,
       };
   }
 }
@@ -125,46 +101,43 @@ function CustomerOrderHeader({
   status,
   onBack,
 }: Props) {
-  const config =
-    getStatusConfig(status);
+  const config = useMemo(
+    () => getStatusConfig(status),
+    [status],
+  );
 
-  const safeOrderId =
-    useMemo(() => {
-      const value =
-        typeof orderId === "string"
-          ? orderId.trim()
-          : "";
+  const safeOrderId = useMemo(() => {
+    if (
+      typeof orderId !== "string"
+    ) {
+      return "—";
+    }
 
-      return value || "—";
-    }, [orderId]);
+    const value = orderId.trim();
+
+    return value || "—";
+  }, [orderId]);
 
   return (
-    <View
-      style={styles.container}
-    >
+    <View style={styles.container}>
       {/* ======================================================
           BACK
       ====================================================== */}
 
       <Pressable
         onPress={onBack}
+        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel="Go back"
-        hitSlop={8}
         style={({ pressed }) => [
           styles.backButton,
-
-          pressed
-            ? styles.pressed
-            : null,
+          pressed ? styles.pressed : null,
         ]}
       >
         <AppIcon
           name="back"
           size="sm"
-          color={
-            Colors.textPrimary
-          }
+          color={Colors.textPrimary}
         />
       </Pressable>
 
@@ -172,9 +145,7 @@ function CustomerOrderHeader({
           TITLE
       ====================================================== */}
 
-      <View
-        style={styles.content}
-      >
+      <View style={styles.content}>
         <AppText
           variant="bodyLarge"
           weight="bold"
@@ -188,9 +159,8 @@ function CustomerOrderHeader({
           variant="caption"
           tone="secondary"
           numberOfLines={1}
-          style={
-            styles.subtitle
-          }
+          ellipsizeMode="middle"
+          style={styles.orderId}
         >
           #{safeOrderId}
         </AppText>
@@ -201,11 +171,11 @@ function CustomerOrderHeader({
       ====================================================== */}
 
       <View
+        accessible
         accessibilityRole="text"
         accessibilityLabel={`Order status: ${config.label}`}
         style={[
           styles.statusBadge,
-
           {
             backgroundColor:
               config.backgroundColor,
@@ -215,7 +185,6 @@ function CustomerOrderHeader({
         <View
           style={[
             styles.statusDot,
-
             {
               backgroundColor:
                 config.color,
@@ -225,14 +194,12 @@ function CustomerOrderHeader({
 
         <AppText
           variant="caption"
-          weight="bold"
+          weight="semibold"
           numberOfLines={1}
           style={[
             styles.statusText,
-
             {
-              color:
-                config.color,
+              color: config.color,
             },
           ]}
         >
@@ -244,138 +211,109 @@ function CustomerOrderHeader({
 }
 
 /* ==============================================================
+   STYLES
+============================================================== */
+
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    minHeight: 52,
+    paddingHorizontal:
+      FixxamTokens.spacing.md,
+    paddingVertical: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: FixxamTokens.spacing.sm,
+    backgroundColor: Colors.background,
+  },
+
+  backButton: {
+    width:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    height:
+      FixxamTokens.size
+        .minimumTouchTarget,
+
+    flexShrink: 0,
+
+    alignItems: "center",
+    justifyContent: "center",
+
+    borderWidth:
+      StyleSheet.hairlineWidth,
+
+    borderColor: Colors.border,
+
+    borderRadius:
+      FixxamTokens.radius.md,
+
+    backgroundColor: Colors.surface,
+  },
+
+  pressed: {
+    opacity:
+      FixxamTokens.motion.pressedOpacity,
+
+    transform: [
+      {
+        scale:
+          FixxamTokens.motion.scalePressed,
+      },
+    ],
+  },
+
+  content: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  title: {
+    color: Colors.textPrimary,
+  },
+
+  orderId: {
+    maxWidth: "100%",
+    marginTop: 1,
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+
+  statusBadge: {
+    minHeight: 22,
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    borderRadius:
+      FixxamTokens.radius.full,
+  },
+
+  statusDot: {
+    width: 5,
+    height: 5,
+    flexShrink: 0,
+    borderRadius:
+      FixxamTokens.radius.full,
+  },
+
+  statusText: {
+    flexShrink: 0,
+    fontSize: 10,
+  },
+});
+
+/* ==============================================================
    EXPORT
 ============================================================== */
+
+CustomerOrderHeader.displayName =
+  "CustomerOrderHeader";
 
 export default memo(
   CustomerOrderHeader,
 );
-
-/* ==============================================================
-   STYLES
-============================================================== */
-
-const styles =
-  StyleSheet.create({
-    container: {
-      minHeight:
-        FixxamTokens.size
-          .headerHeight,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-    },
-
-    /* ========================================================
-       BACK
-    ======================================================== */
-
-    backButton: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    /* ========================================================
-       CONTENT
-    ======================================================== */
-
-    content: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-    },
-
-    title: {
-      color:
-        Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       STATUS
-    ======================================================== */
-
-    statusBadge: {
-      flexShrink: 0,
-
-      minHeight: 28,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent: "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.chip,
-    },
-
-    statusDot: {
-      width: 7,
-
-      height: 7,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-    },
-
-    statusText: {
-      flexShrink: 0,
-    },
-  });

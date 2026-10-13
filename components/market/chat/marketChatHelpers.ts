@@ -29,15 +29,19 @@ export function getParamString(
     | undefined,
 ): string {
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value,
+    )
   ) {
     return (
-      value[0] ?? ""
+      value[0] ??
+      ""
     ).trim();
   }
 
   return (
-    value ?? ""
+    value ??
+    ""
   ).trim();
 }
 
@@ -53,12 +57,14 @@ export function getString(
   ) {
     if (
       typeof value ===
-        "string"
+      "string"
     ) {
       const normalized =
         value.trim();
 
-      if (normalized) {
+      if (
+        normalized
+      ) {
         return normalized;
       }
     }
@@ -66,9 +72,13 @@ export function getString(
     if (
       typeof value ===
         "number" &&
-      Number.isFinite(value)
+      Number.isFinite(
+        value,
+      )
     ) {
-      return String(value);
+      return String(
+        value,
+      );
     }
   }
 
@@ -88,29 +98,43 @@ export function getNumber(
     if (
       typeof value ===
         "number" &&
-      Number.isFinite(value)
+      Number.isFinite(
+        value,
+      )
     ) {
-      return value;
+      return Math.max(
+        0,
+        value,
+      );
     }
 
     if (
       typeof value ===
-        "string"
+      "string"
     ) {
       const normalized =
         value.trim();
 
-      if (!normalized) {
+      if (
+        !normalized
+      ) {
         continue;
       }
 
       const parsed =
-        Number(normalized);
+        Number(
+          normalized,
+        );
 
       if (
-        Number.isFinite(parsed)
+        Number.isFinite(
+          parsed,
+        )
       ) {
-        return parsed;
+        return Math.max(
+          0,
+          parsed,
+        );
       }
     }
   }
@@ -126,7 +150,9 @@ export function normalizeOrderItems(
   value: unknown,
 ): OrderItem[] {
   if (
-    !Array.isArray(value)
+    !Array.isArray(
+      value,
+    )
   ) {
     return [];
   }
@@ -151,12 +177,21 @@ export function normalizeOrderItems(
             unknown
           >;
 
+        /* ====================================================
+           NAME
+        ==================================================== */
+
         const name =
           getString(
             data.name,
             data.productName,
             data.title,
-          ) || "Product";
+          ) ||
+          "Product";
+
+        /* ====================================================
+           QUANTITY
+        ==================================================== */
 
         const rawQuantity =
           getNumber(
@@ -173,18 +208,20 @@ export function normalizeOrderItems(
             ),
           );
 
-        const rawPrice =
+        /* ====================================================
+           PRICE
+        ==================================================== */
+
+        const price =
           getNumber(
             data.price,
             data.unitPrice,
             data.amount,
           );
 
-        const price =
-          Math.max(
-            0,
-            rawPrice,
-          );
+        /* ====================================================
+           IMAGE
+        ==================================================== */
 
         const image =
           getString(
@@ -194,12 +231,24 @@ export function normalizeOrderItems(
             data.photoUrl,
           );
 
-        const id =
+        /* ====================================================
+           ID
+        ==================================================== */
+
+        const sourceId =
           getString(
             data.id,
             data.productId,
-          ) ||
-          `item-${index}`;
+          );
+
+        /*
+         * Include the array index so React keys stay unique
+         * when the same product appears more than once.
+         */
+        const id =
+          sourceId
+            ? `${sourceId}-${index}`
+            : `item-${index}`;
 
         return {
           id,
@@ -243,22 +292,25 @@ export function normalizeSenderRole(
         .toLowerCase();
 
     if (
-      role === "worker" ||
-      role === "seller"
+      role ===
+        "worker" ||
+      role ===
+        "seller"
     ) {
       return "worker";
     }
 
     if (
-      role === "customer"
+      role ===
+      "customer"
     ) {
       return "customer";
     }
   }
 
   /*
-   * Preserve existing chat behavior for
-   * legacy messages that have no senderRole.
+   * Preserve compatibility with older
+   * messages that have no senderRole.
    */
   return "customer";
 }
@@ -279,7 +331,7 @@ export function getTimestampMillis(
   try {
     if (
       typeof value ===
-        "object"
+      "object"
     ) {
       const timestamp =
         value as {
@@ -287,6 +339,10 @@ export function getTimestampMillis(
 
           toDate?: unknown;
         };
+
+      /* ======================================================
+         FIRESTORE TIMESTAMP — toMillis
+      ====================================================== */
 
       if (
         typeof timestamp.toMillis ===
@@ -305,6 +361,10 @@ export function getTimestampMillis(
           : 0;
       }
 
+      /* ======================================================
+         FIRESTORE TIMESTAMP — toDate
+      ====================================================== */
+
       if (
         typeof timestamp.toDate ===
         "function"
@@ -316,7 +376,8 @@ export function getTimestampMillis(
           )();
 
         if (
-          date instanceof Date
+          date instanceof
+          Date
         ) {
           const millis =
             date.getTime();
@@ -329,6 +390,10 @@ export function getTimestampMillis(
         }
       }
     }
+
+    /* ========================================================
+       DATE
+    ======================================================== */
 
     if (
       value instanceof Date
@@ -343,22 +408,37 @@ export function getTimestampMillis(
         : 0;
     }
 
-    if (
-      typeof value ===
-        "number" &&
-      Number.isFinite(value)
-    ) {
-      return value;
-    }
+    /* ========================================================
+       NUMBER
+    ======================================================== */
 
     if (
       typeof value ===
-        "string"
+        "number" &&
+      Number.isFinite(
+        value,
+      )
+    ) {
+      return Math.max(
+        0,
+        value,
+      );
+    }
+
+    /* ========================================================
+       STRING DATE
+    ======================================================== */
+
+    if (
+      typeof value ===
+      "string"
     ) {
       const normalized =
         value.trim();
 
-      if (!normalized) {
+      if (
+        !normalized
+      ) {
         return 0;
       }
 
@@ -402,7 +482,9 @@ export function formatTime(
   }
 
   const date =
-    new Date(timestamp);
+    new Date(
+      timestamp,
+    );
 
   if (
     Number.isNaN(
@@ -415,9 +497,11 @@ export function formatTime(
   return date.toLocaleTimeString(
     "en-NG",
     {
-      hour: "numeric",
+      hour:
+        "numeric",
 
-      minute: "2-digit",
+      minute:
+        "2-digit",
     },
   );
 }
@@ -430,7 +514,9 @@ export function formatMoney(
   value: number,
 ): string {
   const safeValue =
-    Number.isFinite(value)
+    Number.isFinite(
+      value,
+    )
       ? Math.max(
           0,
           value,
@@ -439,6 +525,10 @@ export function formatMoney(
 
   return `₦${safeValue.toLocaleString(
     "en-NG",
+    {
+      maximumFractionDigits:
+        2,
+    },
   )}`;
 }
 
@@ -450,10 +540,20 @@ export function shortOrderId(
   value: string,
 ): string {
   const normalized =
-    value.trim();
+    typeof value ===
+    "string"
+      ? value.trim()
+      : "";
 
   if (
-    normalized.length <= 10
+    !normalized
+  ) {
+    return "";
+  }
+
+  if (
+    normalized.length <=
+    10
   ) {
     return normalized;
   }

@@ -2,10 +2,6 @@ import type MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIco
 
 /* ==============================================================
    SERVICE ICON
-
-   IMPORTANT:
-   MaterialCommunityIcons remains the official type source
-   for service icons used by existing service/order data.
 ============================================================== */
 
 export type ServiceIcon =
@@ -22,6 +18,15 @@ export type OrderStatus =
   | "completed"
   | "cancelled"
   | "expired";
+
+/* ==============================================================
+   FULFILLMENT MODE
+============================================================== */
+
+export type FulfillmentMode =
+  | "worker_visits_customer"
+  | "customer_visits_worker"
+  | "remote";
 
 /* ==============================================================
    FILTER TYPE
@@ -47,7 +52,8 @@ export type OrderActorRole =
 ============================================================== */
 
 export type OrderAmount =
-  number | null;
+  | number
+  | null;
 
 /* ==============================================================
    SERVICE ORDER
@@ -87,6 +93,12 @@ export type Order = {
   location: string;
 
   address?: string;
+
+  /* ==========================================================
+     FULFILLMENT
+  ========================================================== */
+
+  fulfillmentMode?: FulfillmentMode;
 
   /* ==========================================================
      SCHEDULE
@@ -159,23 +171,11 @@ export type MarketOrder = {
 
   status: OrderStatus;
 
-  /* ==========================================================
-     PRODUCTS
-  ========================================================== */
-
   products: MarketOrderProduct[];
 
-  /*
-   * Cached first-product preview fields.
-   * Used by market order cards.
-   */
   productImage?: string;
 
   productName?: string;
-
-  /* ==========================================================
-     CUSTOMER
-  ========================================================== */
 
   customerId?: string;
 
@@ -183,15 +183,7 @@ export type MarketOrder = {
 
   customerPhoto?: string;
 
-  /* ==========================================================
-     ITEM COUNT
-  ========================================================== */
-
   itemCount?: number;
-
-  /* ==========================================================
-     AMOUNTS / OFFERS
-  ========================================================== */
 
   amount?: number;
 
@@ -199,36 +191,20 @@ export type MarketOrder = {
 
   offerStatus?: string;
 
-  /* ==========================================================
-     STORE / SELLER
-  ========================================================== */
-
   storeName?: string;
 
   storeId?: string;
 
   sellerId?: string;
 
-  /* ==========================================================
-     LOCATION
-  ========================================================== */
-
   address?: string;
 
   location?: string;
-
-  /* ==========================================================
-     PAYMENT
-  ========================================================== */
 
   paymentMethod:
     MarketPaymentMethod;
 
   total: number;
-
-  /* ==========================================================
-     DATE / TIMESTAMP
-  ========================================================== */
 
   date: string;
 

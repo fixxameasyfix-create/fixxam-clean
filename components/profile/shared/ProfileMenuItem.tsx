@@ -35,6 +35,8 @@ import {
 type Props = {
   title: string;
 
+  subtitle?: string;
+
   /*
    * Keep string compatibility because
    * existing callers still send legacy
@@ -103,10 +105,12 @@ const ICON_ALIASES: Record<
     "service",
 
   build: "service",
-  "build-outline": "service",
+  "build-outline":
+    "service",
 
   hammer: "service",
-  "hammer-outline": "service",
+  "hammer-outline":
+    "service",
 
   /* ==========================================================
      PRODUCTS / STORE
@@ -357,6 +361,7 @@ function resolveIcon(
 
 function ProfileMenuItem({
   title,
+  subtitle,
   icon,
   onPress,
   danger = false,
@@ -370,8 +375,12 @@ function ProfileMenuItem({
   const resolvedIcon =
     useMemo(
       () =>
-        resolveIcon(icon),
-      [icon],
+        resolveIcon(
+          icon,
+        ),
+      [
+        icon,
+      ],
     );
 
   /* ==========================================================
@@ -388,10 +397,17 @@ function ProfileMenuItem({
       : CustomerColors;
 
   const safeTitle =
-    typeof title === "string"
+    typeof title ===
+    "string"
       ? title.trim() ||
         "Menu item"
       : "Menu item";
+
+  const safeSubtitle =
+    typeof subtitle ===
+    "string"
+      ? subtitle.trim()
+      : "";
 
   /* ==========================================================
      COLORS
@@ -412,16 +428,29 @@ function ProfileMenuItem({
         : roleColors.primarySoft;
 
   /* ==========================================================
+     ACCESSIBILITY
+  ========================================================== */
+
+  const accessibilityLabel =
+    safeSubtitle
+      ? `${safeTitle}. ${safeSubtitle}`
+      : safeTitle;
+
+  /* ==========================================================
      RENDER
   ========================================================== */
 
   return (
     <Pressable
-      onPress={onPress}
-      disabled={isDisabled}
+      onPress={
+        onPress
+      }
+      disabled={
+        isDisabled
+      }
       accessibilityRole="button"
       accessibilityLabel={
-        safeTitle
+        accessibilityLabel
       }
       accessibilityState={{
         disabled:
@@ -462,7 +491,9 @@ function ProfileMenuItem({
           name={
             resolvedIcon
           }
-          role={role}
+          role={
+            role
+          }
           size="sm"
           color={
             iconColor
@@ -471,27 +502,51 @@ function ProfileMenuItem({
       </View>
 
       {/* ====================================================
-          TITLE
+          TEXT
       ==================================================== */}
 
-      <AppText
-        variant="body"
-        weight="semibold"
-        numberOfLines={1}
-        style={[
-          styles.title,
-
-          danger
-            ? styles.dangerText
-            : null,
-
-          isDisabled
-            ? styles.disabledText
-            : null,
-        ]}
+      <View
+        style={
+          styles.textContent
+        }
       >
-        {safeTitle}
-      </AppText>
+        <AppText
+          variant="body"
+          weight="semibold"
+          numberOfLines={1}
+          style={[
+            styles.title,
+
+            danger
+              ? styles.dangerText
+              : null,
+
+            isDisabled
+              ? styles.disabledText
+              : null,
+          ]}
+        >
+          {safeTitle}
+        </AppText>
+
+        {safeSubtitle ? (
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={[
+              styles.subtitle,
+
+              isDisabled
+                ? styles.disabledText
+                : null,
+            ]}
+          >
+            {safeSubtitle}
+          </AppText>
+        ) : null}
+      </View>
 
       {/* ====================================================
           RIGHT STATUS
@@ -509,7 +564,9 @@ function ProfileMenuItem({
       ) : (
         <AppIcon
           name="next"
-          role={role}
+          role={
+            role
+          }
           size="xs"
           state="muted"
           color={
@@ -521,9 +578,19 @@ function ProfileMenuItem({
   );
 }
 
-export default memo(
-  ProfileMenuItem,
-);
+/* ============================================================
+   EXPORT
+============================================================ */
+
+const MemoizedProfileMenuItem =
+  memo(
+    ProfileMenuItem,
+  );
+
+MemoizedProfileMenuItem.displayName =
+  "ProfileMenuItem";
+
+export default MemoizedProfileMenuItem;
 
 /* ============================================================
    STYLES
@@ -536,16 +603,20 @@ const styles =
     ======================================================== */
 
     container: {
-      minHeight: 58,
+      minHeight:
+        56,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
         Colors.divider,
@@ -560,16 +631,16 @@ const styles =
 
     iconBox: {
       width:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
       height:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -579,22 +650,37 @@ const styles =
     },
 
     /* ========================================================
-       TITLE
+       TEXT
     ======================================================== */
 
-    title: {
-      flex: 1,
+    textContent: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       marginRight:
         FixxamTokens.spacing.sm,
+    },
 
+    title: {
       color:
         Colors.textPrimary,
+    },
+
+    subtitle: {
+      marginTop:
+        2,
+
+      lineHeight:
+        16,
+
+      color:
+        Colors.textSecondary,
     },
 
     dangerText: {

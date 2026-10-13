@@ -1,14 +1,17 @@
 import {
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
   Timestamp,
+  updateDoc,
   type DocumentData,
   type Unsubscribe,
 } from "firebase/firestore";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -23,10 +26,16 @@ import {
    TYPES
 ============================================================ */
 
-export type CustomerNotificationType =
+type CustomerNotificationType =
   | "service_request"
   | "booking"
+  | "shop_request"
   | "market_order"
+  | "saved_worker"
+  | "incoming_call"
+  | "missed_call"
+  | "call_update"
+  | "message"
   | "system";
 
 export type NotificationRecipientRole =
@@ -36,11 +45,80 @@ export type NotificationRecipientRole =
 export type CustomerNotification = {
   id: string;
 
-  type: CustomerNotificationType;
+  /**
+   * Backend notification identifier.
+   *
+   * Firestore document ID remains available
+   * separately through `id`.
+   */
+  notificationId: string;
+
+  type:
+    CustomerNotificationType;
 
   title: string;
 
   message: string;
+
+  /* ==========================================================
+     GENERIC ACTION METADATA
+  ========================================================== */
+
+  action?: string;
+
+  entityId?: string;
+
+  entityType?: string;
+
+  status?: string;
+
+  /* ==========================================================
+     SERVICE / BOOKING
+  ========================================================== */
+
+  requestId?: string;
+
+  bookingId?: string;
+
+  service?: string;
+
+  location?: string;
+
+  /* ==========================================================
+     MARKET
+  ========================================================== */
+
+  orderId?: string;
+
+  /* ==========================================================
+     SHOP REQUEST
+  ========================================================== */
+
+  shopRequestId?: string;
+
+  shopId?: string;
+
+  shopName?: string;
+
+  /* ==========================================================
+     CALL
+  ========================================================== */
+
+  callId?: string;
+
+  callerId?: string;
+
+  callerRole?:
+    NotificationRecipientRole;
+
+  calleeId?: string;
+
+  calleeRole?:
+    NotificationRecipientRole;
+
+  /* ==========================================================
+     WORKER / PROVIDER
+  ========================================================== */
 
   workerId?: string;
 
@@ -48,26 +126,61 @@ export type CustomerNotification = {
 
   workerPhone?: string;
 
-  service?: string;
+  distanceKm?: number;
 
-  location?: string;
-
-  requestId?: string;
-
-  bookingId?: string;
-
-  orderId?: string;
+  /* ==========================================================
+     RECIPIENT
+  ========================================================== */
 
   recipientId?: string;
 
   recipientRole?:
     NotificationRecipientRole;
 
+  /* ==========================================================
+     STATE
+  ========================================================== */
+
   read: boolean;
 
-  createdAt: Timestamp | null;
+  createdAt:
+    Timestamp | null;
 
-  expiresAt: Timestamp | null;
+  expiresAt:
+    Timestamp | null;
+};
+
+/* ============================================================
+   HOOK RESULT
+============================================================ */
+
+export type CustomerNotificationsResult = {
+  notifications:
+    CustomerNotification[];
+
+  unreadCount:
+    number;
+
+  hasUnread:
+    boolean;
+
+  serviceRequestCount:
+    number;
+
+  shopRequestCount:
+    number;
+
+  loading:
+    boolean;
+
+  error:
+    string | null;
+
+  markNotificationAsRead:
+    (
+      notificationId:
+        string,
+    ) => Promise<void>;
 };
 
 /* ============================================================
@@ -77,14 +190,18 @@ export type CustomerNotification = {
 function isTimestamp(
   value: unknown,
 ): value is Timestamp {
-  return value instanceof Timestamp;
+  return (
+    value instanceof
+    Timestamp
+  );
 }
 
 function getOptionalString(
   value: unknown,
 ): string | undefined {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return undefined;
   }
@@ -92,31 +209,194 @@ function getOptionalString(
   const normalized =
     value.trim();
 
-  return normalized || undefined;
+  return (
+    normalized ||
+    undefined
+  );
+}
+
+function getOptionalNumber(
+  value: unknown,
+): number | undefined {
+  if (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value ===
+      "string" &&
+    value.trim()
+  ) {
+    const parsed =
+      Number(
+        value,
+      );
+
+    if (
+      Number.isFinite(
+        parsed,
+      )
+    ) {
+      return parsed;
+    }
+  }
+
+  return undefined;
 }
 
 /* ============================================================
    TYPE VALIDATION
 ============================================================ */
 
-function isNotificationType(
+function normalizeNotificationType(
   value: unknown,
-): value is CustomerNotificationType {
-  return (
-    value === "service_request" ||
-    value === "booking" ||
-    value === "market_order" ||
-    value === "system"
-  );
+): CustomerNotificationType {
+  /*
+   * Legacy compatibility.
+   *
+   * Older sendServiceRequest versions used:
+   *
+   * worker_service_request
+   *
+   * Treat it as the current:
+   *
+   * service_request
+   */
+  if (
+    value ===
+    "worker_service_request"
+  ) {
+    return "service_request";
+  }
+
+  if (
+    value ===
+      "service_request" ||
+    value ===
+      "booking" ||
+    value ===
+      "market_order" ||
+    value ===
+      "shop_request" ||
+    value ===
+      "incoming_call" ||
+    value ===
+      "missed_call" ||
+    value ===
+      "call_update" ||
+    value ===
+      "message" ||
+    value ===
+      "system"
+  ) {
+    return value;
+  }
+
+  return "system";
 }
 
 function isRecipientRole(
   value: unknown,
 ): value is NotificationRecipientRole {
   return (
-    value === "customer" ||
-    value === "worker"
+    value ===
+      "customer" ||
+    value ===
+      "worker"
   );
+}
+
+/* ============================================================
+   DEFAULT TITLE
+============================================================ */
+
+function getDefaultTitle(
+  type:
+    CustomerNotificationType,
+): string {
+  switch (
+    type
+  ) {
+    case "service_request":
+      return "Worker Available Nearby";
+
+    case "booking":
+      return "Booking Update";
+
+    case "market_order":
+      return "Market Order Update";
+
+    case "shop_request":
+      return "Shop Request Update";
+
+    case "incoming_call":
+      return "Incoming call";
+
+    case "missed_call":
+      return "Missed call";
+
+    case "call_update":
+      return "Call update";
+
+    case "message":
+      return "New Message";
+
+    case "system":
+    default:
+      return "Fixxam Notification";
+  }
+}
+
+/* ============================================================
+   RECIPIENT VALIDATION
+============================================================ */
+
+function belongsToCustomer(
+  notification:
+    CustomerNotification,
+  customerId:
+    string,
+): boolean {
+  /*
+   * New notifications explicitly contain
+   * recipientId and recipientRole.
+   */
+
+  if (
+    notification.recipientId &&
+    notification.recipientId !==
+      customerId
+  ) {
+    return false;
+  }
+
+  if (
+    notification.recipientRole &&
+    notification.recipientRole !==
+      "customer"
+  ) {
+    return false;
+  }
+
+  /*
+   * Legacy notifications may not contain
+   * recipient metadata.
+   *
+   * Since the document already lives under:
+   *
+   * users/{customerId}/notifications
+   *
+   * and Firestore rules protect that path,
+   * the notification can safely remain visible.
+   */
+
+  return true;
 }
 
 /* ============================================================
@@ -127,168 +407,468 @@ function mapNotification(
   id: string,
   data: DocumentData,
 ): CustomerNotification {
-  const type: CustomerNotificationType =
-    isNotificationType(data.type)
-      ? data.type
-      : "system";
+  const type =
+    normalizeNotificationType(
+      data.type,
+    );
 
-  return {
-    id,
+  const notificationId =
+    getOptionalString(
+      data.notificationId,
+    ) ??
+    id;
 
-    type,
+  const notification:
+    CustomerNotification = {
+      id,
 
-    title:
-      typeof data.title === "string" &&
-      data.title.trim().length > 0
-        ? data.title.trim()
-        : type === "service_request"
-          ? "New Service Request"
-          : type === "booking"
-            ? "Booking Update"
-            : type === "market_order"
-              ? "Market Order Update"
-              : "Fixxam Notification",
+      notificationId,
 
-    message:
-      typeof data.message === "string"
-        ? data.message.trim()
-        : "",
+      type,
 
-    workerId:
-      getOptionalString(
-        data.workerId,
-      ),
+      title:
+        getOptionalString(
+          data.title,
+        ) ??
+        getDefaultTitle(
+          type,
+        ),
 
-    workerName:
-      getOptionalString(
-        data.workerName,
-      ),
+      message:
+        getOptionalString(
+          data.message,
+        ) ??
+        "",
 
-    workerPhone:
-      getOptionalString(
-        data.workerPhone,
-      ),
+      read:
+        data.read ===
+        true,
 
-    service:
-      getOptionalString(
-        data.service,
-      ) ??
-      getOptionalString(
-        data.serviceName,
-      ),
+      createdAt:
+        isTimestamp(
+          data.createdAt,
+        )
+          ? data.createdAt
+          : null,
 
-    location:
-      getOptionalString(
-        data.location,
-      ),
+      expiresAt:
+        isTimestamp(
+          data.expiresAt,
+        )
+          ? data.expiresAt
+          : null,
+    };
 
-    requestId:
-      getOptionalString(
-        data.requestId,
-      ),
+  /* ==========================================================
+     GENERIC ACTION METADATA
+  ========================================================== */
 
-    bookingId:
-      getOptionalString(
-        data.bookingId,
-      ),
+  const action =
+    getOptionalString(
+      data.action,
+    );
 
-    orderId:
-      getOptionalString(
-        data.orderId,
-      ),
+  if (
+    action
+  ) {
+    notification.action =
+      action;
+  }
 
-    recipientId:
-      getOptionalString(
-        data.recipientId,
-      ),
+  const entityId =
+    getOptionalString(
+      data.entityId,
+    );
 
-    recipientRole:
-      isRecipientRole(
-        data.recipientRole,
-      )
-        ? data.recipientRole
-        : undefined,
+  if (
+    entityId
+  ) {
+    notification.entityId =
+      entityId;
+  }
 
-    read:
-      data.read === true,
+  const entityType =
+    getOptionalString(
+      data.entityType,
+    );
 
-    createdAt:
-      isTimestamp(data.createdAt)
-        ? data.createdAt
-        : null,
+  if (
+    entityType
+  ) {
+    notification.entityType =
+      entityType;
+  }
 
-    expiresAt:
-      isTimestamp(data.expiresAt)
-        ? data.expiresAt
-        : null,
-  };
+  const status =
+    getOptionalString(
+      data.status,
+    );
+
+  if (
+    status
+  ) {
+    notification.status =
+      status;
+  }
+
+  /* ==========================================================
+     SERVICE / BOOKING
+  ========================================================== */
+
+  const requestId =
+    getOptionalString(
+      data.requestId,
+    );
+
+  if (
+    requestId
+  ) {
+    notification.requestId =
+      requestId;
+  }
+
+  const bookingId =
+    getOptionalString(
+      data.bookingId,
+    );
+
+  if (
+    bookingId
+  ) {
+    notification.bookingId =
+      bookingId;
+  }
+
+  const service =
+    getOptionalString(
+      data.service,
+    ) ??
+    getOptionalString(
+      data.serviceName,
+    );
+
+  if (
+    service
+  ) {
+    notification.service =
+      service;
+  }
+
+  const location =
+    getOptionalString(
+      data.location,
+    );
+
+  if (
+    location
+  ) {
+    notification.location =
+      location;
+  }
+
+  /* ==========================================================
+     MARKET
+  ========================================================== */
+
+  const orderId =
+    getOptionalString(
+      data.orderId,
+    );
+
+  if (
+    orderId
+  ) {
+    notification.orderId =
+      orderId;
+  }
+
+  /* ==========================================================
+     SHOP REQUEST
+  ========================================================== */
+
+  const shopRequestId =
+    getOptionalString(
+      data.shopRequestId,
+    ) ??
+    (
+      type ===
+      "shop_request"
+        ? requestId
+        : undefined
+    );
+
+  if (
+    shopRequestId
+  ) {
+    notification.shopRequestId =
+      shopRequestId;
+  }
+
+  const shopId =
+    getOptionalString(
+      data.shopId,
+    );
+
+  if (
+    shopId
+  ) {
+    notification.shopId =
+      shopId;
+  }
+
+  const shopName =
+    getOptionalString(
+      data.shopName,
+    );
+
+  if (
+    shopName
+  ) {
+    notification.shopName =
+      shopName;
+  }
+
+  /* ==========================================================
+     CALL
+  ========================================================== */
+
+  const callId =
+    getOptionalString(
+      data.callId,
+    );
+
+  if (
+    callId
+  ) {
+    notification.callId =
+      callId;
+  }
+
+  const callerId =
+    getOptionalString(
+      data.callerId,
+    );
+
+  if (
+    callerId
+  ) {
+    notification.callerId =
+      callerId;
+  }
+
+  if (
+    isRecipientRole(
+      data.callerRole,
+    )
+  ) {
+    notification.callerRole =
+      data.callerRole;
+  }
+
+  const calleeId =
+    getOptionalString(
+      data.calleeId,
+    );
+
+  if (
+    calleeId
+  ) {
+    notification.calleeId =
+      calleeId;
+  }
+
+  if (
+    isRecipientRole(
+      data.calleeRole,
+    )
+  ) {
+    notification.calleeRole =
+      data.calleeRole;
+  }
+
+  /* ==========================================================
+     WORKER / PROVIDER
+  ========================================================== */
+
+  const workerId =
+    getOptionalString(
+      data.workerId,
+    );
+
+  if (
+    workerId
+  ) {
+    notification.workerId =
+      workerId;
+  }
+
+  const workerName =
+    getOptionalString(
+      data.workerName,
+    );
+
+  if (
+    workerName
+  ) {
+    notification.workerName =
+      workerName;
+  }
+
+  /*
+   * Only the explicit workerPhone field
+   * is mapped.
+   *
+   * We intentionally do not fallback to
+   * generic `phone` or `phoneNumber`.
+   */
+  const workerPhone =
+    getOptionalString(
+      data.workerPhone,
+    );
+
+  if (
+    workerPhone
+  ) {
+    notification.workerPhone =
+      workerPhone;
+  }
+
+  const distanceKm =
+    getOptionalNumber(
+      data.distanceKm,
+    );
+
+  if (
+    distanceKm !==
+    undefined
+  ) {
+    notification.distanceKm =
+      distanceKm;
+  }
+
+  /* ==========================================================
+     RECIPIENT
+  ========================================================== */
+
+  const recipientId =
+    getOptionalString(
+      data.recipientId,
+    );
+
+  if (
+    recipientId
+  ) {
+    notification.recipientId =
+      recipientId;
+  }
+
+  if (
+    isRecipientRole(
+      data.recipientRole,
+    )
+  ) {
+    notification.recipientRole =
+      data.recipientRole;
+  }
+
+  return notification;
 }
 
 /* ============================================================
    HOOK
 ============================================================ */
 
-export default function useCustomerNotifications() {
+export default function useCustomerNotifications(): CustomerNotificationsResult {
   const [
     notifications,
     setNotifications,
-  ] = useState<
-    CustomerNotification[]
-  >([]);
+  ] =
+    useState<
+      CustomerNotification[]
+    >(
+      [],
+    );
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(
+      true,
+    );
 
   const [
     error,
     setError,
-  ] = useState<string | null>(
-    null,
-  );
+  ] =
+    useState<
+      string | null
+    >(
+      null,
+    );
 
   /* ==========================================================
-     REAL-TIME LISTENER
+     REALTIME LISTENER
   ========================================================== */
 
   useEffect(() => {
-    let active = true;
+    let active =
+      true;
 
     let unsubscribe:
       | Unsubscribe
-      | null = null;
+      | null =
+      null;
 
     const startListener =
       async () => {
         try {
-          setLoading(true);
-          setError(null);
+          setLoading(
+            true,
+          );
 
-          /*
-           * Wait for Firebase Auth session.
-           */
-          await auth.authStateReady();
+          setError(
+            null,
+          );
 
-          if (!active) {
+          /* ==================================================
+             WAIT FOR AUTH
+          ================================================== */
+
+          await auth
+            .authStateReady();
+
+          if (
+            !active
+          ) {
             return;
           }
 
           const user =
             auth.currentUser;
 
-          /*
-           * No authenticated customer.
-           */
-          if (!user) {
-            setNotifications([]);
-            setLoading(false);
+          /* ==================================================
+             NO USER
+          ================================================== */
+
+          if (
+            !user
+          ) {
+            setNotifications(
+              [],
+            );
+
+            setLoading(
+              false,
+            );
+
             return;
           }
 
-          /*
-           * users/{uid}/notifications
-           */
+          /* ==================================================
+             COLLECTION
+          ================================================== */
+
           const notificationsRef =
             collection(
               db,
@@ -297,24 +877,32 @@ export default function useCustomerNotifications() {
               "notifications",
             );
 
-          /*
-           * Single-field orderBy.
-           */
+          /* ==================================================
+             QUERY
+          ================================================== */
+
           const notificationsQuery =
             query(
               notificationsRef,
+
               orderBy(
                 "createdAt",
                 "desc",
               ),
             );
 
+          /* ==================================================
+             LISTENER
+          ================================================== */
+
           unsubscribe =
             onSnapshot(
               notificationsQuery,
 
-              (snapshot) => {
-                if (!active) {
+              snapshot => {
+                if (
+                  !active
+                ) {
                   return;
                 }
 
@@ -324,53 +912,46 @@ export default function useCustomerNotifications() {
                 const items =
                   snapshot.docs
                     .map(
-                      (document) =>
+                      document =>
                         mapNotification(
                           document.id,
                           document.data(),
                         ),
                     )
 
-                    /*
-                     * ==================================================
-                     * CUSTOMER RECIPIENT FILTER
-                     * ==================================================
-                     *
-                     * Only notifications explicitly addressed to
-                     * this authenticated customer are allowed.
-                     *
-                     * This prevents Worker notifications from appearing
-                     * inside the Customer application.
-                     */
+                    /* ==========================================
+                       RECIPIENT
+                    ========================================== */
+
                     .filter(
-                      (
-                        notification,
-                      ) =>
-                        notification.recipientId ===
-                          user.uid &&
-                        notification.recipientRole ===
-                          "customer",
+                      notification =>
+                        belongsToCustomer(
+                          notification,
+                          user.uid,
+                        ),
                     )
 
-                    /*
-                     * ==================================================
-                     * EXPIRATION FILTER
-                     * ==================================================
-                     */
+                    /* ==========================================
+                       EXPIRATION
+                    ========================================== */
+
                     .filter(
-                      (
-                        notification,
-                      ) => {
+                      notification => {
+                        const expiresAt =
+                          notification
+                            .expiresAt;
+
                         if (
-                          notification.expiresAt
+                          !expiresAt
                         ) {
-                          return (
-                            notification.expiresAt.toMillis() >
-                            now
-                          );
+                          return true;
                         }
 
-                        return true;
+                        return (
+                          expiresAt
+                            .toMillis() >
+                          now
+                        );
                       },
                     );
 
@@ -378,27 +959,40 @@ export default function useCustomerNotifications() {
                   items,
                 );
 
-                setLoading(false);
-                setError(null);
+                setLoading(
+                  false,
+                );
+
+                setError(
+                  null,
+                );
               },
 
-              (listenerError) => {
+              listenerError => {
                 console.error(
                   "FIXXAM_CUSTOMER_NOTIFICATIONS_LISTENER_ERROR:",
                   listenerError,
                 );
 
-                if (!active) {
+                if (
+                  !active
+                ) {
                   return;
                 }
 
-                setNotifications([]);
-                setLoading(false);
+                setNotifications(
+                  [],
+                );
+
+                setLoading(
+                  false,
+                );
 
                 const errorCode =
                   (
                     listenerError as {
-                      code?: string;
+                      code?:
+                        string;
                     }
                   )?.code;
 
@@ -429,18 +1023,27 @@ export default function useCustomerNotifications() {
                 );
               },
             );
-        } catch (error) {
+        } catch (
+          listenerSetupError
+        ) {
           console.error(
             "FIXXAM_CUSTOMER_NOTIFICATIONS_ERROR:",
-            error,
+            listenerSetupError,
           );
 
-          if (!active) {
+          if (
+            !active
+          ) {
             return;
           }
 
-          setNotifications([]);
-          setLoading(false);
+          setNotifications(
+            [],
+          );
+
+          setLoading(
+            false,
+          );
 
           setError(
             "Unable to load notifications.",
@@ -451,14 +1054,159 @@ export default function useCustomerNotifications() {
     void startListener();
 
     return () => {
-      active = false;
+      active =
+        false;
 
-      if (unsubscribe) {
-        unsubscribe();
-        unsubscribe = null;
-      }
+      unsubscribe?.();
+
+      unsubscribe =
+        null;
     };
   }, []);
+
+  /* ==========================================================
+     MARK AS READ
+  ========================================================== */
+
+  const markNotificationAsRead =
+    useCallback(
+      async (
+        notificationId:
+          string,
+      ): Promise<void> => {
+        const cleanNotificationId =
+          typeof notificationId ===
+          "string"
+            ? notificationId
+                .trim()
+            : "";
+
+        if (
+          !cleanNotificationId
+        ) {
+          return;
+        }
+
+        await auth
+          .authStateReady();
+
+        const user =
+          auth.currentUser;
+
+        if (
+          !user
+        ) {
+          throw new Error(
+            "AUTH_REQUIRED",
+          );
+        }
+
+        /*
+         * Resolve the real Firestore
+         * document ID.
+         *
+         * notificationId may be a backend
+         * identifier while `id` is always
+         * the Firestore document ID.
+         */
+        const matchingNotification =
+          notifications.find(
+            notification =>
+              notification.id ===
+                cleanNotificationId ||
+              notification.notificationId ===
+                cleanNotificationId,
+          );
+
+        const firestoreDocumentId =
+          matchingNotification
+            ?.id ??
+          cleanNotificationId;
+
+        /* ====================================================
+           OPTIMISTIC UPDATE
+        ==================================================== */
+
+        setNotifications(
+          current =>
+            current.map(
+              notification =>
+                notification.id ===
+                  firestoreDocumentId ||
+                notification.notificationId ===
+                  cleanNotificationId
+                  ? {
+                      ...notification,
+
+                      read:
+                        true,
+                    }
+                  : notification,
+            ),
+        );
+
+        try {
+          const notificationRef =
+            doc(
+              db,
+              "users",
+              user.uid,
+              "notifications",
+              firestoreDocumentId,
+            );
+
+          await updateDoc(
+            notificationRef,
+            {
+              read:
+                true,
+            },
+          );
+        } catch (
+          markReadError
+        ) {
+          console.error(
+            "FIXXAM_CUSTOMER_NOTIFICATION_MARK_READ_ERROR:",
+            {
+              notificationId:
+                cleanNotificationId,
+
+              firestoreDocumentId,
+
+              error:
+                markReadError,
+            },
+          );
+
+          /* ==================================================
+             ROLLBACK
+          ================================================== */
+
+          setNotifications(
+            current =>
+              current.map(
+                notification =>
+                  notification.id ===
+                    firestoreDocumentId ||
+                  notification.notificationId ===
+                    cleanNotificationId
+                    ? {
+                        ...notification,
+
+                        read:
+                          false,
+                      }
+                    : notification,
+              ),
+          );
+
+          throw markReadError;
+        }
+      },
+      [
+        notifications,
+      ],
+    );
 
   /* ==========================================================
      UNREAD COUNT
@@ -468,10 +1216,12 @@ export default function useCustomerNotifications() {
     useMemo(
       () =>
         notifications.filter(
-          (notification) =>
+          notification =>
             !notification.read,
         ).length,
-      [notifications],
+      [
+        notifications,
+      ],
     );
 
   /* ==========================================================
@@ -479,7 +1229,8 @@ export default function useCustomerNotifications() {
   ========================================================== */
 
   const hasUnread =
-    unreadCount > 0;
+    unreadCount >
+    0;
 
   /* ==========================================================
      SERVICE REQUEST COUNT
@@ -489,11 +1240,30 @@ export default function useCustomerNotifications() {
     useMemo(
       () =>
         notifications.filter(
-          (notification) =>
+          notification =>
             notification.type ===
             "service_request",
         ).length,
-      [notifications],
+      [
+        notifications,
+      ],
+    );
+
+  /* ==========================================================
+     SHOP REQUEST COUNT
+  ========================================================== */
+
+  const shopRequestCount =
+    useMemo(
+      () =>
+        notifications.filter(
+          notification =>
+            notification.type ===
+            "shop_request",
+        ).length,
+      [
+        notifications,
+      ],
     );
 
   /* ==========================================================
@@ -509,8 +1279,12 @@ export default function useCustomerNotifications() {
 
     serviceRequestCount,
 
+    shopRequestCount,
+
     loading,
 
     error,
+
+    markNotificationAsRead,
   };
 }

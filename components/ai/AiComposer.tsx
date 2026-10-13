@@ -120,27 +120,32 @@ function AiComposer({
      INPUT HEIGHT
   ============================================================ */
 
-  const handleContentSizeChange =
-    useCallback(
-      (
-        height: number,
-      ) => {
-        const nextHeight =
-          Math.min(
-            MAX_INPUT_HEIGHT,
-
-            Math.max(
-              MIN_INPUT_HEIGHT,
-              height,
-            ),
-          );
-
-        setInputHeight(
-          nextHeight,
-        );
-      },
-      [],
+ const handleContentSizeChange = useCallback(
+  (event: {
+    nativeEvent: {
+      contentSize: {
+        height: number;
+      };
+    };
+  }) => {
+    const nextHeight = Math.ceil(
+      Math.min(
+        MAX_INPUT_HEIGHT,
+        Math.max(
+          MIN_INPUT_HEIGHT,
+          event.nativeEvent.contentSize.height,
+        ),
+      ),
     );
+
+    setInputHeight(previous =>
+      previous === nextHeight
+        ? previous
+        : nextHeight,
+    );
+  },
+  [],
+);
 
   /* ============================================================
      RENDER
@@ -219,45 +224,25 @@ function AiComposer({
         ==================================================== */}
 
         <TextInput
-          value={value}
-          onChangeText={
-            onChangeText
-          }
-          editable={
-            !disabled
-          }
-          multiline
-          textAlignVertical="top"
-          scrollEnabled={
-            inputHeight >=
-            MAX_INPUT_HEIGHT
-          }
-          placeholder="Ask Fixxam Smarter..."
-          placeholderTextColor={
-            Colors.textMuted
-          }
-          selectionColor={
-            CustomerColors.primary
-          }
-          accessibilityLabel="Message Fixxam Smarter"
-          accessibilityHint="Type your repair question here"
-          onContentSizeChange={(
-            event,
-          ) =>
-            handleContentSizeChange(
-              event.nativeEvent
-                .contentSize.height,
-            )
-          }
-          style={[
-            styles.input,
-
-            {
-              height:
-                inputHeight,
-            },
-          ]}
-        />
+  value={value}
+  onChangeText={onChangeText}
+  editable={!disabled}
+  multiline
+  textAlignVertical="top"
+  scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+  placeholder="Ask Fixxam Smarter..."
+  placeholderTextColor={Colors.textMuted}
+  selectionColor={CustomerColors.primary}
+  accessibilityLabel="Message Fixxam Smarter"
+  accessibilityHint="Type your repair question here"
+  onContentSizeChange={handleContentSizeChange}
+  style={[
+    styles.input,
+    {
+      height: inputHeight,
+    },
+  ]}
+/>
 
         {/* ====================================================
             ACTIONS

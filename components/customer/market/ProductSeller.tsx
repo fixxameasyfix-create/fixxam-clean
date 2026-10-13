@@ -41,8 +41,6 @@ type Props = {
 
   rating?: number;
 
-  phoneNumber?: string;
-
   onViewProfile: () => void;
 
   onCall: () => void;
@@ -291,37 +289,38 @@ function ProductSeller({
           </AppText>
         </Pressable>
 
-        {/* CALL */}
+        {/* FIXXAM VOICE */}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Call ${sellerName}`}
-          onPress={onCall}
-          style={({ pressed }) => [
-            styles.actionButton,
-            styles.callButton,
+<Pressable
+  accessibilityRole="button"
+  accessibilityLabel={`Start Fixxam Voice call with ${sellerName}`}
+  accessibilityHint="Starts a secure voice call inside Fixxam"
+  onPress={onCall}
+  style={({ pressed }) => [
+    styles.actionButton,
+    styles.callButton,
 
-            pressed
-              ? styles.buttonPressed
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="phone"
-            role="customer"
-            size="sm"
-            color={Colors.textInverse}
-          />
+    pressed
+      ? styles.buttonPressed
+      : null,
+  ]}
+>
+  <AppIcon
+    name="phone"
+    role="customer"
+    size="sm"
+    color={Colors.textInverse}
+  />
 
-          <AppText
-            variant="caption"
-            weight="bold"
-            numberOfLines={1}
-            style={styles.callButtonText}
-          >
-            Call
-          </AppText>
-        </Pressable>
+  <AppText
+    variant="caption"
+    weight="bold"
+    numberOfLines={1}
+    style={styles.callButtonText}
+  >
+    Call
+  </AppText>
+</Pressable>
       </View>
     </View>
   );

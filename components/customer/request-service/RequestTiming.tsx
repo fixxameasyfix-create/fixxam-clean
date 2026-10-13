@@ -11,12 +11,9 @@ import {
   View,
 } from "react-native";
 
-import DateTimePicker, {
-  type DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
-  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -25,6 +22,13 @@ import {
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
+
+import {
+  type BookingPriority,
+} from "@/types/bookingPriority";
+
+import BookingDatePickerModal from "./BookingDatePickerModal";
+import BookingTimePickerModal from "./BookingTimePickerModal";
 
 /* ==============================================================
    TYPES
@@ -36,6 +40,11 @@ export type RequestTimingValue =
 
 type Props = {
   value: RequestTimingValue;
+
+  bookingPriority:
+    BookingPriority | null;
+
+  onPriorityPress: () => void;
 
   onChange: (
     value: RequestTimingValue,
@@ -50,68 +59,76 @@ type Props = {
   ) => void;
 };
 
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function createDefaultScheduleDate(): Date {
+  const date =
+    new Date();
+
+  date.setDate(
+    date.getDate() + 1,
+  );
+
+  date.setHours(
+    9,
+    0,
+    0,
+    0,
+  );
+
+  return date;
+}
+
 /* ==============================================================
    COMPONENT
 ============================================================== */
 
 function RequestTiming({
   value,
+  bookingPriority,
+  onPriorityPress,
   onChange,
   disabled = false,
   scheduledDate,
   onScheduledDateChange,
 }: Props) {
   const [
-    showDatePicker,
-    setShowDatePicker,
+    dateModalVisible,
+    setDateModalVisible,
   ] =
     useState(false);
 
   const [
-    showTimePicker,
-    setShowTimePicker,
+    timeModalVisible,
+    setTimeModalVisible,
   ] =
     useState(false);
 
   /* ============================================================
-     DEFAULT FUTURE DATE
+     DEFAULT SCHEDULE
   ============================================================ */
 
   const defaultScheduleDate =
-    useMemo(() => {
-      if (
-        scheduledDate
-      ) {
-        return scheduledDate;
-      }
-
-      const nextDate =
-        new Date();
-
-      nextDate.setDate(
-        nextDate.getDate() +
-          1,
-      );
-
-      nextDate.setHours(
-        9,
-        0,
-        0,
-        0,
-      );
-
-      return nextDate;
-    }, [
-      scheduledDate,
-    ]);
-
-  /* ============================================================
-     DISPLAY DATE
-  ============================================================ */
+    useMemo(
+      () =>
+        createDefaultScheduleDate(),
+      [],
+    );
 
   const displayDate =
     scheduledDate ??
     defaultScheduleDate;
+
+  /* ============================================================
+     FORMATTED DATE
+  ============================================================ */
 
   const formattedDate =
     useMemo(
@@ -119,15 +136,27 @@ function RequestTiming({
         displayDate.toLocaleDateString(
           "en-US",
           {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
+            weekday:
+              "short",
+
+            month:
+              "short",
+
+            day:
+              "numeric",
+
+            year:
+              "numeric",
           },
         ),
       [
         displayDate,
       ],
     );
+
+  /* ============================================================
+     FORMATTED TIME
+  ============================================================ */
 
   const formattedTime =
     useMemo(
@@ -135,9 +164,14 @@ function RequestTiming({
         displayDate.toLocaleTimeString(
           "en-US",
           {
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
+            hour:
+              "numeric",
+
+            minute:
+              "2-digit",
+
+            hour12:
+              true,
           },
         ),
       [
@@ -146,179 +180,295 @@ function RequestTiming({
     );
 
   /* ============================================================
-     ASAP
+     PRIORITY DISPLAY
   ============================================================ */
 
-  const handleAsapPress =
-    useCallback(() => {
-      if (
-        disabled
-      ) {
-        return;
-      }
+  const priorityDisplay =
+    useMemo(
+      (): {
+        icon: MaterialIconName;
+        title: string;
+        description: string;
+      } => {
+        switch (
+          bookingPriority
+        ) {
+          case "immediate":
+            return {
+              icon:
+                "lightning-bolt-outline",
 
-      setShowDatePicker(
-        false,
-      );
+              title:
+                "Immediately",
 
-      setShowTimePicker(
-        false,
-      );
+              description:
+                "I need the service as soon as possible.",
+            };
 
-      onChange(
-        "asap",
-      );
-    }, [
-      disabled,
-      onChange,
-    ]);
+          case "urgent":
+            return {
+              icon:
+                "alert-circle-outline",
+
+              title:
+                "Urgently",
+
+              description:
+                "I need this service handled urgently.",
+            };
+
+          case "normal":
+            return {
+              icon:
+                "clock-outline",
+
+              title:
+                "Normally",
+
+              description:
+                "Standard service priority.",
+            };
+
+          default:
+            return {
+              icon:
+                "clock-outline",
+
+              title:
+                "Service priority",
+
+              description:
+                "Choose how quickly you need this service.",
+            };
+        }
+      },
+      [
+        bookingPriority,
+      ],
+    );
 
   /* ============================================================
-     SCHEDULE
+     OPEN PRIORITY MODAL
   ============================================================ */
 
-  const handleSchedulePress =
-    useCallback(() => {
-      if (
-        disabled
-      ) {
-        return;
-      }
-
-      onChange(
-        "schedule",
-      );
-
-      if (
-        !scheduledDate &&
-        onScheduledDateChange
-      ) {
-        onScheduledDateChange(
-          defaultScheduleDate,
-        );
-      }
-
-      setShowTimePicker(
-        false,
-      );
-
-      setShowDatePicker(
-        true,
-      );
-    }, [
-      defaultScheduleDate,
-      disabled,
-      onChange,
-      onScheduledDateChange,
-      scheduledDate,
-    ]);
-
-  /* ============================================================
-     DATE CHANGE
-  ============================================================ */
-
-  const handleDateChange =
+  const handlePriorityPress =
     useCallback(
-      (
-        event:
-          DateTimePickerEvent,
-        selectedDate?: Date,
-      ) => {
-        setShowDatePicker(
-          false,
-        );
-
+      () => {
         if (
-          event.type ===
-            "dismissed" ||
-          !selectedDate
+          disabled
         ) {
           return;
         }
 
-        const current =
-          scheduledDate ??
-          defaultScheduleDate;
+        setDateModalVisible(
+          false,
+        );
 
-        const nextDate =
-          new Date(
-            selectedDate,
+        setTimeModalVisible(
+          false,
+        );
+
+        onPriorityPress();
+      },
+      [
+        disabled,
+        onPriorityPress,
+      ],
+    );
+
+  /* ============================================================
+     OPEN DATE MODAL
+  ============================================================ */
+
+  const handleOpenDate =
+    useCallback(
+      () => {
+        if (
+          disabled
+        ) {
+          return;
+        }
+
+        onChange(
+          "schedule",
+        );
+
+        if (
+          !scheduledDate
+        ) {
+          onScheduledDateChange?.(
+            defaultScheduleDate,
           );
+        }
 
-        nextDate.setHours(
-          current.getHours(),
-          current.getMinutes(),
-          0,
-          0,
+        setTimeModalVisible(
+          false,
         );
 
-        onScheduledDateChange?.(
-          nextDate,
-        );
-
-        setTimeout(
-          () => {
-            setShowTimePicker(
-              true,
-            );
-          },
-          FixxamTokens.motion.fast,
+        setDateModalVisible(
+          true,
         );
       },
       [
         defaultScheduleDate,
+        disabled,
+        onChange,
         onScheduledDateChange,
         scheduledDate,
       ],
     );
 
   /* ============================================================
-     TIME CHANGE
+     CLOSE DATE MODAL
   ============================================================ */
 
-  const handleTimeChange =
+  const handleCloseDate =
     useCallback(
-      (
-        event:
-          DateTimePickerEvent,
-        selectedTime?: Date,
-      ) => {
-        setShowTimePicker(
-          false,
-        );
-
+      () => {
         if (
-          event.type ===
-            "dismissed" ||
-          !selectedTime
+          disabled
         ) {
           return;
         }
 
-        const current =
-          scheduledDate ??
-          defaultScheduleDate;
+        setDateModalVisible(
+          false,
+        );
+      },
+      [
+        disabled,
+      ],
+    );
 
-        const nextDate =
-          new Date(
-            current,
-          );
+  /* ============================================================
+     DATE SELECTED
+  ============================================================ */
 
-        nextDate.setHours(
-          selectedTime.getHours(),
-          selectedTime.getMinutes(),
-          0,
-          0,
+  const handleDateSelected =
+    useCallback(
+      (
+        selectedDate: Date,
+      ) => {
+        if (
+          disabled
+        ) {
+          return;
+        }
+
+        onChange(
+          "schedule",
         );
 
         onScheduledDateChange?.(
-          nextDate,
+          selectedDate,
+        );
+
+        setDateModalVisible(
+          false,
+        );
+      },
+      [
+        disabled,
+        onChange,
+        onScheduledDateChange,
+      ],
+    );
+
+  /* ============================================================
+     OPEN TIME MODAL
+  ============================================================ */
+
+  const handleOpenTime =
+    useCallback(
+      () => {
+        if (
+          disabled
+        ) {
+          return;
+        }
+
+        onChange(
+          "schedule",
+        );
+
+        if (
+          !scheduledDate
+        ) {
+          onScheduledDateChange?.(
+            defaultScheduleDate,
+          );
+        }
+
+        setDateModalVisible(
+          false,
+        );
+
+        setTimeModalVisible(
+          true,
         );
       },
       [
         defaultScheduleDate,
+        disabled,
+        onChange,
         onScheduledDateChange,
         scheduledDate,
+      ],
+    );
+
+  /* ============================================================
+     CLOSE TIME MODAL
+  ============================================================ */
+
+  const handleCloseTime =
+    useCallback(
+      () => {
+        if (
+          disabled
+        ) {
+          return;
+        }
+
+        setTimeModalVisible(
+          false,
+        );
+      },
+      [
+        disabled,
+      ],
+    );
+
+  /* ============================================================
+     TIME SELECTED
+  ============================================================ */
+
+  const handleTimeSelected =
+    useCallback(
+      (
+        selectedDate: Date,
+      ) => {
+        if (
+          disabled
+        ) {
+          return;
+        }
+
+        onChange(
+          "schedule",
+        );
+
+        onScheduledDateChange?.(
+          selectedDate,
+        );
+
+        setTimeModalVisible(
+          false,
+        );
+      },
+      [
+        disabled,
+        onChange,
+        onScheduledDateChange,
       ],
     );
 
@@ -334,128 +484,149 @@ function RequestTiming({
         }
       >
         {/* ====================================================
-            ASAP
+            PRIORITY DISPLAY
+
+            For Immediately / Normally / Urgently only.
         ==================================================== */}
 
-        <TimingCard
-          icon="clock"
-          title="ASAP"
-          subtitle="As soon as possible"
-          selected={
-            value === "asap"
-          }
-          disabled={
-            disabled
-          }
-          onPress={
-            handleAsapPress
-          }
-        />
+        {value ===
+          "asap" &&
+        bookingPriority ? (
+          <PriorityDisplayCard
+            icon={
+              priorityDisplay.icon
+            }
+            title={
+              priorityDisplay.title
+            }
+            description={
+              priorityDisplay.description
+            }
+            disabled={
+              disabled
+            }
+            onPress={
+              handlePriorityPress
+            }
+          />
+        ) : null}
 
         {/* ====================================================
-            SCHEDULE
+            SCHEDULE DATE + TIME
+
+            Schedule itself is selected in BookingPriorityStep.
+            Only the actual date/time fields live here.
         ==================================================== */}
 
-        <TimingCard
-          icon="calendar"
-          title="Schedule"
-          subtitle="Choose date & time"
-          selected={
-            value ===
-            "schedule"
-          }
-          disabled={
-            disabled
-          }
-          scheduled={
-            value ===
-            "schedule"
-          }
-          date={
-            formattedDate
-          }
-          time={
-            formattedTime
-          }
-          onPress={
-            handleSchedulePress
-          }
-        />
+        {value ===
+        "schedule" ? (
+          <View
+            style={
+              styles.scheduleFields
+            }
+          >
+            <ScheduleField
+              label="Preferred Date"
+              value={
+                formattedDate
+              }
+              icon="calendar-blank-outline"
+              disabled={
+                disabled
+              }
+              onPress={
+                handleOpenDate
+              }
+            />
+
+            <ScheduleField
+              label="Preferred Time"
+              value={
+                formattedTime
+              }
+              icon="clock-outline"
+              disabled={
+                disabled
+              }
+              onPress={
+                handleOpenTime
+              }
+            />
+          </View>
+        ) : null}
       </View>
 
       {/* ========================================================
-          DATE PICKER
+          DATE BOTTOM MODAL
       ======================================================== */}
 
-      {showDatePicker ? (
-        <DateTimePicker
-          value={
-            displayDate
-          }
-          mode="date"
-          minimumDate={
-            new Date()
-          }
-          display="default"
-          onChange={
-            handleDateChange
-          }
-        />
-      ) : null}
+      <BookingDatePickerModal
+        visible={
+          dateModalVisible
+        }
+        value={
+          scheduledDate ??
+          null
+        }
+        onChange={
+          handleDateSelected
+        }
+        onClose={
+          handleCloseDate
+        }
+        disabled={
+          disabled
+        }
+      />
 
       {/* ========================================================
-          TIME PICKER
+          TIME BOTTOM MODAL
       ======================================================== */}
 
-      {showTimePicker ? (
-        <DateTimePicker
-          value={
-            displayDate
-          }
-          mode="time"
-          is24Hour={false}
-          display="default"
-          onChange={
-            handleTimeChange
-          }
-        />
-      ) : null}
+      <BookingTimePickerModal
+        visible={
+          timeModalVisible
+        }
+        value={
+          scheduledDate ??
+          null
+        }
+        selectedDate={
+          scheduledDate ??
+          null
+        }
+        onChange={
+          handleTimeSelected
+        }
+        onClose={
+          handleCloseTime
+        }
+        disabled={
+          disabled
+        }
+      />
     </>
   );
 }
 
 /* ==============================================================
-   TIMING CARD
+   PRIORITY DISPLAY CARD
 ============================================================== */
 
-function TimingCard({
+function PriorityDisplayCard({
   icon,
   title,
-  subtitle,
-  selected,
+  description,
   disabled,
-  scheduled = false,
-  date,
-  time,
   onPress,
 }: {
-  icon:
-    | "clock"
-    | "calendar";
+  icon: MaterialIconName;
 
   title: string;
 
-  subtitle: string;
-
-  selected: boolean;
+  description: string;
 
   disabled: boolean;
-
-  scheduled?: boolean;
-
-  date?: string;
-
-  time?: string;
 
   onPress: () => void;
 }) {
@@ -465,8 +636,8 @@ function TimingCard({
       accessibilityLabel={
         title
       }
+      accessibilityHint="Change service timing"
       accessibilityState={{
-        selected,
         disabled,
       }}
       disabled={
@@ -478,127 +649,166 @@ function TimingCard({
       style={({
         pressed,
       }) => [
-        styles.card,
-
-        selected
-          ? styles.cardSelected
-          : null,
+        styles.priorityCard,
 
         pressed &&
-        !disabled
-          ? styles.cardPressed
-          : null,
+          !disabled &&
+          styles.pressed,
 
-        disabled
-          ? styles.cardDisabled
-          : null,
+        disabled &&
+          styles.disabled,
       ]}
     >
-      {/* ======================================================
-          ICON
-      ====================================================== */}
-
       <View
-        style={[
-          styles.iconBox,
-
-          selected
-            ? styles.iconBoxSelected
-            : null,
-        ]}
+        style={
+          styles.priorityIcon
+        }
       >
-        <AppIcon
-          name={icon}
-          role="customer"
-          size="md"
-          state={
-            selected
-              ? "active"
-              : "muted"
+        <MaterialCommunityIcons
+          name={
+            icon
+          }
+          size={23}
+          color={
+            CustomerColors.primary
           }
         />
       </View>
 
-      {/* ======================================================
-          CONTENT
-      ====================================================== */}
-
       <View
         style={
-          styles.cardContent
+          styles.priorityContent
         }
       >
         <AppText
-          variant="bodyLarge"
+          variant="bodyMedium"
           weight="bold"
           numberOfLines={1}
-          style={
-            selected
-              ? styles.titleSelected
-              : undefined
-          }
         >
           {title}
         </AppText>
 
-        {scheduled ? (
-          <>
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-              style={
-                styles.scheduleDate
-              }
-            >
-              {date}
-            </AppText>
-
-            <AppText
-              variant="bodyMedium"
-              weight="semibold"
-              numberOfLines={1}
-              style={
-                styles.scheduleTime
-              }
-            >
-              {time}
-            </AppText>
-          </>
-        ) : (
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={2}
-            style={
-              styles.subtitle
-            }
-          >
-            {subtitle}
-          </AppText>
-        )}
-      </View>
-
-      {/* ======================================================
-          SELECTED INDICATOR
-      ====================================================== */}
-
-      {selected ? (
-        <View
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
           style={
-            styles.selectedIndicator
+            styles.priorityDescription
           }
         >
-          <AppIcon
-            name="check"
-            role="customer"
-            size="xs"
-            state="inverse"
-            strokeWidth="strong"
+          {description}
+        </AppText>
+      </View>
+
+      <MaterialCommunityIcons
+        name="chevron-right"
+        size={24}
+        color={
+          Colors.textSecondary
+        }
+      />
+    </Pressable>
+  );
+}
+
+/* ==============================================================
+   SCHEDULE FIELD
+============================================================== */
+
+function ScheduleField({
+  label,
+  value,
+  icon,
+  disabled,
+  onPress,
+}: {
+  label: string;
+
+  value: string;
+
+  icon: MaterialIconName;
+
+  disabled: boolean;
+
+  onPress: () => void;
+}) {
+  return (
+    <View
+      style={
+        styles.fieldGroup
+      }
+    >
+      <AppText
+        variant="bodyLarge"
+        weight="bold"
+        style={
+          styles.fieldLabel
+        }
+      >
+        {label}
+      </AppText>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${value}`}
+        accessibilityHint={`Change ${label.toLowerCase()}`}
+        accessibilityState={{
+          disabled,
+        }}
+        disabled={
+          disabled
+        }
+        onPress={
+          onPress
+        }
+        style={({
+          pressed,
+        }) => [
+          styles.scheduleField,
+
+          pressed &&
+            !disabled &&
+            styles.pressed,
+
+          disabled &&
+            styles.disabled,
+        ]}
+      >
+        <View
+          style={
+            styles.scheduleIcon
+          }
+        >
+          <MaterialCommunityIcons
+            name={
+              icon
+            }
+            size={23}
+            color={
+              CustomerColors.primary
+            }
           />
         </View>
-      ) : null}
-    </Pressable>
+
+        <AppText
+          variant="bodyMedium"
+          numberOfLines={1}
+          style={
+            styles.scheduleValue
+          }
+        >
+          {value}
+        </AppText>
+
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={24}
+          color={
+            Colors.textSecondary
+          }
+        />
+      </Pressable>
+    </View>
   );
 }
 
@@ -609,175 +819,207 @@ function TimingCard({
 const styles =
   StyleSheet.create({
     container: {
-      width: "100%",
+      width:
+        "100%",
+    },
+
+    /* ========================================================
+       PRIORITY
+    ======================================================== */
+
+    priorityCard: {
+      width:
+        "100%",
+
+      minHeight:
+        72,
 
       flexDirection:
         "row",
 
-      gap:
-        FixxamTokens.spacing.md,
+      alignItems:
+        "center",
+
+      paddingHorizontal:
+        14,
+
+      paddingVertical:
+        12,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        "#DDE5EF",
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        "#FFFFFF",
+    },
+
+    priorityIcon: {
+      width:
+        46,
+
+      height:
+        46,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        12,
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        "#EAF3FF",
+    },
+
+    priorityContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginRight:
+        10,
+    },
+
+    priorityDescription: {
+      marginTop:
+        3,
+
+      lineHeight:
+        18,
+
+      color:
+        "#64748B",
     },
 
     /* ========================================================
-       CARD
+       DATE + TIME
     ======================================================== */
 
-    card: {
-      flex: 1,
+    scheduleFields: {
+      width:
+        "100%",
 
-      minWidth: 0,
+      gap:
+        20,
+    },
+
+    fieldGroup: {
+      width:
+        "100%",
+    },
+
+    fieldLabel: {
+      marginBottom:
+        10,
+
+      color:
+        "#0F172A",
+    },
+
+    scheduleField: {
+      width:
+        "100%",
 
       minHeight:
-        FixxamTokens.size
-          .roleCardHeight +
-        FixxamTokens.spacing.xxxl,
+        62,
 
-      position:
-        "relative",
+      flexDirection:
+        "row",
 
-      padding:
-        FixxamTokens.spacing.lg,
+      alignItems:
+        "center",
 
-      borderWidth: 1,
+      paddingRight:
+        14,
+
+      borderWidth:
+        1,
 
       borderColor:
-        Colors.border,
+        "#D7E4F2",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        14,
+
+      overflow:
+        "hidden",
 
       backgroundColor:
-        Colors.surface,
+        "#FFFFFF",
     },
 
-    cardSelected: {
-      borderWidth: 2,
+    scheduleIcon: {
+      width:
+        58,
 
-      borderColor:
-        CustomerColors.primary,
+      alignSelf:
+        "stretch",
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        14,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EAF3FF",
     },
 
-    cardPressed: {
+    scheduleValue: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginRight:
+        10,
+
+      color:
+        "#0F172A",
+    },
+
+    /* ========================================================
+       STATES
+    ======================================================== */
+
+    pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
 
-    cardDisabled: {
+    disabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    /* ========================================================
-       ICON
-    ======================================================== */
-
-    iconBox: {
-      width:
-        FixxamTokens.size.iconBox,
-
-      height:
-        FixxamTokens.size.iconBox,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    iconBoxSelected: {
-      backgroundColor:
-        Colors.surface,
-    },
-
-    /* ========================================================
-       CONTENT
-    ======================================================== */
-
-    cardContent: {
-      width: "100%",
-
-      minWidth: 0,
-    },
-
-    titleSelected: {
-      color:
-        CustomerColors.primary,
-    },
-
-    subtitle: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-    },
-
-    /* ========================================================
-       SCHEDULE
-    ======================================================== */
-
-    scheduleDate: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-    },
-
-    scheduleTime: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        CustomerColors.primary,
-    },
-
-    /* ========================================================
-       SELECTED
-    ======================================================== */
-
-    selectedIndicator: {
-      position:
-        "absolute",
-
-      top:
-        FixxamTokens.spacing.sm,
-
-      right:
-        FixxamTokens.spacing.sm,
-
-      width: 24,
-
-      height: 24,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        CustomerColors.primary,
+        FixxamTokens.motion.disabledOpacity,
     },
   });
 

@@ -8,6 +8,7 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -24,11 +25,20 @@ import {
 } from "expo-router";
 
 import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
+
+import Toast from "react-native-toast-message";
+
+import {
   AppIcon,
   AppText,
 } from "@/components/ui";
 
 import ProductGridCard from "@/components/customer/home/ProductGridCard";
+
+import ProductReviewModal from "@/components/customer/home/ProductReviewModal";
 
 import useCurrentLocation from "@/hooks/location/useCurrentLocation";
 
@@ -36,6 +46,21 @@ import {
   getNearbyDiscountedProducts,
   type DiscountedProduct,
 } from "@/firebase/queries/discountedProducts";
+
+import {
+  auth,
+  db,
+} from "@/firebase/config";
+
+import {
+  subscribeToProductRatingCount,
+  toggleProductRating,
+} from "@/services/productRatingService";
+
+import {
+  createProductReview,
+  subscribeToProductReviewCount,
+} from "@/services/productReviewService";
 
 import {
   Colors,
@@ -47,9 +72,23 @@ import {
    CONSTANTS
 ============================================================== */
 
-const MAX_DISCOUNTED_PRODUCTS = 20;
+const MAX_DISCOUNTED_PRODUCTS =
+  20;
 
-const LOCATION_WAIT_TIMEOUT_MS = 12_000;
+const LOCATION_WAIT_TIMEOUT_MS =
+  12_000;
+
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type SelectedReviewProduct = {
+  id: string;
+
+  name: string;
+
+  workerId: string;
+};
 
 /* ==============================================================
    HELPERS
@@ -59,9 +98,25 @@ function isValidCoordinate(
   value: unknown,
 ): value is number {
   return (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   );
+}
+
+function normalizeString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
 }
 
 function isValidDiscountedProduct(
@@ -88,18 +143,22 @@ function isValidDiscountedProduct(
     Number.isFinite(
       originalPrice,
     ) &&
-    originalPrice > 0 &&
+    originalPrice >
+      0 &&
     Number.isFinite(
       discountedPrice,
     ) &&
-    discountedPrice > 0 &&
+    discountedPrice >
+      0 &&
     discountedPrice <
       originalPrice &&
     Number.isFinite(
       discountPercentage,
     ) &&
-    discountPercentage > 0 &&
-    discountPercentage < 100
+    discountPercentage >
+      0 &&
+    discountPercentage <
+      100
   );
 }
 
@@ -107,7 +166,9 @@ function formatDistance(
   value: unknown,
 ): string {
   const distance =
-    Number(value);
+    Number(
+      value,
+    );
 
   if (
     !Number.isFinite(
@@ -118,9 +179,12 @@ function formatDistance(
     return "";
   }
 
-  if (distance < 1) {
+  if (
+    distance < 1
+  ) {
     return `${Math.round(
-      distance * 1000,
+      distance *
+        1000,
     )} m away`;
   }
 
@@ -168,6 +232,57 @@ export default function DiscountedProductsScreen() {
       string | null
     >(null);
 
+  /* ============================================================
+     RATING / REVIEW STATE
+  ============================================================ */
+
+  const [
+    ratingCounts,
+    setRatingCounts,
+  ] =
+    useState<
+      Record<
+        string,
+        number
+      >
+    >({});
+
+  const [
+    reviewCounts,
+    setReviewCounts,
+  ] =
+    useState<
+      Record<
+        string,
+        number
+      >
+    >({});
+
+  const [
+    ratingLoading,
+    setRatingLoading,
+  ] =
+    useState<
+      Record<
+        string,
+        boolean
+      >
+    >({});
+
+  const [
+    selectedReviewProduct,
+    setSelectedReviewProduct,
+  ] =
+    useState<
+      SelectedReviewProduct | null
+    >(null);
+
+  const [
+    reviewSubmitting,
+    setReviewSubmitting,
+  ] =
+    useState(false);
+
   const requestIdRef =
     useRef(0);
 
@@ -199,7 +314,9 @@ export default function DiscountedProductsScreen() {
             longitude,
           )
         ) {
-          setClaiming(false);
+          setClaiming(
+            false,
+          );
 
           setError(
             "Your current location is invalid. Please refresh your location and try again.",
@@ -211,9 +328,13 @@ export default function DiscountedProductsScreen() {
         const requestId =
           ++requestIdRef.current;
 
-        setError(null);
+        setError(
+          null,
+        );
 
-        setClaiming(true);
+        setClaiming(
+          true,
+        );
 
         try {
           const nearbyDeals =
@@ -248,11 +369,17 @@ export default function DiscountedProductsScreen() {
           setClaimed(
             true,
           );
-        } catch (err) {
-          console.error(
-            "DISCOUNTED_PRODUCTS_LOAD_ERROR:",
-            err,
-          );
+        } catch (
+          err
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "DISCOUNTED_PRODUCTS_LOAD_ERROR:",
+              err,
+            );
+          }
 
           if (
             requestId !==
@@ -261,7 +388,9 @@ export default function DiscountedProductsScreen() {
             return;
           }
 
-          setProducts([]);
+          setProducts(
+            [],
+          );
 
           setClaimed(
             true,
@@ -283,6 +412,153 @@ export default function DiscountedProductsScreen() {
       },
       [],
     );
+
+  /* ============================================================
+     PRODUCT IDS
+  ============================================================ */
+
+  const productIds =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            products
+              .map(
+                (
+                  item,
+                ) =>
+                  normalizeString(
+                    item.product.id,
+                  ),
+              )
+              .filter(
+                Boolean,
+              ),
+          ),
+        ),
+      [
+        products,
+      ],
+    );
+
+  /* ============================================================
+     REALTIME RATING + REVIEW COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setRatingCounts(
+        {},
+      );
+
+      setReviewCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const unsubscribers:
+      Array<
+        () => void
+      > = [];
+
+    productIds.forEach(
+      (
+        productId,
+      ) => {
+        const unsubscribeRating =
+          subscribeToProductRatingCount(
+            productId,
+            (
+              count,
+            ) => {
+              setRatingCounts(
+                (
+                  current,
+                ) => ({
+                  ...current,
+
+                  [productId]:
+                    count,
+                }),
+              );
+            },
+            (
+              subscriptionError,
+            ) => {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "DISCOUNTED_PRODUCT_RATING_COUNT_ERROR:",
+                  {
+                    productId,
+                    error:
+                      subscriptionError,
+                  },
+                );
+              }
+            },
+          );
+
+        const unsubscribeReview =
+          subscribeToProductReviewCount(
+            productId,
+            (
+              count,
+            ) => {
+              setReviewCounts(
+                (
+                  current,
+                ) => ({
+                  ...current,
+
+                  [productId]:
+                    count,
+                }),
+              );
+            },
+            (
+              subscriptionError,
+            ) => {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "DISCOUNTED_PRODUCT_REVIEW_COUNT_ERROR:",
+                  {
+                    productId,
+                    error:
+                      subscriptionError,
+                  },
+                );
+              }
+            },
+          );
+
+        unsubscribers.push(
+          unsubscribeRating,
+          unsubscribeReview,
+        );
+      },
+    );
+
+    return () => {
+      unsubscribers.forEach(
+        (
+          unsubscribe,
+        ) => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
+  ]);
 
   /* ============================================================
      WAIT FOR LOCATION
@@ -332,10 +608,6 @@ export default function DiscountedProductsScreen() {
       return;
     }
 
-    /*
-     * If location arrives at the same time,
-     * the location effect above gets priority.
-     */
     if (
       location &&
       isValidCoordinate(
@@ -379,19 +651,22 @@ export default function DiscountedProductsScreen() {
     }
 
     const timeout =
-      setTimeout(() => {
-        setWaitingForLocation(
-          false,
-        );
+      setTimeout(
+        () => {
+          setWaitingForLocation(
+            false,
+          );
 
-        setClaiming(
-          false,
-        );
+          setClaiming(
+            false,
+          );
 
-        setError(
-          "Unable to get your current location. Please check your location settings and try again.",
-        );
-      }, LOCATION_WAIT_TIMEOUT_MS);
+          setError(
+            "Unable to get your current location. Please check your location settings and try again.",
+          );
+        },
+        LOCATION_WAIT_TIMEOUT_MS,
+      );
 
     return () => {
       clearTimeout(
@@ -426,7 +701,9 @@ export default function DiscountedProductsScreen() {
         return;
       }
 
-      setError(null);
+      setError(
+        null,
+      );
 
       if (
         location &&
@@ -445,12 +722,6 @@ export default function DiscountedProductsScreen() {
         return;
       }
 
-      /*
-       * refresh() triggers the location hook.
-       * We wait for the updated location state
-       * instead of reading the old state
-       * immediately after refresh().
-       */
       setClaiming(
         true,
       );
@@ -462,11 +733,17 @@ export default function DiscountedProductsScreen() {
       void Promise.resolve(
         refresh(),
       ).catch(
-        (err) => {
-          console.error(
-            "DISCOUNT_LOCATION_REFRESH_ERROR:",
-            err,
-          );
+        (
+          err,
+        ) => {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "DISCOUNT_LOCATION_REFRESH_ERROR:",
+              err,
+            );
+          }
 
           setWaitingForLocation(
             false,
@@ -501,19 +778,440 @@ export default function DiscountedProductsScreen() {
     ]);
 
   /* ============================================================
+     PRODUCT DETAILS
+  ============================================================ */
+
+  const handleProductPress =
+    useCallback(
+      (
+        productId: string,
+      ) => {
+        const cleanProductId =
+          normalizeString(
+            productId,
+          );
+
+        if (
+          !cleanProductId
+        ) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/product/[id]",
+
+          params: {
+            id:
+              cleanProductId,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     PRODUCT RATING
+  ============================================================ */
+
+  const handleProductRating =
+    useCallback(
+      async (
+        productId: string,
+      ) => {
+        const cleanProductId =
+          normalizeString(
+            productId,
+          );
+
+        if (
+          !cleanProductId ||
+          ratingLoading[
+            cleanProductId
+          ]
+        ) {
+          return;
+        }
+
+        if (
+          !auth.currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to rate this product.",
+          );
+
+          return;
+        }
+
+        setRatingLoading(
+          (
+            current,
+          ) => ({
+            ...current,
+
+            [cleanProductId]:
+              true,
+          }),
+        );
+
+        try {
+          await toggleProductRating(
+            cleanProductId,
+          );
+        } catch (
+          ratingError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "DISCOUNTED_PRODUCT_RATING_ERROR:",
+              {
+                productId:
+                  cleanProductId,
+
+                error:
+                  ratingError,
+              },
+            );
+          }
+
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Unable to update rating",
+
+            text2:
+              "Please try again.",
+          });
+        } finally {
+          setRatingLoading(
+            (
+              current,
+            ) => ({
+              ...current,
+
+              [cleanProductId]:
+                false,
+            }),
+          );
+        }
+      },
+      [
+        ratingLoading,
+      ],
+    );
+
+  /* ============================================================
+     OPEN REVIEW
+  ============================================================ */
+
+  const handleReviewPress =
+    useCallback(
+      (
+        item: DiscountedProduct,
+      ) => {
+        if (
+          !auth.currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to review this product.",
+          );
+
+          return;
+        }
+
+        const productId =
+          normalizeString(
+            item.product.id,
+          );
+
+        const productName =
+          normalizeString(
+            item.product.name,
+          );
+
+        const workerId =
+          normalizeString(
+            item.product.workerId,
+          );
+
+        if (
+          !productId
+        ) {
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Unable to review product",
+
+            text2:
+              "Invalid product.",
+          });
+
+          return;
+        }
+
+        if (
+          !workerId
+        ) {
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Unable to review product",
+
+            text2:
+              "Product owner information is missing.",
+          });
+
+          return;
+        }
+
+        setSelectedReviewProduct({
+          id:
+            productId,
+
+          name:
+            productName ||
+            "Product",
+
+          workerId,
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     CLOSE REVIEW
+  ============================================================ */
+
+  const handleCloseReview =
+    useCallback(() => {
+      if (
+        reviewSubmitting
+      ) {
+        return;
+      }
+
+      setSelectedReviewProduct(
+        null,
+      );
+    }, [
+      reviewSubmitting,
+    ]);
+
+  /* ============================================================
+     SUBMIT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(
+      async (
+        rating: number,
+        comment: string,
+      ) => {
+        const selectedProduct =
+          selectedReviewProduct;
+
+        if (
+          !selectedProduct
+        ) {
+          return;
+        }
+
+        const user =
+          auth.currentUser;
+
+        if (
+          !user
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "Please sign in to review this product.",
+          );
+
+          return;
+        }
+
+        const cleanComment =
+          comment.trim();
+
+        if (
+          !Number.isFinite(
+            rating,
+          ) ||
+          rating < 1 ||
+          rating > 5
+        ) {
+          Alert.alert(
+            "Rating required",
+            "Please choose a rating from 1 to 5 stars.",
+          );
+
+          return;
+        }
+
+        if (
+          cleanComment.length <
+          3
+        ) {
+          Alert.alert(
+            "Review too short",
+            "Please write at least 3 characters.",
+          );
+
+          return;
+        }
+
+        if (
+          cleanComment.length >
+          500
+        ) {
+          Alert.alert(
+            "Review too long",
+            "Your review cannot exceed 500 characters.",
+          );
+
+          return;
+        }
+
+        try {
+          setReviewSubmitting(
+            true,
+          );
+
+          const userSnapshot =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                user.uid,
+              ),
+            );
+
+          const userData =
+            userSnapshot.exists()
+              ? userSnapshot.data()
+              : {};
+
+          const fullName =
+            normalizeString(
+              userData.fullName,
+            );
+
+          const generatedName =
+            [
+              normalizeString(
+                userData.firstName,
+              ),
+
+              normalizeString(
+                userData.otherName,
+              ),
+
+              normalizeString(
+                userData.surname,
+              ),
+            ]
+              .filter(
+                Boolean,
+              )
+              .join(
+                " ",
+              );
+
+          const customerName =
+            fullName ||
+            generatedName ||
+            normalizeString(
+              user.displayName,
+            ) ||
+            "Customer";
+
+          await createProductReview({
+            productId:
+              selectedProduct.id,
+
+            productName:
+              selectedProduct.name,
+
+            workerId:
+              selectedProduct.workerId,
+
+            customerName,
+
+            rating,
+
+            comment:
+              cleanComment,
+          });
+
+          setSelectedReviewProduct(
+            null,
+          );
+
+          Toast.show({
+            type:
+              "success",
+
+            text1:
+              "Review submitted",
+
+            text2:
+              "Thank you for your review.",
+          });
+        } catch (
+          reviewError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "DISCOUNTED_PRODUCT_REVIEW_SUBMIT_ERROR:",
+              reviewError,
+            );
+          }
+
+          Alert.alert(
+            "Unable to submit review",
+            "Please try again.",
+          );
+        } finally {
+          setReviewSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        selectedReviewProduct,
+      ],
+    );
+
+  /* ============================================================
      HEADER SUBTITLE
   ============================================================ */
 
   const headerSubtitle =
     useMemo(() => {
-      if (!claimed) {
+      if (
+        !claimed
+      ) {
         return "Find discounted products from workers near you.";
       }
 
       const count =
         products.length;
 
-      if (count === 0) {
+      if (
+        count === 0
+      ) {
         return "Discounted products closest to your location.";
       }
 
@@ -542,7 +1240,9 @@ export default function DiscountedProductsScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Go back"
-            hitSlop={6}
+            hitSlop={
+              6
+            }
             onPress={() =>
               router.back()
             }
@@ -574,7 +1274,9 @@ export default function DiscountedProductsScreen() {
             <AppText
               variant="heading2"
               weight="bold"
-              numberOfLines={2}
+              numberOfLines={
+                2
+              }
               style={
                 styles.title
               }
@@ -677,6 +1379,7 @@ export default function DiscountedProductsScreen() {
               disabled:
                 claiming ||
                 locationLoading,
+
               busy:
                 claiming ||
                 waitingForLocation,
@@ -755,7 +1458,9 @@ export default function DiscountedProductsScreen() {
 
   const renderEmpty =
     useCallback(() => {
-      if (!claimed) {
+      if (
+        !claimed
+      ) {
         return renderClaimState();
       }
 
@@ -801,7 +1506,9 @@ export default function DiscountedProductsScreen() {
         );
       }
 
-      if (error) {
+      if (
+        error
+      ) {
         return (
           <View
             style={
@@ -964,17 +1671,20 @@ export default function DiscountedProductsScreen() {
      PRODUCT
   ============================================================ */
 
- /* ============================================================
-     PRODUCT
-  ============================================================ */
-
   const renderProduct =
     useCallback<
       ListRenderItem<DiscountedProduct>
     >(
-      ({ item }) => {
+      ({
+        item,
+      }) => {
         const product =
           item.product;
+
+        const productId =
+          normalizeString(
+            product.id,
+          );
 
         const distanceLabel =
           formatDistance(
@@ -988,29 +1698,59 @@ export default function DiscountedProductsScreen() {
             }
           >
             <ProductGridCard
-              id={product.id}
-              name={product.name}
-              price={product.price}
-              image={product.thumbnail}
-              activeDeal={item.deal}
-              onPress={() =>
-                router.push({
-                  pathname:
-                    "/(customer)/product/[id]",
-                  params: {
-                    id: product.id,
-                  },
-                })
+              id={
+                product.id
               }
-              onBuy={() =>
-                router.push({
-                  pathname:
-                    "/(customer)/product/[id]",
-                  params: {
-                    id: product.id,
-                  },
-                })
+              workerId={
+                product.workerId
               }
+              name={
+                product.name
+              }
+              price={
+                product.price
+              }
+              image={
+                product.thumbnail
+              }
+              rating={
+                item.workerRating
+              }
+              ratingCount={
+                ratingCounts[
+                  productId
+                ] ??
+                0
+              }
+              reviewCount={
+                reviewCounts[
+                  productId
+                ] ??
+                0
+              }
+              activeDeal={
+                item.deal
+              }
+              onRatingPress={() => {
+                void handleProductRating(
+                  productId,
+                );
+              }}
+              onReviewPress={() => {
+                handleReviewPress(
+                  item,
+                );
+              }}
+              onPress={() => {
+                handleProductPress(
+                  productId,
+                );
+              }}
+              onBuy={() => {
+                handleProductPress(
+                  productId,
+                );
+              }}
             />
 
             {distanceLabel ? (
@@ -1029,7 +1769,9 @@ export default function DiscountedProductsScreen() {
                 <AppText
                   variant="caption"
                   tone="secondary"
-                  numberOfLines={1}
+                  numberOfLines={
+                    1
+                  }
                 >
                   {distanceLabel}
                 </AppText>
@@ -1038,7 +1780,13 @@ export default function DiscountedProductsScreen() {
           </View>
         );
       },
-      [],
+      [
+        handleProductPress,
+        handleProductRating,
+        handleReviewPress,
+        ratingCounts,
+        reviewCounts,
+      ],
     );
 
   /* ============================================================
@@ -1049,7 +1797,8 @@ export default function DiscountedProductsScreen() {
     useCallback(
       (
         item: DiscountedProduct,
-      ) => item.product.id,
+      ) =>
+        item.product.id,
       [],
     );
 
@@ -1058,55 +1807,93 @@ export default function DiscountedProductsScreen() {
   ============================================================ */
 
   return (
-    <SafeAreaView
-      style={styles.screen}
-      edges={[
-        "top",
-        "left",
-        "right",
-      ]}
-    >
-      <FlatList
-        data={
-          claimed
-            ? products
-            : []
+    <>
+      <SafeAreaView
+        style={
+          styles.screen
         }
-        keyExtractor={
-          keyExtractor
-        }
-        renderItem={
-          renderProduct
-        }
-        numColumns={2}
-        showsVerticalScrollIndicator={
-          false
-        }
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={[
-          styles.list,
-
-          products.length === 0
-            ? styles.emptyList
-            : null,
+        edges={[
+          "top",
+          "left",
+          "right",
         ]}
-        columnWrapperStyle={
-          claimed &&
-          products.length > 0
-            ? styles.row
-            : undefined
+      >
+        <FlatList
+          data={
+            claimed
+              ? products
+              : []
+          }
+          keyExtractor={
+            keyExtractor
+          }
+          renderItem={
+            renderProduct
+          }
+          numColumns={
+            2
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.list,
+
+            products.length ===
+            0
+              ? styles.emptyList
+              : null,
+          ]}
+          columnWrapperStyle={
+            claimed &&
+            products.length >
+              0
+              ? styles.row
+              : undefined
+          }
+          ListHeaderComponent={
+            renderHeader
+          }
+          ListEmptyComponent={
+            renderEmpty
+          }
+          initialNumToRender={
+            6
+          }
+          maxToRenderPerBatch={
+            8
+          }
+          windowSize={
+            5
+          }
+        />
+      </SafeAreaView>
+
+      {/* ======================================================
+          REVIEW MODAL
+      ====================================================== */}
+
+      <ProductReviewModal
+        visible={
+          selectedReviewProduct !==
+          null
         }
-        ListHeaderComponent={
-          renderHeader
+        productName={
+          selectedReviewProduct?.name ??
+          ""
         }
-        ListEmptyComponent={
-          renderEmpty
+        submitting={
+          reviewSubmitting
         }
-        initialNumToRender={6}
-        maxToRenderPerBatch={8}
-        windowSize={5}
+        onClose={
+          handleCloseReview
+        }
+        onSubmit={
+          handleSubmitReview
+        }
       />
-    </SafeAreaView>
+    </>
   );
 }
 
@@ -1117,14 +1904,19 @@ export default function DiscountedProductsScreen() {
 const styles =
   StyleSheet.create({
     screen: {
-      flex: 1,
+      flex:
+        1,
+
       backgroundColor:
         Colors.background,
     },
 
     header: {
-      flexDirection: "row",
-      alignItems: "flex-start",
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1145,15 +1937,20 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       marginRight:
         FixxamTokens.spacing.md,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1168,8 +1965,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
-      minWidth: 0,
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     title: {
@@ -1181,14 +1981,19 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 21,
+      lineHeight:
+        21,
     },
 
     stateContainer: {
-      minHeight: 420,
+      minHeight:
+        420,
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       paddingHorizontal:
         FixxamTokens.spacing.xxl,
@@ -1198,11 +2003,17 @@ const styles =
     },
 
     claimIconBox: {
-      width: 80,
-      height: 80,
+      width:
+        80,
 
-      alignItems: "center",
-      justifyContent: "center",
+      height:
+        80,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1212,11 +2023,17 @@ const styles =
     },
 
     errorIconBox: {
-      width: 80,
-      height: 80,
+      width:
+        80,
 
-      alignItems: "center",
-      justifyContent: "center",
+      height:
+        80,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1226,11 +2043,17 @@ const styles =
     },
 
     emptyIconBox: {
-      width: 80,
-      height: 80,
+      width:
+        80,
 
-      alignItems: "center",
-      justifyContent: "center",
+      height:
+        80,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -1248,12 +2071,14 @@ const styles =
     },
 
     stateDescription: {
-      maxWidth: 330,
+      maxWidth:
+        330,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 22,
+      lineHeight:
+        22,
     },
 
     loadingTitle: {
@@ -1265,11 +2090,14 @@ const styles =
     },
 
     inlineError: {
-      maxWidth: 340,
+      maxWidth:
+        340,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "flex-start",
+      alignItems:
+        "flex-start",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1288,25 +2116,32 @@ const styles =
     },
 
     errorText: {
-      flex: 1,
+      flex:
+        1,
 
       color:
         Colors.error,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
     },
 
     primaryButton: {
-      minWidth: 210,
+      minWidth:
+        210,
 
       minHeight:
         FixxamTokens.size
           .buttonHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.sm,
@@ -1329,10 +2164,14 @@ const styles =
         FixxamTokens.size
           .buttonSmallHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1376,14 +2215,16 @@ const styles =
     },
 
     list: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       paddingBottom:
         FixxamTokens.spacing.xxl,
     },
 
     emptyList: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
 
     row: {
@@ -1398,17 +2239,25 @@ const styles =
     },
 
     productItem: {
-      flex: 1,
-      minWidth: 0,
+      flex:
+        1,
+
+      minWidth:
+        0,
     },
 
     distanceRow: {
-      minHeight: 24,
+      minHeight:
+        24,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,

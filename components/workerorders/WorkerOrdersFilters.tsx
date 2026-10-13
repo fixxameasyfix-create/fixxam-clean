@@ -7,7 +7,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  View,
 } from "react-native";
 
 import {
@@ -32,13 +31,20 @@ import type {
 type Props = {
   selectedFilter: WorkerFilterType;
 
-  counts: WorkerOrderCounts;
-
-  totalJobs: number;
-
   onChange: (
     filter: WorkerFilterType,
   ) => void;
+
+  /**
+   * Temporary compatibility with the current parent screen.
+   * Counts are already displayed in WorkerOrdersOverview.
+   */
+  counts?: WorkerOrderCounts;
+
+  /**
+   * Temporary compatibility with the current parent screen.
+   */
+  totalJobs?: number;
 };
 
 type FilterItem = {
@@ -58,7 +64,7 @@ const FILTERS: readonly FilterItem[] = [
   },
   {
     key: "pending",
-    label: "New Requests",
+    label: "New",
   },
   {
     key: "active",
@@ -66,7 +72,7 @@ const FILTERS: readonly FilterItem[] = [
   },
   {
     key: "completed",
-    label: "Done",
+    label: "Completed",
   },
   {
     key: "cancelled",
@@ -80,8 +86,6 @@ const FILTERS: readonly FilterItem[] = [
 
 function WorkerOrdersFilters({
   selectedFilter,
-  counts,
-  totalJobs,
   onChange,
 }: Props) {
   const handleChange =
@@ -96,9 +100,7 @@ function WorkerOrdersFilters({
           return;
         }
 
-        onChange(
-          filter,
-        );
+        onChange(filter);
       },
       [
         onChange,
@@ -109,13 +111,9 @@ function WorkerOrdersFilters({
   return (
     <ScrollView
       horizontal
-      showsHorizontalScrollIndicator={
-        false
-      }
+      showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={
-        styles.container
-      }
+      contentContainerStyle={styles.container}
     >
       {FILTERS.map(
         filter => {
@@ -123,119 +121,56 @@ function WorkerOrdersFilters({
             selectedFilter ===
             filter.key;
 
-          const count =
-            getFilterCount(
-              filter.key,
-              counts,
-              totalJobs,
-            );
-
           return (
             <Pressable
-              key={
-                filter.key
-              }
-              onPress={() => {
+              key={filter.key}
+              onPress={() =>
                 handleChange(
                   filter.key,
-                );
-              }}
+                )
+              }
               accessibilityRole="tab"
-              accessibilityLabel={`${filter.label}, ${count}`}
+              accessibilityLabel={
+                filter.label
+              }
               accessibilityState={{
-                selected:
-                  active,
+                selected: active,
               }}
               style={({
                 pressed,
               }) => [
                 styles.button,
 
-                active
-                  ? styles.buttonActive
-                  : null,
+                active &&
+                  styles.buttonActive,
 
-                pressed
-                  ? styles.pressed
-                  : null,
+                pressed &&
+                  styles.pressed,
               ]}
             >
               <AppText
-                variant="caption"
+                variant="body"
                 weight={
                   active
-                    ? "bold"
+                    ? "semibold"
                     : "regular"
                 }
                 numberOfLines={1}
                 style={[
                   styles.text,
 
-                  active
-                    ? styles.textActive
-                    : null,
+                  active &&
+                    styles.textActive,
                 ]}
               >
                 {filter.label}
               </AppText>
-
-              <View
-                style={[
-                  styles.count,
-
-                  active
-                    ? styles.countActive
-                    : null,
-                ]}
-              >
-                <AppText
-                  variant="caption"
-                  weight="bold"
-                  style={[
-                    styles.countText,
-
-                    active
-                      ? styles.countTextActive
-                      : null,
-                  ]}
-                >
-                  {count}
-                </AppText>
-              </View>
             </Pressable>
           );
         },
       )}
     </ScrollView>
   );
-}
-
-/* ==============================================================
-   COUNT
-============================================================== */
-
-function getFilterCount(
-  filter: WorkerFilterType,
-  counts: WorkerOrderCounts,
-  totalJobs: number,
-): number {
-  switch (filter) {
-    case "pending":
-      return counts.pending;
-
-    case "active":
-      return counts.active;
-
-    case "completed":
-      return counts.completed;
-
-    case "cancelled":
-      return counts.cancelled;
-
-    case "all":
-    default:
-      return totalJobs;
-  }
 }
 
 /* ==============================================================
@@ -256,38 +191,27 @@ export default memo(
 const styles =
   StyleSheet.create({
     container: {
-      paddingTop:
+      paddingVertical:
         FixxamTokens.spacing.md,
 
-      paddingBottom:
+      paddingRight:
         FixxamTokens.spacing.md,
 
       gap:
         FixxamTokens.spacing.sm,
     },
 
-    /* ==========================================================
-       FILTER
-    ========================================================== */
-
     button: {
       minHeight:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      alignItems: "center",
 
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
+      justifyContent: "center",
 
       borderWidth: 1,
 
@@ -318,50 +242,6 @@ const styles =
       color:
         Colors.textInverse,
     },
-
-    /* ==========================================================
-       COUNT
-    ========================================================== */
-
-    count: {
-      minWidth: 24,
-
-      minHeight: 24,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xs,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    countActive: {
-      backgroundColor:
-        Colors.surface,
-    },
-
-    countText: {
-      color:
-        Colors.textSecondary,
-    },
-
-    countTextActive: {
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ==========================================================
-       STATE
-    ========================================================== */
 
     pressed: {
       opacity:

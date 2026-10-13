@@ -1,13 +1,13 @@
 import * as admin from "firebase-admin";
 
 import {
-  onCall,
   HttpsError,
+  onCall,
 } from "firebase-functions/v2/https";
 
 import {
-  geohashQueryBounds,
   distanceBetween,
+  geohashQueryBounds,
 } from "geofire-common";
 
 /* ============================================================
@@ -22,6 +22,11 @@ type SendServiceRequestData = {
   longitude?: unknown;
 };
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
 type CustomerCandidate = {
   id: string;
   latitude: number;
@@ -30,32 +35,61 @@ type CustomerCandidate = {
   data: Record<string, unknown>;
 };
 
+type NotificationDeliveryResult = {
+  customerId: string;
+  notificationCreated: boolean;
+  pushAttempted: boolean;
+  pushSent: boolean;
+  tokenCount: number;
+};
+
 /* ============================================================
    CONSTANTS
-============================================================ */
+============================================================== */
 
 const MAX_CUSTOMERS = 5;
 
 const SEARCH_RADIUS_KM = 15;
 
+const REQUEST_EXPIRY_HOURS = 24;
+
+const MAX_GEOHASH_RESULTS_PER_BOUND = 100;
+
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function isValidCoordinates(
+function getValidCoordinates(
   latitude: unknown,
   longitude: unknown,
-): latitude is number {
-  return (
-    typeof latitude === "number" &&
-    typeof longitude === "number" &&
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    latitude >= -90 &&
-    latitude <= 90 &&
-    longitude >= -180 &&
-    longitude <= 180
-  );
+): Coordinates | null {
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number"
+  ) {
+    return null;
+  }
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return null;
+  }
+
+  if (
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
 }
 
 function cleanString(
@@ -66,30 +100,58 @@ function cleanString(
     return "";
   }
 
-  return value.trim().slice(0, maxLength);
+  return value
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizePhone(
+  value: unknown,
+): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+
+  const hasLeadingPlus =
+    trimmed.startsWith("+");
+
+  const digits = trimmed
+    .replace(/\D/g, "")
+    .slice(0, 15);
+
+  if (
+    digits.length < 10 ||
+    digits.length > 15
+  ) {
+    return "";
+  }
+
+  return hasLeadingPlus
+    ? `+${digits}`
+    : digits;
 }
 
 function getUserRole(
   data: Record<string, unknown>,
 ): string {
-  if (typeof data.role === "string") {
-    return data.role.trim().toLowerCase();
-  }
+  const possibleRoles = [
+    data.role,
+    data.userType,
+    data.accountType,
+  ];
 
-  if (
-    typeof data.userType === "string"
-  ) {
-    return data.userType
-      .trim()
-      .toLowerCase();
-  }
+  for (const value of possibleRoles) {
+    if (typeof value === "string") {
+      const role = value
+        .trim()
+        .toLowerCase();
 
-  if (
-    typeof data.accountType === "string"
-  ) {
-    return data.accountType
-      .trim()
-      .toLowerCase();
+      if (role) {
+        return role;
+      }
+    }
   }
 
   return "";
@@ -99,43 +161,38 @@ function buildWorkerName(
   data: Record<string, unknown>,
   authName: unknown,
 ): string {
-  const fullName =
-    cleanString(
-      data.fullName,
-      100,
-    );
+  const fullName = cleanString(
+    data.fullName,
+    100,
+  );
 
   if (fullName) {
     return fullName;
   }
 
-  const firstName =
-    cleanString(
-      data.firstName,
-      50,
-    );
+  const firstName = cleanString(
+    data.firstName,
+    50,
+  );
 
-  const otherName =
-    cleanString(
-      data.otherName,
-      50,
-    );
+  const otherName = cleanString(
+    data.otherName,
+    50,
+  );
 
-  const surname =
-    cleanString(
-      data.surname,
-      50,
-    );
+  const surname = cleanString(
+    data.surname,
+    50,
+  );
 
-  const combined =
-    [
-      firstName,
-      otherName,
-      surname,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+  const combined = [
+    firstName,
+    otherName,
+    surname,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   if (combined) {
     return combined;
@@ -148,18 +205,335 @@ function buildWorkerName(
 }
 
 /* ============================================================
+   FCM TOKEN HELPERS
+============================================================ */
+
+function normalizeToken(
+  value: unknown,
+): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function addToken(
+  tokens: Set<string>,
+  value: unknown,
+): void {
+  const token = normalizeToken(value);
+
+  if (!token) {
+    return;
+  }
+
+  /*
+   * Expo push tokens are not Firebase FCM tokens.
+   * They must not be passed to admin.messaging().
+   */
+  if (
+    token.startsWith("ExponentPushToken[") ||
+    token.startsWith("ExpoPushToken[")
+  ) {
+    return;
+  }
+
+  tokens.add(token);
+}
+
+function getCustomerFcmTokens(
+  data: Record<string, unknown>,
+): string[] {
+  const tokens = new Set<string>();
+
+  addToken(
+    tokens,
+    data.fcmToken,
+  );
+
+  addToken(
+    tokens,
+    data.pushToken,
+  );
+
+  const fcmTokens =
+    data.fcmTokens;
+
+  if (Array.isArray(fcmTokens)) {
+    for (const token of fcmTokens) {
+      addToken(tokens, token);
+    }
+  }
+
+  const pushTokens =
+    data.pushTokens;
+
+  if (Array.isArray(pushTokens)) {
+    for (const token of pushTokens) {
+      addToken(tokens, token);
+    }
+  }
+
+  return Array.from(tokens);
+}
+
+/* ============================================================
+   FCM NOTIFICATION
+============================================================ */
+
+async function sendCustomerPushNotification(
+  customer: CustomerCandidate,
+  workerName: string,
+  service: string,
+  location: string,
+  notificationId: string,
+): Promise<{
+  attempted: boolean;
+  sent: boolean;
+  tokenCount: number;
+}> {
+  const tokens =
+    getCustomerFcmTokens(
+      customer.data,
+    );
+
+  if (tokens.length === 0) {
+    console.log(
+      "FIXXAM_CUSTOMER_NO_FCM_TOKEN:",
+      {
+        customerId:
+          customer.id,
+      },
+    );
+
+    return {
+      attempted: false,
+      sent: false,
+      tokenCount: 0,
+    };
+  }
+
+  const messaging =
+    admin.messaging();
+
+  try {
+    const response =
+      await messaging.sendEachForMulticast({
+        tokens,
+
+        notification: {
+          title:
+            "New Service Request",
+
+          body:
+            `${workerName} is available for ${service} near ${location}.`,
+        },
+
+        data: {
+          type:
+            "service_request",
+
+          notificationId,
+
+          customerId:
+            customer.id,
+
+          workerId:
+            customer.data.workerId
+              ? String(
+                  customer.data.workerId,
+                )
+              : "",
+
+          service,
+
+          location,
+
+          distanceKm:
+            String(
+              Number(
+                customer.distanceKm.toFixed(
+                  2,
+                ),
+              ),
+            ),
+
+          action:
+            "view_service_request",
+        },
+
+        android: {
+          priority:
+            "high",
+
+          notification: {
+            channelId:
+              "service_requests",
+
+            sound:
+              "default",
+
+            clickAction:
+              "FLUTTER_NOTIFICATION_CLICK",
+          },
+        },
+
+        apns: {
+          payload: {
+            aps: {
+              sound:
+                "default",
+
+              badge:
+                1,
+            },
+          },
+        },
+      });
+
+    console.log(
+      "FIXXAM_FCM_RESULT:",
+      {
+        customerId:
+          customer.id,
+
+        tokenCount:
+          tokens.length,
+
+        successCount:
+          response.successCount,
+
+        failureCount:
+          response.failureCount,
+      },
+    );
+
+    /*
+     * Remove invalid/unregistered FCM tokens.
+     */
+    const invalidTokenIndexes =
+      new Set<number>();
+
+    response.responses.forEach(
+      (
+        result,
+        index,
+      ) => {
+        if (
+          result.success ||
+          !result.error
+        ) {
+          return;
+        }
+
+        const errorCode =
+          result.error.code;
+
+        if (
+          errorCode ===
+            "messaging/registration-token-not-registered" ||
+          errorCode ===
+            "messaging/invalid-registration-token"
+        ) {
+          invalidTokenIndexes.add(
+            index,
+          );
+        }
+      },
+    );
+
+    if (
+      invalidTokenIndexes.size >
+      0
+    ) {
+      const customerRef =
+        admin
+          .firestore()
+          .collection("users")
+          .doc(customer.id);
+
+      const invalidTokens =
+        Array.from(
+          invalidTokenIndexes,
+        ).map(
+          index =>
+            tokens[index],
+        );
+
+      try {
+        await customerRef.update({
+          fcmTokens:
+            admin.firestore.FieldValue.arrayRemove(
+              ...invalidTokens,
+            ),
+        });
+      } catch (
+        cleanupError
+      ) {
+        console.warn(
+          "FIXXAM_FCM_TOKEN_CLEANUP_ERROR:",
+          {
+            customerId:
+              customer.id,
+
+            error:
+              cleanupError,
+          },
+        );
+      }
+    }
+
+    return {
+      attempted: true,
+
+      sent:
+        response.successCount > 0,
+
+      tokenCount:
+        tokens.length,
+    };
+  } catch (
+    pushError
+  ) {
+    console.error(
+      "FIXXAM_FCM_SEND_ERROR:",
+      {
+        customerId:
+          customer.id,
+
+        error:
+          pushError,
+      },
+    );
+
+    return {
+      attempted: true,
+      sent: false,
+      tokenCount:
+        tokens.length,
+    };
+  }
+}
+
+/* ============================================================
    CLOUD FUNCTION
 ============================================================ */
 
 export const sendServiceRequest =
   onCall(
     {
-      region: "us-central1",
-      timeoutSeconds: 30,
-      memory: "256MiB",
+      region:
+        "us-central1",
+
+      timeoutSeconds:
+        30,
+
+      memory:
+        "256MiB",
     },
 
-    async (request) => {
+    async request => {
       /* ========================================================
          AUTHENTICATION
       ======================================================== */
@@ -179,7 +553,10 @@ export const sendServiceRequest =
       ======================================================== */
 
       const data =
-        request.data as SendServiceRequestData;
+        (
+          request.data ??
+          {}
+        ) as SendServiceRequestData;
 
       const service =
         cleanString(
@@ -194,24 +571,9 @@ export const sendServiceRequest =
         );
 
       const phone =
-        cleanString(
+        normalizePhone(
           data.phone,
-          20,
         );
-
-      /*
-       * IMPORTANT:
-       *
-       * Customer location ba dole bane.
-       * Amma worker location dole ne domin
-       * mu san inda ake neman customers.
-       */
-
-      const latitude =
-        data.latitude;
-
-      const longitude =
-        data.longitude;
 
       if (!service) {
         throw new HttpsError(
@@ -230,38 +592,31 @@ export const sendServiceRequest =
       if (!phone) {
         throw new HttpsError(
           "invalid-argument",
-          "Worker phone number is required.",
+          "A valid worker phone number is required.",
         );
       }
 
-      /*
-       * Explicit type narrowing.
-       *
-       * Wannan shi ne gyaran TypeScript error:
-       *
-       * number | undefined
-       *        ↓
-       * number
-       */
+      const workerCoordinates =
+        getValidCoordinates(
+          data.latitude,
+          data.longitude,
+        );
 
-      if (
-        !isValidCoordinates(
-          latitude,
-          longitude,
-        ) ||
-        typeof longitude !== "number"
-      ) {
+      if (!workerCoordinates) {
         throw new HttpsError(
           "invalid-argument",
           "Valid worker latitude and longitude are required.",
         );
       }
 
-      const workerLatitude =
-        latitude;
+      const {
+        latitude:
+          workerLatitude,
 
-      const workerLongitude =
-        longitude;
+        longitude:
+          workerLongitude,
+      } =
+        workerCoordinates;
 
       /* ========================================================
          FIRESTORE
@@ -274,15 +629,15 @@ export const sendServiceRequest =
          LOAD WORKER
       ======================================================== */
 
-      const workerSnapshot =
-        await db
+      const workerRef =
+        db
           .collection("users")
-          .doc(workerId)
-          .get();
+          .doc(workerId);
 
-      if (
-        !workerSnapshot.exists
-      ) {
+      const workerSnapshot =
+        await workerRef.get();
+
+      if (!workerSnapshot.exists) {
         throw new HttpsError(
           "failed-precondition",
           "Worker profile was not found.",
@@ -290,8 +645,10 @@ export const sendServiceRequest =
       }
 
       const workerData =
-        (workerSnapshot.data() ??
-          {}) as Record<
+        (
+          workerSnapshot.data() ??
+          {}
+        ) as Record<
           string,
           unknown
         >;
@@ -305,13 +662,10 @@ export const sendServiceRequest =
           workerData,
         );
 
-      /*
-       * If role exists, it MUST be worker.
-       */
-
       if (
         workerRole &&
-        workerRole !== "worker"
+        workerRole !==
+          "worker"
       ) {
         throw new HttpsError(
           "permission-denied",
@@ -322,12 +676,12 @@ export const sendServiceRequest =
       const workerName =
         buildWorkerName(
           workerData,
-          request.auth.token
-            .name,
-        ) || "Worker";
+          request.auth.token.name,
+        ) ||
+        "Worker";
 
       /* ========================================================
-         FIND CUSTOMERS
+         GEOHASH SEARCH
       ======================================================== */
 
       const bounds =
@@ -346,13 +700,9 @@ export const sendServiceRequest =
           CustomerCandidate
         >();
 
-      /*
-       * Search all geohash ranges.
-       */
-
       await Promise.all(
         bounds.map(
-          async (bound) => {
+          async bound => {
             const snapshot =
               await db
                 .collection("users")
@@ -366,16 +716,15 @@ export const sendServiceRequest =
                   "<=",
                   bound[1],
                 )
-                .limit(100)
+                .limit(
+                  MAX_GEOHASH_RESULTS_PER_BOUND,
+                )
                 .get();
 
             for (
-              const customerDoc of snapshot.docs
+              const customerDoc of
+                snapshot.docs
             ) {
-              /*
-               * Never send request to worker himself.
-               */
-
               if (
                 customerDoc.id ===
                 workerId
@@ -384,21 +733,22 @@ export const sendServiceRequest =
               }
 
               const customerData =
-                customerDoc.data();
+                (
+                  customerDoc.data() ??
+                  {}
+                ) as Record<
+                  string,
+                  unknown
+                >;
 
-              /* ================================================
+              /* ==============================================
                  ROLE
-              ================================================ */
+              ============================================== */
 
               const customerRole =
                 getUserRole(
                   customerData,
                 );
-
-              /*
-               * If role is known and not customer,
-               * skip the account.
-               */
 
               if (
                 customerRole &&
@@ -408,35 +758,34 @@ export const sendServiceRequest =
                 continue;
               }
 
-              /* ================================================
-                 CUSTOMER LOCATION
-              ================================================ */
+              /* ==============================================
+                 LOCATION
+              ============================================== */
 
-              const customerLatitude =
-                customerData.latitude;
-
-              const customerLongitude =
-                customerData.longitude;
-
-              /*
-               * THIS IS IMPORTANT.
-               *
-               * Customer ba shi da latitude/longitude?
-               * Skip shi kawai.
-               *
-               * Ba za mu fasa request gaba daya ba.
-               */
+              const customerCoordinates =
+                getValidCoordinates(
+                  customerData.latitude,
+                  customerData.longitude,
+                );
 
               if (
-                !isValidCoordinates(
-                  customerLatitude,
-                  customerLongitude,
-                ) ||
-                typeof customerLongitude !==
-                  "number"
+                !customerCoordinates
               ) {
                 continue;
               }
+
+              const {
+                latitude:
+                  customerLatitude,
+
+                longitude:
+                  customerLongitude,
+              } =
+                customerCoordinates;
+
+              /* ==============================================
+                 EXACT DISTANCE
+              ============================================== */
 
               const distanceKm =
                 distanceBetween(
@@ -450,16 +799,26 @@ export const sendServiceRequest =
                   ],
                 );
 
-              /*
-               * Geohash query na iya dawo da
-               * documents da suke wajen exact radius.
-               *
-               * Saboda haka muna sake tabbatarwa.
-               */
-
               if (
                 distanceKm >
                 SEARCH_RADIUS_KM
+              ) {
+                continue;
+              }
+
+              /* ==============================================
+                 DEDUPLICATION
+              ============================================== */
+
+              const existing =
+                customerMap.get(
+                  customerDoc.id,
+                );
+
+              if (
+                existing &&
+                existing.distanceKm <=
+                  distanceKm
               ) {
                 continue;
               }
@@ -488,7 +847,7 @@ export const sendServiceRequest =
       );
 
       /* ========================================================
-         SORT CUSTOMERS
+         SORT + LIMIT
       ======================================================== */
 
       const customers =
@@ -496,9 +855,12 @@ export const sendServiceRequest =
           customerMap.values(),
         )
           .sort(
-            (a, b) =>
-              a.distanceKm -
-              b.distanceKm,
+            (
+              first,
+              second,
+            ) =>
+              first.distanceKm -
+              second.distanceKm,
           )
           .slice(
             0,
@@ -506,29 +868,40 @@ export const sendServiceRequest =
           );
 
       /* ========================================================
-         NO CUSTOMER FOUND
+         NONE FOUND
       ======================================================== */
 
       if (
-        customers.length === 0
+        customers.length ===
+        0
       ) {
         console.log(
           "FIXXAM_SERVICE_REQUEST_NO_CUSTOMER:",
           {
             workerId,
+
             service,
+
             location,
+
             workerLatitude,
+
             workerLongitude,
+
+            radiusKm:
+              SEARCH_RADIUS_KM,
           },
         );
 
         return {
-          success: false,
+          success:
+            false,
 
-          sentCount: 0,
+          sentCount:
+            0,
 
-          customers: [],
+          customers:
+            [],
 
           message:
             "No customers with a valid location were found nearby.",
@@ -536,49 +909,138 @@ export const sendServiceRequest =
       }
 
       /* ========================================================
-         CREATE NOTIFICATIONS
+         EXPIRY
       ======================================================== */
-
-      const batch =
-        db.batch();
-
-      const createdAt =
-        admin.firestore
-          .FieldValue
-          .serverTimestamp();
 
       const expiresAt =
         admin.firestore.Timestamp.fromMillis(
           Date.now() +
-            24 *
+            REQUEST_EXPIRY_HOURS *
               60 *
               60 *
               1000,
         );
 
+      /* ========================================================
+         SERVICE REQUEST ID
+      ======================================================== */
+
+      const serviceRequestRef =
+        db
+          .collection(
+            "serviceRequests",
+          )
+          .doc();
+
+      const serviceRequestId =
+        serviceRequestRef.id;
+
+      /* ========================================================
+         BATCH
+      ======================================================== */
+
+      const batch =
+        db.batch();
+
+      batch.set(
+        serviceRequestRef,
+        {
+          requestId:
+            serviceRequestId,
+
+          workerId,
+
+          workerName,
+
+          workerPhone:
+            phone,
+
+          service,
+
+          location,
+
+          workerLatitude,
+
+          workerLongitude,
+
+          status:
+            "pending",
+
+          recipientCount:
+            customers.length,
+
+          createdAt:
+            admin.firestore
+              .FieldValue
+              .serverTimestamp(),
+
+          expiresAt,
+        },
+      );
+
+      /* ========================================================
+         CREATE CUSTOMER NOTIFICATIONS
+      ======================================================== */
+
+      const notificationRefs =
+        new Map<
+          string,
+          FirebaseFirestore.DocumentReference
+        >();
+
       for (
-        const customer of customers
+        const customer of
+          customers
       ) {
         const notificationRef =
           db
-            .collection("users")
-            .doc(customer.id)
+            .collection(
+              "users",
+            )
+            .doc(
+              customer.id,
+            )
             .collection(
               "notifications",
             )
             .doc();
 
+        notificationRefs.set(
+          customer.id,
+          notificationRef,
+        );
+
         batch.set(
           notificationRef,
           {
+            notificationId:
+              notificationRef.id,
+
             type:
-              "worker_service_request",
+              "service_request",
 
             title:
-              "New Service Request",
+              "Worker Available Nearby",
 
             message:
               `${workerName} is available for ${service} in ${location}.`,
+
+            recipientId:
+              customer.id,
+
+            recipientRole:
+              "customer",
+
+            action:
+              "view_service_request",
+
+            entityId:
+              serviceRequestId,
+
+            entityType:
+              "worker_service_request",
+
+            serviceRequestId,
 
             workerId,
 
@@ -608,16 +1070,95 @@ export const sendServiceRequest =
                 ),
               ),
 
-            read: false,
+            read:
+              false,
 
-            createdAt,
+            createdAt:
+              admin.firestore
+                .FieldValue
+                .serverTimestamp(),
 
             expiresAt,
           },
         );
       }
 
+      /* ========================================================
+         COMMIT FIRESTORE
+      ======================================================== */
+
       await batch.commit();
+
+      /* ========================================================
+         SEND PUSH NOTIFICATIONS
+      ======================================================== */
+
+      const deliveryResults:
+        NotificationDeliveryResult[] =
+        [];
+
+      await Promise.all(
+        customers.map(
+          async customer => {
+            const notificationRef =
+              notificationRefs.get(
+                customer.id,
+              );
+
+            if (!notificationRef) {
+              return;
+            }
+
+            const push =
+              await sendCustomerPushNotification(
+                customer,
+                workerName,
+                service,
+                location,
+                notificationRef.id,
+              );
+
+            deliveryResults.push({
+              customerId:
+                customer.id,
+
+              notificationCreated:
+                true,
+
+              pushAttempted:
+                push.attempted,
+
+              pushSent:
+                push.sent,
+
+              tokenCount:
+                push.tokenCount,
+            });
+          },
+        ),
+      );
+
+      /* ========================================================
+         DELIVERY COUNTS
+      ======================================================== */
+
+      const firestoreNotificationCount =
+        deliveryResults.filter(
+          result =>
+            result.notificationCreated,
+        ).length;
+
+      const pushAttemptedCount =
+        deliveryResults.filter(
+          result =>
+            result.pushAttempted,
+        ).length;
+
+      const pushSentCount =
+        deliveryResults.filter(
+          result =>
+            result.pushSent,
+        ).length;
 
       /* ========================================================
          LOG
@@ -626,19 +1167,40 @@ export const sendServiceRequest =
       console.log(
         "FIXXAM_SERVICE_REQUEST_SENT:",
         {
+          serviceRequestId,
+
           workerId,
+
           workerName,
+
           service,
+
           location,
+
           workerLatitude,
+
           workerLongitude,
-          sentCount:
+
+          radiusKm:
+            SEARCH_RADIUS_KM,
+
+          customerCount:
             customers.length,
+
+          firestoreNotificationCount,
+
+          pushAttemptedCount,
+
+          pushSentCount,
+
           customerIds:
             customers.map(
-              (customer) =>
+              customer =>
                 customer.id,
             ),
+
+          deliveries:
+            deliveryResults,
         },
       );
 
@@ -647,14 +1209,18 @@ export const sendServiceRequest =
       ======================================================== */
 
       return {
-        success: true,
+        success:
+          firestoreNotificationCount >
+          0,
 
         sentCount:
-          customers.length,
+          firestoreNotificationCount,
+
+        pushSentCount,
 
         customers:
           customers.map(
-            (customer) => ({
+            customer => ({
               id:
                 customer.id,
 
@@ -668,11 +1234,19 @@ export const sendServiceRequest =
           ),
 
         message:
-          `Request sent to ${customers.length} customer${
-            customers.length === 1
-              ? ""
-              : "s"
-          }.`,
+          pushSentCount > 0
+            ? `Request sent to ${firestoreNotificationCount} nearby customer${
+                firestoreNotificationCount ===
+                1
+                  ? ""
+                  : "s"
+              }.`
+            : `Request created for ${firestoreNotificationCount} nearby customer${
+                firestoreNotificationCount ===
+                1
+                  ? ""
+                  : "s"
+              }, but no push notification was delivered because the customers do not currently have valid FCM tokens.`,
       };
     },
   );

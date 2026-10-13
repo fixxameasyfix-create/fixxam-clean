@@ -148,6 +148,10 @@ type WorkerCardProps = {
   onContact: (
     worker: Worker,
   ) => void;
+
+  onProfile: (
+    worker: Worker,
+  ) => void;
 };
 
 /* ==============================================================
@@ -500,6 +504,7 @@ const WorkerCard =
   memo(function WorkerCard({
     worker,
     onContact,
+    onProfile,
   }: WorkerCardProps) {
     const handleContact =
       useCallback(() => {
@@ -511,6 +516,16 @@ const WorkerCard =
         worker,
       ]);
 
+    const handleProfile =
+      useCallback(() => {
+        onProfile(
+          worker,
+        );
+      }, [
+        onProfile,
+        worker,
+      ]);
+
     return (
       <AppCard
         role="customer"
@@ -519,79 +534,104 @@ const WorkerCard =
           styles.card
         }
       >
-        <WorkerAvatar
-          uri={
-            worker.image
-          }
-          online={
-            worker.online
-          }
-        />
+        {/* ====================================================
+            PROFILE AREA
+        ==================================================== */}
 
-        <AppText
-          variant="bodyMedium"
-          weight="bold"
-          center
-          numberOfLines={1}
-          style={
-            styles.name
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`View ${worker.name}'s profile`}
+          onPress={
+            handleProfile
           }
-        >
-          {worker.name}
-        </AppText>
+          style={({
+            pressed,
+          }) => [
+            styles.profileArea,
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          center
-          numberOfLines={1}
-          style={
-            styles.service
-          }
+            pressed
+              ? styles.profileAreaPressed
+              : null,
+          ]}
         >
-          {worker.service}
-        </AppText>
-
-        <View
-          style={
-            styles.ratingRow
-          }
-        >
-          <AppIcon
-            name="star"
-            role="customer"
-            size="xs"
-            color={
-              Colors.warning
+          <WorkerAvatar
+            uri={
+              worker.image
+            }
+            online={
+              worker.online
             }
           />
 
           <AppText
-            variant="caption"
+            variant="bodyMedium"
+            weight="bold"
+            center
+            numberOfLines={1}
             style={
-              styles.rating
+              styles.name
             }
           >
-            {worker.rating >
-            0
-              ? worker.rating.toFixed(
-                  1,
-                )
-              : "New"}
+            {worker.name}
           </AppText>
-        </View>
 
-        <AppText
-          variant="caption"
-          tone="muted"
-          center
-          numberOfLines={1}
-          style={
-            styles.distance
-          }
-        >
-          {worker.arrivalTime}
-        </AppText>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            center
+            numberOfLines={1}
+            style={
+              styles.service
+            }
+          >
+            {worker.service}
+          </AppText>
+
+          <View
+            style={
+              styles.ratingRow
+            }
+          >
+            <AppIcon
+              name="star"
+              role="customer"
+              size="xs"
+              color={
+                Colors.warning
+              }
+            />
+
+            <AppText
+              variant="caption"
+              style={
+                styles.rating
+              }
+            >
+              {worker.rating >
+              0
+                ? worker.rating.toFixed(
+                    1,
+                  )
+                : "New"}
+            </AppText>
+          </View>
+
+          <AppText
+            variant="caption"
+            tone="muted"
+            center
+            numberOfLines={1}
+            style={
+              styles.distance
+            }
+          >
+            {worker.arrivalTime}
+          </AppText>
+        </Pressable>
+
+        {/* ====================================================
+            CONTACT
+        ==================================================== */}
 
         <Pressable
           accessibilityRole="button"
@@ -711,7 +751,8 @@ function CallWorkerModal({
               styles.callModalDescription
             }
           >
-            Start an in-app voice call with {worker.name}.
+            Start an in-app voice call with{" "}
+            {worker.name}.
           </AppText>
 
           <AppText
@@ -722,7 +763,9 @@ function CallWorkerModal({
               styles.callModalQuestion
             }
           >
-            You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
+            You&apos;ll stay inside Fixxam and
+            the worker&apos;s phone number
+            won&apos;t be shown.
           </AppText>
 
           <View
@@ -1467,6 +1510,39 @@ export default function ContactWorkersScreen() {
     ]);
 
   /* ============================================================
+     OPEN WORKER PROFILE
+  ============================================================ */
+
+  const handleWorkerProfile =
+    useCallback(
+      (
+        worker: Worker,
+      ) => {
+        const workerId =
+          cleanString(
+            worker.id,
+          );
+
+        if (
+          !workerId
+        ) {
+          return;
+        }
+
+        router.push({
+          pathname:
+            "/(customer)/details/worker-profile/[id]",
+
+          params: {
+            id:
+              workerId,
+          },
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
      CONTACT
   ============================================================ */
 
@@ -1614,10 +1690,14 @@ export default function ContactWorkersScreen() {
           onContact={
             handleContactPress
           }
+          onProfile={
+            handleWorkerProfile
+          }
         />
       ),
       [
         handleContactPress,
+        handleWorkerProfile,
       ],
     );
 
@@ -2326,6 +2406,19 @@ const styles =
 
       padding:
         FixxamTokens.spacing.md,
+    },
+
+    profileArea: {
+      width: "100%",
+
+      alignItems:
+        "center",
+    },
+
+    profileAreaPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
     },
 
     imageContainer: {

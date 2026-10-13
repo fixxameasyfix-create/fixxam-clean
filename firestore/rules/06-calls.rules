@@ -1,0 +1,229 @@
+match /calls/{callId} {
+
+  // ============================================================
+  // CUSTOMER -> WORKER
+  // Customer starts a direct call to a worker.
+  // ============================================================
+  allow create:
+    if signedIn()
+    && request.resource.data.keys().hasAll([
+      "callerId",
+      "callerRole",
+      "calleeId",
+      "calleeRole",
+      "callerSnapshot",
+      "calleeSnapshot",
+      "status",
+      "createdAt",
+      "acceptedAt",
+      "connectedAt",
+      "endedAt",
+      "endedBy"
+    ])
+    && request.resource.data.keys().hasOnly([
+      "callerId",
+      "callerRole",
+      "calleeId",
+      "calleeRole",
+      "callerSnapshot",
+      "calleeSnapshot",
+      "status",
+      "createdAt",
+      "acceptedAt",
+      "connectedAt",
+      "endedAt",
+      "endedBy"
+    ])
+    && request.resource.data.callerId == request.auth.uid
+    && request.resource.data.callerRole == "customer"
+    && request.resource.data.calleeId is string
+    && request.resource.data.calleeId.size() > 0
+    && request.resource.data.calleeId.size() <= 128
+    && request.resource.data.calleeId != request.auth.uid
+    && request.resource.data.calleeRole == "worker"
+    && workerProfileExists(request.resource.data.calleeId)
+    && request.resource.data.status == "ringing"
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.acceptedAt == null
+    && request.resource.data.connectedAt == null
+    && request.resource.data.endedAt == null
+    && request.resource.data.endedBy == null
+    && validCallSnapshot(request.resource.data.callerSnapshot)
+    && validCallSnapshot(request.resource.data.calleeSnapshot);
+
+
+  // ============================================================
+  // WORKER -> CUSTOMER CALLBACK
+  //
+  // Worker can only call a customer who already exists inside:
+  //
+  // workerContacts/{workerId}/customers/{customerId}
+  //
+  // This prevents a worker from using this rule to call arbitrary
+  // customer IDs.
+  // ============================================================
+  allow create:
+    if signedIn()
+    && request.resource.data.keys().hasAll([
+      "callerId",
+      "callerRole",
+      "calleeId",
+      "calleeRole",
+      "callerSnapshot",
+      "calleeSnapshot",
+      "status",
+      "createdAt",
+      "acceptedAt",
+      "connectedAt",
+      "endedAt",
+      "endedBy"
+    ])
+    && request.resource.data.keys().hasOnly([
+      "callerId",
+      "callerRole",
+      "calleeId",
+      "calleeRole",
+      "callerSnapshot",
+      "calleeSnapshot",
+      "status",
+      "createdAt",
+      "acceptedAt",
+      "connectedAt",
+      "endedAt",
+      "endedBy"
+    ])
+    && request.resource.data.callerId == request.auth.uid
+    && request.resource.data.callerRole == "worker"
+    && request.resource.data.calleeId is string
+    && request.resource.data.calleeId.size() > 0
+    && request.resource.data.calleeId.size() <= 128
+    && request.resource.data.calleeId != request.auth.uid
+    && request.resource.data.calleeRole == "customer"
+    && workerProfileExists(request.auth.uid)
+    && workerContactExists(request.auth.uid, request.resource.data.calleeId)
+    && request.resource.data.status == "ringing"
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.acceptedAt == null
+    && request.resource.data.connectedAt == null
+    && request.resource.data.endedAt == null
+    && request.resource.data.endedBy == null
+    && validCallSnapshot(request.resource.data.callerSnapshot)
+    && validCallSnapshot(request.resource.data.calleeSnapshot);
+
+
+  // ============================================================
+  // WORKER -> CUSTOMER
+  // MARKET / ORDER CALL
+  // ============================================================
+  allow create:
+    if validWorkerMarketCallCreate();
+
+
+  // ============================================================
+  // WORKER -> CUSTOMER
+  // SHOP REQUEST CALL
+  // ============================================================
+  allow create:
+    if validWorkerShopRequestCallCreate();
+
+
+  // ============================================================
+  // READ
+  //
+  // Only caller or callee can read the call document.
+  // ============================================================
+  allow read:
+    if isCallParticipant(resource.data);
+
+
+  // ============================================================
+  // ACCEPT CALL
+  //
+  // Only the callee can accept a ringing call.
+  // ============================================================
+  allow update:
+    if (
+      signedIn()
+      && resource.data.status == "ringing"
+      && resource.data.calleeId == request.auth.uid
+      && request.resource.data.status == "accepted"
+      && request.resource.data.acceptedAt == request.time
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "acceptedAt"
+      ])
+    );
+
+
+  // ============================================================
+  // DECLINE CALL
+  //
+  // Only the callee can decline a ringing call.
+  // ============================================================
+  allow update:
+    if (
+      signedIn()
+      && resource.data.status == "ringing"
+      && resource.data.calleeId == request.auth.uid
+      && request.resource.data.status == "declined"
+      && request.resource.data.endedAt == request.time
+      && request.resource.data.endedBy == request.auth.uid
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "endedAt",
+        "endedBy"
+      ])
+    );
+
+
+  // ============================================================
+  // CONNECT CALL
+  //
+  // Caller or callee can transition an accepted call to connected.
+  // ============================================================
+  allow update:
+    if (
+      isCallParticipant(resource.data)
+      && resource.data.status == "accepted"
+      && request.resource.data.status == "connected"
+      && request.resource.data.connectedAt == request.time
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "connectedAt"
+      ])
+    );
+
+
+  // ============================================================
+  // END CALL
+  //
+  // Either participant can end a ringing, accepted or connected
+  // call.
+  // ============================================================
+  allow update:
+    if (
+      isCallParticipant(resource.data)
+      && resource.data.status in [
+        "ringing",
+        "accepted",
+        "connected"
+      ]
+      && request.resource.data.status == "ended"
+      && request.resource.data.endedAt == request.time
+      && request.resource.data.endedBy == request.auth.uid
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "endedAt",
+        "endedBy"
+      ])
+    );
+
+
+  // ============================================================
+  // DELETE
+  //
+  // Calls are immutable records and cannot be deleted by clients.
+  // ============================================================
+  allow delete:
+    if false;
+}

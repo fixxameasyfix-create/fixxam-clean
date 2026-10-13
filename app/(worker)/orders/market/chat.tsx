@@ -7,12 +7,12 @@ import React, {
 } from "react";
 
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   KeyboardAvoidingView,
-  Linking,
   Platform,
-  StyleSheet,
+  Pressable,
   View,
 } from "react-native";
 
@@ -21,6 +21,10 @@ import {
   router,
   useLocalSearchParams,
 } from "expo-router";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import Toast from "react-native-toast-message";
 
@@ -31,6 +35,7 @@ import {
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -38,14 +43,13 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
 
 import {
-  AppButton,
   AppIcon,
-  AppScreen,
   AppText,
 } from "@/components/ui";
 
@@ -55,7 +59,6 @@ import type {
 
 import {
   Colors,
-  FixxamTokens,
   WorkerColors,
 } from "@/theme";
 
@@ -64,9 +67,11 @@ import {
   db,
 } from "@/firebase/config";
 
-import WorkerMarketChatHeader from "@/components/orders/market-chat/WorkerMarketChatHeader";
+import {
+  createWorkerMarketCallSession,
+} from "@/services/calls/callSession";
 
-import WorkerMarketCustomerBar from "@/components/orders/market-chat/WorkerMarketCustomerBar";
+import WorkerMarketChatHeader from "@/components/orders/market-chat/WorkerMarketChatHeader";
 
 import WorkerMarketMessageList, {
   type WorkerMarketChatMessage,
@@ -74,11 +79,13 @@ import WorkerMarketMessageList, {
 
 import WorkerMarketChatInput from "@/components/orders/market-chat/WorkerMarketChatInput";
 
-import WorkerMarketChatMenu from "@/components/orders/market-chat/WorkerMarketChatMenu";
+import WorkerMarketChatMenu, {
+  type WorkerMarketChatMenuItem,
+} from "@/components/orders/market-chat/WorkerMarketChatMenu";
 
-import WorkerMarketOrderItemsModal, {
-  type WorkerMarketOrderItem,
-} from "@/components/orders/market-chat/WorkerMarketOrderItemsModal";
+import {
+  styles,
+} from "@/components/orders/market-chat/workerMarketChatStyles";
 
 /* ==============================================================
    TYPES
@@ -86,11 +93,8 @@ import WorkerMarketOrderItemsModal, {
 
 type MessageDocument = {
   senderId?: unknown;
-
   senderRole?: unknown;
-
   text?: unknown;
-
   createdAt?: unknown;
 };
 
@@ -98,39 +102,17 @@ type OrderData = {
   id: string;
 
   customerId?: string;
-
   customerName?: string;
-
-  customerPhone?: string;
-
   receiverName?: string;
-
-  receiverPhone?: string;
 
   workerId?: string;
 
+  sellerId?: string;
   storeId?: string;
-
-  storeName?: string;
-
-  address?: string;
-
-  deliveryAddress?: string;
-
-  location?: string;
-
-  total?: number;
-
-  totalAmount?: number;
-
-  subtotal?: number;
-
-  deliveryFee?: number;
 
   status?: string;
 
   items?: unknown[];
-
   products?: unknown[];
 };
 
@@ -138,11 +120,22 @@ type ChatParams = {
   orderId?:
     | string
     | string[];
+
+  customerId?:
+    | string
+    | string[];
+
+  customerName?:
+    | string
+    | string[];
 };
 
 /* ==============================================================
    CONSTANTS
 ============================================================== */
+
+const MAX_MESSAGE_LENGTH =
+  1000;
 
 const DELETE_BATCH_SIZE =
   450;
@@ -178,14 +171,21 @@ function getString(
   ...values: unknown[]
 ): string {
   for (
-    const value of values
+    const value of
+    values
   ) {
     if (
       typeof value ===
-        "string" &&
-      value.trim()
+      "string"
     ) {
-      return value.trim();
+      const normalized =
+        value.trim();
+
+      if (
+        normalized
+      ) {
+        return normalized;
+      }
     }
 
     if (
@@ -204,62 +204,17 @@ function getString(
   return "";
 }
 
-function getNumber(
-  ...values: unknown[]
-): number {
-  for (
-    const value of values
-  ) {
-    if (
-      typeof value ===
-        "number" &&
-      Number.isFinite(
-        value,
-      )
-    ) {
-      return value;
-    }
-
-    if (
-      typeof value ===
-        "string" &&
-      value.trim()
-    ) {
-      const parsed =
-        Number(
-          value,
-        );
-
-      if (
-        Number.isFinite(
-          parsed,
-        )
-      ) {
-        return parsed;
-      }
-    }
-  }
-
-  return 0;
-}
-
 function normalizeRole(
   value: unknown,
 ):
   | "customer"
   | "worker" {
-  if (
-    typeof value ===
-      "string" &&
-    value
-      .trim()
-      .toLowerCase() ===
-      "worker"
-  ) {
-    return "worker";
-  }
-
-  return "customer";
+  return getString(
+    value,
+  ).toLowerCase() ===
+    "worker"
+    ? "worker"
+    : "customer";
 }
 
 function getTimestampMillis(
@@ -307,22 +262,13 @@ function getTimestampMillis(
   return 0;
 }
 
-function sanitizePhone(
-  value: string,
-): string {
-  return value.replace(
-    /[^0-9+*#,;]/g,
-    "",
-  );
-}
-
 /* ==============================================================
-   NORMALIZE ITEMS
+   NORMALIZE GALLERY ITEMS
 ============================================================== */
 
 function normalizeItems(
   value: unknown,
-): WorkerMarketOrderItem[] {
+): WorkerMarketChatMenuItem[] {
   if (
     !Array.isArray(
       value,
@@ -331,71 +277,41 @@ function normalizeItems(
     return [];
   }
 
-  return value
-    .map(
-      (
-        item,
-        index,
-      ):
-        | WorkerMarketOrderItem
-        | null => {
-        if (
-          !item ||
-          typeof item !==
-            "object"
-        ) {
-          return null;
-        }
+  const result:
+    WorkerMarketChatMenuItem[] =
+    [];
 
-        const data =
-          item as Record<
-            string,
-            unknown
-          >;
+  value.forEach(
+    (
+      item,
+      index,
+    ) => {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return;
+      }
 
-        const name =
-          getString(
-            data.name,
-            data.productName,
-            data.title,
-          ) ||
-          "Product";
+      const data =
+        item as Record<
+          string,
+          unknown
+        >;
 
-        const quantity =
-          Math.max(
-            1,
+      const image =
+        getString(
+          data.image,
+          data.imageURL,
+          data.imageUrl,
+          data.productImage,
+          data.photo,
+          data.photoUrl,
+        );
 
-            Math.floor(
-              getNumber(
-                data.quantity,
-                data.qty,
-                1,
-              ),
-            ),
-          );
-
-        const price =
-          Math.max(
-            0,
-
-            getNumber(
-              data.price,
-              data.unitPrice,
-              data.amount,
-            ),
-          );
-
-        const image =
-          getString(
-            data.image,
-            data.imageURL,
-            data.imageUrl,
-            data.productImage,
-            data.photo,
-            data.photoUrl,
-          );
-
-        return {
+      const normalizedItem:
+        WorkerMarketChatMenuItem = {
           id:
             getString(
               data.id,
@@ -403,22 +319,29 @@ function normalizeItems(
             ) ||
             `item-${index}`,
 
-          name,
-
-          quantity,
-
-          price,
-
-          image,
+          name:
+            getString(
+              data.name,
+              data.productName,
+              data.title,
+            ) ||
+            "Product",
         };
-      },
-    )
-    .filter(
-      (
-        item,
-      ): item is WorkerMarketOrderItem =>
-        item !== null,
-    );
+
+      if (
+        image
+      ) {
+        normalizedItem.image =
+          image;
+      }
+
+      result.push(
+        normalizedItem,
+      );
+    },
+  );
+
+  return result;
 }
 
 /* ==============================================================
@@ -429,8 +352,11 @@ export default function WorkerMarketOrderChatRoom() {
   const params =
     useLocalSearchParams<ChatParams>();
 
+  const insets =
+    useSafeAreaInsets();
+
   /* ============================================================
-     ORDER ID
+     ROUTE PARAMS
   ============================================================ */
 
   const orderId =
@@ -441,6 +367,28 @@ export default function WorkerMarketOrderChatRoom() {
         ),
       [
         params.orderId,
+      ],
+    );
+
+  const customerIdParam =
+    useMemo(
+      () =>
+        getParam(
+          params.customerId,
+        ),
+      [
+        params.customerId,
+      ],
+    );
+
+  const customerNameParam =
+    useMemo(
+      () =>
+        getParam(
+          params.customerName,
+        ),
+      [
+        params.customerName,
       ],
     );
 
@@ -463,9 +411,7 @@ export default function WorkerMarketOrderChatRoom() {
   ] =
     useState<
       string | null
-    >(
-      null,
-    );
+    >(null);
 
   /* ============================================================
      ORDER
@@ -533,15 +479,11 @@ export default function WorkerMarketOrderChatRoom() {
   ] =
     useState(false);
 
-  const sendingRef =
-    useRef(false);
-
-  const deletingRef =
-    useRef(false);
-
-  /* ============================================================
-     MODALS
-  ============================================================ */
+  const [
+    callingCustomer,
+    setCallingCustomer,
+  ] =
+    useState(false);
 
   const [
     menuVisible,
@@ -549,22 +491,19 @@ export default function WorkerMarketOrderChatRoom() {
   ] =
     useState(false);
 
-  const [
-    itemsVisible,
-    setItemsVisible,
-  ] =
-    useState(false);
+  const sendingRef =
+    useRef(false);
 
-  /* ============================================================
-     LIST
-  ============================================================ */
+  const deletingRef =
+    useRef(false);
+
+  const callingRef =
+    useRef(false);
 
   const listRef =
     useRef<
       FlatList<WorkerMarketChatMessage>
-    >(
-      null,
-    );
+    >(null);
 
   /* ============================================================
      AUTH LISTENER
@@ -581,7 +520,8 @@ export default function WorkerMarketOrderChatRoom() {
             );
 
           setWorkerId(
-            uid || null,
+            uid ||
+              null,
           );
 
           setAuthReady(
@@ -594,15 +534,19 @@ export default function WorkerMarketOrderChatRoom() {
   }, []);
 
   /* ============================================================
-     LOAD ORDER
+     ORDER LISTENER
   ============================================================ */
 
   useEffect(() => {
-    if (!authReady) {
+    if (
+      !authReady
+    ) {
       return;
     }
 
-    if (!workerId) {
+    if (
+      !workerId
+    ) {
       setOrder(
         null,
       );
@@ -618,7 +562,9 @@ export default function WorkerMarketOrderChatRoom() {
       return;
     }
 
-    if (!orderId) {
+    if (
+      !orderId
+    ) {
       setOrder(
         null,
       );
@@ -680,12 +626,6 @@ export default function WorkerMarketOrderChatRoom() {
               data.workerId,
             );
 
-          /*
-           * Client-side UX protection.
-           *
-           * Firestore Rules must independently
-           * enforce this ownership.
-           */
           if (
             assignedWorkerId !==
             workerId
@@ -721,11 +661,15 @@ export default function WorkerMarketOrderChatRoom() {
           );
         },
 
-        snapshotError => {
-          console.error(
-            "FIXXAM_WORKER_CHAT_ORDER_ERROR:",
-            snapshotError,
-          );
+        listenerError => {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_WORKER_CHAT_ORDER_ERROR:",
+              listenerError,
+            );
+          }
 
           setOrder(
             null,
@@ -749,7 +693,7 @@ export default function WorkerMarketOrderChatRoom() {
   ]);
 
   /* ============================================================
-     VERIFIED ACCESS
+     VERIFIED DATA
   ============================================================ */
 
   const assignedWorkerId =
@@ -757,11 +701,38 @@ export default function WorkerMarketOrderChatRoom() {
       order?.workerId,
     );
 
+  const customerAccountId =
+    getString(
+      order?.customerId,
+      customerIdParam,
+    );
+
   const orderAvailable =
     Boolean(
       order &&
       workerId &&
       assignedWorkerId ===
+        workerId,
+    );
+
+  const items =
+    useMemo(
+      () =>
+        normalizeItems(
+          order?.items ??
+            order?.products,
+        ),
+      [
+        order?.items,
+        order?.products,
+      ],
+    );
+
+  const canCallCustomer =
+    Boolean(
+      customerAccountId &&
+      workerId &&
+      customerAccountId !==
         workerId,
     );
 
@@ -788,7 +759,7 @@ export default function WorkerMarketOrderChatRoom() {
     );
 
   /* ============================================================
-     CHAT LISTENER
+     MESSAGE LISTENER
   ============================================================ */
 
   useEffect(() => {
@@ -842,7 +813,6 @@ export default function WorkerMarketOrderChatRoom() {
     const messagesQuery =
       query(
         messagesRef,
-
         orderBy(
           "createdAt",
           "asc",
@@ -891,7 +861,7 @@ export default function WorkerMarketOrderChatRoom() {
               )
               .filter(
                 message =>
-                  message.text.length >
+                  message.text.trim().length >
                   0,
               );
 
@@ -907,24 +877,32 @@ export default function WorkerMarketOrderChatRoom() {
             "",
           );
 
-          requestAnimationFrame(
-            () => {
-              if (
-                nextMessages.length >
-                0
-              ) {
+          if (
+            nextMessages.length >
+            0
+          ) {
+            requestAnimationFrame(
+              () => {
                 scrollToBottom(
                   false,
                 );
-              }
-            },
-          );
+              },
+            );
+          }
         },
 
         listenerError => {
-          console.error(
-            "FIXXAM_WORKER_CHAT_LISTEN_ERROR:",
-            listenerError,
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_WORKER_CHAT_LISTEN_ERROR:",
+              listenerError,
+            );
+          }
+
+          setMessages(
+            [],
           );
 
           setLoading(
@@ -960,14 +938,42 @@ export default function WorkerMarketOrderChatRoom() {
         if (
           !cleanText ||
           sendingRef.current ||
-          deletingRef.current
+          deletingRef.current ||
+          callingRef.current
         ) {
           return;
         }
 
-        if (!workerId) {
+        if (
+          cleanText.length >
+          MAX_MESSAGE_LENGTH
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
+
+            text1:
+              "Message too long",
+
+            text2:
+              `Message cannot exceed ${MAX_MESSAGE_LENGTH} characters.`,
+          });
+
+          return;
+        }
+
+        const currentWorker =
+          auth.currentUser;
+
+        if (
+          !workerId ||
+          !currentWorker ||
+          currentWorker.uid !==
+            workerId
+        ) {
+          Toast.show({
+            type:
+              "error",
 
             text1:
               "Sign in required",
@@ -981,33 +987,64 @@ export default function WorkerMarketOrderChatRoom() {
 
         if (
           !orderId ||
-          !chatRoomId
+          !chatRoomId ||
+          !order ||
+          !orderAvailable
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Chat unavailable",
 
             text2:
-              "Order information is missing.",
+              "Order information is unavailable.",
+          });
+
+          return;
+        }
+
+        const verifiedWorkerId =
+          getString(
+            order.workerId,
+          );
+
+        const verifiedCustomerId =
+          getString(
+            order.customerId,
+          );
+
+        if (
+          verifiedWorkerId !==
+          workerId
+        ) {
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Chat unavailable",
+
+            text2:
+              "You are not assigned to this order.",
           });
 
           return;
         }
 
         if (
-          !order ||
-          !orderAvailable
+          !verifiedCustomerId
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Order unavailable",
+              "Chat unavailable",
 
             text2:
-              "You cannot send a message in this chat.",
+              "Customer information is missing from this order.",
           });
 
           return;
@@ -1020,12 +1057,32 @@ export default function WorkerMarketOrderChatRoom() {
           true,
         );
 
+        setChatError(
+          "",
+        );
+
         try {
           const chatRef =
             doc(
               db,
               "marketChats",
               chatRoomId,
+            );
+
+          /*
+           * IMPORTANT:
+           *
+           * We read the chat before creating the batch.
+           *
+           * Existing chats must update ONLY the summary fields
+           * permitted by Firestore rules.
+           *
+           * New chats may include participant/order fields.
+           */
+
+          const chatSnapshot =
+            await getDoc(
+              chatRef,
             );
 
           const messagesRef =
@@ -1041,39 +1098,62 @@ export default function WorkerMarketOrderChatRoom() {
               messagesRef,
             );
 
-          /*
-           * Atomic write:
-           *
-           * Chat summary and actual message
-           * either succeed together or fail together.
-           */
           const batch =
             writeBatch(
               db,
             );
 
-          batch.set(
-            chatRef,
+          if (
+            chatSnapshot.exists()
+          ) {
+            /*
+             * EXISTING CHAT
+             *
+             * Do NOT resend:
+             * - orderId
+             * - customerId
+             * - workerId
+             * - sellerId
+             * - storeId
+             *
+             * Firestore rules intentionally treat participant
+             * associations as immutable.
+             */
 
-            {
+            batch.update(
+              chatRef,
+              {
+                lastMessage:
+                  cleanText,
+
+                lastMessageSenderId:
+                  workerId,
+
+                lastMessageSenderRole:
+                  "worker",
+
+                updatedAt:
+                  serverTimestamp(),
+              },
+            );
+          } else {
+            /*
+             * NEW CHAT
+             *
+             * The source order remains the authority for
+             * customer/worker/seller identities.
+             */
+
+            const newChatData: Record<
+              string,
+              unknown
+            > = {
               orderId,
 
               customerId:
-                getString(
-                  order.customerId,
-                ) ||
-                null,
+                verifiedCustomerId,
 
               workerId,
-
-              storeId:
-                getString(
-                  order.storeId,
-                ) ||
-                null,
-
-              updatedAt:
-                serverTimestamp(),
 
               lastMessage:
                 cleanText,
@@ -1083,17 +1163,47 @@ export default function WorkerMarketOrderChatRoom() {
 
               lastMessageSenderRole:
                 "worker",
-            },
 
-            {
-              merge:
-                true,
-            },
-          );
+              updatedAt:
+                serverTimestamp(),
+            };
+
+            const sellerId =
+              getString(
+                order.sellerId,
+              );
+
+            const storeId =
+              getString(
+                order.storeId,
+              );
+
+            if (
+              sellerId
+            ) {
+              newChatData.sellerId =
+                sellerId;
+            }
+
+            if (
+              storeId
+            ) {
+              newChatData.storeId =
+                storeId;
+            }
+
+            batch.set(
+              chatRef,
+              newChatData,
+            );
+          }
+
+          /*
+           * MESSAGE DOCUMENT
+           */
 
           batch.set(
             messageRef,
-
             {
               senderId:
                 workerId,
@@ -1122,20 +1232,36 @@ export default function WorkerMarketOrderChatRoom() {
               );
             },
           );
-        } catch (sendError) {
-          console.error(
-            "FIXXAM_WORKER_CHAT_SEND_ERROR:",
-            sendError,
-          );
+        } catch (
+          sendError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_WORKER_CHAT_SEND_ERROR:",
+              {
+                chatRoomId,
+                orderId,
+                customerId:
+                  verifiedCustomerId,
+                workerId,
+                verifiedWorkerId,
+                error:
+                  sendError,
+              },
+            );
+          }
 
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Message not sent",
 
             text2:
-              "Please check your connection and try again.",
+              "Unable to send this message. Please try again.",
           });
         } finally {
           sendingRef.current =
@@ -1158,7 +1284,7 @@ export default function WorkerMarketOrderChatRoom() {
     );
 
   /* ============================================================
-     CALL CUSTOMER
+     FIXXAM VOICE
   ============================================================ */
 
   const handleCallCustomer =
@@ -1168,76 +1294,210 @@ export default function WorkerMarketOrderChatRoom() {
           false,
         );
 
-        const rawPhone =
-          getString(
-            order?.customerPhone,
-            order?.receiverPhone,
-          );
+        if (
+          callingRef.current ||
+          deletingRef.current ||
+          sendingRef.current
+        ) {
+          return;
+        }
 
-        const phone =
-          sanitizePhone(
-            rawPhone,
-          );
-
-        if (!phone) {
+        if (
+          !workerId ||
+          !order ||
+          !orderAvailable ||
+          !orderId
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Phone unavailable",
+              "Call unavailable",
 
             text2:
-              "The customer's phone number is not available.",
+              "Order information is not available.",
           });
 
           return;
         }
 
-        const phoneUrl =
-          `tel:${phone}`;
-
-        try {
-          const supported =
-            await Linking.canOpenURL(
-              phoneUrl,
-            );
-
-          if (!supported) {
-            Toast.show({
-              type: "error",
-
-              text1:
-                "Unable to call",
-
-              text2:
-                "Your device cannot open the phone dialer.",
-            });
-
-            return;
-          }
-
-          await Linking.openURL(
-            phoneUrl,
-          );
-        } catch (callError) {
-          console.error(
-            "FIXXAM_WORKER_CALL_CUSTOMER_ERROR:",
-            callError,
+        const customerId =
+          getString(
+            order.customerId,
+            customerIdParam,
           );
 
+        if (
+          !customerId
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
-              "Unable to call",
+              "Customer unavailable",
 
             text2:
-              "We could not open the phone app.",
+              "This order does not contain a customer account.",
           });
+
+          return;
+        }
+
+        if (
+          customerId ===
+          workerId
+        ) {
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Call unavailable",
+
+            text2:
+              "You cannot call your own account.",
+          });
+
+          return;
+        }
+
+        const currentWorker =
+          auth.currentUser;
+
+        if (
+          !currentWorker ||
+          currentWorker.uid !==
+            workerId
+        ) {
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Sign in required",
+
+            text2:
+              "Please sign in again before starting a call.",
+          });
+
+          return;
+        }
+
+        const resolvedCustomerName =
+          getString(
+            order.customerName,
+            order.receiverName,
+            customerNameParam,
+          ) ||
+          "Customer";
+
+        callingRef.current =
+          true;
+
+        setCallingCustomer(
+          true,
+        );
+
+        try {
+          const callId =
+            await createWorkerMarketCallSession({
+              workerId,
+
+              customerId,
+
+              orderId,
+
+              workerSnapshot: {
+                name:
+                  getString(
+                    currentWorker.displayName,
+                  ) ||
+                  "Worker",
+
+                image:
+                  getString(
+                    currentWorker.photoURL,
+                  ),
+
+                service:
+                  "Market Order",
+              },
+
+              customerSnapshot: {
+                name:
+                  resolvedCustomerName,
+
+                image:
+                  "",
+
+                service:
+                  "Market Order",
+              },
+            });
+
+          if (
+            !callId
+          ) {
+            throw new Error(
+              "Call session was not created.",
+            );
+          }
+
+          router.push({
+            pathname:
+              "/call/[customer]",
+
+            params: {
+              callId,
+
+              customerName:
+                resolvedCustomerName,
+            },
+          } as never);
+        } catch (
+          callError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_WORKER_MARKET_CALL_START_ERROR:",
+              callError,
+            );
+          }
+
+          Toast.show({
+            type:
+              "error",
+
+            text1:
+              "Call failed",
+
+            text2:
+              callError instanceof
+                Error &&
+              callError.message
+                ? callError.message
+                : "Unable to start Fixxam Voice. Please try again.",
+          });
+        } finally {
+          callingRef.current =
+            false;
+
+          setCallingCustomer(
+            false,
+          );
         }
       },
       [
+        customerIdParam,
+        customerNameParam,
         order,
+        orderAvailable,
+        orderId,
+        workerId,
       ],
     );
 
@@ -1250,40 +1510,12 @@ export default function WorkerMarketOrderChatRoom() {
       async () => {
         if (
           deletingRef.current ||
-          !chatRoomId
-        ) {
-          return;
-        }
-
-        if (
-          !workerId
-        ) {
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Sign in required",
-
-            text2:
-              "Please sign in again.",
-          });
-
-          return;
-        }
-
-        if (
+          sendingRef.current ||
+          callingRef.current ||
+          !chatRoomId ||
+          !workerId ||
           !orderAvailable
         ) {
-          Toast.show({
-            type: "error",
-
-            text1:
-              "Chat unavailable",
-
-            text2:
-              "You no longer have access to this chat.",
-          });
-
           return;
         }
 
@@ -1327,7 +1559,8 @@ export default function WorkerMarketOrderChatRoom() {
             snapshot.empty
           ) {
             Toast.show({
-              type: "info",
+              type:
+                "info",
 
               text1:
                 "Nothing to delete",
@@ -1338,10 +1571,6 @@ export default function WorkerMarketOrderChatRoom() {
 
             return;
           }
-
-          /* ==================================================
-             DELETE IN SAFE BATCHES
-          ================================================== */
 
           for (
             let index = 0;
@@ -1373,10 +1602,6 @@ export default function WorkerMarketOrderChatRoom() {
             await batch.commit();
           }
 
-          /* ==================================================
-             REBUILD CHAT SUMMARY
-          ================================================== */
-
           const remainingQuery =
             query(
               messagesRef,
@@ -1406,65 +1631,71 @@ export default function WorkerMarketOrderChatRoom() {
           if (
             remainingSnapshot.empty
           ) {
-            await setDoc(
-              chatRef,
+            /*
+             * The current Firestore update rule requires the
+             * summary sender to be the authenticated user.
+             *
+             * Therefore we only clear the visible summary here.
+             */
 
+            await updateDoc(
+              chatRef,
               {
                 lastMessage:
                   "",
 
                 lastMessageSenderId:
-                  null,
+                  workerId,
 
                 lastMessageSenderRole:
-                  null,
-              },
+                  "worker",
 
-              {
-                merge:
-                  true,
+                updatedAt:
+                  serverTimestamp(),
               },
             );
           } else {
-            const latestDoc =
-              remainingSnapshot.docs[0];
-
             const latestData =
-              latestDoc.data() as MessageDocument;
+              remainingSnapshot.docs[0]
+                .data() as MessageDocument;
 
-            const latestRole =
-              normalizeRole(
-                latestData.senderRole,
+            const latestSenderId =
+              getString(
+                latestData.senderId,
               );
 
-            await setDoc(
-              chatRef,
+            /*
+             * We must not spoof another participant as the
+             * authenticated sender in the chat summary.
+             *
+             * If the remaining latest message belongs to this
+             * worker, update the summary. Otherwise leave the
+             * summary untouched.
+             */
 
-              {
-                lastMessage:
-                  getString(
-                    latestData.text,
-                  ),
+            if (
+              latestSenderId ===
+              workerId
+            ) {
+              await updateDoc(
+                chatRef,
+                {
+                  lastMessage:
+                    getString(
+                      latestData.text,
+                    ),
 
-                lastMessageSenderId:
-                  getString(
-                    latestData.senderId,
-                  ) ||
-                  null,
+                  lastMessageSenderId:
+                    workerId,
 
-                lastMessageSenderRole:
-                  latestRole,
+                  lastMessageSenderRole:
+                    "worker",
 
-                updatedAt:
-                  latestData.createdAt ||
-                  serverTimestamp(),
-              },
-
-              {
-                merge:
-                  true,
-              },
-            );
+                  updatedAt:
+                    serverTimestamp(),
+                },
+              );
+            }
           }
 
           setText(
@@ -1472,7 +1703,8 @@ export default function WorkerMarketOrderChatRoom() {
           );
 
           Toast.show({
-            type: "success",
+            type:
+              "success",
 
             text1:
               "Messages deleted",
@@ -1480,14 +1712,21 @@ export default function WorkerMarketOrderChatRoom() {
             text2:
               "Only the messages you sent were removed.",
           });
-        } catch (deleteError) {
-          console.error(
-            "FIXXAM_WORKER_DELETE_OWN_MESSAGES_ERROR:",
-            deleteError,
-          );
+        } catch (
+          deleteError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_WORKER_DELETE_OWN_MESSAGES_ERROR:",
+              deleteError,
+            );
+          }
 
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Unable to delete",
@@ -1512,13 +1751,15 @@ export default function WorkerMarketOrderChatRoom() {
     );
 
   /* ============================================================
-     DELETE CONFIRMATION
+     ACTIONS
   ============================================================ */
 
   const handleDeleteChat =
     useCallback(() => {
       if (
-        deletingRef.current
+        deletingRef.current ||
+        sendingRef.current ||
+        callingRef.current
       ) {
         return;
       }
@@ -1528,7 +1769,7 @@ export default function WorkerMarketOrderChatRoom() {
       );
 
       Alert.alert(
-        "Delete My Messages?",
+        "Delete my messages?",
         "Only the messages you sent will be permanently deleted. The customer's messages will remain.",
         [
           {
@@ -1556,24 +1797,18 @@ export default function WorkerMarketOrderChatRoom() {
       confirmDeleteChat,
     ]);
 
-  /* ============================================================
-     BACK
-  ============================================================ */
-
   const handleBack =
     useCallback(() => {
       if (
-        deletingRef.current
+        sendingRef.current ||
+        deletingRef.current ||
+        callingRef.current
       ) {
         return;
       }
 
       router.back();
     }, []);
-
-  /* ============================================================
-     INPUT FOCUS
-  ============================================================ */
 
   const handleInputFocus =
     useCallback(() => {
@@ -1588,31 +1823,14 @@ export default function WorkerMarketOrderChatRoom() {
       scrollToBottom,
     ]);
 
-  /* ============================================================
-     MODALS
-  ============================================================ */
-
   const handleOpenMenu =
     useCallback(() => {
       if (
-        deletingRef.current
-      ) {
-        return;
-      }
-
-      if (
+        sendingRef.current ||
+        deletingRef.current ||
+        callingRef.current ||
         !orderAvailable
       ) {
-        Toast.show({
-          type: "info",
-
-          text1:
-            "Chat unavailable",
-
-          text2:
-            "Order information is not available.",
-        });
-
         return;
       }
 
@@ -1636,66 +1854,8 @@ export default function WorkerMarketOrderChatRoom() {
       );
     }, []);
 
-  const handleOpenItems =
-    useCallback(() => {
-      if (
-        !orderAvailable
-      ) {
-        return;
-      }
-
-      setItemsVisible(
-        true,
-      );
-    }, [
-      orderAvailable,
-    ]);
-
-  const handleCloseItems =
-    useCallback(() => {
-      setItemsVisible(
-        false,
-      );
-    }, []);
-
   /* ============================================================
-     DERIVED DATA
-  ============================================================ */
-
-  const items =
-    useMemo(
-      () =>
-        normalizeItems(
-          order?.items ??
-            order?.products,
-        ),
-      [
-        order?.items,
-        order?.products,
-      ],
-    );
-
-  const customerName =
-    getString(
-      order?.customerName,
-      order?.receiverName,
-    ) ||
-    "Customer";
-
-  const customerPhone =
-    getString(
-      order?.customerPhone,
-      order?.receiverPhone,
-    );
-
-  const total =
-    getNumber(
-      order?.total,
-      order?.totalAmount,
-    );
-
-  /* ============================================================
-     INVALID ORDER ID
+     INVALID / LOADING STATES
   ============================================================ */
 
   if (
@@ -1713,21 +1873,14 @@ export default function WorkerMarketOrderChatRoom() {
     );
   }
 
-  /* ============================================================
-     AUTH LOADING
-  ============================================================ */
-
   if (
-    !authReady
+    !authReady ||
+    loadingOrder
   ) {
     return (
       <ChatLoadingState />
     );
   }
-
-  /* ============================================================
-     SIGNED OUT
-  ============================================================ */
 
   if (
     !workerId
@@ -1743,22 +1896,6 @@ export default function WorkerMarketOrderChatRoom() {
       />
     );
   }
-
-  /* ============================================================
-     ORDER LOADING
-  ============================================================ */
-
-  if (
-    loadingOrder
-  ) {
-    return (
-      <ChatLoadingState />
-    );
-  }
-
-  /* ============================================================
-     ORDER UNAVAILABLE
-  ============================================================ */
 
   if (
     orderError ||
@@ -1793,160 +1930,128 @@ export default function WorkerMarketOrderChatRoom() {
         }}
       />
 
-      <AppScreen
-        role="worker"
-        contentContainerStyle={
+      <KeyboardAvoidingView
+        style={
           styles.screen
         }
+        behavior={
+          Platform.OS ===
+          "ios"
+            ? "padding"
+            : "height"
+        }
+        keyboardVerticalOffset={
+          Platform.OS ===
+          "ios"
+            ? insets.top
+            : 0
+        }
       >
-        <KeyboardAvoidingView
-          style={
-            styles.keyboard
+        <WorkerMarketChatHeader
+          orderId={
+            orderId
           }
-          behavior={
-            Platform.OS ===
-            "ios"
-              ? "padding"
-              : "height"
+          deleting={
+            deleting ||
+            callingCustomer
           }
-          keyboardVerticalOffset={
-            0
+          onBack={
+            handleBack
           }
-        >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
+          onOpenMenu={
+            handleOpenMenu
+          }
+        />
 
-          <WorkerMarketChatHeader
-            orderId={
-              orderId
-            }
-            deleting={
-              deleting
-            }
-            onBack={
-              handleBack
-            }
-            onOpenMenu={
-              handleOpenMenu
-            }
-          />
+        <WorkerMarketMessageList
+          loading={
+            loading
+          }
+          messages={
+            messages
+          }
+          currentUserId={
+            workerId
+          }
+          listRef={
+            listRef
+          }
+          onScrollToBottom={
+            scrollToBottom
+          }
+        />
 
-          {/* ==================================================
-              CUSTOMER
-          ================================================== */}
+        {chatError ? (
+          <View
+            style={
+              styles.errorBar
+            }
+          >
+            <AppIcon
+              name="warning"
+              size="xs"
+              color={
+                Colors.error
+              }
+            />
 
-          <WorkerMarketCustomerBar
-            customerName={
-              customerName
-            }
-            customerPhone={
-              customerPhone
-            }
-            onOpenItems={
-              handleOpenItems
-            }
-          />
-
-          {/* ==================================================
-              CHAT
-          ================================================== */}
-
-          <WorkerMarketMessageList
-            loading={
-              loading
-            }
-            messages={
-              messages
-            }
-            currentUserId={
-              workerId
-            }
-            listRef={
-              listRef
-            }
-            onScrollToBottom={
-              scrollToBottom
-            }
-          />
-
-          {/* ==================================================
-              CHAT ERROR
-          ================================================== */}
-
-          {chatError ? (
-            <View
+            <AppText
+              variant="caption"
               style={
-                styles.errorBar
+                styles.errorBarText
               }
             >
-              <AppIcon
-                name="warning"
-                size="xs"
-                color={
-                  Colors.error
-                }
-              />
+              {chatError}
+            </AppText>
+          </View>
+        ) : null}
 
-              <AppText
-                variant="caption"
-                style={
-                  styles.errorBarText
-                }
-              >
-                {chatError}
-              </AppText>
-            </View>
-          ) : null}
-
-          {/* ==================================================
-              INPUT
-          ================================================== */}
-
-          <WorkerMarketChatInput
-            text={
-              text
-            }
-            sending={
-              sending
-            }
-            deleting={
-              deleting
-            }
-            loadingOrder={
-              loadingOrder
-            }
-            orderAvailable={
-              orderAvailable
-            }
-            onChangeText={
-              setText
-            }
-            onFocus={
-              handleInputFocus
-            }
-            onSend={
-              handleSend
-            }
-          />
-        </KeyboardAvoidingView>
-      </AppScreen>
-
-      {/* ======================================================
-          CHAT MENU
-      ====================================================== */}
+        <WorkerMarketChatInput
+          text={
+            text
+          }
+          sending={
+            sending
+          }
+          deleting={
+            deleting ||
+            callingCustomer
+          }
+          loadingOrder={
+            loadingOrder
+          }
+          orderAvailable={
+            orderAvailable
+          }
+          onChangeText={
+            setText
+          }
+          onFocus={
+            handleInputFocus
+          }
+          onSend={
+            handleSend
+          }
+        />
+      </KeyboardAvoidingView>
 
       <WorkerMarketChatMenu
         visible={
           menuVisible
         }
+        busy={
+          sending ||
+          deleting ||
+          callingCustomer
+        }
         deleting={
           deleting
         }
-        hasPhone={
-          Boolean(
-            customerPhone,
-          )
+        canCall={
+          canCallCustomer
+        }
+        items={
+          items
         }
         onClose={
           handleCloseMenu
@@ -1958,34 +2063,12 @@ export default function WorkerMarketOrderChatRoom() {
           handleDeleteChat
         }
       />
-
-      {/* ======================================================
-          ITEMS
-      ====================================================== */}
-
-      <WorkerMarketOrderItemsModal
-        visible={
-          itemsVisible
-        }
-        items={
-          items
-        }
-        total={
-          total
-        }
-        customerName={
-          customerName
-        }
-        onClose={
-          handleCloseItems
-        }
-      />
     </>
   );
 }
 
 /* ==============================================================
-   LOADING STATE
+   LOADING
 ============================================================== */
 
 function ChatLoadingState() {
@@ -1998,50 +2081,34 @@ function ChatLoadingState() {
         }}
       />
 
-      <AppScreen
-        role="worker"
-        contentContainerStyle={
-          styles.screen
+      <View
+        style={
+          styles.center
         }
       >
-        <View
+        <ActivityIndicator
+          size="small"
+          color={
+            WorkerColors.primary
+          }
+        />
+
+        <AppText
+          variant="caption"
+          tone="secondary"
           style={
-            styles.center
+            styles.loadingText
           }
         >
-          <View
-            style={
-              styles.loadingIcon
-            }
-          >
-            <AppIcon
-              name="messages"
-              role="worker"
-              size="lg"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.loadingText
-            }
-          >
-            Loading chat...
-          </AppText>
-        </View>
-      </AppScreen>
+          Loading chat...
+        </AppText>
+      </View>
     </>
   );
 }
 
 /* ==============================================================
-   UNAVAILABLE STATE
+   UNAVAILABLE
 ============================================================== */
 
 function ChatUnavailableState({
@@ -2067,232 +2134,70 @@ function ChatUnavailableState({
         }}
       />
 
-      <AppScreen
-        role="worker"
-        contentContainerStyle={
-          styles.screen
+      <View
+        style={
+          styles.center
         }
       >
         <View
           style={
-            styles.center
+            styles.errorIcon
           }
         >
-          <View
-            style={
-              styles.stateIcon
+          <AppIcon
+            name={
+              icon
             }
-          >
-            <AppIcon
-              name={
-                icon
-              }
-              role="worker"
-              size="lg"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
-
-          <AppText
-            variant="heading3"
-            weight="bold"
-            center
-            style={
-              styles.errorTitle
+            size="lg"
+            color={
+              Colors.error
             }
-          >
-            {title}
-          </AppText>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {description}
-          </AppText>
-
-          <View
-            style={
-              styles.backAction
-            }
-          >
-            <AppButton
-              title="Go Back"
-              role="worker"
-              variant="primary"
-              leftIconName="back"
-              onPress={
-                onBack
-              }
-            />
-          </View>
+          />
         </View>
-      </AppScreen>
+
+        <AppText
+          variant="heading3"
+          weight="bold"
+          center
+          style={
+            styles.errorTitle
+          }
+        >
+          {title}
+        </AppText>
+
+        <AppText
+          variant="body"
+          tone="secondary"
+          center
+          style={
+            styles.errorText
+          }
+        >
+          {description}
+        </AppText>
+
+        <Pressable
+          onPress={
+            onBack
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={
+            styles.backButton
+          }
+        >
+          <AppText
+            variant="bodyMedium"
+            weight="semibold"
+            style={
+              styles.backButtonText
+            }
+          >
+            Go back
+          </AppText>
+        </Pressable>
+      </View>
     </>
   );
 }
-
-/* ==============================================================
-   STYLES
-============================================================== */
-
-const styles =
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    keyboard: {
-      flex: 1,
-
-      minHeight: 0,
-    },
-
-    /* ========================================================
-       ERROR
-    ======================================================== */
-
-    errorBar: {
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.errorSoft,
-    },
-
-    errorBarText: {
-      flex: 1,
-
-      lineHeight: 16,
-
-      color:
-        Colors.error,
-    },
-
-    /* ========================================================
-       STATES
-    ======================================================== */
-
-    center: {
-      flex: 1,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    loadingIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
-
-      height:
-        FixxamTokens.size.avatarLg,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    loadingText: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    stateIcon: {
-      width:
-        FixxamTokens.size.avatarLg,
-
-      height:
-        FixxamTokens.size.avatarLg,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    errorTitle: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    errorText: {
-      maxWidth: 300,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 20,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    backAction: {
-      width: "100%",
-
-      maxWidth: 220,
-
-      marginTop:
-        FixxamTokens.spacing.xl,
-    },
-  });

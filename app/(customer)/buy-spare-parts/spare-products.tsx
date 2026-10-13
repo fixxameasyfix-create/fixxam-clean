@@ -1,5 +1,4 @@
 import React, {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -9,22 +8,21 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
   TextInput,
   View,
-  type GestureResponderEvent,
 } from "react-native";
-
-import {
-  Image,
-} from "expo-image";
 
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
   collection,
+  doc,
+  documentId,
+  getDoc,
   getDocs,
   query,
   where,
@@ -32,6 +30,7 @@ import {
 
 import {
   router,
+  useLocalSearchParams,
 } from "expo-router";
 
 import {
@@ -42,6 +41,7 @@ import {
 } from "@/components/ui";
 
 import {
+  auth,
   db,
 } from "@/firebase/config";
 
@@ -52,68 +52,132 @@ import {
   Typography,
 } from "@/theme";
 
-import getActiveProductDeals, {
-  type ActiveProductDeal,
-} from "@/services/deals/getActiveProductDeal";
+import getActiveProductDeals from "@/services/deals/getActiveProductDeal";
+
+import {
+  subscribeToProductRatingCount,
+  toggleProductRating,
+} from "@/services/productRatingService";
+
+import {
+  createProductReview,
+  subscribeToProductReviewCount,
+} from "@/services/productReviewService";
+
+import {
+  ensureWorkerRated,
+} from "@/services/workerRatingService";
+
+import SparePartCard from "@/components/spare-parts/SparePartCard";
+
+import ProductReviewModal from "@/components/customer/home/ProductReviewModal";
+
+import type {
+  Product,
+  ProductWithDeal,
+  RankedProduct,
+  SpareProductsParams,
+} from "./types";
+
+import {
+  calculateAiMatchScore,
+  getValidDeal,
+  matchesManualSearch,
+  normalizeAiMode,
+  normalizeCount,
+  normalizeNumber,
+  normalizeParam,
+  normalizeRating,
+  normalizeSearch,
+  normalizeStatus,
+  normalizeString,
+  normalizeStringArray,
+  parseAiKeywords,
+} from "./utils";
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const WORKER_QUERY_BATCH_SIZE =
+  30;
 
 /* ==============================================================
    TYPES
 ============================================================== */
 
-type ProductStatus =
-  | "active"
-  | "out_of_stock";
+type ProductRatingCounts =
+  Record<string, number>;
 
-type Product = {
+type ProductRatingLoading =
+  Record<string, boolean>;
+
+type ProductReviewCounts =
+  Record<string, number>;
+
+type SelectedReviewProduct = {
   id: string;
 
   name: string;
 
-  price: number;
-
-  thumbnail: string;
-
-  rating: number;
-
-  sold: number;
-
-  stock: number;
-
-  status: ProductStatus;
-
-  category?: string;
-
-  categoryId?: string;
-
-  workerId?: string;
-
-  storeId?: string;
-
-  serviceId?: string;
-
-  serviceIds?: string[];
-};
-
-type ProductWithDeal =
-  Product & {
-    activeDeal:
-      | ActiveProductDeal
-      | null;
-  };
-
-type SparePartCardProps = {
-  product: ProductWithDeal;
-
-  onBuy: (
-    product: ProductWithDeal,
-  ) => void;
+  workerId: string;
 };
 
 /* ==============================================================
    HELPERS
 ============================================================== */
 
-function normalizeString(
+function chunkWorkerIds(
+  workerIds: string[],
+): string[][] {
+  const batches:
+    string[][] = [];
+
+  for (
+    let index = 0;
+    index < workerIds.length;
+    index +=
+      WORKER_QUERY_BATCH_SIZE
+  ) {
+    batches.push(
+      workerIds.slice(
+        index,
+        index +
+          WORKER_QUERY_BATCH_SIZE,
+      ),
+    );
+  }
+
+  return batches;
+}
+
+function normalizeWorkerRating(
+  value: unknown,
+): number {
+  const parsed =
+    Number(
+      value,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      parsed,
+    ),
+  );
+}
+
+function cleanProfileName(
   value: unknown,
 ): string {
   if (
@@ -125,617 +189,6 @@ function normalizeString(
 
   return value.trim();
 }
-
-function normalizeNumber(
-  value: unknown,
-  fallback = 0,
-): number {
-  if (
-    typeof value ===
-      "number" &&
-    Number.isFinite(
-      value,
-    )
-  ) {
-    return value;
-  }
-
-  if (
-    typeof value ===
-    "string"
-  ) {
-    const parsed =
-      Number(
-        value.replace(
-          /,/g,
-          "",
-        ),
-      );
-
-    if (
-      Number.isFinite(
-        parsed,
-      )
-    ) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-}
-
-function normalizeStatus(
-  value: unknown,
-  stock: number,
-): ProductStatus {
-  if (
-    value ===
-    "out_of_stock"
-  ) {
-    return "out_of_stock";
-  }
-
-  if (
-    stock <= 0
-  ) {
-    return "out_of_stock";
-  }
-
-  return "active";
-}
-
-function normalizeSearch(
-  value: string,
-): string {
-  return value
-    .trim()
-    .toLocaleLowerCase()
-    .replace(
-      /\s+/g,
-      " ",
-    );
-}
-
-function formatPrice(
-  value: number,
-): string {
-  return `₦${new Intl.NumberFormat(
-    "en-NG",
-    {
-      maximumFractionDigits:
-        2,
-    },
-  ).format(value)}`;
-}
-
-function normalizeRating(
-  value: unknown,
-): number {
-  return Math.min(
-    5,
-    Math.max(
-      0,
-      normalizeNumber(
-        value,
-        0,
-      ),
-    ),
-  );
-}
-
-function normalizeCount(
-  value: unknown,
-): number {
-  return Math.max(
-    0,
-    Math.floor(
-      normalizeNumber(
-        value,
-        0,
-      ),
-    ),
-  );
-}
-
-/* ==============================================================
-   VALID DEAL
-============================================================== */
-
-function getValidDeal(
-  product: Product,
-  deal:
-    | ActiveProductDeal
-    | null,
-): ActiveProductDeal | null {
-  if (
-    !deal
-  ) {
-    return null;
-  }
-
-  const originalPrice =
-    normalizeNumber(
-      product.price,
-    );
-
-  const discountedPrice =
-    normalizeNumber(
-      deal.discountedPrice,
-    );
-
-  const discountPercentage =
-    normalizeNumber(
-      deal.discountPercentage,
-    );
-
-  if (
-    originalPrice <= 0 ||
-    discountedPrice <= 0 ||
-    discountedPrice >=
-      originalPrice
-  ) {
-    return null;
-  }
-
-  if (
-    discountPercentage <= 0 ||
-    discountPercentage >= 100
-  ) {
-    return null;
-  }
-
-  return deal;
-}
-
-/* ==============================================================
-   PRODUCT IMAGE
-============================================================== */
-
-const ProductImage =
-  memo(function ProductImage({
-    uri,
-  }: {
-    uri: string;
-  }) {
-    const [
-      failed,
-      setFailed,
-    ] =
-      useState(false);
-
-    useEffect(() => {
-      setFailed(
-        false,
-      );
-    }, [
-      uri,
-    ]);
-
-    if (
-      !uri ||
-      failed
-    ) {
-      return (
-        <View
-          style={
-            styles.imagePlaceholder
-          }
-        >
-          {/* MaterialCommunityIcons intentionally preserved */}
-          <MaterialCommunityIcons
-            name="image-off-outline"
-            size={
-              FixxamTokens.size
-                .iconLg
-            }
-            color={
-              Colors.textMuted
-            }
-          />
-        </View>
-      );
-    }
-
-    return (
-      <Image
-        source={{
-          uri,
-        }}
-        style={
-          styles.productImage
-        }
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        transition={150}
-        accessibilityIgnoresInvertColors
-        onError={() => {
-          setFailed(
-            true,
-          );
-        }}
-      />
-    );
-  });
-
-/* ==============================================================
-   PRODUCT CARD
-============================================================== */
-
-const SparePartCard =
-  memo(function SparePartCard({
-    product,
-    onBuy,
-  }: SparePartCardProps) {
-    const inStock =
-      product.stock > 0 &&
-      product.status ===
-        "active";
-
-    const validDeal =
-      getValidDeal(
-        product,
-        product.activeDeal,
-      );
-
-    const hasDeal =
-      Boolean(
-        validDeal,
-      );
-
-    const originalPrice =
-      normalizeNumber(
-        product.price,
-      );
-
-    const discountedPrice =
-      hasDeal
-        ? normalizeNumber(
-            validDeal
-              ?.discountedPrice,
-          )
-        : originalPrice;
-
-    const discountPercentage =
-      hasDeal
-        ? normalizeNumber(
-            validDeal
-              ?.discountPercentage,
-          )
-        : 0;
-
-    /* ==========================================================
-       OPEN
-    ========================================================== */
-
-    const handleOpen =
-      useCallback(() => {
-        onBuy(
-          product,
-        );
-      }, [
-        onBuy,
-        product,
-      ]);
-
-    /* ==========================================================
-       BUY
-    ========================================================== */
-
-    const handleBuyPress =
-      useCallback(
-        (
-          event:
-            GestureResponderEvent,
-        ) => {
-          event.stopPropagation();
-
-          if (
-            !inStock
-          ) {
-            return;
-          }
-
-          onBuy(
-            product,
-          );
-        },
-        [
-          inStock,
-          onBuy,
-          product,
-        ],
-      );
-
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View ${product.name}`}
-        accessibilityHint="Opens spare part details"
-        onPress={
-          handleOpen
-        }
-        style={({
-          pressed,
-        }) => [
-          styles.productCard,
-
-          pressed
-            ? styles.productCardPressed
-            : null,
-        ]}
-      >
-        {/* ====================================================
-            IMAGE
-        ==================================================== */}
-
-        <View
-          style={
-            styles.imageContainer
-          }
-        >
-          <ProductImage
-            uri={
-              product.thumbnail
-            }
-          />
-
-          {hasDeal ? (
-            <View
-              style={
-                styles.discountBadge
-              }
-            >
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.discountText
-                }
-              >
-                -
-                {discountPercentage.toFixed(
-                  0,
-                )}
-                %
-              </AppText>
-            </View>
-          ) : null}
-        </View>
-
-        {/* ====================================================
-            INFORMATION
-        ==================================================== */}
-
-        <View
-          style={
-            styles.productInfo
-          }
-        >
-          {/* ==================================================
-              NAME
-          ================================================== */}
-
-          <AppText
-            variant="bodyLarge"
-            weight="bold"
-            numberOfLines={2}
-          >
-            {product.name}
-          </AppText>
-
-          {/* ==================================================
-              RATING / STOCK
-          ================================================== */}
-
-          <View
-            style={
-              styles.metaRow
-            }
-          >
-            <View
-              style={
-                styles.ratingRow
-              }
-            >
-              <AppIcon
-                name="star"
-                role="customer"
-                size="xs"
-                color={
-                  Colors.warning
-                }
-              />
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.ratingText
-                }
-              >
-                {product.rating.toFixed(
-                  1,
-                )}
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="muted"
-                style={
-                  styles.reviewText
-                }
-              >
-                ({product.sold})
-              </AppText>
-            </View>
-
-            <View
-              style={
-                styles.stockRow
-              }
-            >
-              <View
-                style={[
-                  styles.stockDot,
-
-                  inStock
-                    ? styles.stockDotAvailable
-                    : styles.stockDotUnavailable,
-                ]}
-              />
-
-              <AppText
-                variant="caption"
-                style={[
-                  styles.stockText,
-
-                  inStock
-                    ? styles.stockTextAvailable
-                    : styles.stockTextUnavailable,
-                ]}
-              >
-                {inStock
-                  ? "In stock"
-                  : "Out of stock"}
-              </AppText>
-            </View>
-          </View>
-
-          {/* ==================================================
-              DEAL
-          ================================================== */}
-
-          <View
-            style={[
-              styles.dealRow,
-
-              !hasDeal
-                ? styles.noDealRow
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="payment"
-              role="customer"
-              size="xs"
-              color={
-                hasDeal
-                  ? Colors.error
-                  : Colors.textMuted
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={[
-                styles.dealText,
-
-                !hasDeal
-                  ? styles.noDealText
-                  : null,
-              ]}
-            >
-              {hasDeal
-                ? `Deal -${discountPercentage.toFixed(
-                    0,
-                  )}%`
-                : "Regular price"}
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              PRICE / BUY
-          ================================================== */}
-
-          <View
-            style={
-              styles.bottomRow
-            }
-          >
-            <View
-              style={
-                styles.priceContainer
-              }
-            >
-              <AppText
-                variant="bodyLarge"
-                weight="bold"
-                numberOfLines={1}
-                style={[
-                  styles.price,
-
-                  hasDeal
-                    ? styles.discountedPrice
-                    : null,
-                ]}
-              >
-                {formatPrice(
-                  hasDeal
-                    ? discountedPrice
-                    : originalPrice,
-                )}
-              </AppText>
-
-              {hasDeal ? (
-                <AppText
-                  variant="caption"
-                  tone="muted"
-                  numberOfLines={1}
-                  style={
-                    styles.originalPrice
-                  }
-                >
-                  {formatPrice(
-                    originalPrice,
-                  )}
-                </AppText>
-              ) : null}
-            </View>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Buy ${product.name}`}
-              accessibilityState={{
-                disabled:
-                  !inStock,
-              }}
-              disabled={
-                !inStock
-              }
-              onPress={
-                handleBuyPress
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.buyButton,
-
-                !inStock
-                  ? styles.buyButtonDisabled
-                  : null,
-
-                pressed &&
-                inStock
-                  ? styles.buyButtonPressed
-                  : null,
-              ]}
-            >
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-                style={
-                  styles.buyButtonText
-                }
-              >
-                Buy
-              </AppText>
-            </Pressable>
-          </View>
-        </View>
-      </Pressable>
-    );
-  });
 
 /* ==============================================================
    SEPARATOR
@@ -756,6 +209,151 @@ function ProductSeparator() {
 ============================================================== */
 
 export default function BuySparePartsScreen() {
+  const params =
+    useLocalSearchParams<
+      SpareProductsParams
+    >();
+
+  /* ============================================================
+     ROUTE / AI CONTEXT
+  ============================================================ */
+
+  const equipmentId =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.equipmentId,
+        ),
+      [
+        params.equipmentId,
+      ],
+    );
+
+  const equipmentName =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.equipmentName,
+        ),
+      [
+        params.equipmentName,
+      ],
+    );
+
+  const brandId =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.brandId,
+        ),
+      [
+        params.brandId,
+      ],
+    );
+
+  const brandName =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.brandName,
+        ),
+      [
+        params.brandName,
+      ],
+    );
+
+  const aiPartName =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.aiPartName,
+        ),
+      [
+        params.aiPartName,
+      ],
+    );
+
+  const aiCategory =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.aiCategory,
+        ),
+      [
+        params.aiCategory,
+      ],
+    );
+
+  const aiSearchQuery =
+    useMemo(
+      () =>
+        normalizeParam(
+          params.aiSearchQuery,
+        ),
+      [
+        params.aiSearchQuery,
+      ],
+    );
+
+  const aiKeywords =
+    useMemo(
+      () =>
+        parseAiKeywords(
+          params.aiKeywords,
+        ),
+      [
+        params.aiKeywords,
+      ],
+    );
+
+  const aiMode =
+    useMemo(
+      () =>
+        normalizeAiMode(
+          params.aiMode,
+        ),
+      [
+        params.aiMode,
+      ],
+    );
+
+  const aiConfidence =
+    useMemo(() => {
+      const value =
+        normalizeNumber(
+          normalizeParam(
+            params.aiConfidence,
+          ),
+          0,
+        );
+
+      return Math.min(
+        1,
+        Math.max(
+          0,
+          value,
+        ),
+      );
+    }, [
+      params.aiConfidence,
+    ]);
+
+  const hasSmartSearch =
+    Boolean(
+      aiPartName ||
+      aiSearchQuery ||
+      aiKeywords.length >
+        0 ||
+      equipmentId ||
+      equipmentName ||
+      brandId ||
+      brandName,
+    );
+
+  /* ============================================================
+     STATE
+  ============================================================ */
+
   const [
     products,
     setProducts,
@@ -796,305 +394,519 @@ export default function BuySparePartsScreen() {
       string | null
     >(null);
 
-  /*
-   * Prevent an older Firestore response
-   * from replacing a newer request.
-   */
+  const [
+    showAllProducts,
+    setShowAllProducts,
+  ] =
+    useState(false);
+
+  /* ============================================================
+     RATING STATE
+  ============================================================ */
+
+  const [
+    ratingCounts,
+    setRatingCounts,
+  ] =
+    useState<ProductRatingCounts>(
+      {},
+    );
+
+  const [
+    ratingLoading,
+    setRatingLoading,
+  ] =
+    useState<ProductRatingLoading>(
+      {},
+    );
+
+  /* ============================================================
+     REVIEW STATE
+  ============================================================ */
+
+  const [
+    reviewCounts,
+    setReviewCounts,
+  ] =
+    useState<ProductReviewCounts>(
+      {},
+    );
+
+  const [
+    selectedReviewProduct,
+    setSelectedReviewProduct,
+  ] =
+    useState<
+      SelectedReviewProduct | null
+    >(null);
+
+  const [
+    reviewSubmitting,
+    setReviewSubmitting,
+  ] =
+    useState(false);
+
   const requestIdRef =
     useRef(0);
 
   /* ============================================================
-     LOAD PRODUCTS + DEALS
+     RESET SMART FALLBACK
+  ============================================================ */
+
+  useEffect(() => {
+    setShowAllProducts(
+      false,
+    );
+  }, [
+    aiPartName,
+    aiSearchQuery,
+    equipmentId,
+    brandId,
+  ]);
+
+  /* ============================================================
+     LOAD PRODUCTS
   ============================================================ */
 
   const loadProducts =
-    useCallback(async () => {
-      const requestId =
-        ++requestIdRef.current;
+    useCallback(
+      async () => {
+        const requestId =
+          ++requestIdRef.current;
 
-      try {
-        setError(
-          null,
-        );
-
-        const productsQuery =
-          query(
-            collection(
-              db,
-              "products",
-            ),
-            where(
-              "status",
-              "==",
-              "active",
-            ),
+        try {
+          setError(
+            null,
           );
 
-        const snapshot =
-          await getDocs(
-            productsQuery,
-          );
-
-        const activeProducts =
-          snapshot.docs.reduce<
-            Product[]
-          >(
-            (
-              items,
-              productDoc,
-            ) => {
-              const data =
-                productDoc.data();
-
-              const name =
-                normalizeString(
-                  data.name,
-                );
-
-              if (
-                !name
-              ) {
-                return items;
-              }
-
-              const price =
-                normalizeNumber(
-                  data.price,
-                  0,
-                );
-
-              if (
-                price < 0
-              ) {
-                return items;
-              }
-
-              const stock =
-                normalizeCount(
-                  data.stock,
-                );
-
-              const status =
-                normalizeStatus(
-                  data.status,
-                  stock,
-                );
-
-              /*
-               * Current catalog only shows
-               * products customers can buy.
-               */
-              if (
-                status !==
-                "active"
-              ) {
-                return items;
-              }
-
-              const serviceIds =
-                Array.isArray(
-                  data.serviceIds,
-                )
-                  ? data.serviceIds
-                      .map(
-                        (
-                          id: unknown,
-                        ) =>
-                          normalizeString(
-                            id,
-                          ),
-                      )
-                      .filter(
-                        Boolean,
-                      )
-                  : [];
-
-              items.push({
-                id:
-                  productDoc.id,
-
-                name,
-
-                price,
-
-                thumbnail:
-                  normalizeString(
-                    data.thumbnail,
-                  ),
-
-                rating:
-                  normalizeRating(
-                    data.rating,
-                  ),
-
-                sold:
-                  normalizeCount(
-                    data.sold,
-                  ),
-
-                stock,
-
-                status,
-
-                category:
-                  normalizeString(
-                    data.category,
-                  ) ||
-                  undefined,
-
-                categoryId:
-                  normalizeString(
-                    data.categoryId,
-                  ) ||
-                  undefined,
-
-                workerId:
-                  normalizeString(
-                    data.workerId,
-                  ) ||
-                  undefined,
-
-                storeId:
-                  normalizeString(
-                    data.storeId,
-                  ) ||
-                  undefined,
-
-                serviceId:
-                  normalizeString(
-                    data.serviceId,
-                  ) ||
-                  undefined,
-
-                serviceIds,
-              });
-
-              return items;
-            },
-            [],
-          );
-
-        /* ======================================================
-           MOST SOLD FIRST
-        ====================================================== */
-
-        activeProducts.sort(
-          (
-            a,
-            b,
-          ) =>
-            b.sold -
-            a.sold,
-        );
-
-        /* ======================================================
-           DEALS
-        ====================================================== */
-
-        const productIds =
-          activeProducts.map(
-            (
-              product,
-            ) =>
-              product.id,
-          );
-
-        let dealsByProductId =
-          new Map<
-            string,
-            ActiveProductDeal
-          >();
-
-        if (
-          productIds.length >
-          0
-        ) {
-          dealsByProductId =
-            await getActiveProductDeals(
-              productIds,
+          const productsQuery =
+            query(
+              collection(
+                db,
+                "products",
+              ),
+              where(
+                "status",
+                "==",
+                "active",
+              ),
             );
-        }
 
-        /* ======================================================
-           MERGE
-        ====================================================== */
+          const snapshot =
+            await getDocs(
+              productsQuery,
+            );
 
-        const productsWithDeals =
-          activeProducts.map(
+          const activeProducts =
+            snapshot.docs.reduce<
+              Product[]
+            >(
+              (
+                items,
+                productDoc,
+              ) => {
+                const data =
+                  productDoc.data();
+
+                const name =
+                  normalizeString(
+                    data.name,
+                  );
+
+                if (
+                  !name
+                ) {
+                  return items;
+                }
+
+                const price =
+                  normalizeNumber(
+                    data.price,
+                    0,
+                  );
+
+                if (
+                  price < 0
+                ) {
+                  return items;
+                }
+
+                const stock =
+                  normalizeCount(
+                    data.stock,
+                  );
+
+                const status =
+                  normalizeStatus(
+                    data.status,
+                    stock,
+                  );
+
+                if (
+                  status !==
+                  "active"
+                ) {
+                  return items;
+                }
+
+                const serviceIds =
+                  normalizeStringArray(
+                    data.serviceIds,
+                  );
+
+                const equipmentIds =
+                  normalizeStringArray(
+                    data.equipmentIds,
+                  );
+
+                const equipmentNames =
+                  normalizeStringArray(
+                    data.equipmentNames,
+                  );
+
+                const keywords =
+                  normalizeStringArray(
+                    data.keywords ??
+                      data.searchKeywords,
+                  );
+
+                const tags =
+                  normalizeStringArray(
+                    data.tags,
+                  );
+
+                items.push({
+                  id:
+                    productDoc.id,
+
+                  name,
+
+                  price,
+
+                  thumbnail:
+                    normalizeString(
+                      data.thumbnail,
+                    ),
+
+                  rating:
+                    normalizeRating(
+                      data.rating,
+                    ),
+
+                  workerRating:
+                    0,
+
+                  sold:
+                    normalizeCount(
+                      data.sold,
+                    ),
+
+                  favoriteCount:
+                    normalizeCount(
+                      data.favoriteCount,
+                    ),
+
+                  ratingCount:
+                    normalizeCount(
+                      data.ratingCount,
+                    ),
+
+                  reviewCount:
+                    normalizeCount(
+                      data.reviewCount,
+                    ),
+
+                  stock,
+
+                  status,
+
+                  category:
+                    normalizeString(
+                      data.category,
+                    ) ||
+                    undefined,
+
+                  categoryId:
+                    normalizeString(
+                      data.categoryId,
+                    ) ||
+                    undefined,
+
+                  workerId:
+                    normalizeString(
+                      data.workerId,
+                    ) ||
+                    undefined,
+
+                  storeId:
+                    normalizeString(
+                      data.storeId,
+                    ) ||
+                    undefined,
+
+                  serviceId:
+                    normalizeString(
+                      data.serviceId,
+                    ) ||
+                    undefined,
+
+                  serviceIds,
+
+                  brandId:
+                    normalizeString(
+                      data.brandId,
+                    ) ||
+                    undefined,
+
+                  brandName:
+                    normalizeString(
+                      data.brandName ??
+                        data.brand,
+                    ) ||
+                    undefined,
+
+                  equipmentId:
+                    normalizeString(
+                      data.equipmentId,
+                    ) ||
+                    undefined,
+
+                  equipmentIds,
+
+                  equipmentName:
+                    normalizeString(
+                      data.equipmentName,
+                    ) ||
+                    undefined,
+
+                  equipmentNames,
+
+                  keywords,
+
+                  tags,
+                });
+
+                return items;
+              },
+              [],
+            );
+
+          /* ====================================================
+             DEFAULT CATALOG ORDER
+          ==================================================== */
+
+          activeProducts.sort(
             (
-              product,
-            ) => {
-              const deal =
-                dealsByProductId.get(
-                  product.id,
-                ) ??
-                null;
+              a,
+              b,
+            ) =>
+              b.sold -
+              a.sold,
+          );
 
-              return {
+          /* ====================================================
+             WORKER IDS
+          ==================================================== */
+
+          const workerIds =
+            Array.from(
+              new Set(
+                activeProducts
+                  .map(
+                    product =>
+                      product.workerId ??
+                      "",
+                  )
+                  .filter(
+                    workerId =>
+                      workerId.length >
+                      0,
+                  ),
+              ),
+            );
+
+          /* ====================================================
+             WORKER RATINGS
+          ==================================================== */
+
+          const workerRatings =
+            new Map<
+              string,
+              number
+            >();
+
+          const workerIdBatches =
+            chunkWorkerIds(
+              workerIds,
+            );
+
+          if (
+            workerIdBatches.length >
+            0
+          ) {
+            const workerSnapshots =
+              await Promise.all(
+                workerIdBatches.map(
+                  workerIdBatch =>
+                    getDocs(
+                      query(
+                        collection(
+                          db,
+                          "workerPublicProfiles",
+                        ),
+                        where(
+                          documentId(),
+                          "in",
+                          workerIdBatch,
+                        ),
+                      ),
+                    ),
+                ),
+              );
+
+            if (
+              requestId !==
+              requestIdRef.current
+            ) {
+              return;
+            }
+
+            for (
+              const workerSnapshot of
+              workerSnapshots
+            ) {
+              for (
+                const workerDoc of
+                workerSnapshot.docs
+              ) {
+                const workerData =
+                  workerDoc.data();
+
+                workerRatings.set(
+                  workerDoc.id,
+                  normalizeWorkerRating(
+                    workerData.rating,
+                  ),
+                );
+              }
+            }
+          }
+
+          /* ====================================================
+             MERGE WORKER RATINGS
+          ==================================================== */
+
+          const productsWithWorkerRatings:
+            Product[] =
+            activeProducts.map(
+              product => ({
                 ...product,
 
-                activeDeal:
-                  getValidDeal(
-                    product,
-                    deal,
-                  ),
-              };
-            },
+                workerRating:
+                  product.workerId
+                    ? workerRatings.get(
+                        product.workerId,
+                      ) ??
+                      0
+                    : 0,
+              }),
+            );
+
+          /* ====================================================
+             ACTIVE DEALS
+          ==================================================== */
+
+          const productIds =
+            productsWithWorkerRatings.map(
+              product =>
+                product.id,
+            );
+
+          const dealsByProductId =
+            productIds.length >
+              0
+              ? await getActiveProductDeals(
+                  productIds,
+                )
+              : new Map();
+
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          /* ====================================================
+             MERGE PRODUCTS + DEALS
+          ==================================================== */
+
+          const productsWithDeals:
+            ProductWithDeal[] =
+            productsWithWorkerRatings.map(
+              product => {
+                const deal =
+                  dealsByProductId.get(
+                    product.id,
+                  ) ??
+                  null;
+
+                return {
+                  ...product,
+
+                  activeDeal:
+                    getValidDeal(
+                      product,
+                      deal,
+                    ),
+                };
+              },
+            );
+
+          setProducts(
+            productsWithDeals,
+          );
+        } catch (
+          loadError: unknown
+        ) {
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "BUY_SPARE_PARTS_LOAD_ERROR:",
+              loadError,
+            );
+          }
+
+          setError(
+            "Unable to load spare parts. Please try again.",
+          );
+        } finally {
+          if (
+            requestId !==
+            requestIdRef.current
+          ) {
+            return;
+          }
+
+          setLoading(
+            false,
           );
 
-        /*
-         * Ignore stale request.
-         */
-        if (
-          requestId !==
-          requestIdRef.current
-        ) {
-          return;
+          setRefreshing(
+            false,
+          );
         }
-
-        setProducts(
-          productsWithDeals,
-        );
-      } catch (
-        loadError
-      ) {
-        if (
-          requestId !==
-          requestIdRef.current
-        ) {
-          return;
-        }
-
-        console.error(
-          "BUY_SPARE_PARTS_LOAD_ERROR:",
-          loadError,
-        );
-
-        /*
-         * Do not destroy already loaded
-         * products when pull-to-refresh
-         * temporarily fails.
-         */
-        setError(
-          "Unable to load spare parts. Please try again.",
-        );
-      } finally {
-        if (
-          requestId !==
-          requestIdRef.current
-        ) {
-          return;
-        }
-
-        setLoading(
-          false,
-        );
-
-        setRefreshing(
-          false,
-        );
-      }
-    }, []);
+      },
+      [],
+    );
 
   /* ============================================================
      INITIAL LOAD
@@ -1104,15 +916,257 @@ export default function BuySparePartsScreen() {
     void loadProducts();
 
     return () => {
-      /*
-       * Invalidates pending request
-       * state updates after unmount.
-       */
       requestIdRef.current +=
         1;
     };
   }, [
     loadProducts,
+  ]);
+
+  /* ============================================================
+     PRODUCT IDS
+  ============================================================ */
+
+  const productIds =
+    useMemo(
+      () =>
+        Array.from(
+          new Set(
+            products
+              .map(
+                product =>
+                  normalizeString(
+                    product.id,
+                  ),
+              )
+              .filter(
+                Boolean,
+              ),
+          ),
+        ),
+      [
+        products,
+      ],
+    );
+
+  /* ============================================================
+     PRODUCT RATING COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setRatingCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        productIds,
+      );
+
+    setRatingCounts(
+      current => {
+        const next:
+          ProductRatingCounts =
+          {};
+
+        for (
+          const productId of
+          productIds
+        ) {
+          next[
+            productId
+          ] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      productIds.map(
+        productId =>
+          subscribeToProductRatingCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setRatingCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            subscriptionError => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "SPARE_PART_RATING_COUNT_ERROR",
+                  {
+                    productId,
+                    error:
+                      subscriptionError,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
+  ]);
+
+  /* ============================================================
+     PRODUCT REVIEW COUNTS
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      productIds.length ===
+      0
+    ) {
+      setReviewCounts(
+        {},
+      );
+
+      return;
+    }
+
+    const activeProductIds =
+      new Set(
+        productIds,
+      );
+
+    setReviewCounts(
+      current => {
+        const next:
+          ProductReviewCounts =
+          {};
+
+        for (
+          const productId of
+          productIds
+        ) {
+          next[
+            productId
+          ] =
+            current[
+              productId
+            ] ??
+            0;
+        }
+
+        return next;
+      },
+    );
+
+    const unsubscribers =
+      productIds.map(
+        productId =>
+          subscribeToProductReviewCount(
+            productId,
+
+            count => {
+              if (
+                !activeProductIds.has(
+                  productId,
+                )
+              ) {
+                return;
+              }
+
+              setReviewCounts(
+                current => {
+                  if (
+                    current[
+                      productId
+                    ] ===
+                    count
+                  ) {
+                    return current;
+                  }
+
+                  return {
+                    ...current,
+
+                    [productId]:
+                      count,
+                  };
+                },
+              );
+            },
+
+            subscriptionError => {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "SPARE_PART_REVIEW_COUNT_ERROR",
+                  {
+                    productId,
+                    error:
+                      subscriptionError,
+                  },
+                );
+              }
+            },
+          ),
+      );
+
+    return () => {
+      activeProductIds.clear();
+
+      unsubscribers.forEach(
+        unsubscribe => {
+          unsubscribe();
+        },
+      );
+    };
+  }, [
+    productIds,
   ]);
 
   /* ============================================================
@@ -1138,7 +1192,7 @@ export default function BuySparePartsScreen() {
     ]);
 
   /* ============================================================
-     SEARCH
+     MANUAL SEARCH
   ============================================================ */
 
   const normalizedSearch =
@@ -1146,50 +1200,204 @@ export default function BuySparePartsScreen() {
       search,
     );
 
-  const hasSearch =
+  const hasManualSearch =
     normalizedSearch.length >
     0;
 
-  const filteredProducts =
+  /* ============================================================
+     AI RANKING
+  ============================================================ */
+
+  const smartRankedProducts =
     useMemo(() => {
       if (
-        !normalizedSearch
+        !hasSmartSearch
       ) {
         return products;
       }
 
-      return products.filter(
+      const ranked:
+        RankedProduct[] =
+        products
+          .map(
+            product => ({
+              product,
+
+              score:
+                calculateAiMatchScore({
+                  product,
+
+                  aiPartName,
+
+                  aiCategory,
+
+                  aiSearchQuery,
+
+                  aiKeywords,
+
+                  equipmentId,
+
+                  equipmentName,
+
+                  brandId,
+
+                  brandName,
+                }),
+            }),
+          )
+          .filter(
+            item =>
+              item.score >
+              0,
+          );
+
+      ranked.sort(
         (
-          product,
+          a,
+          b,
         ) => {
-          const searchableText =
-            [
-              product.name,
+          if (
+            a.score !==
+            b.score
+          ) {
+            return (
+              b.score -
+              a.score
+            );
+          }
 
-              product.category,
-
-              product.categoryId,
-            ]
-              .filter(
-                Boolean,
-              )
-              .join(
-                " ",
-              )
-              .toLocaleLowerCase();
-
-          return searchableText.includes(
-            normalizedSearch,
+          return (
+            b.product.sold -
+            a.product.sold
           );
         },
       );
+
+      return ranked.map(
+        item =>
+          item.product,
+      );
     }, [
-      normalizedSearch,
+      aiCategory,
+      aiKeywords,
+      aiPartName,
+      aiSearchQuery,
+      brandId,
+      brandName,
+      equipmentId,
+      equipmentName,
+      hasSmartSearch,
       products,
     ]);
 
   /* ============================================================
-     PRODUCT DETAILS
+     FINAL PRODUCTS
+  ============================================================ */
+
+  const filteredProducts =
+    useMemo(() => {
+      if (
+        hasManualSearch
+      ) {
+        return products
+          .filter(
+            product =>
+              matchesManualSearch(
+                product,
+                normalizedSearch,
+              ),
+          )
+          .sort(
+            (
+              a,
+              b,
+            ) =>
+              b.sold -
+              a.sold,
+          );
+      }
+
+      if (
+        hasSmartSearch &&
+        !showAllProducts
+      ) {
+        return smartRankedProducts;
+      }
+
+      return products;
+    }, [
+      hasManualSearch,
+      hasSmartSearch,
+      normalizedSearch,
+      products,
+      showAllProducts,
+      smartRankedProducts,
+    ]);
+
+  /* ============================================================
+     SMART SEARCH TITLE
+  ============================================================ */
+
+  const smartSearchTitle =
+    useMemo(() => {
+      if (
+        aiPartName
+      ) {
+        return `Matching ${aiPartName}`;
+      }
+
+      if (
+        equipmentName
+      ) {
+        return `Parts for ${equipmentName}`;
+      }
+
+      return "Fixxam smart match";
+    }, [
+      aiPartName,
+      equipmentName,
+    ]);
+
+  /* ============================================================
+     SMART SEARCH DESCRIPTION
+  ============================================================ */
+
+  const smartSearchDescription =
+    useMemo(() => {
+      if (
+        aiPartName &&
+        equipmentName
+      ) {
+        return `Showing the closest catalog matches for ${aiPartName} and your selected ${equipmentName}.`;
+      }
+
+      if (
+        aiPartName
+      ) {
+        return `Showing products that best match ${aiPartName}.`;
+      }
+
+      if (
+        equipmentName
+      ) {
+        return `Showing products that best match your selected ${equipmentName}.`;
+      }
+
+      if (
+        aiSearchQuery
+      ) {
+        return `Showing products that best match "${aiSearchQuery}".`;
+      }
+
+      return "Showing the closest matches from Fixxam stores.";
+    }, [
+      aiPartName,
+      aiSearchQuery,
+      equipmentName,
+    ]);
+
+  /* ============================================================
+     OPEN PRODUCT
   ============================================================ */
 
   const handleBuy =
@@ -1199,7 +1407,8 @@ export default function BuySparePartsScreen() {
           ProductWithDeal,
       ) => {
         if (
-          product.stock <= 0 ||
+          product.stock <=
+            0 ||
           product.status !==
             "active"
         ) {
@@ -1231,6 +1440,340 @@ export default function BuySparePartsScreen() {
     );
 
   /* ============================================================
+     PRODUCT RATING
+  ============================================================ */
+
+  const handleProductRating =
+    useCallback(
+      async (
+        product:
+          ProductWithDeal,
+      ) => {
+        const productId =
+          normalizeString(
+            product.id,
+          );
+
+        if (
+          !productId ||
+          ratingLoading[
+            productId
+          ]
+        ) {
+          return;
+        }
+
+        setRatingLoading(
+          current => ({
+            ...current,
+
+            [productId]:
+              true,
+          }),
+        );
+
+        try {
+          await toggleProductRating(
+            productId,
+          );
+        } catch (
+          ratingError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "SPARE_PART_RATING_ERROR",
+              {
+                productId,
+
+                error:
+                  ratingError,
+              },
+            );
+          }
+
+          Alert.alert(
+            "Rating",
+            ratingError instanceof
+              Error
+              ? ratingError.message
+              : "Unable to update product rating.",
+          );
+        } finally {
+          setRatingLoading(
+            current => ({
+              ...current,
+
+              [productId]:
+                false,
+            }),
+          );
+        }
+      },
+      [
+        ratingLoading,
+      ],
+    );
+
+  /* ============================================================
+     OPEN PRODUCT REVIEW
+  ============================================================ */
+
+  const handleReviewPress =
+    useCallback(
+      (
+        product:
+          ProductWithDeal,
+      ) => {
+        const productId =
+          normalizeString(
+            product.id,
+          );
+
+        if (
+          !productId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product information is unavailable.",
+          );
+
+          return;
+        }
+
+        const workerId =
+          normalizeString(
+            product.workerId,
+          );
+
+        if (
+          !workerId
+        ) {
+          Alert.alert(
+            "Review",
+            "Product owner information is unavailable.",
+          );
+
+          return;
+        }
+
+        setSelectedReviewProduct({
+          id:
+            productId,
+
+          name:
+            product.name,
+
+          workerId,
+        });
+      },
+      [],
+    );
+
+  /* ============================================================
+     CLOSE PRODUCT REVIEW
+  ============================================================ */
+
+  const handleCloseReview =
+    useCallback(() => {
+      if (
+        reviewSubmitting
+      ) {
+        return;
+      }
+
+      setSelectedReviewProduct(
+        null,
+      );
+    }, [
+      reviewSubmitting,
+    ]);
+
+  /* ============================================================
+     SUBMIT PRODUCT REVIEW
+  ============================================================ */
+
+  const handleSubmitReview =
+    useCallback(
+      async (
+        rating: number,
+        comment: string,
+      ) => {
+        if (
+          !selectedReviewProduct ||
+          reviewSubmitting
+        ) {
+          return;
+        }
+
+        const currentUser =
+          auth.currentUser;
+
+        if (
+          !currentUser
+        ) {
+          Alert.alert(
+            "Sign in required",
+            "You must be signed in to review this product.",
+          );
+
+          return;
+        }
+
+        setReviewSubmitting(
+          true,
+        );
+
+        try {
+          /* ==================================================
+             CUSTOMER PROFILE
+          ================================================== */
+
+          const profileSnapshot =
+            await getDoc(
+              doc(
+                db,
+                "users",
+                currentUser.uid,
+              ),
+            );
+
+          if (
+            !profileSnapshot.exists()
+          ) {
+            Alert.alert(
+              "Review",
+              "Your customer profile could not be found.",
+            );
+
+            return;
+          }
+
+          const profileData =
+            profileSnapshot.data();
+
+          const savedFullName =
+            cleanProfileName(
+              profileData.fullName,
+            );
+
+          const firstName =
+            cleanProfileName(
+              profileData.firstName,
+            );
+
+          const otherName =
+            cleanProfileName(
+              profileData.otherName,
+            );
+
+          const surname =
+            cleanProfileName(
+              profileData.surname,
+            );
+
+          const customerName =
+            savedFullName ||
+            [
+              firstName,
+              otherName,
+              surname,
+            ]
+              .filter(
+                Boolean,
+              )
+              .join(" ");
+
+          if (
+            !customerName
+          ) {
+            Alert.alert(
+              "Review",
+              "Please complete your profile name before submitting a review.",
+            );
+
+            return;
+          }
+
+          /* ==================================================
+             CREATE PRODUCT REVIEW
+          ================================================== */
+
+          await createProductReview({
+            productId:
+              selectedReviewProduct.id,
+
+            productName:
+              selectedReviewProduct.name,
+
+            workerId:
+              selectedReviewProduct.workerId,
+
+            customerName,
+
+            rating,
+
+            comment,
+          });
+
+          /* ==================================================
+             PRESERVE EXISTING WORKER RATING FLOW
+          ================================================== */
+
+          await ensureWorkerRated(
+            selectedReviewProduct.workerId,
+          );
+
+          setSelectedReviewProduct(
+            null,
+          );
+
+          Alert.alert(
+            "Review submitted",
+            "Your product review has been submitted successfully.",
+          );
+        } catch (
+          reviewError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "SPARE_PART_REVIEW_ERROR",
+              {
+                productId:
+                  selectedReviewProduct.id,
+
+                workerId:
+                  selectedReviewProduct.workerId,
+
+                error:
+                  reviewError,
+              },
+            );
+          }
+
+          Alert.alert(
+            "Review",
+            reviewError instanceof
+              Error
+              ? reviewError.message
+              : "Unable to submit your review.",
+          );
+        } finally {
+          setReviewSubmitting(
+            false,
+          );
+        }
+      },
+      [
+        reviewSubmitting,
+        selectedReviewProduct,
+      ],
+    );
+
+  /* ============================================================
      BACK
   ============================================================ */
 
@@ -1255,8 +1798,32 @@ export default function BuySparePartsScreen() {
 
   const handleClearSearch =
     useCallback(() => {
-      setSearch(
-        "",
+      setSearch("");
+    }, []);
+
+  /* ============================================================
+     SHOW ALL
+  ============================================================ */
+
+  const handleShowAll =
+    useCallback(() => {
+      setSearch("");
+
+      setShowAllProducts(
+        true,
+      );
+    }, []);
+
+  /* ============================================================
+     RETURN TO SMART MATCH
+  ============================================================ */
+
+  const handleReturnToSmartMatches =
+    useCallback(() => {
+      setSearch("");
+
+      setShowAllProducts(
+        false,
       );
     }, []);
 
@@ -1283,7 +1850,7 @@ export default function BuySparePartsScreen() {
     ]);
 
   /* ============================================================
-     RENDER ITEM
+     RENDER PRODUCT
   ============================================================ */
 
   const renderProduct =
@@ -1293,18 +1860,52 @@ export default function BuySparePartsScreen() {
       }: {
         item:
           ProductWithDeal;
-      }) => (
-        <SparePartCard
-          product={
-            item
-          }
-          onBuy={
-            handleBuy
-          }
-        />
-      ),
+      }) => {
+        const productId =
+          normalizeString(
+            item.id,
+          );
+
+        const productWithCounts:
+          ProductWithDeal = {
+          ...item,
+
+          ratingCount:
+            ratingCounts[
+              productId
+            ] ??
+            0,
+
+          reviewCount:
+            reviewCounts[
+              productId
+            ] ??
+            0,
+        };
+
+        return (
+          <SparePartCard
+            product={
+              productWithCounts
+            }
+            onBuy={
+              handleBuy
+            }
+            onRating={
+              handleProductRating
+            }
+            onReview={
+              handleReviewPress
+            }
+          />
+        );
+      },
       [
         handleBuy,
+        handleProductRating,
+        handleReviewPress,
+        ratingCounts,
+        reviewCounts,
       ],
     );
 
@@ -1349,15 +1950,11 @@ export default function BuySparePartsScreen() {
   }
 
   /* ============================================================
-     HEADER
+     LIST HEADER
   ============================================================ */
 
   const listHeader = (
     <>
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
-
       <View
         style={
           styles.header
@@ -1366,7 +1963,9 @@ export default function BuySparePartsScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
-          hitSlop={8}
+          hitSlop={
+            8
+          }
           onPress={
             handleBack
           }
@@ -1396,7 +1995,9 @@ export default function BuySparePartsScreen() {
           <AppText
             variant="heading1"
             weight="bold"
-            numberOfLines={1}
+            numberOfLines={
+              1
+            }
           >
             Fixxam Spare Parts
           </AppText>
@@ -1404,7 +2005,9 @@ export default function BuySparePartsScreen() {
           <AppText
             variant="caption"
             tone="secondary"
-            numberOfLines={1}
+            numberOfLines={
+              1
+            }
             style={
               styles.headerSubtitle
             }
@@ -1415,9 +2018,101 @@ export default function BuySparePartsScreen() {
         </View>
       </View>
 
-      {/* ======================================================
-          SEARCH
-      ====================================================== */}
+      {hasSmartSearch &&
+      !hasManualSearch ? (
+        <View
+          style={
+            styles.smartMatchCard
+          }
+        >
+          <View
+            style={
+              styles.smartMatchIcon
+            }
+          >
+            <AppIcon
+              name="search"
+              role="customer"
+              size="sm"
+              state="active"
+            />
+          </View>
+
+          <View
+            style={
+              styles.smartMatchContent
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
+              numberOfLines={
+                1
+              }
+            >
+              {showAllProducts
+                ? "Showing all spare parts"
+                : smartSearchTitle}
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.smartMatchDescription
+              }
+            >
+              {showAllProducts
+                ? "Smart matching is paused while you browse the full catalog."
+                : smartSearchDescription}
+            </AppText>
+
+            {!showAllProducts &&
+            aiMode !==
+              "equipment" &&
+            aiConfidence >
+              0 ? (
+              <AppText
+                variant="caption"
+                tone="muted"
+                style={
+                  styles.confidenceText
+                }
+              >
+                Match confidence:{" "}
+                {Math.round(
+                  aiConfidence *
+                    100,
+                )}
+                %
+              </AppText>
+            ) : null}
+
+            {showAllProducts ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Return to smart matches"
+                onPress={
+                  handleReturnToSmartMatches
+                }
+                style={
+                  styles.smartLink
+                }
+              >
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.smartLinkText
+                  }
+                >
+                  Return to smart matches
+                </AppText>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
 
       <View
         style={[
@@ -1463,7 +2158,9 @@ export default function BuySparePartsScreen() {
           selectionColor={
             CustomerColors.primary
           }
-          autoCorrect={false}
+          autoCorrect={
+            false
+          }
           autoCapitalize="none"
           returnKeyType="search"
           accessibilityLabel="Search for a spare part"
@@ -1472,11 +2169,13 @@ export default function BuySparePartsScreen() {
           }
         />
 
-        {hasSearch ? (
+        {hasManualSearch ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Clear search"
-            hitSlop={8}
+            hitSlop={
+              8
+            }
             onPress={
               handleClearSearch
             }
@@ -1500,9 +2199,22 @@ export default function BuySparePartsScreen() {
         ) : null}
       </View>
 
-      {/* ======================================================
-          REFRESH ERROR
-      ====================================================== */}
+      {hasManualSearch &&
+      hasSmartSearch ? (
+        <View
+          style={
+            styles.manualSearchNotice
+          }
+        >
+          <AppText
+            variant="caption"
+            tone="secondary"
+          >
+            Searching the full Fixxam catalog
+            for "{search.trim()}".
+          </AppText>
+        </View>
+      ) : null}
 
       {error &&
       products.length >
@@ -1536,7 +2248,7 @@ export default function BuySparePartsScreen() {
   );
 
   /* ============================================================
-     EMPTY
+     EMPTY STATE
   ============================================================ */
 
   const listEmpty =
@@ -1551,7 +2263,6 @@ export default function BuySparePartsScreen() {
         <View
           style={[
             styles.emptyIcon,
-
             styles.errorIcon,
           ]}
         >
@@ -1608,7 +2319,6 @@ export default function BuySparePartsScreen() {
             styles.emptyIcon
           }
         >
-          {/* MaterialCommunityIcons intentionally preserved */}
           <MaterialCommunityIcons
             name="package-variant-closed"
             size={
@@ -1629,7 +2339,12 @@ export default function BuySparePartsScreen() {
             styles.emptyTitle
           }
         >
-          No Spare Parts Found
+          {hasManualSearch
+            ? "No Spare Parts Found"
+            : hasSmartSearch &&
+                !showAllProducts
+              ? "No Matching Parts Found"
+              : "No Spare Parts Available"}
         </AppText>
 
         <AppText
@@ -1640,12 +2355,15 @@ export default function BuySparePartsScreen() {
             styles.emptyDescription
           }
         >
-          {hasSearch
+          {hasManualSearch
             ? `No spare part matches "${search.trim()}".`
-            : "There are no spare parts available yet."}
+            : hasSmartSearch &&
+                !showAllProducts
+              ? "We couldn't find a close match in the current Fixxam catalog. You can browse all available spare parts instead."
+              : "There are no spare parts available yet."}
         </AppText>
 
-        {hasSearch ? (
+        {hasManualSearch ? (
           <AppButton
             title="Clear Search"
             role="customer"
@@ -1653,6 +2371,25 @@ export default function BuySparePartsScreen() {
             leftIconName="close"
             onPress={
               handleClearSearch
+            }
+            style={
+              styles.emptyAction
+            }
+          />
+        ) : null}
+
+        {!hasManualSearch &&
+        hasSmartSearch &&
+        !showAllProducts &&
+        products.length >
+          0 ? (
+          <AppButton
+            title="Show All Spare Parts"
+            role="customer"
+            variant="outline"
+            leftIconName="search"
+            onPress={
+              handleShowAll
             }
             style={
               styles.emptyAction
@@ -1703,14 +2440,45 @@ export default function BuySparePartsScreen() {
         onRefresh={
           handleRefresh
         }
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
+        initialNumToRender={
+          8
+        }
+        maxToRenderPerBatch={
+          8
+        }
+        windowSize={
+          7
+        }
         contentContainerStyle={
           styles.listContent
         }
         style={
           styles.screen
+        }
+      />
+
+      {/* ======================================================
+          PRODUCT REVIEW MODAL
+      ====================================================== */}
+
+      <ProductReviewModal
+        visible={
+          selectedReviewProduct !==
+          null
+        }
+        productName={
+          selectedReviewProduct
+            ?.name ??
+          ""
+        }
+        submitting={
+          reviewSubmitting
+        }
+        onClose={
+          handleCloseReview
+        }
+        onSubmit={
+          handleSubmitReview
         }
       />
     </AppScreen>
@@ -1739,10 +2507,6 @@ const styles =
       paddingBottom:
         FixxamTokens.spacing.xxxl,
     },
-
-    /* ========================================================
-       HEADER
-    ======================================================== */
 
     header: {
       minHeight:
@@ -1825,9 +2589,90 @@ const styles =
         FixxamTokens.spacing.xxs,
     },
 
-    /* ========================================================
-       SEARCH
-    ======================================================== */
+    smartMatchCard: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+
+      padding:
+        FixxamTokens.spacing.md,
+
+      borderWidth: 1,
+
+      borderColor:
+        CustomerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.lg,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    smartMatchIcon: {
+      width:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      height:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius
+          .iconButton,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    smartMatchContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    smartMatchDescription: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    confidenceText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    smartLink: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+    },
+
+    smartLinkText: {
+      color:
+        CustomerColors.primary,
+    },
 
     searchContainer: {
       minHeight:
@@ -1920,9 +2765,13 @@ const styles =
           .pressedOpacity,
     },
 
-    /* ========================================================
-       REFRESH ERROR
-    ======================================================== */
+    manualSearchNotice: {
+      marginTop:
+        -FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
     refreshError: {
       flexDirection:
@@ -1958,388 +2807,10 @@ const styles =
         FixxamTokens.spacing.xs,
     },
 
-    /* ========================================================
-       PRODUCT CARD
-    ======================================================== */
-
-    productCard: {
-      minHeight: 158,
-
-      flexDirection:
-        "row",
-
-      padding:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    productCardPressed: {
-      borderColor:
-        CustomerColors.primary,
-
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
     separator: {
       height:
         FixxamTokens.spacing.md,
     },
-
-    /* ========================================================
-       IMAGE
-    ======================================================== */
-
-    imageContainer: {
-      width: 130,
-
-      height: 140,
-
-      flexShrink: 0,
-
-      overflow:
-        "hidden",
-
-      position:
-        "relative",
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    productImage: {
-      width: "100%",
-
-      height: "100%",
-    },
-
-    imagePlaceholder: {
-      flex: 1,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    /* ========================================================
-       DISCOUNT
-    ======================================================== */
-
-    discountBadge: {
-      position:
-        "absolute",
-
-      top:
-        FixxamTokens.spacing.sm,
-
-      right:
-        FixxamTokens.spacing.sm,
-
-      minHeight: 28,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      borderRadius:
-        FixxamTokens.radius.chip,
-
-      backgroundColor:
-        Colors.error,
-    },
-
-    discountText: {
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       PRODUCT INFO
-    ======================================================== */
-
-    productInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.xxs,
-    },
-
-    /* ========================================================
-       META
-    ======================================================== */
-
-    metaRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      flexWrap:
-        "wrap",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    ratingRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    ratingText: {
-      marginLeft:
-        FixxamTokens.spacing.xxs,
-    },
-
-    reviewText: {
-      marginLeft:
-        FixxamTokens.spacing.xxs,
-    },
-
-    stockRow: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    stockDot: {
-      width: 7,
-
-      height: 7,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-    },
-
-    stockDotAvailable: {
-      backgroundColor:
-        Colors.success,
-    },
-
-    stockDotUnavailable: {
-      backgroundColor:
-        Colors.error,
-    },
-
-    stockText: {
-      flexShrink: 0,
-    },
-
-    stockTextAvailable: {
-      color:
-        Colors.textSecondary,
-    },
-
-    stockTextUnavailable: {
-      color:
-        Colors.error,
-    },
-
-    /* ========================================================
-       DEAL
-    ======================================================== */
-
-    dealRow: {
-      alignSelf:
-        "flex-start",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xxs,
-
-      borderRadius:
-        FixxamTokens.radius.chip,
-
-      backgroundColor:
-        Colors.errorSoft,
-    },
-
-    noDealRow: {
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    dealText: {
-      marginLeft:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.error,
-    },
-
-    noDealText: {
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
-       PRICE
-    ======================================================== */
-
-    bottomRow: {
-      flex: 1,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-end",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    priceContainer: {
-      flex: 1,
-
-      minWidth: 0,
-
-      justifyContent:
-        "flex-end",
-    },
-
-    price: {
-      color:
-        CustomerColors.primary,
-    },
-
-    discountedPrice: {
-      color:
-        Colors.error,
-    },
-
-    originalPrice: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      textDecorationLine:
-        "line-through",
-    },
-
-    /* ========================================================
-       BUY
-    ======================================================== */
-
-    buyButton: {
-      minWidth: 76,
-
-      minHeight:
-        FixxamTokens.size
-          .buttonSmallHeight,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      borderRadius:
-        FixxamTokens.radius.chip,
-
-      backgroundColor:
-        CustomerColors.primary,
-    },
-
-    buyButtonPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    buyButtonDisabled: {
-      backgroundColor:
-        Colors.disabled,
-    },
-
-    buyButtonText: {
-      color:
-        Colors.textInverse,
-    },
-
-    /* ========================================================
-       EMPTY / ERROR
-    ======================================================== */
 
     emptyContainer: {
       flex: 1,
@@ -2390,22 +2861,18 @@ const styles =
     },
 
     emptyDescription: {
-      maxWidth: 320,
+      maxWidth: 340,
 
       marginTop:
         FixxamTokens.spacing.sm,
     },
 
     emptyAction: {
-      minWidth: 180,
+      minWidth: 190,
 
       marginTop:
         FixxamTokens.spacing.lg,
     },
-
-    /* ========================================================
-       LOADING
-    ======================================================== */
 
     loadingContainer: {
       flex: 1,

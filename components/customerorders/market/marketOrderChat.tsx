@@ -81,10 +81,6 @@ function MarketOrderChat({
           ? storePhone.trim()
           : "";
 
-      /*
-       * Keep the existing market-chat route
-       * and all existing params unchanged.
-       */
       router.push(
         `/(customer)/orders/market/chat?orderId=${encodeURIComponent(
           cleanOrderId,
@@ -98,16 +94,14 @@ function MarketOrderChat({
       );
     }, [
       orderId,
-      storeId,
       sellerId,
+      storeId,
       storePhone,
     ]);
 
   return (
     <Pressable
-      onPress={
-        handleChat
-      }
+      onPress={handleChat}
       accessibilityRole="button"
       accessibilityLabel="Chat with store"
       style={({
@@ -125,18 +119,19 @@ function MarketOrderChat({
         role="customer"
         size="sm"
         color={
-          Colors.textInverse
+          CustomerColors.primary
         }
       />
 
       <AppText
-        variant="caption"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
+        numberOfLines={1}
         style={
           styles.text
         }
       >
-        CHAT STORE
+        Chat store
       </AppText>
     </Pressable>
   );
@@ -163,11 +158,17 @@ export default MemoizedMarketOrderChat;
 const styles =
   StyleSheet.create({
     button: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
       minHeight:
-        FixxamTokens.size.buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -179,9 +180,10 @@ const styles =
         "center",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         CustomerColors.primary,
@@ -190,24 +192,25 @@ const styles =
         FixxamTokens.radius.button,
 
       backgroundColor:
-        CustomerColors.primary,
+        Colors.surface,
     },
 
     text: {
+      flexShrink:
+        1,
+
       color:
-        Colors.textInverse,
+        CustomerColors.primary,
     },
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

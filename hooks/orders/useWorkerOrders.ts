@@ -23,10 +23,18 @@ import {
 } from "@/firebase/config";
 
 import {
+  subscribeToWorkerShopRequests,
+} from "@/services/shopRequestService";
+
+import {
   getOrderTimestamp,
   mapWorkerMarketOrder,
   mapWorkerServiceOrder,
 } from "@/utils/orders/workerOrderUtils";
+
+import type {
+  FirebaseShopRequest,
+} from "@/types/firebaseShopRequest";
 
 import type {
   WorkerMarketOrder,
@@ -58,12 +66,27 @@ export type WorkerOrderCounts = {
 
 type UseWorkerOrdersResult = {
   orders: WorkerOrder[];
-  serviceOrders: WorkerServiceOrder[];
-  marketOrders: WorkerMarketOrder[];
-  counts: WorkerOrderCounts;
-  total: number;
-  loading: boolean;
-  error: string | null;
+
+  serviceOrders:
+    WorkerServiceOrder[];
+
+  marketOrders:
+    WorkerMarketOrder[];
+
+  shopRequests:
+    FirebaseShopRequest[];
+
+  counts:
+    WorkerOrderCounts;
+
+  total:
+    number;
+
+  loading:
+    boolean;
+
+  error:
+    string | null;
 };
 
 /* ============================================================
@@ -85,7 +108,9 @@ function getFirebaseErrorMessage(
     return `${firebaseError.code}: ${firebaseError.message}`;
   }
 
-  if (error instanceof Error) {
+  if (
+    error instanceof Error
+  ) {
     return error.message;
   }
 
@@ -97,24 +122,53 @@ function getFirebaseErrorMessage(
 ============================================================ */
 
 export default function useWorkerOrders(): UseWorkerOrdersResult {
-  const [serviceOrders, setServiceOrders] =
-    useState<WorkerServiceOrder[]>([]);
+  const [
+    serviceOrders,
+    setServiceOrders,
+  ] =
+    useState<
+      WorkerServiceOrder[]
+    >([]);
 
-  const [marketOrders, setMarketOrders] =
-    useState<WorkerMarketOrder[]>([]);
+  const [
+    marketOrders,
+    setMarketOrders,
+  ] =
+    useState<
+      WorkerMarketOrder[]
+    >([]);
 
-  const [loading, setLoading] =
-    useState<boolean>(true);
+  const [
+    shopRequests,
+    setShopRequests,
+  ] =
+    useState<
+      FirebaseShopRequest[]
+    >([]);
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState<boolean>(
+      true,
+    );
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string | null
+    >(null);
 
   /* ==========================================================
      FIREBASE REALTIME
   ========================================================== */
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
     let unsubscribeBookings:
       | (() => void)
@@ -124,34 +178,90 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
       | (() => void)
       | undefined;
 
-    let bookingsReady = false;
-    let marketReady = false;
+    let unsubscribeShopRequests:
+      | (() => void)
+      | undefined;
 
-    const updateLoading = () => {
-      if (
-        mounted &&
-        bookingsReady &&
-        marketReady
-      ) {
-        setLoading(false);
-      }
-    };
+    let bookingsReady =
+      false;
+
+    let marketReady =
+      false;
+
+    let shopRequestsReady =
+      false;
+
+    /* ========================================================
+       LOADING STATE
+    ======================================================== */
+
+    const updateLoading =
+      () => {
+        if (
+          mounted &&
+          bookingsReady &&
+          marketReady &&
+          shopRequestsReady
+        ) {
+          setLoading(
+            false,
+          );
+        }
+      };
+
+    /* ========================================================
+       AUTH USER
+    ======================================================== */
 
     const handleUser = (
       user: User | null,
     ) => {
-      if (!mounted) {
+      if (
+        !mounted
+      ) {
         return;
       }
+
+      /* ======================================================
+         CLEAN PREVIOUS LISTENERS
+      ====================================================== */
+
+      unsubscribeBookings?.();
+      unsubscribeMarket?.();
+      unsubscribeShopRequests?.();
+
+      unsubscribeBookings =
+        undefined;
+
+      unsubscribeMarket =
+        undefined;
+
+      unsubscribeShopRequests =
+        undefined;
 
       /* ======================================================
          NOT SIGNED IN
       ====================================================== */
 
-      if (!user) {
-        setServiceOrders([]);
-        setMarketOrders([]);
-        setLoading(false);
+      if (
+        !user
+      ) {
+        setServiceOrders(
+          [],
+        );
+
+        setMarketOrders(
+          [],
+        );
+
+        setShopRequests(
+          [],
+        );
+
+        setLoading(
+          false,
+        );
+
         setError(
           "Please sign in to view your orders.",
         );
@@ -162,10 +272,25 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
       const workerId =
         user.uid.trim();
 
-      if (!workerId) {
-        setServiceOrders([]);
-        setMarketOrders([]);
-        setLoading(false);
+      if (
+        !workerId
+      ) {
+        setServiceOrders(
+          [],
+        );
+
+        setMarketOrders(
+          [],
+        );
+
+        setShopRequests(
+          [],
+        );
+
+        setLoading(
+          false,
+        );
+
         setError(
           "Unable to identify the worker account.",
         );
@@ -177,56 +302,80 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
          RESET
       ====================================================== */
 
-      setLoading(true);
-      setError(null);
+      setLoading(
+        true,
+      );
 
-      bookingsReady = false;
-      marketReady = false;
+      setError(
+        null,
+      );
+
+      bookingsReady =
+        false;
+
+      marketReady =
+        false;
+
+      shopRequestsReady =
+        false;
 
       /* ======================================================
          SERVICE BOOKINGS
       ====================================================== */
 
-      const bookingsQuery = query(
-        collection(
-          db,
-          "bookings",
-        ),
-        where(
-          "workerId",
-          "==",
-          workerId,
-        ),
-      );
+      const bookingsQuery =
+        query(
+          collection(
+            db,
+            "bookings",
+          ),
+
+          where(
+            "workerId",
+            "==",
+            workerId,
+          ),
+        );
 
       unsubscribeBookings =
         onSnapshot(
           bookingsQuery,
 
-          (snapshot) => {
-            if (!mounted) {
+          (
+            snapshot,
+          ) => {
+            if (
+              !mounted
+            ) {
               return;
             }
 
             const nextOrders =
               snapshot.docs
-                .map((document) =>
-                  mapWorkerServiceOrder(
-                    document.id,
-                    document.data(),
-                  ),
+                .map(
+                  (
+                    document,
+                  ) =>
+                    mapWorkerServiceOrder(
+                      document.id,
+                      document.data(),
+                    ),
                 )
                 .filter(
                   (
-                    order: WorkerServiceOrder,
+                    order:
+                      WorkerServiceOrder,
                   ) =>
                     order.deletedByWorker !==
                     true,
                 )
                 .sort(
                   (
-                    a: WorkerServiceOrder,
-                    b: WorkerServiceOrder,
+                    a:
+                      WorkerServiceOrder,
+
+                    b:
+                      WorkerServiceOrder,
                   ) =>
                     getOrderTimestamp(
                       b.createdAt,
@@ -240,26 +389,39 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
               nextOrders,
             );
 
-            bookingsReady = true;
+            bookingsReady =
+              true;
+
             updateLoading();
           },
 
-          (listenerError) => {
-            if (!mounted) {
+          (
+            listenerError,
+          ) => {
+            if (
+              !mounted
+            ) {
               return;
             }
 
-            console.error(
-              "WORKER_SERVICE_ORDERS_ERROR",
-              {
-                code:
-                  listenerError.code,
-                message:
-                  listenerError.message,
-              },
-            );
+            if (
+              __DEV__
+            ) {
+              console.error(
+                "WORKER_SERVICE_ORDERS_ERROR",
+                {
+                  code:
+                    listenerError.code,
 
-            setServiceOrders([]);
+                  message:
+                    listenerError.message,
+                },
+              );
+            }
+
+            setServiceOrders(
+              [],
+            );
 
             setError(
               `Unable to load service orders: ${getFirebaseErrorMessage(
@@ -267,7 +429,9 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
               )}`,
             );
 
-            bookingsReady = true;
+            bookingsReady =
+              true;
+
             updateLoading();
           },
         );
@@ -282,6 +446,7 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
             db,
             "orders",
           ),
+
           where(
             "workerId",
             "==",
@@ -293,30 +458,41 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
         onSnapshot(
           marketOrdersQuery,
 
-          (snapshot) => {
-            if (!mounted) {
+          (
+            snapshot,
+          ) => {
+            if (
+              !mounted
+            ) {
               return;
             }
 
             const nextOrders =
               snapshot.docs
-                .map((document) =>
-                  mapWorkerMarketOrder(
-                    document.id,
-                    document.data(),
-                  ),
+                .map(
+                  (
+                    document,
+                  ) =>
+                    mapWorkerMarketOrder(
+                      document.id,
+                      document.data(),
+                    ),
                 )
                 .filter(
                   (
-                    order: WorkerMarketOrder,
+                    order:
+                      WorkerMarketOrder,
                   ) =>
                     order.deletedByWorker !==
                     true,
                 )
                 .sort(
                   (
-                    a: WorkerMarketOrder,
-                    b: WorkerMarketOrder,
+                    a:
+                      WorkerMarketOrder,
+
+                    b:
+                      WorkerMarketOrder,
                   ) =>
                     getOrderTimestamp(
                       b.createdAt,
@@ -330,26 +506,39 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
               nextOrders,
             );
 
-            marketReady = true;
+            marketReady =
+              true;
+
             updateLoading();
           },
 
-          (listenerError) => {
-            if (!mounted) {
+          (
+            listenerError,
+          ) => {
+            if (
+              !mounted
+            ) {
               return;
             }
 
-            console.error(
-              "WORKER_MARKET_ORDERS_ERROR",
-              {
-                code:
-                  listenerError.code,
-                message:
-                  listenerError.message,
-              },
-            );
+            if (
+              __DEV__
+            ) {
+              console.error(
+                "WORKER_MARKET_ORDERS_ERROR",
+                {
+                  code:
+                    listenerError.code,
 
-            setMarketOrders([]);
+                  message:
+                    listenerError.message,
+                },
+              );
+            }
+
+            setMarketOrders(
+              [],
+            );
 
             setError(
               `Unable to load market orders: ${getFirebaseErrorMessage(
@@ -357,7 +546,83 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
               )}`,
             );
 
-            marketReady = true;
+            marketReady =
+              true;
+
+            updateLoading();
+          },
+        );
+
+      /* ======================================================
+         SHOP REQUESTS
+      ====================================================== */
+
+      unsubscribeShopRequests =
+        subscribeToWorkerShopRequests(
+          workerId,
+
+          (
+            requests,
+          ) => {
+            if (
+              !mounted
+            ) {
+              return;
+            }
+
+            const nextRequests =
+              [...requests].sort(
+                (
+                  a,
+                  b,
+                ) =>
+                  getOrderTimestamp(
+                    b.createdAt,
+                  ) -
+                  getOrderTimestamp(
+                    a.createdAt,
+                  ),
+              );
+
+            setShopRequests(
+              nextRequests,
+            );
+
+            shopRequestsReady =
+              true;
+
+            updateLoading();
+          },
+
+          (
+            listenerError,
+          ) => {
+            if (
+              !mounted
+            ) {
+              return;
+            }
+
+            if (
+              __DEV__
+            ) {
+              console.error(
+                "WORKER_SHOP_REQUESTS_ERROR",
+                listenerError,
+              );
+            }
+
+            setShopRequests(
+              [],
+            );
+
+            setError(
+              "Unable to load shop requests.",
+            );
+
+            shopRequestsReady =
+              true;
+
             updateLoading();
           },
         );
@@ -378,82 +643,157 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
     ======================================================== */
 
     return () => {
-  mounted = false;
+      mounted =
+        false;
 
-  unsubscribeAuth();
+      unsubscribeAuth();
 
-  unsubscribeBookings?.();
+      unsubscribeBookings?.();
 
-  unsubscribeMarket?.();
-};
+      unsubscribeMarket?.();
+
+      unsubscribeShopRequests?.();
+    };
   }, []);
 
   /* ==========================================================
-     ALL ORDERS
+     ALL STANDARD ORDERS
   ========================================================== */
 
-  const orders = useMemo<WorkerOrder[]>(
-    () => {
-      return [
-        ...serviceOrders,
-        ...marketOrders,
-      ].sort(
-        (
-          a: WorkerOrder,
-          b: WorkerOrder,
-        ) =>
-          getOrderTimestamp(
-            b.createdAt,
-          ) -
-          getOrderTimestamp(
-            a.createdAt,
-          ),
-      );
-    },
-    [
-      serviceOrders,
-      marketOrders,
-    ],
-  );
+  const orders =
+    useMemo<
+      WorkerOrder[]
+    >(
+      () => {
+        return [
+          ...serviceOrders,
+          ...marketOrders,
+        ].sort(
+          (
+            a:
+              WorkerOrder,
+
+            b:
+              WorkerOrder,
+          ) =>
+            getOrderTimestamp(
+              b.createdAt,
+            ) -
+            getOrderTimestamp(
+              a.createdAt,
+            ),
+        );
+      },
+      [
+        serviceOrders,
+        marketOrders,
+      ],
+    );
 
   /* ==========================================================
      COUNTS
   ========================================================== */
 
   const counts =
-    useMemo<WorkerOrderCounts>(
+    useMemo<
+      WorkerOrderCounts
+    >(
       () => {
-        const result: WorkerOrderCounts =
-          {
-            all: orders.length,
-            pending: 0,
-            active: 0,
-            completed: 0,
-            cancelled: 0,
+        const result:
+          WorkerOrderCounts = {
+            all:
+              orders.length +
+              shopRequests.length,
+
+            pending:
+              0,
+
+            active:
+              0,
+
+            completed:
+              0,
+
+            cancelled:
+              0,
           };
 
+        /* ====================================================
+           SERVICE + MARKET
+        ==================================================== */
+
         for (
-          const order of orders
+          const order of
+          orders
         ) {
           switch (
             order.status
           ) {
             case "pending":
-              result.pending += 1;
+              result.pending +=
+                1;
+
               break;
 
             case "accepted":
             case "in-progress":
-              result.active += 1;
+              result.active +=
+                1;
+
               break;
 
             case "completed":
-              result.completed += 1;
+              result.completed +=
+                1;
+
               break;
 
             case "cancelled":
             case "expired":
-              result.cancelled += 1;
+              result.cancelled +=
+                1;
+
+              break;
+
+            default:
+              break;
+          }
+        }
+
+        /* ====================================================
+           SHOP REQUESTS
+        ==================================================== */
+
+        for (
+          const request of
+          shopRequests
+        ) {
+          switch (
+            request.status
+          ) {
+            case "pending":
+              result.pending +=
+                1;
+
+              break;
+
+            case "accepted":
+              result.active +=
+                1;
+
+              break;
+
+            case "completed":
+              result.completed +=
+                1;
+
+              break;
+
+            case "cancelled":
+            case "declined":
+              result.cancelled +=
+                1;
+
               break;
 
             default:
@@ -463,8 +803,19 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
 
         return result;
       },
-      [orders],
+      [
+        orders,
+        shopRequests,
+      ],
     );
+
+  /* ==========================================================
+     TOTAL
+  ========================================================== */
+
+  const total =
+    orders.length +
+    shopRequests.length;
 
   /* ==========================================================
      RETURN
@@ -472,11 +823,19 @@ export default function useWorkerOrders(): UseWorkerOrdersResult {
 
   return {
     orders,
+
     serviceOrders,
+
     marketOrders,
+
+    shopRequests,
+
     counts,
-    total: orders.length,
+
+    total,
+
     loading,
+
     error,
   };
 }

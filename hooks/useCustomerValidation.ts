@@ -1,5 +1,13 @@
 import { showError } from "@/utils/showToast";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type RegistrationSource =
+  | "new"
+  | "worker";
+
 type StepOneProps = {
   firstName: string;
   surname: string;
@@ -33,137 +41,414 @@ type CompleteCustomerRegistrationProps = {
 
   acceptedTerms: boolean;
 
-  isLoggedIn: boolean;
+  registrationSource?: RegistrationSource;
 };
+
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MIN_NAME_LENGTH = 2;
+const MAX_NAME_LENGTH = 20;
+
+const MIN_PASSWORD_LENGTH = 6;
+const MAX_PASSWORD_LENGTH = 20;
+
+const NIGERIAN_PHONE_REGEX =
+  /^\d{10}$/;
+
+const EMAIL_REGEX =
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* ==============================================================
+   STEP ONE — PERSONAL INFORMATION
+============================================================== */
 
 export function validateCustomerStepOne({
   firstName,
   surname,
-}: StepOneProps) {
+}: StepOneProps): boolean {
+  const normalizedFirstName =
+    firstName.trim();
 
-  if (!firstName.trim() || !surname.trim()) {
+  const normalizedSurname =
+    surname.trim();
+
+  /*
+   * First name
+   */
+  if (!normalizedFirstName) {
     showError(
       "Missing Information",
-      "Please complete your personal information."
+      "Please enter your first name.",
     );
+
     return false;
   }
 
   if (
-    firstName.trim().length < 2 ||
-    firstName.trim().length > 20
+    normalizedFirstName.length <
+      MIN_NAME_LENGTH ||
+    normalizedFirstName.length >
+      MAX_NAME_LENGTH
   ) {
     showError(
       "Invalid First Name",
-      "First name must be between 2 and 20 characters."
+      `First name must be between ${MIN_NAME_LENGTH} and ${MAX_NAME_LENGTH} characters.`,
     );
+
+    return false;
+  }
+
+  /*
+   * Surname
+   */
+  if (!normalizedSurname) {
+    showError(
+      "Missing Information",
+      "Please enter your surname.",
+    );
+
     return false;
   }
 
   if (
-    surname.trim().length < 2 ||
-    surname.trim().length > 20
+    normalizedSurname.length <
+      MIN_NAME_LENGTH ||
+    normalizedSurname.length >
+      MAX_NAME_LENGTH
   ) {
     showError(
       "Invalid Surname",
-      "Surname must be between 2 and 20 characters."
+      `Surname must be between ${MIN_NAME_LENGTH} and ${MAX_NAME_LENGTH} characters.`,
     );
+
     return false;
   }
 
   return true;
 }
+
+/* ==============================================================
+   STEP TWO — CONTACT & VERIFICATION
+============================================================== */
 
 export function validateCustomerStepTwo({
   email,
   phone,
   emailVerified,
   phoneVerified,
-}: StepTwoProps) {
+}: StepTwoProps): boolean {
+  const normalizedEmail =
+    email.trim();
 
-  if (!email.trim() && !phone.trim()) {
+  const normalizedPhone =
+    phone.trim();
+
+  const hasEmail =
+    Boolean(normalizedEmail);
+
+  const hasPhone =
+    Boolean(normalizedPhone);
+
+  /*
+   * Exactly ONE contact method is required.
+   */
+  if (!hasEmail && !hasPhone) {
     showError(
       "Contact Required",
-      "Enter your email or phone number."
+      "Enter your email or phone number.",
     );
+
     return false;
   }
 
-  if (email.trim() && !emailVerified) {
+  /*
+   * Email and phone cannot both
+   * be used in this signup flow.
+   */
+  if (hasEmail && hasPhone) {
     showError(
-      "Email Not Verified",
-      "Verify your email first."
+      "Choose One Contact",
+      "Enter either your email or phone number.",
     );
+
     return false;
   }
 
-  if (phone.trim() && !phoneVerified) {
-    showError(
-      "Phone Not Verified",
-      "Verify your phone number first."
-    );
-    return false;
+  /*
+   * EMAIL REGISTRATION
+   */
+  if (hasEmail) {
+    if (
+      !EMAIL_REGEX.test(
+        normalizedEmail,
+      )
+    ) {
+      showError(
+        "Invalid Email",
+        "Please enter a valid email address.",
+      );
+
+      return false;
+    }
+
+    if (!emailVerified) {
+      showError(
+        "Email Not Verified",
+        "Verify your email first.",
+      );
+
+      return false;
+    }
+
+    return true;
   }
 
-  return true;
+  /*
+   * PHONE REGISTRATION
+   */
+  if (hasPhone) {
+    /*
+     * CustomerContactInfo normalizes
+     * Nigerian phone numbers to:
+     *
+     * 9121350789
+     */
+    if (
+      !NIGERIAN_PHONE_REGEX.test(
+        normalizedPhone,
+      )
+    ) {
+      showError(
+        "Invalid Phone Number",
+        "Enter a valid Nigerian phone number.",
+      );
+
+      return false;
+    }
+
+    if (!phoneVerified) {
+      showError(
+        "Phone Not Verified",
+        "Verify your phone number first.",
+      );
+
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
 }
+
+/* ==============================================================
+   STEP THREE — PASSWORD
+============================================================== */
 
 export function validateCustomerStepThree({
   password,
   confirmPassword,
-}: StepThreeProps) {
-
-  if (!password || !confirmPassword) {
+}: StepThreeProps): boolean {
+  if (
+    !password ||
+    !confirmPassword
+  ) {
     showError(
       "Password Required",
-      "Enter your password."
+      "Enter your password.",
     );
+
     return false;
   }
 
   if (
-    password.length < 6 ||
-    password.length > 20
+    password.length <
+      MIN_PASSWORD_LENGTH ||
+    password.length >
+      MAX_PASSWORD_LENGTH
   ) {
     showError(
       "Invalid Password",
-      "Password must be between 6 and 20 characters."
+      `Password must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters.`,
     );
+
     return false;
   }
 
-  if (password !== confirmPassword) {
+  if (
+    password !==
+    confirmPassword
+  ) {
     showError(
       "Password Mismatch",
-      "Passwords do not match."
+      "Passwords do not match.",
     );
+
     return false;
   }
 
   return true;
 }
 
-export function validateCompleteCustomerRegistration({
-  firstName,
-  surname,
-  otherName,
+/* ==============================================================
+   OTHER NAME VALIDATION
+============================================================== */
 
-  email,
-  phone,
+function validateOtherName(
+  otherName: string,
+): boolean {
+  const normalizedOtherName =
+    otherName.trim();
 
-  emailVerified,
-  phoneVerified,
-
-  password,
-  confirmPassword,
-
-  acceptedTerms,
-
-  isLoggedIn,
-}: CompleteCustomerRegistrationProps) {
+  /*
+   * Other name is optional.
+   */
+  if (!normalizedOtherName) {
+    return true;
+  }
 
   if (
-    !isLoggedIn &&
+    normalizedOtherName.length >
+    MAX_NAME_LENGTH
+  ) {
+    showError(
+      "Invalid Other Name",
+      `Other name cannot exceed ${MAX_NAME_LENGTH} characters.`,
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+/* ==============================================================
+   EMAIL VALIDATION
+============================================================== */
+
+function validateEmail(
+  email: string,
+): boolean {
+  const normalizedEmail =
+    email.trim();
+
+  /*
+   * Email is optional at this helper
+   * level because phone registration
+   * is supported.
+   */
+  if (!normalizedEmail) {
+    return true;
+  }
+
+  if (
+    !EMAIL_REGEX.test(
+      normalizedEmail,
+    )
+  ) {
+    showError(
+      "Invalid Email",
+      "Please enter a valid email address.",
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+/* ==============================================================
+   PHONE VALIDATION
+============================================================== */
+
+function validatePhone(
+  phone: string,
+): boolean {
+  const normalizedPhone =
+    phone.trim();
+
+  /*
+   * Phone is optional because email
+   * registration is supported.
+   */
+  if (!normalizedPhone) {
+    return true;
+  }
+
+  /*
+   * CustomerContactInfo normalizes
+   * supported Nigerian numbers to:
+   *
+   * 9121350789
+   */
+  if (
+    !NIGERIAN_PHONE_REGEX.test(
+      normalizedPhone,
+    )
+  ) {
+    showError(
+      "Invalid Phone Number",
+      "Enter a valid Nigerian phone number.",
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+/* ==============================================================
+   TERMS VALIDATION
+============================================================== */
+
+function validateTerms(
+  acceptedTerms: boolean,
+): boolean {
+  if (acceptedTerms) {
+    return true;
+  }
+
+  showError(
+    "Terms Required",
+    "Accept the Terms & Conditions.",
+  );
+
+  return false;
+}
+
+/* ==============================================================
+   COMPLETE CUSTOMER REGISTRATION
+============================================================== */
+
+export function validateCompleteCustomerRegistration(
+  data: CompleteCustomerRegistrationProps,
+): boolean {
+  const {
+    firstName,
+    surname,
+    otherName,
+
+    email,
+    phone,
+
+    emailVerified,
+    phoneVerified,
+
+    password,
+    confirmPassword,
+
+    acceptedTerms,
+
+    registrationSource = "new",
+  } = data;
+
+  /* ============================================================
+     PERSONAL INFORMATION
+  ============================================================ */
+
+  if (
     !validateCustomerStepOne({
       firstName,
       surname,
@@ -172,8 +457,89 @@ export function validateCompleteCustomerRegistration({
     return false;
   }
 
+  /* ============================================================
+     OTHER NAME
+  ============================================================ */
+
   if (
-    !isLoggedIn &&
+    !validateOtherName(
+      otherName,
+    )
+  ) {
+    return false;
+  }
+
+  /* ============================================================
+     WORKER → CUSTOMER
+     
+     IMPORTANT:
+     
+     A worker already has:
+     
+     - Firebase Auth account
+     - Firebase Auth email
+     - existing password
+     - verified authentication state
+     
+     Therefore we MUST NOT use the
+     new-customer contact/password
+     validation here.
+     
+     Firebase Auth verification is
+     handled by useCustomerRegistration()
+     through:
+     
+       reauthenticateWithCredential()
+       reload()
+       currentUser.emailVerified
+  ============================================================ */
+
+  if (
+    registrationSource ===
+    "worker"
+  ) {
+    /*
+     * Worker must accept the customer
+     * terms before adding the customer
+     * role.
+     */
+    if (
+      !validateTerms(
+        acceptedTerms,
+      )
+    ) {
+      return false;
+    }
+
+    /*
+     * Email/password verification is
+     * intentionally NOT performed here.
+     *
+     * Do NOT trust:
+     *
+     *   emailVerified
+     *   password
+     *   confirmPassword
+     *
+     * from the form for the worker path.
+     *
+     * The registration service performs
+     * the authoritative Firebase check.
+     */
+    return true;
+  }
+
+  /* ============================================================
+     NEW CUSTOMER
+     
+     Normal email/phone registration.
+  ============================================================ */
+
+  /* ------------------------------------------------------------
+     CONTACT & VERIFICATION
+  ------------------------------------------------------------ */
+
+  if (
     !validateCustomerStepTwo({
       email,
       phone,
@@ -184,6 +550,10 @@ export function validateCompleteCustomerRegistration({
     return false;
   }
 
+  /* ------------------------------------------------------------
+     PASSWORD
+  ------------------------------------------------------------ */
+
   if (
     !validateCustomerStepThree({
       password,
@@ -193,59 +563,35 @@ export function validateCompleteCustomerRegistration({
     return false;
   }
 
-  if (
-    otherName.trim() &&
-    otherName.trim().length > 20
-  ) {
-    showError(
-      "Invalid Other Name",
-      "Other name cannot exceed 20 characters."
-    );
-    return false;
-  }
-
-  const emailRegex =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  /* ------------------------------------------------------------
+     EMAIL FORMAT
+  ------------------------------------------------------------ */
 
   if (
-    email.trim() &&
-    !emailRegex.test(email.trim())
+    !validateEmail(email)
   ) {
-    showError(
-      "Invalid Email",
-      "Please enter a valid email address."
-    );
     return false;
   }
 
-  if (phone.trim()) {
+  /* ------------------------------------------------------------
+     PHONE FORMAT
+  ------------------------------------------------------------ */
 
-    const phoneRegex =
-      /^0\d{10}$/;
-
-    if (!phoneRegex.test(phone.trim())) {
-      showError(
-        "Invalid Phone Number",
-        "Phone number must be exactly 11 digits."
-      );
-      return false;
-    }
-
-  }
-
-  if (!acceptedTerms) {
-    showError(
-      "Terms Required",
-      "Accept the Terms & Conditions."
-    );
+  if (
+    !validatePhone(phone)
+  ) {
     return false;
   }
 
-  if (!email.trim()) {
-    showError(
-      "Email Required",
-      "Email is currently required to create a customer account."
-    );
+  /* ------------------------------------------------------------
+     TERMS
+  ------------------------------------------------------------ */
+
+  if (
+    !validateTerms(
+      acceptedTerms,
+    )
+  ) {
     return false;
   }
 

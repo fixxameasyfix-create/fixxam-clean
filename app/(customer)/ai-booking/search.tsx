@@ -37,8 +37,20 @@ import {
 } from "@/utils/aiBooking/imageToBase64";
 
 import {
+  AiBookingFlowError,
+  getAiBookingErrorDebugInfo,
+  getAiBookingErrorState,
+  type AiBookingErrorState,
+} from "@/utils/aiBooking/aiBookingError";
+
+import {
   resolveAiBookingRequest,
 } from "@/firebase/queries/aiBooking/resolveAiBooking";
+
+import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
 
 /* ==============================================================
    TYPES
@@ -112,6 +124,70 @@ function normalizeReason(
 }
 
 /* ==============================================================
+   COORDINATES
+============================================================== */
+
+function hasValidCoordinates(
+  latitude: unknown,
+  longitude: unknown,
+): latitude is number {
+  return (
+    typeof latitude ===
+      "number" &&
+    Number.isFinite(
+      latitude,
+    ) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    typeof longitude ===
+      "number" &&
+    Number.isFinite(
+      longitude,
+    ) &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/* ==============================================================
+   STRING
+============================================================== */
+
+function getRequiredString(
+  value: unknown,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return "";
+  }
+
+  return value.trim();
+}
+
+/* ==============================================================
+   NUMBER
+============================================================== */
+
+function getSafeNumber(
+  value: unknown,
+  fallback = 0,
+): number {
+  if (
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return fallback;
+  }
+
+  return value;
+}
+
+/* ==============================================================
    SCREEN
 ============================================================== */
 
@@ -142,10 +218,12 @@ export default function AiBookingSearchScreen() {
     );
 
   const [
-    error,
-    setError,
+    searchError,
+    setSearchError,
   ] =
-    useState(false);
+    useState<AiBookingErrorState | null>(
+      null,
+    );
 
   const [
     aiResponse,
@@ -195,7 +273,9 @@ export default function AiBookingSearchScreen() {
       startedRef.current =
         true;
 
-      setError(false);
+      setSearchError(
+        null,
+      );
 
       setAiResponse(
         null,
@@ -242,6 +322,39 @@ export default function AiBookingSearchScreen() {
         }
 
         /* ======================================================
+           LOCATION
+        ====================================================== */
+
+        const latitude =
+          location?.latitude;
+
+        const longitude =
+          location?.longitude;
+
+        if (
+          !hasValidCoordinates(
+            latitude,
+            longitude,
+          )
+        ) {
+          if (
+            !mountedRef.current
+          ) {
+            return;
+          }
+
+          setSearchError(
+            getAiBookingErrorState(
+              new AiBookingFlowError(
+                "location-unavailable",
+              ),
+            ),
+          );
+
+          return;
+        }
+
+        /* ======================================================
            PHOTO
         ====================================================== */
 
@@ -260,16 +373,45 @@ export default function AiBookingSearchScreen() {
             );
           }
 
-          const image =
-            await imageToBase64(
-              photoUri,
+          try {
+            const image =
+              await imageToBase64(
+                photoUri,
+              );
+
+            imageBase64 =
+              image.base64;
+
+            mimeType =
+              image.mimeType;
+          } catch (
+            imageError: unknown
+          ) {
+            if (__DEV__) {
+              console.log(
+                "AI_BOOKING_IMAGE_ERROR",
+                getAiBookingErrorDebugInfo(
+                  imageError,
+                ),
+              );
+            }
+
+            if (
+              !mountedRef.current
+            ) {
+              return;
+            }
+
+            setSearchError(
+              getAiBookingErrorState(
+                new AiBookingFlowError(
+                  "image-processing",
+                ),
+              ),
             );
 
-          imageBase64 =
-            image.base64;
-
-          mimeType =
-            image.mimeType;
+            return;
+          }
         }
 
         if (
@@ -300,14 +442,13 @@ export default function AiBookingSearchScreen() {
               mimeType ||
               undefined,
 
-            latitude:
-              location?.latitude,
+            latitude,
 
-            longitude:
-              location?.longitude,
+            longitude,
 
             address:
-              location?.address,
+              location?.address?.trim() ||
+              undefined,
           });
 
         if (
@@ -356,6 +497,61 @@ export default function AiBookingSearchScreen() {
           return;
         }
 
+        const serviceId =
+          getRequiredString(
+            result.service.id,
+          );
+
+        const serviceName =
+          getRequiredString(
+            result.service.name,
+          );
+
+        const fulfillmentMode:
+          ServiceFulfillmentMode | null =
+          isServiceFulfillmentMode(
+            result.service
+              .fulfillmentMode,
+          )
+            ? result.service
+                .fulfillmentMode
+            : null;
+
+        if (
+          !serviceId ||
+          !serviceName ||
+          !fulfillmentMode
+        ) {
+          setSearchError(
+            getAiBookingErrorState(
+              new AiBookingFlowError(
+                "invalid-response",
+              ),
+            ),
+          );
+
+          return;
+        }
+
+        /*
+         * The backend should already block this,
+         * but keep the client defensive too.
+         */
+        if (
+          fulfillmentMode ===
+          "needs_review"
+        ) {
+          setAiResponse({
+            message:
+              "This service is still being configured for automatic booking. Please choose the service manually.",
+
+            reason:
+              "unsupported_service",
+          });
+
+          return;
+        }
+
         /* ======================================================
            WORKER
         ====================================================== */
@@ -365,7 +561,7 @@ export default function AiBookingSearchScreen() {
         ) {
           setAiResponse({
             message:
-              `We found the ${result.service.name} service, but no professional is available right now. Please try again later or choose another service manually.`,
+              `We found the ${serviceName} service, but no professional is available right now. Please try again later or choose another service manually.`,
 
             reason:
               "no_worker",
@@ -374,6 +570,34 @@ export default function AiBookingSearchScreen() {
           return;
         }
 
+        const workerId =
+          getRequiredString(
+            result.worker.id,
+          );
+
+        const workerName =
+          getRequiredString(
+            result.worker.name,
+          );
+
+        if (
+          !workerId
+        ) {
+          setSearchError(
+            getAiBookingErrorState(
+              new AiBookingFlowError(
+                "invalid-response",
+              ),
+            ),
+          );
+
+          return;
+        }
+
+        const safeWorkerName =
+          workerName ||
+          "a professional";
+
         /* ======================================================
            BOOKING
         ====================================================== */
@@ -381,13 +605,13 @@ export default function AiBookingSearchScreen() {
         if (
           !result.booking
         ) {
-          setAiResponse({
-            message:
-              "We understood your request, but we couldn't prepare the booking preview. Please try again.",
-
-            reason:
-              null,
-          });
+          setSearchError(
+            getAiBookingErrorState(
+              new AiBookingFlowError(
+                "booking-preview",
+              ),
+            ),
+          );
 
           return;
         }
@@ -406,36 +630,41 @@ export default function AiBookingSearchScreen() {
           ).trim();
 
         /* ======================================================
-           LOCATION
+           BOOKING LOCATION
+
+           Remote:
+           no physical booking destination.
+
+           Physical/flexible:
+           preserve current customer location only as draft
+           context. BookingScreen applies final fulfillment rules.
         ====================================================== */
 
+        const isRemote =
+          fulfillmentMode ===
+          "remote";
+
         const bookingLatitude =
-          typeof location?.latitude ===
-            "number" &&
-          Number.isFinite(
-            location.latitude,
-          )
-            ? location.latitude
-            : result.booking
-                .latitude ??
-              null;
+          isRemote
+            ? null
+            : latitude;
 
         const bookingLongitude =
-          typeof location?.longitude ===
-            "number" &&
-          Number.isFinite(
-            location.longitude,
-          )
-            ? location.longitude
-            : result.booking
-                .longitude ??
-              null;
+          isRemote
+            ? null
+            : longitude;
 
         const bookingAddress =
-          location?.address?.trim() ||
-          result.booking.address
-            ?.trim() ||
-          "";
+          isRemote
+            ? ""
+            : (
+                location?.address
+                  ?.trim() ||
+                result.booking
+                  .address
+                  ?.trim() ||
+                ""
+              );
 
         /* ======================================================
            PHOTOS
@@ -470,6 +699,12 @@ export default function AiBookingSearchScreen() {
           {
             ...result.booking,
 
+            serviceId,
+
+            serviceName,
+
+            fulfillmentMode,
+
             description:
               customerDescription,
 
@@ -493,8 +728,44 @@ export default function AiBookingSearchScreen() {
         }
 
         setStatus(
-          `We found ${result.worker.name}. Preparing your booking...`,
+          `We found ${safeWorkerName}. Preparing your booking...`,
         );
+
+        /* ======================================================
+           SAFE WORKER VALUES
+        ====================================================== */
+
+        const workerRating =
+          getSafeNumber(
+            result.worker
+              .rating,
+          );
+
+        const workerCompletedJobs =
+          getSafeNumber(
+            result.worker
+              .completedJobs,
+          );
+
+        const workerDistance =
+          typeof result.worker
+              .distanceKm ===
+            "number" &&
+          Number.isFinite(
+            result.worker
+              .distanceKm,
+          )
+            ? String(
+                result.worker
+                  .distanceKm,
+              )
+            : "";
+
+        const workerPhoto =
+          getRequiredString(
+            result.worker
+              .photoUrl,
+          );
 
         /* ======================================================
            NAVIGATION
@@ -509,64 +780,48 @@ export default function AiBookingSearchScreen() {
                WORKER
             ================================================== */
 
-            workerId:
-              result.worker.id,
+            workerId,
 
             workerName:
-              result.worker.name,
+              safeWorkerName,
 
-            workerPhoto:
-              result.worker.photoUrl ||
-              "",
+            workerPhoto,
 
             workerRating:
               String(
-                result.worker
-                  .rating ??
-                  0,
+                workerRating,
               ),
 
             workerCompletedJobs:
               String(
-                result.worker
-                  .completedJobs ??
-                  0,
+                workerCompletedJobs,
               ),
 
             workerVerified:
               String(
-                result.worker
-                  .verified ??
-                  false,
+                Boolean(
+                  result.worker
+                    .verified,
+                ),
               ),
 
-            workerDistance:
-              Number.isFinite(
-                result.worker
-                  .distanceKm,
-              )
-                ? String(
-                    result.worker
-                      .distanceKm,
-                  )
-                : "",
+            workerDistance,
 
             /* ==================================================
                SERVICE
             ================================================== */
 
-            serviceId:
-              result.service.id,
+            serviceId,
 
-            serviceName:
-              result.service.name,
+            serviceName,
+
+            fulfillmentMode,
 
             /* ==================================================
                DESCRIPTION
             ================================================== */
 
-            customerDescription:
-              customerDescription,
+            customerDescription,
 
             /* ==================================================
                AI BOOKING
@@ -578,11 +833,17 @@ export default function AiBookingSearchScreen() {
               ),
           },
         });
-      } catch (err) {
-        console.error(
-          "AI_BOOKING_SEARCH_ERROR:",
-          err,
-        );
+      } catch (
+        err: unknown
+      ) {
+        if (__DEV__) {
+          console.log(
+            "AI_BOOKING_SEARCH_FAILED",
+            getAiBookingErrorDebugInfo(
+              err,
+            ),
+          );
+        }
 
         if (
           !mountedRef.current
@@ -590,7 +851,11 @@ export default function AiBookingSearchScreen() {
           return;
         }
 
-        setError(true);
+        setSearchError(
+          getAiBookingErrorState(
+            err,
+          ),
+        );
       }
     }, [
       description,
@@ -625,7 +890,9 @@ export default function AiBookingSearchScreen() {
       startedRef.current =
         false;
 
-      setError(false);
+      setSearchError(
+        null,
+      );
 
       setAiResponse(
         null,
@@ -671,10 +938,67 @@ export default function AiBookingSearchScreen() {
     }, []);
 
   /* ============================================================
+     ERROR ACTION
+  ============================================================ */
+
+  const handleErrorPrimaryAction =
+    useCallback(() => {
+      if (
+        !searchError
+      ) {
+        return;
+      }
+
+      if (
+        searchError.action ===
+        "login"
+      ) {
+        router.push(
+          "/(auth)/login",
+        );
+
+        return;
+      }
+
+      if (
+        searchError.action ===
+        "back"
+      ) {
+        handleBack();
+
+        return;
+      }
+
+      handleRetry();
+    }, [
+      handleBack,
+      handleRetry,
+      searchError,
+    ]);
+
+  /* ============================================================
      ERROR
   ============================================================ */
 
-  if (error) {
+  if (searchError) {
+    const primaryButtonTitle =
+      searchError.action ===
+      "login"
+        ? "Login"
+        : searchError.action ===
+            "back"
+          ? "Go Back"
+          : "Try Again";
+
+    const primaryButtonIcon =
+      searchError.action ===
+      "login"
+        ? "profile"
+        : searchError.action ===
+            "back"
+          ? "back"
+          : "refresh";
+
     return (
       <AppScreen
         role="customer"
@@ -707,7 +1031,9 @@ export default function AiBookingSearchScreen() {
               styles.stateTitle
             }
           >
-            Something went wrong
+            {
+              searchError.title
+            }
           </AppText>
 
           <AppText
@@ -718,18 +1044,21 @@ export default function AiBookingSearchScreen() {
               styles.stateMessage
             }
           >
-            We couldn't complete the
-            automatic booking right now.
-            Please check your connection
-            and try again.
+            {
+              searchError.message
+            }
           </AppText>
 
           <AppButton
-            title="Try Again"
+            title={
+              primaryButtonTitle
+            }
             role="customer"
-            leftIconName="refresh"
+            leftIconName={
+              primaryButtonIcon
+            }
             onPress={
-              handleRetry
+              handleErrorPrimaryAction
             }
             style={
               styles.stateButton
@@ -737,12 +1066,12 @@ export default function AiBookingSearchScreen() {
           />
 
           <AppButton
-            title="Go Back"
+            title="Book Manually"
             role="customer"
             variant="ghost"
-            leftIconName="back"
+            leftIconName="search"
             onPress={
-              handleBack
+              handleManualBooking
             }
             style={
               styles.secondaryStateButton
@@ -870,15 +1199,16 @@ export default function AiBookingSearchScreen() {
                 styles.responseInfoText
               }
             >
-              You can try again with
-              more details, or continue
-              manually and choose the
-              service yourself.
+              You can edit your request
+              with more details, or
+              continue manually and
+              choose the service
+              yourself.
             </AppText>
           </AppCard>
 
           <AppButton
-            title="Try Again"
+            title="Edit Request"
             role="customer"
             leftIconName="back"
             onPress={

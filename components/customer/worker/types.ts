@@ -2,6 +2,10 @@ import type {
   GeoPoint,
 } from "firebase/firestore";
 
+import type {
+  ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
 /* ============================================================
    WORKER SERVICE
 ============================================================ */
@@ -16,6 +20,14 @@ export type WorkerService = {
   color?: string;
 
   backgroundColor?: string;
+
+  /**
+   * Determines how this service is delivered.
+   *
+   * This comes from the authoritative
+   * service document.
+   */
+  fulfillmentMode?: ServiceFulfillmentMode;
 };
 
 /* ============================================================

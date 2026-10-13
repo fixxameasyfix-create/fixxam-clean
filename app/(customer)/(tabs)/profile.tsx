@@ -1,6 +1,7 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -13,13 +14,9 @@ import {
   View,
 } from "react-native";
 
-import {
-  router,
-} from "expo-router";
+import { router } from "expo-router";
 
-import {
-  signOut,
-} from "firebase/auth";
+import { signOut } from "firebase/auth";
 
 import Toast from "react-native-toast-message";
 
@@ -40,12 +37,16 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import {
-  auth,
-} from "@/firebase/config";
+import { auth } from "@/firebase/config";
 
 import useUserProfile from "@/hooks/auth/useUserProfile";
 import useSwitchRole from "@/hooks/auth/useSwitchRole";
+import useCustomerOrderCounts from "@/hooks/customer/useCustomerOrderCounts";
+import useCustomerReviewCount from "@/hooks/customer/useCustomerReviewCount";
+
+import {
+  subscribeToSavedWorkersCount,
+} from "@/services/customer-saved/savedWorkers";
 
 import CustomerProfileHeader from "@/components/profile/customer/CustomerProfileHeader";
 import CustomerStats from "@/components/profile/customer/CustomerStats";
@@ -59,7 +60,6 @@ import AuthRequiredModa from "@/components/auth/AuthRequiredModa";
 
 type GuestAccountItem = {
   icon: AppIconName;
-
   title: string;
 };
 
@@ -77,6 +77,10 @@ const GUEST_ACCOUNT_ITEMS: GuestAccountItem[] = [
     title: "Orders",
   },
   {
+    icon: "jobs",
+    title: "My Requests",
+  },
+  {
     icon: "heart",
     title: "Saved",
   },
@@ -86,11 +90,11 @@ const GUEST_ACCOUNT_ITEMS: GuestAccountItem[] = [
   },
   {
     icon: "location",
-    title: "Addresses",
+    title: "Location",
   },
   {
-    icon: "payment",
-    title: "Payment Methods",
+    icon: "wallet",
+    title: "My Wallet",
   },
   {
     icon: "notifications",
@@ -114,19 +118,63 @@ export default function CustomerProfileScreen() {
   const {
     profile,
     loading,
-  } =
-    useUserProfile();
+  } = useUserProfile();
 
   const {
     switchRole,
-  } =
-    useSwitchRole();
+  } = useSwitchRole();
+
+  const {
+    counts: orderCounts,
+  } = useCustomerOrderCounts();
+
+  const {
+    count: reviewCount,
+  } = useCustomerReviewCount();
+
+  const [
+    savedCount,
+    setSavedCount,
+  ] = useState(0);
 
   const [
     authModaVisible,
     setAuthModaVisible,
-  ] =
-    useState(false);
+  ] = useState(false);
+
+  /* ==========================================================
+     SAVED COUNT
+
+     Realtime count from savedWorkers collection.
+     This is intentionally separate from profile.savedCount.
+  ========================================================== */
+
+  useEffect(() => {
+    if (!profile) {
+      setSavedCount(0);
+      return;
+    }
+
+    const unsubscribe =
+      subscribeToSavedWorkersCount(
+        (count) => {
+          setSavedCount(count);
+        },
+        (error) => {
+          console.error(
+            "CUSTOMER_SAVED_COUNT_ERROR:",
+            error,
+          );
+
+          // Keep the last known count instead of
+          // replacing it with an incorrect value.
+        },
+      );
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [profile]);
 
   /* ==========================================================
      PROFILE STATE
@@ -159,9 +207,7 @@ export default function CustomerProfileScreen() {
 
   const handleCloseAuthModal =
     useCallback(() => {
-      setAuthModaVisible(
-        false,
-      );
+      setAuthModaVisible(false);
     }, []);
 
   /* ==========================================================
@@ -176,28 +222,143 @@ export default function CustomerProfileScreen() {
     }, []);
 
   /* ==========================================================
+     LOCATION
+  ========================================================== */
+
+  const handleLocation =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/location" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     MY REQUESTS
+  ========================================================== */
+
+  const handleRequests =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/my-requests" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     MY WALLET
+  ========================================================== */
+
+  const handleWallet =
+    useCallback(() => {
+      router.push(
+        "/(customer)/wallet" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     PROMOTIONS
+  ========================================================== */
+
+  const handlePromotions =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/promotions" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     REVIEWS
+  ========================================================== */
+
+  const handleReviews =
+    useCallback(() => {
+      router.push(
+        "/(customer)/reviews" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     SAVED
+  ========================================================== */
+
+  const handleSaved =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/saved" as never,
+      );
+    }, []);
+
+  /* ==========================================================
      BECOME / SWITCH WORKER
+
+     Existing customer + worker accounts:
+       Customer → Select Account
+                   ↓
+            Customer / Worker
+
+     Existing worker-only role:
+       Customer → Worker Mode
+
+     New worker:
+       Customer → Become a Provider
+                   ↓
+          Use customer details
+                   OR
+          Make new registration
   ========================================================== */
 
   const handleWorker =
     useCallback(async () => {
       if (!profile) {
-        setAuthModaVisible(
-          true,
+        setAuthModaVisible(true);
+        return;
+      }
+
+      /* ========================================================
+         ACCOUNT ROLES
+      ======================================================== */
+
+      const hasCustomerRole =
+        profile.roles?.includes(
+          "customer",
+        ) ?? false;
+
+      const hasWorkerRole =
+        profile.roles?.includes(
+          "worker",
+        ) ?? false;
+
+      /* ========================================================
+         EXISTING CUSTOMER + WORKER ACCOUNTS
+
+         Do NOT switch automatically.
+
+         Send the user to Select Account so they can explicitly
+         choose whether to continue as Customer or Worker.
+      ======================================================== */
+
+      if (
+        hasCustomerRole &&
+        hasWorkerRole
+      ) {
+        router.push(
+          "/(auth)/select-account" as never,
         );
 
         return;
       }
 
+      /* ========================================================
+         EXISTING WORKER ACCOUNT
+
+         Keep the existing behavior for a worker role that does
+         not also have the customer role.
+      ======================================================== */
+
       if (
-        profile.roles?.includes(
-          "worker",
-        )
+        hasWorkerRole
       ) {
         const success =
-          await switchRole(
-            "worker",
-          );
+          await switchRole("worker");
 
         if (success) {
           router.replace(
@@ -208,8 +369,17 @@ export default function CustomerProfileScreen() {
         return;
       }
 
+      /* ========================================================
+         NEW WORKER REGISTRATION
+
+         Do not open worker registration directly.
+         First let the customer choose whether to:
+         - use existing customer details
+         - make a new registration
+      ======================================================== */
+
       router.push(
-        "/(auth)/worker/worker-signup" as never,
+        "/(auth)/worker/become-a-provider" as never,
       );
     }, [
       profile,
@@ -217,7 +387,7 @@ export default function CustomerProfileScreen() {
     ]);
 
   /* ==========================================================
-     FIXxAM ACTIVITY
+     FIXXAM ACTIVITY
   ========================================================== */
 
   const handleActivity =
@@ -261,6 +431,28 @@ export default function CustomerProfileScreen() {
     }, []);
 
   /* ==========================================================
+     MY MARKET
+  ========================================================== */
+
+  const handleMarket =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/my-market" as never,
+      );
+    }, []);
+
+  /* ==========================================================
+     ORDERS
+  ========================================================== */
+
+  const handleOrders =
+    useCallback(() => {
+      router.push(
+        "/(customer)/profile/orders" as never,
+      );
+    }, []);
+
+  /* ==========================================================
      LOGIN
   ========================================================== */
 
@@ -277,9 +469,10 @@ export default function CustomerProfileScreen() {
 
   const handleSignup =
     useCallback(() => {
-      router.push(
-        "/(auth)/customer-signup" as never,
-      );
+      router.push({
+        pathname:
+          "/customer-signup",
+      });
     }, []);
 
   /* ==========================================================
@@ -289,9 +482,7 @@ export default function CustomerProfileScreen() {
   const handleLogout =
     useCallback(async () => {
       try {
-        await signOut(
-          auth,
-        );
+        await signOut(auth);
 
         router.replace(
           "/(auth)/login" as never,
@@ -304,10 +495,8 @@ export default function CustomerProfileScreen() {
 
         Toast.show({
           type: "error",
-          text1:
-            "Unable to log out",
-          text2:
-            "Please try again.",
+          text1: "Unable to log out",
+          text2: "Please try again.",
         });
       }
     }, []);
@@ -327,21 +516,28 @@ export default function CustomerProfileScreen() {
             styles.loadingContainer
           }
         >
-          <ActivityIndicator
-            size="small"
-            color={
-              CustomerColors.primary
+          <View
+            style={
+              styles.loadingIcon
             }
-          />
+          >
+            <ActivityIndicator
+              size="large"
+              color={
+                CustomerColors.primary
+              }
+            />
+          </View>
 
           <AppText
-            variant="caption"
+            variant="body"
             tone="secondary"
+            center
             style={
               styles.loadingText
             }
           >
-            Loading profile...
+            Loading your profile...
           </AppText>
         </View>
       </AppScreen>
@@ -359,9 +555,7 @@ export default function CustomerProfileScreen() {
         padded={false}
       >
         <ScrollView
-          showsVerticalScrollIndicator={
-            false
-          }
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={
             styles.guestContent
@@ -472,8 +666,6 @@ export default function CustomerProfileScreen() {
               </View>
             </View>
 
-            {/* LOGIN */}
-
             <Pressable
               onPress={
                 handleLogin
@@ -484,7 +676,6 @@ export default function CustomerProfileScreen() {
                 pressed,
               }) => [
                 styles.loginButton,
-
                 pressed
                   ? styles.buttonPressed
                   : null,
@@ -510,8 +701,6 @@ export default function CustomerProfileScreen() {
               </AppText>
             </Pressable>
 
-            {/* SIGN UP */}
-
             <Pressable
               onPress={
                 handleSignup
@@ -522,7 +711,6 @@ export default function CustomerProfileScreen() {
                 pressed,
               }) => [
                 styles.signupButton,
-
                 pressed
                   ? styles.signupPressed
                   : null,
@@ -571,15 +759,9 @@ export default function CustomerProfileScreen() {
             {GUEST_ACCOUNT_ITEMS.map(
               (item) => (
                 <GuestProfileRow
-                  key={
-                    item.title
-                  }
-                  icon={
-                    item.icon
-                  }
-                  title={
-                    item.title
-                  }
+                  key={item.title}
+                  icon={item.icon}
+                  title={item.title}
                 />
               ),
             )}
@@ -595,12 +777,11 @@ export default function CustomerProfileScreen() {
             }
             accessibilityRole="button"
             accessibilityLabel="Become a Fixxam worker"
-            accessibilityHint="Opens worker account registration"
+            accessibilityHint="Opens worker provider options"
             style={({
               pressed,
             }) => [
               styles.workerCard,
-
               pressed
                 ? styles.workerCardPressed
                 : null,
@@ -679,9 +860,8 @@ export default function CustomerProfileScreen() {
       padded={false}
     >
       <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.content
         }
@@ -696,28 +876,15 @@ export default function CustomerProfileScreen() {
           }
         >
           <CustomerProfileHeader
-            name={
-              profileName
-            }
-            phone={
-              profile.phone
-            }
-            email={
-              profile.email
-            }
-            photoUrl={
-              profile.photoUrl
-            }
+            name={profileName}
+            phone={profile.phone}
+            email={profile.email}
+            photoUrl={profile.photoUrl}
             verified={
-              profile.verified ??
-              false
+              profile.verified ?? false
             }
-            onEditPhoto={() => {}}
-            onNotifications={
-              handleNotifications
-            }
-            onSettings={
-              handleSettings
+            onEditPhoto={
+              handleProfile
             }
           />
         </View>
@@ -733,16 +900,13 @@ export default function CustomerProfileScreen() {
         >
           <CustomerStats
             orders={
-              profile.totalOrders ??
-              0
+              orderCounts.total
             }
             saved={
-              profile.savedCount ??
-              0
+              savedCount
             }
             reviews={
-              profile.totalReviews ??
-              0
+              reviewCount
             }
           />
         </View>
@@ -779,16 +943,36 @@ export default function CustomerProfileScreen() {
             onProfile={
               handleProfile
             }
+            onRequests={
+              handleRequests
+            }
+            onMarket={
+              handleMarket
+            }
+            onOrders={
+              handleOrders
+            }
+            onPromotions={
+              handlePromotions
+            }
             onActivity={
               handleActivity
             }
-            onSaved={() => {}}
-            onAddresses={() => {}}
-            onPayments={() => {}}
+            onSaved={
+              handleSaved
+            }
+            onLocation={
+              handleLocation
+            }
+            onMywallet={
+              handleWallet
+            }
             onNotifications={
               handleNotifications
             }
-            onReviews={() => {}}
+            onReviews={
+              handleReviews
+            }
             onSupport={
               handleSupport
             }
@@ -809,66 +993,67 @@ export default function CustomerProfileScreen() {
    GUEST PROFILE ROW
 ============================================================ */
 
-const GuestProfileRow =
-  memo(
-    function GuestProfileRow({
-      icon,
-      title,
-    }: {
-      icon: AppIconName;
-
-      title: string;
-    }) {
-      return (
+const GuestProfileRow = memo(
+  function GuestProfileRow({
+    icon,
+    title,
+  }: {
+    icon: AppIconName;
+    title: string;
+  }) {
+    return (
+      <View
+        style={
+          styles.guestRow
+        }
+      >
         <View
           style={
-            styles.guestRow
+            styles.guestRowIcon
           }
         >
-          <View
-            style={
-              styles.guestRowIcon
-            }
-          >
-            <AppIcon
-              name={icon}
-              size="sm"
-              state="muted"
-            />
-          </View>
-
-          <AppText
-            variant="body"
-            style={
-              styles.guestRowTitle
-            }
-          >
-            {title}
-          </AppText>
-
           <AppIcon
-            name="lock"
-            size="xs"
+            name={icon}
+            size="sm"
             state="muted"
           />
-
-          <View
-            style={
-              styles.guestRowArrow
-            }
-          >
-            <AppIcon
-              name="next"
-              size="xs"
-              color={
-                Colors.disabled
-              }
-            />
-          </View>
         </View>
-      );
-    },
-  );
+
+        <AppText
+          variant="body"
+          style={
+            styles.guestRowTitle
+          }
+        >
+          {title}
+        </AppText>
+
+        <AppIcon
+          name="lock"
+          size="xs"
+          state="muted"
+        />
+
+        <View
+          style={
+            styles.guestRowArrow
+          }
+        >
+          <AppIcon
+            name="next"
+            size="xs"
+            color={
+              Colors.disabled
+            }
+          />
+        </View>
+      </View>
+    );
+  },
+);
+
+GuestProfileRow.displayName =
+  "GuestProfileRow";
 
 /* ============================================================
    STYLES
@@ -898,18 +1083,37 @@ const styles =
     loadingContainer: {
       flex: 1,
 
-      minHeight: 300,
+      minHeight: 420,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
+    },
+
+    loadingIcon: {
+      width:
+        FixxamTokens.size.avatarLg,
+
+      height:
+        FixxamTokens.size.avatarLg,
+
+      alignItems: "center",
+
+      justifyContent: "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
     },
 
     loadingText: {
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textSecondary,
     },
 
     /* ========================================================
@@ -917,8 +1121,7 @@ const styles =
     ======================================================== */
 
     profileCard: {
-      overflow:
-        "hidden",
+      overflow: "hidden",
 
       borderWidth: 1,
 
@@ -933,8 +1136,7 @@ const styles =
     },
 
     statsCard: {
-      overflow:
-        "hidden",
+      overflow: "hidden",
 
       marginTop:
         FixxamTokens.spacing.sm,
@@ -993,11 +1195,9 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
       borderWidth: 1,
 
@@ -1022,11 +1222,9 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.lg,
@@ -1083,11 +1281,9 @@ const styles =
       marginBottom:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
     },
 
     authCardIcon: {
@@ -1099,11 +1295,9 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -1144,14 +1338,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1169,7 +1360,7 @@ const styles =
     },
 
     /* ========================================================
-       SIGNUP
+       SIGN UP
     ======================================================== */
 
     signupButton: {
@@ -1182,14 +1373,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       gap:
         FixxamTokens.spacing.xs,
@@ -1244,8 +1432,7 @@ const styles =
     ======================================================== */
 
     sectionCard: {
-      overflow:
-        "hidden",
+      overflow: "hidden",
 
       marginTop:
         FixxamTokens.spacing.sm,
@@ -1285,13 +1472,12 @@ const styles =
       marginHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection:
-        "row",
+      flexDirection: "row",
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
         Colors.divider,
@@ -1304,11 +1490,9 @@ const styles =
 
       flexShrink: 0,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -1335,21 +1519,24 @@ const styles =
     },
 
     /* ========================================================
-       WORKER CTA
+       GUEST WORKER CTA
     ======================================================== */
 
     workerCard: {
+      minHeight: 76,
+
       marginTop:
         FixxamTokens.spacing.sm,
 
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection:
-        "row",
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
-      alignItems:
-        "center",
+      flexDirection: "row",
+
+      alignItems: "center",
 
       borderWidth: 1,
 
@@ -1379,20 +1566,16 @@ const styles =
 
     workerIcon: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       flexShrink: 0,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.md,

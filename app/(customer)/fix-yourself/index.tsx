@@ -233,7 +233,7 @@ export default function FixYourselfScreen() {
               }
             >
               <AppIcon
-                name="help"
+                name="service"
                 role="customer"
                 size="lg"
                 state="active"

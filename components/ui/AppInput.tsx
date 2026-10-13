@@ -44,9 +44,6 @@ export interface AppInputProps
 
   /*
    * Legacy support.
-   * Existing screens can continue using:
-   * variant="customer"
-   * variant="worker"
    */
   variant?: "customer" | "worker";
 
@@ -61,9 +58,16 @@ export interface AppInputProps
   leftIcon?: string;
 
   /*
+   * Optional content rendered between
+   * the left icon and the text input.
+   *
+   * Example:
+   * +234
+   */
+  leftContent?: React.ReactNode;
+
+  /*
    * Right-side action icon.
-   * Used by password visibility,
-   * clear actions, etc.
    */
   rightIconName?: AppIconName;
 
@@ -90,6 +94,7 @@ function AppInput({
 
   leftIconName,
   leftIcon,
+  leftContent,
 
   rightIconName,
   onRightIconPress,
@@ -131,9 +136,10 @@ function AppInput({
       ? colors.primary
       : colors.border;
 
-  const backgroundColor = disabled
-    ? colors.disabledBackground
-    : colors.surface;
+  const backgroundColor =
+    disabled
+      ? colors.disabledBackground
+      : colors.surface;
 
   const handleFocus: NonNullable<
     TextInputProps["onFocus"]
@@ -218,6 +224,15 @@ function AppInput({
               size="sm"
               state={iconState}
             />
+          </View>
+        ) : null}
+
+        {leftContent ? (
+          <View
+            style={styles.leftContent}
+            pointerEvents="none"
+          >
+            {leftContent}
           </View>
         ) : null}
 
@@ -371,6 +386,25 @@ const styles = StyleSheet.create({
 
     marginRight:
       FixxamTokens.spacing.sm,
+
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  leftContent: {
+    flexShrink: 0,
+
+    marginRight:
+      FixxamTokens.spacing.sm,
+
+    paddingRight:
+      FixxamTokens.spacing.sm,
+
+    borderRightWidth:
+      StyleSheet.hairlineWidth,
+
+    borderRightColor:
+      "#D1D5DB",
 
     alignItems: "center",
     justifyContent: "center",

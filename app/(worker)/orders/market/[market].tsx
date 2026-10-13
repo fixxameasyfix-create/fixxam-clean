@@ -2,34 +2,44 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
-  Linking,
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  router,
+  useFocusEffect,
   useLocalSearchParams,
+  useNavigation,
+  useRouter,
 } from "expo-router";
 
 import Toast from "react-native-toast-message";
 
 import {
+  getAuth,
   onAuthStateChanged,
 } from "firebase/auth";
 
 import {
-  doc,
-  getDoc,
   Timestamp,
+  doc,
+  getDocFromServer,
+  getFirestore,
+  onSnapshot,
+} from "firebase/firestore";
+
+import type {
+  DocumentData,
+  DocumentSnapshot,
 } from "firebase/firestore";
 
 import {
-  AppButton,
   AppIcon,
   AppScreen,
   AppText,
@@ -40,33 +50,57 @@ import {
 } from "@/components/common";
 
 import {
-  auth,
-  db,
-} from "@/firebase/config";
-
-import {
   Colors,
   FixxamTokens,
+  WorkerColors,
 } from "@/theme";
 
+import {
+  createWorkerMarketCallSession,
+} from "@/services/calls/callSession";
+
 import WorkerMarketOrderHeaderSection from "@/components/workerorders/market/details/WorkerMarketOrderHeaderSection";
-
-import WorkerMarketCustomerDeliverySection from "@/components/workerorders/market/details/WorkerMarketCustomerDeliverySection";
-
-import WorkerMarketPaymentSummarySection from "@/components/workerorders/market/details/WorkerMarketPaymentSummarySection";
-
+import WorkerMarketCustomer from "@/components/workerorders/market/WorkerMarketCustomer";
+import WorkerMarketOrderStatus from "@/components/workerorders/WorkerMarketOrderStatus";
 import WorkerMarketProducts from "@/components/workerorders/market/WorkerMarketProducts";
-
+import WorkerMarketDelivery from "@/components/workerorders/market/WorkerMarketDelivery";
+import WorkerMarketPayment from "@/components/workerorders/market/WorkerMarketPayment";
+import WorkerMarketSummary from "@/components/workerorders/market/WorkerMarketSummary";
+import WorkerMarketNote from "@/components/workerorders/market/WorkerMarketNote";
+import WorkerMarketContactActions from "@/components/workerorders/market/WorkerMarketContactActions";
 import WorkerMarketOrderActions from "@/components/workerorders/market/WorkerMarketOrderActions";
 
-/* ==============================================================
-   TYPES
-============================================================== */
+/* ============================================================
+   CONFIG
+============================================================ */
 
-type MarketPaymentMethod =
-  | "cash"
-  | "card"
-  | "transfer";
+const WORKER_CHAT_PATHNAME =
+  "/orders/market/chat" as const;
+
+const WORKER_CALL_PATHNAME =
+  "/(worker)/call/[customer]" as const;
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type RouteParams = {
+  market?:
+    | string
+    | string[];
+
+  orderId?:
+    | string
+    | string[];
+};
+
+type MarketOrderStatus =
+  | "pending"
+  | "accepted"
+  | "in-progress"
+  | "completed"
+  | "cancelled"
+  | "expired";
 
 type MarketOrderProduct = {
   productId: string;
@@ -87,39 +121,25 @@ type UnavailableProduct = {
 
   reportedBy: string;
 
-  reportedAt:
-    | Timestamp
-    | null;
+  reportedAt: Timestamp | null;
 };
-
-type MarketOrderStatus =
-  | "pending"
-  | "accepted"
-  | "in-progress"
-  | "completed"
-  | "cancelled"
-  | "expired";
 
 type MarketOrder = {
   id: string;
 
-  orderType?: string;
+  orderType: string;
 
-  type?: string;
+  customerId: string;
 
-  customerId?: string;
+  workerId: string;
 
-  workerId?: string;
+  sellerId: string;
 
-  sellerId?: string;
+  storeId: string;
 
-  storeId?: string;
+  products: MarketOrderProduct[];
 
-  products:
-    MarketOrderProduct[];
-
-  unavailableProducts:
-    UnavailableProduct[];
+  unavailableProducts: UnavailableProduct[];
 
   subtotal: number;
 
@@ -127,124 +147,174 @@ type MarketOrder = {
 
   total: number;
 
-  paymentMethod:
-    MarketPaymentMethod;
+  paymentMethod: string;
 
-  paymentStatus?: string;
+  paymentStatus: string;
 
-  status:
-    MarketOrderStatus;
+  status: MarketOrderStatus;
 
-  offerStatus?: string;
+  receiverName: string;
 
-  receiverName?: string;
+  receiverPhone: string;
 
-  receiverPhone?: string;
+  stateId: string;
 
-  stateId?: string;
+  lgaId: string;
 
-  lgaId?: string;
+  address: string;
 
-  address?: string;
+  lat: number | null;
 
-  latitude?: number;
+  lng: number | null;
 
-  longitude?: number;
+  note: string;
 
-  note?: string;
+  createdAt: Timestamp | null;
 
-  createdAt?:
-    | Timestamp
-    | null;
-
-  updatedAt?:
-    | Timestamp
-    | null;
+  updatedAt: Timestamp | null;
 };
 
-type RouteParams = {
-  market?:
-    | string
-    | string[];
+type ParsedOrderResult = {
+  order: MarketOrder | null;
 
-  orderId?:
-    | string
-    | string[];
-
-  orderType?:
-    | string
-    | string[];
+  error: string | null;
 };
 
-/* ==============================================================
+/* ============================================================
    HELPERS
-============================================================== */
+============================================================ */
 
 function safeString(
   value: unknown,
   fallback = "",
 ): string {
   if (
-    typeof value ===
+    typeof value !==
     "string"
   ) {
-    const trimmed =
-      value.trim();
-
-    if (trimmed) {
-      return trimmed;
-    }
+    return fallback;
   }
 
-  return fallback;
+  const normalized =
+    value.trim();
+
+  return (
+    normalized ||
+    fallback
+  );
 }
 
 function safeNumber(
   value: unknown,
 ): number {
-  const parsed =
-    typeof value ===
-    "number"
-      ? value
-      : Number(value);
+  if (
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 0;
+  }
 
-  return Number.isFinite(
-    parsed,
-  )
-    ? parsed
-    : 0;
+  return Math.max(
+    0,
+    value,
+  );
+}
+
+function safeQuantity(
+  value: unknown,
+): number {
+  if (
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    )
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    Math.floor(
+      value,
+    ),
+  );
 }
 
 function getRouteValue(
-  value:
-    | string
-    | string[]
-    | undefined,
+  value: unknown,
 ): string {
   if (
-    Array.isArray(value)
+    Array.isArray(
+      value,
+    )
   ) {
-    return (
-      value[0]?.trim() ??
-      ""
+    return safeString(
+      value[0],
     );
   }
 
-  return (
-    value?.trim() ??
-    ""
+  return safeString(
+    value,
   );
+}
+
+function getLatitude(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
+    value < -90 ||
+    value > 90
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function getLongitude(
+  value: unknown,
+): number | null {
+  if (
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
+    value < -180 ||
+    value > 180
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
+function getTimestamp(
+  value: unknown,
+): Timestamp | null {
+  return value instanceof
+    Timestamp
+    ? value
+    : null;
 }
 
 function formatDate(
   value: unknown,
 ): string {
-  if (!value) {
-    return "Date unavailable";
-  }
-
   try {
-    let date: Date;
+    let date:
+      | Date
+      | null =
+      null;
 
     if (
       value instanceof
@@ -259,28 +329,27 @@ function formatDate(
       date =
         value;
     } else if (
+      value &&
       typeof value ===
-        "object" &&
-      value !== null &&
-      "toDate" in value &&
-      typeof (
-        value as {
-          toDate?: unknown;
-        }
-      ).toDate ===
-        "function"
+        "object"
     ) {
-      date =
-        (
-          value as {
-            toDate: () => Date;
-          }
-        ).toDate();
-    } else {
-      return "Date unavailable";
+      const record =
+        value as {
+          toDate?:
+            () => Date;
+        };
+
+      if (
+        typeof record.toDate ===
+        "function"
+      ) {
+        date =
+          record.toDate();
+      }
     }
 
     if (
+      !date ||
       Number.isNaN(
         date.getTime(),
       )
@@ -288,42 +357,52 @@ function formatDate(
       return "Date unavailable";
     }
 
-    return date.toLocaleDateString(
+    return new Intl.DateTimeFormat(
       "en-NG",
       {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
+        day:
+          "2-digit",
+
+        month:
+          "short",
       },
+    ).format(
+      date,
     );
   } catch {
     return "Date unavailable";
   }
 }
 
-/* ==============================================================
-   STATUS
-============================================================== */
+function normalizeStatusValue(
+  value: unknown,
+): string {
+  return safeString(
+    value,
+  )
+    .toLowerCase()
+    .replace(
+      /[_\s]+/g,
+      "-",
+    );
+}
 
 function normalizeStatus(
   value: unknown,
 ): MarketOrderStatus {
   const status =
-    safeString(
+    normalizeStatusValue(
       value,
-      "pending",
-    ).toLowerCase();
+    );
 
-  switch (status) {
+  switch (
+    status
+  ) {
     case "accepted":
       return "accepted";
 
     case "in-progress":
-    case "in_progress":
-    case "in progress":
     case "on-the-way":
-    case "on_the_way":
-    case "on the way":
       return "in-progress";
 
     case "completed":
@@ -344,286 +423,282 @@ function normalizeStatus(
 }
 
 function getStatusConfig(
-  status: MarketOrderStatus,
+  status:
+    MarketOrderStatus,
 ) {
-  switch (status) {
+  switch (
+    status
+  ) {
     case "accepted":
       return {
         label:
-          "ACCEPTED",
+          "Accepted",
 
         icon:
           "check" as const,
 
-        backgroundColor:
-          Colors.infoSoft,
-
         color:
-          Colors.info,
+          WorkerColors.primary,
+
+        backgroundColor:
+          WorkerColors.primarySoft,
       };
 
     case "in-progress":
       return {
         label:
-          "IN PROGRESS",
+          "On the way",
 
         icon:
           "navigation" as const,
 
-        backgroundColor:
-          Colors.infoSoft,
-
         color:
-          Colors.info,
+          WorkerColors.primary,
+
+        backgroundColor:
+          WorkerColors.primarySoft,
       };
 
     case "completed":
       return {
         label:
-          "COMPLETED",
+          "Delivered",
 
         icon:
           "success" as const,
 
-        backgroundColor:
-          Colors.successSoft,
-
         color:
           Colors.success,
+
+        backgroundColor:
+          Colors.successSoft,
       };
 
     case "cancelled":
       return {
         label:
-          "CANCELLED",
+          "Cancelled",
 
         icon:
           "error" as const,
 
-        backgroundColor:
-          Colors.errorSoft,
-
         color:
           Colors.error,
+
+        backgroundColor:
+          Colors.errorSoft,
       };
 
     case "expired":
       return {
         label:
-          "EXPIRED",
+          "Expired",
 
         icon:
           "clock" as const,
 
-        backgroundColor:
-          Colors.disabledBackground,
-
         color:
           Colors.textSecondary,
+
+        backgroundColor:
+          Colors.disabledBackground,
       };
 
     case "pending":
     default:
       return {
         label:
-          "PENDING",
+          "Pending",
 
         icon:
           "clock" as const,
 
-        backgroundColor:
-          Colors.warningSoft,
-
         color:
           Colors.warning,
+
+        backgroundColor:
+          Colors.warningSoft,
       };
   }
 }
 
-/* ==============================================================
+/* ============================================================
    NORMALIZE PRODUCTS
-============================================================== */
+============================================================ */
 
 function normalizeProducts(
   value: unknown,
 ): MarketOrderProduct[] {
   if (
-    !Array.isArray(value)
+    !Array.isArray(
+      value,
+    )
   ) {
     return [];
   }
 
-  return value
-    .map(
-      (
-        product,
-      ):
-        | MarketOrderProduct
-        | null => {
-        if (
-          !product ||
-          typeof product !==
-            "object"
-        ) {
-          return null;
-        }
+  return value.flatMap(
+    item => {
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return [];
+      }
 
-        const data =
-          product as Record<
-            string,
-            unknown
-          >;
+      const data =
+        item as Record<
+          string,
+          unknown
+        >;
 
-        const productId =
-          safeString(
-            data.productId,
-            safeString(
-              data.id,
-            ),
-          );
+      const productId =
+        safeString(
+          data.productId,
+        ) ||
+        safeString(
+          data.id,
+        );
 
-        if (!productId) {
-          return null;
-        }
+      if (
+        !productId
+      ) {
+        return [];
+      }
 
-        const image =
-          safeString(
-            data.image,
-            safeString(
-              data.imageUrl,
-              safeString(
-                data.photoUrl,
-              ),
-            ),
-          );
+      const image =
+        safeString(
+          data.image,
+        ) ||
+        safeString(
+          data.imageUrl,
+        ) ||
+        safeString(
+          data.photoUrl,
+        );
 
-        return {
+      const product:
+        MarketOrderProduct = {
           productId,
 
           name:
             safeString(
               data.name,
-              safeString(
-                data.productName,
-                "Product",
-              ),
+              "Product",
             ),
 
-          image:
-            image ||
-            undefined,
-
           price:
-            Math.max(
-              0,
-              safeNumber(
-                data.price,
-              ),
+            safeNumber(
+              data.price,
             ),
 
           quantity:
-            Math.max(
-              1,
-              Math.floor(
-                safeNumber(
-                  data.quantity,
-                ),
-              ),
+            safeQuantity(
+              data.quantity,
             ),
         };
-      },
-    )
-    .filter(
-      (
+
+      if (
+        image
+      ) {
+        product.image =
+          image;
+      }
+
+      return [
         product,
-      ): product is MarketOrderProduct =>
-        product !== null,
-    );
+      ];
+    },
+  );
 }
 
-/* ==============================================================
+/* ============================================================
    NORMALIZE UNAVAILABLE PRODUCTS
-============================================================== */
+============================================================ */
 
 function normalizeUnavailableProducts(
   value: unknown,
 ): UnavailableProduct[] {
   if (
-    !Array.isArray(value)
+    !Array.isArray(
+      value,
+    )
   ) {
     return [];
   }
 
-  return value
-    .map(
-      (
-        item,
-      ):
-        | UnavailableProduct
-        | null => {
-        /*
-         * Legacy schema:
-         * unavailableProducts: ["productId"]
-         */
-        if (
-          typeof item ===
-          "string"
-        ) {
-          const productId =
-            item.trim();
+  const products =
+    new Map<
+      string,
+      UnavailableProduct
+    >();
 
-          if (!productId) {
-            return null;
-          }
-
-          return {
-            productId,
-
-            productName:
-              "Product",
-
-            reportedBy:
-              "",
-
-            reportedAt:
-              null,
-          };
-        }
-
-        /*
-         * Current schema:
-         *
-         * {
-         *   productId,
-         *   productName,
-         *   reportedBy,
-         *   reportedAt
-         * }
-         */
-        if (
-          !item ||
-          typeof item !==
-            "object"
-        ) {
-          return null;
-        }
-
-        const data =
-          item as Record<
-            string,
-            unknown
-          >;
-
+  value.forEach(
+    item => {
+      if (
+        typeof item ===
+        "string"
+      ) {
         const productId =
           safeString(
-            data.productId,
+            item,
           );
 
-        if (!productId) {
-          return null;
+        if (
+          productId
+        ) {
+          products.set(
+            productId,
+            {
+              productId,
+
+              productName:
+                "Product",
+
+              reportedBy:
+                "",
+
+              reportedAt:
+                null,
+            },
+          );
         }
 
-        return {
+        return;
+      }
+
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return;
+      }
+
+      const data =
+        item as Record<
+          string,
+          unknown
+        >;
+
+      const productId =
+        safeString(
+          data.productId,
+        ) ||
+        safeString(
+          data.id,
+        );
+
+      if (
+        !productId
+      ) {
+        return;
+      }
+
+      products.set(
+        productId,
+        {
           productId,
 
           productName:
@@ -638,68 +713,288 @@ function normalizeUnavailableProducts(
             ),
 
           reportedAt:
-            data.reportedAt instanceof
-            Timestamp
-              ? data.reportedAt
-              : null,
-        };
-      },
-    )
-    .filter(
-      (
-        item,
-      ): item is UnavailableProduct =>
-        item !== null,
-    );
+            getTimestamp(
+              data.reportedAt,
+            ),
+        },
+      );
+    },
+  );
+
+  return Array.from(
+    products.values(),
+  );
 }
 
-/* ==============================================================
+/* ============================================================
+   PARSE FIRESTORE ORDER
+============================================================ */
+
+function parseMarketOrderSnapshot(
+  snapshot:
+    DocumentSnapshot<DocumentData>,
+
+  workerUid:
+    string,
+): ParsedOrderResult {
+  if (
+    !snapshot.exists()
+  ) {
+    return {
+      order:
+        null,
+
+      error:
+        "This market order no longer exists.",
+    };
+  }
+
+  const data =
+    snapshot.data();
+
+  const orderType =
+    safeString(
+      data.orderType,
+    ) ||
+    safeString(
+      data.type,
+    );
+
+  if (
+    orderType
+      .toLowerCase() !==
+    "market"
+  ) {
+    return {
+      order:
+        null,
+
+      error:
+        "This is not a market order.",
+    };
+  }
+
+  const assignedWorkerId =
+    safeString(
+      data.workerId,
+    ) ||
+    safeString(
+      data.sellerId,
+    );
+
+  if (
+    assignedWorkerId &&
+    assignedWorkerId !==
+      workerUid
+  ) {
+    return {
+      order:
+        null,
+
+      error:
+        "This market order is assigned to another worker.",
+    };
+  }
+
+  const order:
+    MarketOrder = {
+      id:
+        snapshot.id,
+
+      orderType:
+        "market",
+
+      customerId:
+        safeString(
+          data.customerId,
+        ),
+
+      workerId:
+        safeString(
+          data.workerId,
+        ),
+
+      sellerId:
+        safeString(
+          data.sellerId,
+        ),
+
+      storeId:
+        safeString(
+          data.storeId,
+        ),
+
+      products:
+        normalizeProducts(
+          data.products,
+        ),
+
+      unavailableProducts:
+        normalizeUnavailableProducts(
+          data.unavailableProducts,
+        ),
+
+      subtotal:
+        safeNumber(
+          data.subtotal,
+        ),
+
+      deliveryFee:
+        safeNumber(
+          data.deliveryFee,
+        ),
+
+      total:
+        safeNumber(
+          data.total,
+        ),
+
+      paymentMethod:
+        safeString(
+          data.paymentMethod,
+        ),
+
+      paymentStatus:
+        safeString(
+          data.paymentStatus,
+          "pending",
+        ),
+
+      status:
+        normalizeStatus(
+          data.status,
+        ),
+
+      receiverName:
+        safeString(
+          data.receiverName,
+          "Customer",
+        ),
+
+      receiverPhone:
+        safeString(
+          data.receiverPhone,
+        ),
+
+      stateId:
+        safeString(
+          data.stateId,
+        ),
+
+      lgaId:
+        safeString(
+          data.lgaId,
+        ),
+
+      address:
+        safeString(
+          data.address,
+        ),
+
+      lat:
+        getLatitude(
+          data.lat ??
+            data.latitude,
+        ),
+
+      lng:
+        getLongitude(
+          data.lng ??
+            data.longitude,
+        ),
+
+      note:
+        safeString(
+          data.note,
+        ),
+
+      createdAt:
+        getTimestamp(
+          data.createdAt,
+        ),
+
+      updatedAt:
+        getTimestamp(
+          data.updatedAt,
+        ),
+    };
+
+  return {
+    order,
+
+    error:
+      null,
+  };
+}
+
+/* ============================================================
    SCREEN
-============================================================== */
+============================================================ */
 
 export default function WorkerMarketOrderDetailsScreen() {
+  const router =
+    useRouter();
+
+  const navigation =
+    useNavigation();
+
   const params =
     useLocalSearchParams<RouteParams>();
 
-  /* ============================================================
-     ROUTE PARAMS
-  ============================================================ */
+  /* ==========================================================
+     HIDE WORKER BOTTOM NAVIGATION
+  ========================================================== */
 
-  const normalizedOrderId =
-    useMemo(() => {
-      const marketValue =
-        getRouteValue(
-          params.market,
-        );
+  useFocusEffect(
+    useCallback(() => {
+      const tabNavigator =
+        navigation.getParent();
 
-      const orderIdValue =
-        getRouteValue(
-          params.orderId,
-        );
+      tabNavigator?.setOptions({
+        tabBarStyle: {
+          display:
+            "none",
+        },
+      });
 
-      return (
-        marketValue ||
-        orderIdValue
-      );
+      return () => {
+        tabNavigator?.setOptions({
+          tabBarStyle:
+            undefined,
+        });
+      };
     }, [
-      params.market,
-      params.orderId,
-    ]);
+      navigation,
+    ]),
+  );
 
-  const normalizedOrderType =
+  /* ==========================================================
+     FIREBASE
+  ========================================================== */
+
+  const firebaseAuth =
     useMemo(
       () =>
-        getRouteValue(
-          params.orderType,
-        ).toLowerCase(),
-      [
-        params.orderType,
-      ],
+        getAuth(),
+      [],
     );
 
-  /* ============================================================
-     AUTH
-  ============================================================ */
+  const firestore =
+    useMemo(
+      () =>
+        getFirestore(),
+      [],
+    );
+
+  /* ==========================================================
+     STATE
+  ========================================================== */
+
+  const [
+    workerUid,
+    setWorkerUid,
+  ] =
+    useState("");
 
   const [
     authReady,
@@ -708,24 +1003,12 @@ export default function WorkerMarketOrderDetailsScreen() {
     useState(false);
 
   const [
-    workerId,
-    setWorkerId,
-  ] =
-    useState<
-      string | null
-    >(null);
-
-  /* ============================================================
-     ORDER STATE
-  ============================================================ */
-
-  const [
     order,
     setOrder,
   ] =
-    useState<
-      MarketOrder | null
-    >(null);
+    useState<MarketOrder | null>(
+      null,
+    );
 
   const [
     loading,
@@ -740,29 +1023,63 @@ export default function WorkerMarketOrderDetailsScreen() {
     useState(false);
 
   const [
+    callingCustomer,
+    setCallingCustomer,
+  ] =
+    useState(false);
+
+  const [
     error,
     setError,
   ] =
     useState<
       string | null
-    >(null);
+    >(
+      null,
+    );
 
-  /* ============================================================
-     AUTH LISTENER
-  ============================================================ */
+  const callingRef =
+    useRef(false);
+
+  /* ==========================================================
+     ROUTE ORDER ID
+  ========================================================== */
+
+  const normalizedOrderId =
+    useMemo(() => {
+      const marketValue =
+        getRouteValue(
+          params?.market,
+        );
+
+      const orderIdValue =
+        getRouteValue(
+          params?.orderId,
+        );
+
+      return (
+        marketValue ||
+        orderIdValue
+      );
+    }, [
+      params?.market,
+      params?.orderId,
+    ]);
+
+  /* ==========================================================
+     AUTH
+  ========================================================== */
 
   useEffect(() => {
     const unsubscribe =
       onAuthStateChanged(
-        auth,
-        user => {
-          const uid =
-            user?.uid?.trim() ??
-            "";
+        firebaseAuth,
 
-          setWorkerId(
-            uid ||
-            null,
+        user => {
+          setWorkerUid(
+            safeString(
+              user?.uid,
+            ),
           );
 
           setAuthReady(
@@ -772,579 +1089,506 @@ export default function WorkerMarketOrderDetailsScreen() {
       );
 
     return unsubscribe;
-  }, []);
+  }, [
+    firebaseAuth,
+  ]);
 
-  /* ============================================================
-     LOAD ORDER
-  ============================================================ */
-
-  const loadOrder =
-    useCallback(
-      async (
-        options?: {
-          silent?: boolean;
-        },
-      ) => {
-        if (!authReady) {
-          return;
-        }
-
-        const silent =
-          options?.silent ===
-          true;
-
-        if (
-          !normalizedOrderId
-        ) {
-          setOrder(
-            null,
-          );
-
-          setError(
-            "Order ID is missing.",
-          );
-
-          if (!silent) {
-            setLoading(
-              false,
-            );
-          }
-
-          return;
-        }
-
-        if (!workerId) {
-          setOrder(
-            null,
-          );
-
-          setError(
-            "Please sign in again.",
-          );
-
-          if (!silent) {
-            setLoading(
-              false,
-            );
-          }
-
-          return;
-        }
-
-        try {
-          if (!silent) {
-            setLoading(
-              true,
-            );
-          }
-
-          setError(
-            null,
-          );
-
-          const orderRef =
-            doc(
-              db,
-              "orders",
-              normalizedOrderId,
-            );
-
-          const snapshot =
-            await getDoc(
-              orderRef,
-            );
-
-          if (
-            !snapshot.exists()
-          ) {
-            setOrder(
-              null,
-            );
-
-            setError(
-              "This order could not be found.",
-            );
-
-            return;
-          }
-
-          const data =
-            snapshot.data();
-
-          /* ================================================
-             MARKET TYPE
-          ================================================ */
-
-          const dataOrderType =
-            safeString(
-              data.orderType,
-            ).toLowerCase();
-
-          const dataType =
-            safeString(
-              data.type,
-            ).toLowerCase();
-
-          const isMarketOrder =
-            dataOrderType ===
-              "market" ||
-            dataType ===
-              "market";
-
-          if (
-            normalizedOrderType ===
-              "market" &&
-            !isMarketOrder
-          ) {
-            setOrder(
-              null,
-            );
-
-            setError(
-              "This is not a market order.",
-            );
-
-            return;
-          }
-
-          /* ================================================
-             WORKER ACCESS
-          ================================================ */
-
-          const assignedWorkerId =
-            safeString(
-              data.workerId,
-            );
-
-          /*
-           * Preserve original flow:
-           * unassigned order may still load,
-           * but another worker's order must not.
-           *
-           * Firestore Rules remain authoritative.
-           */
-          if (
-            assignedWorkerId &&
-            assignedWorkerId !==
-              workerId
-          ) {
-            setOrder(
-              null,
-            );
-
-            setError(
-              "You are not assigned to this order.",
-            );
-
-            return;
-          }
-
-          /* ================================================
-             PAYMENT
-          ================================================ */
-
-          const paymentMethod: MarketPaymentMethod =
-            data.paymentMethod ===
-              "card" ||
-            data.paymentMethod ===
-              "transfer" ||
-            data.paymentMethod ===
-              "cash"
-              ? data.paymentMethod
-              : "cash";
-
-          /* ================================================
-             ORDER
-          ================================================ */
-
-          setOrder({
-            id:
-              snapshot.id,
-
-            orderType:
-              dataOrderType,
-
-            type:
-              dataType,
-
-            customerId:
-              safeString(
-                data.customerId,
-              ),
-
-            workerId:
-              assignedWorkerId,
-
-            sellerId:
-              safeString(
-                data.sellerId,
-              ),
-
-            storeId:
-              safeString(
-                data.storeId,
-              ),
-
-            products:
-              normalizeProducts(
-                data.products,
-              ),
-
-            unavailableProducts:
-              normalizeUnavailableProducts(
-                data.unavailableProducts,
-              ),
-
-            subtotal:
-              Math.max(
-                0,
-                safeNumber(
-                  data.subtotal,
-                ),
-              ),
-
-            deliveryFee:
-              Math.max(
-                0,
-                safeNumber(
-                  data.deliveryFee,
-                ),
-              ),
-
-            total:
-              Math.max(
-                0,
-                safeNumber(
-                  data.total,
-                ),
-              ),
-
-            paymentMethod,
-
-            paymentStatus:
-              safeString(
-                data.paymentStatus,
-                "pending",
-              ),
-
-            status:
-              normalizeStatus(
-                data.status,
-              ),
-
-            offerStatus:
-              safeString(
-                data.offerStatus,
-              ),
-
-            receiverName:
-              safeString(
-                data.receiverName,
-                "Customer",
-              ),
-
-            receiverPhone:
-              safeString(
-                data.receiverPhone,
-              ),
-
-            stateId:
-              safeString(
-                data.stateId,
-              ),
-
-            lgaId:
-              safeString(
-                data.lgaId,
-              ),
-
-            address:
-              safeString(
-                data.address,
-                "Address unavailable",
-              ),
-
-            latitude:
-              typeof data.latitude ===
-                "number" &&
-              Number.isFinite(
-                data.latitude,
-              )
-                ? data.latitude
-                : undefined,
-
-            longitude:
-              typeof data.longitude ===
-                "number" &&
-              Number.isFinite(
-                data.longitude,
-              )
-                ? data.longitude
-                : undefined,
-
-            note:
-              safeString(
-                data.note,
-              ),
-
-            createdAt:
-              data.createdAt instanceof
-              Timestamp
-                ? data.createdAt
-                : null,
-
-            updatedAt:
-              data.updatedAt instanceof
-              Timestamp
-                ? data.updatedAt
-                : null,
-          });
-        } catch (loadError) {
-          console.error(
-            "FIXXAM_LOAD_WORKER_MARKET_ORDER_ERROR:",
-            loadError,
-          );
-
-          setOrder(
-            null,
-          );
-
-          setError(
-            "Unable to load this order. Please try again.",
-          );
-        } finally {
-          if (!silent) {
-            setLoading(
-              false,
-            );
-          }
-        }
-      },
-      [
-        authReady,
-        normalizedOrderId,
-        normalizedOrderType,
-        workerId,
-      ],
-    );
-
-  /* ============================================================
-     INITIAL LOAD
-  ============================================================ */
+  /* ==========================================================
+     REALTIME ORDER
+  ========================================================== */
 
   useEffect(() => {
-    if (!authReady) {
+    if (
+      !authReady
+    ) {
       return;
     }
 
-    void loadOrder();
-  }, [
-    authReady,
-    loadOrder,
-  ]);
+    if (
+      !normalizedOrderId
+    ) {
+      setOrder(
+        null,
+      );
 
-  /* ============================================================
-     REFRESH
-  ============================================================ */
+      setError(
+        "Order ID is missing or invalid.",
+      );
 
-  const refreshOrder =
-    useCallback(
-      async () => {
-        if (refreshing) {
-          return;
-        }
+      setLoading(
+        false,
+      );
 
-        try {
-          setRefreshing(
-            true,
+      return;
+    }
+
+    if (
+      !workerUid
+    ) {
+      setOrder(
+        null,
+      );
+
+      setError(
+        "Please sign in again to view this order.",
+      );
+
+      setLoading(
+        false,
+      );
+
+      return;
+    }
+
+    setLoading(
+      true,
+    );
+
+    setError(
+      null,
+    );
+
+    const orderRef =
+      doc(
+        firestore,
+        "orders",
+        normalizedOrderId,
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        orderRef,
+
+        snapshot => {
+          const result =
+            parseMarketOrderSnapshot(
+              snapshot,
+              workerUid,
+            );
+
+          setOrder(
+            result.order,
           );
 
-          await loadOrder({
-            silent:
-              true,
-          });
-        } finally {
+          setError(
+            result.error,
+          );
+
+          setLoading(
+            false,
+          );
+
           setRefreshing(
             false,
           );
-        }
-      },
-      [
-        loadOrder,
-        refreshing,
-      ],
-    );
+        },
 
-  /* ============================================================
-     CALCULATIONS
-  ============================================================ */
-
-  const itemCount =
-    useMemo(
-      () =>
-        order?.products.reduce(
-          (
-            total,
-            product,
-          ) =>
-            total +
-            Math.max(
-              1,
-              product.quantity,
-            ),
-          0,
-        ) ??
-        0,
-      [
-        order?.products,
-      ],
-    );
-
-  const unavailableProductIds =
-    useMemo(
-      () =>
-        new Set(
-          (
-            order
-              ?.unavailableProducts ??
-            []
-          ).map(
-            product =>
-              product.productId,
-          ),
-        ),
-      [
-        order
-          ?.unavailableProducts,
-      ],
-    );
-
-  const hasGps =
-    order?.latitude !==
-      undefined &&
-    order?.longitude !==
-      undefined;
-
-  /* ============================================================
-     BACK
-  ============================================================ */
-
-  const handleBack =
-    useCallback(() => {
-      router.back();
-    }, []);
-
-  /* ============================================================
-     CALL CUSTOMER
-  ============================================================ */
-
-  const handleCallCustomer =
-    useCallback(
-      async () => {
-        const rawPhone =
-          order
-            ?.receiverPhone
-            ?.trim() ??
-          "";
-
-        const phone =
-          rawPhone.replace(
-            /[^0-9+*#,;]/g,
-            "",
-          );
-
-        if (!phone) {
-          Toast.show({
-            type:
-              "info",
-
-            text1:
-              "Phone unavailable",
-
-            text2:
-              "Customer phone number is not available.",
-          });
-
-          return;
-        }
-
-        try {
-          const url =
-            `tel:${phone}`;
-
-          const supported =
-            await Linking.canOpenURL(
-              url,
+        listenerError => {
+          if (
+            __DEV__
+          ) {
+            console.warn(
+              "WORKER_MARKET_ORDER_LISTENER_ERROR",
+              listenerError,
             );
-
-          if (!supported) {
-            Toast.show({
-              type:
-                "error",
-
-              text1:
-                "Calling unavailable",
-
-              text2:
-                "Your device cannot make phone calls.",
-            });
-
-            return;
           }
 
-          await Linking.openURL(
-            url,
-          );
-        } catch (callError) {
-          console.error(
-            "FIXXAM_CALL_CUSTOMER_ERROR:",
-            callError,
+          setOrder(
+            null,
           );
 
-          Toast.show({
-            type:
-              "error",
+          setError(
+            "Unable to load this market order. Please try again.",
+          );
 
-            text1:
-              "Unable to call customer",
+          setLoading(
+            false,
+          );
 
-            text2:
-              "Please try again.",
-          });
-        }
-      },
-      [
-        order?.receiverPhone,
-      ],
-    );
+          setRefreshing(
+            false,
+          );
+        },
+      );
 
-  /* ============================================================
-     CHAT
-  ============================================================ */
+    return unsubscribe;
+  }, [
+    authReady,
+    firestore,
+    normalizedOrderId,
+    workerUid,
+  ]);
 
-  const handleChatCustomer =
-    useCallback(() => {
-      const customerId =
-        order
-          ?.customerId
-          ?.trim();
+  /* ==========================================================
+     REFRESH
+  ========================================================== */
 
-      if (!customerId) {
+  const handleRefresh =
+    useCallback(async () => {
+      if (
+        refreshing ||
+        !normalizedOrderId
+      ) {
+        return;
+      }
+
+      if (
+        !workerUid
+      ) {
         Toast.show({
           type:
-            "info",
+            "error",
 
           text1:
-            "Chat unavailable",
+            "Sign in required",
 
           text2:
-            "Customer information is not available.",
+            "Please sign in again to continue.",
         });
 
         return;
       }
 
-      if (!order?.id) {
+      setRefreshing(
+        true,
+      );
+
+      try {
+        const orderRef =
+          doc(
+            firestore,
+            "orders",
+            normalizedOrderId,
+          );
+
+        const snapshot =
+          await getDocFromServer(
+            orderRef,
+          );
+
+        const result =
+          parseMarketOrderSnapshot(
+            snapshot,
+            workerUid,
+          );
+
+        setOrder(
+          result.order,
+        );
+
+        setError(
+          result.error,
+        );
+
+        if (
+          !result.error
+        ) {
+          Toast.show({
+            type:
+              "success",
+
+            text1:
+              "Order refreshed",
+          });
+        }
+      } catch (
+        refreshError
+      ) {
+        if (
+          __DEV__
+        ) {
+          console.warn(
+            "WORKER_MARKET_ORDER_REFRESH_ERROR",
+            refreshError,
+          );
+        }
+
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Unable to refresh",
+
+          text2:
+            "Please check your connection and try again.",
+        });
+      } finally {
+        setRefreshing(
+          false,
+        );
+      }
+    }, [
+      firestore,
+      normalizedOrderId,
+      refreshing,
+      workerUid,
+    ]);
+
+  /* ==========================================================
+     FIXXAM VOICE — CALL CUSTOMER
+  ========================================================== */
+
+  const handleCallCustomer =
+    useCallback(async () => {
+      if (
+        callingRef.current
+      ) {
+        return;
+      }
+
+      if (
+        !order
+      ) {
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Call unavailable",
+
+          text2:
+            "Order information is not available.",
+        });
+
+        return;
+      }
+
+      const currentWorker =
+        firebaseAuth.currentUser;
+
+      const currentWorkerId =
+        safeString(
+          currentWorker?.uid,
+        );
+
+      const currentOrderId =
+        safeString(
+          order.id,
+        );
+
+      const customerId =
+        safeString(
+          order.customerId,
+        );
+
+      const customerName =
+        safeString(
+          order.receiverName,
+          "Customer",
+        );
+
+      if (
+        !currentWorker ||
+        !currentWorkerId ||
+        currentWorkerId !==
+          workerUid
+      ) {
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Sign in required",
+
+          text2:
+            "Please sign in again before starting a call.",
+        });
+
+        return;
+      }
+
+      if (
+        !currentOrderId
+      ) {
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Call unavailable",
+
+          text2:
+            "Order information is missing.",
+        });
+
+        return;
+      }
+
+      if (
+        !customerId
+      ) {
+        Toast.show({
+          type:
+            "info",
+
+          text1:
+            "Call unavailable",
+
+          text2:
+            "This order does not contain a customer account.",
+        });
+
+        return;
+      }
+
+      if (
+        customerId ===
+        currentWorkerId
+      ) {
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Call unavailable",
+
+          text2:
+            "You cannot call your own account.",
+        });
+
+        return;
+      }
+
+      callingRef.current =
+        true;
+
+      setCallingCustomer(
+        true,
+      );
+
+      try {
+        const callId =
+          await createWorkerMarketCallSession({
+            workerId:
+              currentWorkerId,
+
+            customerId,
+
+            orderId:
+              currentOrderId,
+
+            workerSnapshot: {
+              name:
+                safeString(
+                  currentWorker.displayName,
+                  "Worker",
+                ),
+
+              image:
+                safeString(
+                  currentWorker.photoURL,
+                ),
+
+              service:
+                "Market Order",
+            },
+
+            customerSnapshot: {
+              name:
+                customerName,
+
+              image:
+                "",
+
+              service:
+                "Market Order",
+            },
+          });
+
+        if (
+          !callId
+        ) {
+          throw new Error(
+            "Call session was not created.",
+          );
+        }
+
+        router.push({
+          pathname:
+            WORKER_CALL_PATHNAME,
+
+          params: {
+            customer:
+              customerId,
+
+            callId,
+
+            customerName,
+          },
+        } as never);
+      } catch (
+        callError
+      ) {
+        if (
+          __DEV__
+        ) {
+          console.error(
+            "FIXXAM_WORKER_MARKET_CALL_START_ERROR:",
+            callError,
+          );
+        }
+
+        Toast.show({
+          type:
+            "error",
+
+          text1:
+            "Call failed",
+
+          text2:
+            callError instanceof
+              Error &&
+            callError.message
+              ? callError.message
+              : "Unable to start Fixxam Voice. Please try again.",
+        });
+      } finally {
+        callingRef.current =
+          false;
+
+        setCallingCustomer(
+          false,
+        );
+      }
+    }, [
+      firebaseAuth,
+      order,
+      router,
+      workerUid,
+    ]);
+
+  /* ==========================================================
+     CHAT
+  ========================================================== */
+
+  const handleChat =
+    useCallback(() => {
+      if (
+        !order
+      ) {
+        return;
+      }
+
+      const currentOrderId =
+        safeString(
+          order.id,
+        );
+
+      const customerId =
+        safeString(
+          order.customerId,
+        );
+
+      const customerName =
+        safeString(
+          order.receiverName,
+          "Customer",
+        );
+
+      if (
+        !currentOrderId
+      ) {
         Toast.show({
           type:
             "error",
@@ -1359,75 +1603,148 @@ export default function WorkerMarketOrderDetailsScreen() {
         return;
       }
 
-      /*
-       * Existing route preserved.
-       */
+      if (
+        !customerId
+      ) {
+        Toast.show({
+          type:
+            "info",
+
+          text1:
+            "Chat unavailable",
+
+          text2:
+            "Customer information is unavailable for this order.",
+        });
+
+        return;
+      }
+
       router.push({
         pathname:
-          "/(worker)/orders/market/chat",
+          WORKER_CHAT_PATHNAME,
 
         params: {
           orderId:
-            order.id,
+            currentOrderId,
 
           customerId,
 
-          customerName:
-            order.receiverName ||
-            "Customer",
-
-          customerPhone:
-            order.receiverPhone ||
-            "",
+          customerName,
         },
       } as never);
     }, [
       order,
+      router,
     ]);
 
-  /* ============================================================
+  /* ==========================================================
+     DERIVED DATA
+  ========================================================== */
+
+  const createdDate =
+    useMemo(
+      () =>
+        formatDate(
+          order?.createdAt ??
+            null,
+        ),
+      [
+        order?.createdAt,
+      ],
+    );
+
+  const statusConfig =
+    useMemo(
+      () =>
+        getStatusConfig(
+          order?.status ??
+            "pending",
+        ),
+      [
+        order?.status,
+      ],
+    );
+
+  const unavailableProductIds =
+    useMemo(() => {
+      const ids =
+        new Set<string>();
+
+      const unavailableProducts =
+        order?.unavailableProducts ??
+        [];
+
+      unavailableProducts.forEach(
+        product => {
+          const productId =
+            safeString(
+              product?.productId,
+            );
+
+          if (
+            productId
+          ) {
+            ids.add(
+              productId,
+            );
+          }
+        },
+      );
+
+      return ids;
+    }, [
+      order?.unavailableProducts,
+    ]);
+
+  const unavailableProductIdList =
+    useMemo(
+      () =>
+        Array.from(
+          unavailableProductIds,
+        ),
+      [
+        unavailableProductIds,
+      ],
+    );
+
+  const unavailableProductCount =
+    unavailableProductIds.size;
+
+  /* ==========================================================
      LOADING
-  ============================================================ */
+  ========================================================== */
 
   if (
-    !authReady ||
-    loading
+    loading ||
+    !authReady
   ) {
     return (
       <AppScreen
-        role="worker"
+        scrollEnabled={
+          false
+        }
         contentContainerStyle={
-          styles.stateScreen
+          styles.centerContent
         }
       >
-        <View
+        <AppLoader />
+
+        <AppText
+          variant="caption"
           style={
-            styles.center
+            styles.loadingText
           }
         >
-          <AppLoader
-            role="worker"
-            size="sm"
-          />
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.loadingText
-            }
-          >
-            Loading order...
-          </AppText>
-        </View>
+          Loading market order...
+        </AppText>
       </AppScreen>
     );
   }
 
-  /* ============================================================
+  /* ==========================================================
      ERROR
-  ============================================================ */
+  ========================================================== */
 
   if (
     error ||
@@ -1435,119 +1752,159 @@ export default function WorkerMarketOrderDetailsScreen() {
   ) {
     return (
       <AppScreen
-        role="worker"
+        scrollEnabled={
+          false
+        }
         contentContainerStyle={
-          styles.stateScreen
+          styles.centerContent
         }
       >
         <View
           style={
-            styles.center
+            styles.errorIcon
           }
         >
-          <View
-            style={
-              styles.errorIcon
+          <AppIcon
+            name="error"
+            size="md"
+            color={
+              Colors.error
             }
+          />
+        </View>
+
+        <AppText
+          variant="heading3"
+          weight="bold"
+          style={
+            styles.errorTitle
+          }
+        >
+          Order unavailable
+        </AppText>
+
+        <AppText
+          variant="body"
+          center
+          style={
+            styles.errorMessage
+          }
+        >
+          {error ??
+            "This market order could not be loaded."}
+        </AppText>
+
+        <View
+          style={
+            styles.errorActions
+          }
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() =>
+              router.back()
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.errorSecondaryButton,
+
+              pressed
+                ? styles.pressed
+                : null,
+            ]}
           >
             <AppIcon
-              name="error"
-              size="lg"
+              name="back"
+              size="xs"
               color={
-                Colors.error
+                Colors.textPrimary
               }
             />
-          </View>
 
-          <AppText
-            variant="heading2"
-            weight="bold"
-            center
-            style={
-              styles.errorTitle
-            }
-          >
-            Order unavailable
-          </AppText>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.errorText
-            }
-          >
-            {error ??
-              "This order could not be loaded."}
-          </AppText>
-
-          <View
-            style={
-              styles.errorActions
-            }
-          >
-            <AppButton
-              title="Retry"
-              role="worker"
-              leftIconName="refresh"
-              onPress={() =>
-                void loadOrder()
-              }
+            <AppText
+              variant="bodyMedium"
+              weight="medium"
               style={
-                styles.errorButton
+                styles.errorSecondaryText
               }
+            >
+              Go back
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading order"
+            accessibilityState={{
+              disabled:
+                refreshing,
+
+              busy:
+                refreshing,
+            }}
+            disabled={
+              refreshing
+            }
+            onPress={() => {
+              void handleRefresh();
+            }}
+            style={({
+              pressed,
+            }) => [
+              styles.errorPrimaryButton,
+
+              refreshing
+                ? styles.disabled
+                : null,
+
+              pressed &&
+              !refreshing
+                ? styles.pressed
+                : null,
+            ]}
+          >
+            <AppIcon
+              name="refresh"
+              size="xs"
+              color="#FFFFFF"
             />
 
-            <AppButton
-              title="Go Back"
-              role="worker"
-              variant="outline"
-              leftIconName="back"
-              onPress={
-                handleBack
-              }
+            <AppText
+              variant="bodyMedium"
+              weight="bold"
               style={
-                styles.errorButton
+                styles.errorPrimaryText
               }
-            />
-          </View>
+            >
+              {refreshing
+                ? "Retrying..."
+                : "Retry"}
+            </AppText>
+          </Pressable>
         </View>
       </AppScreen>
     );
   }
 
-  /* ============================================================
-     STATUS
-  ============================================================ */
-
-  const statusConfig =
-    getStatusConfig(
-      order.status,
-    );
-
-  /* ============================================================
-     MAIN
-  ============================================================ */
+  /* ==========================================================
+     SCREEN
+  ========================================================== */
 
   return (
     <AppScreen
-      role="worker"
       scrollEnabled
       contentContainerStyle={
-        styles.container
+        styles.screen
       }
     >
-      {/* HEADER */}
-
       <WorkerMarketOrderHeaderSection
         orderId={
           order.id
         }
         createdDate={
-          formatDate(
-            order.createdAt,
-          )
+          createdDate
         }
         refreshing={
           refreshing
@@ -1564,160 +1921,185 @@ export default function WorkerMarketOrderDetailsScreen() {
         statusBackgroundColor={
           statusConfig.backgroundColor
         }
-        onBack={
-          handleBack
+        onBack={() =>
+          router.back()
         }
-        onRefresh={() =>
-          void refreshOrder()
-        }
-      />
-
-      {/* CUSTOMER + DELIVERY */}
-
-      <WorkerMarketCustomerDeliverySection
-        customerName={
-          order.receiverName ||
-          "Customer"
-        }
-        customerPhone={
-          order.receiverPhone
-        }
-        address={
-          order.address ||
-          "Address unavailable"
-        }
-        hasGps={
-          hasGps
-        }
-        onCallCustomer={
-          handleCallCustomer
-        }
-      />
-
-      {/* EXISTING PRODUCTS COMPONENT */}
-
-      <WorkerMarketProducts
-        orderId={
-          order.id
-        }
-        products={
-          order.products
-        }
-        unavailableProducts={
-          Array.from(
-            unavailableProductIds,
-          )
-        }
-        disabled={
-          order.status !==
-          "pending"
-        }
-      />
-
-      {/* PAYMENT + SUMMARY + NOTE */}
-
-      <WorkerMarketPaymentSummarySection
-        paymentMethod={
-          order.paymentMethod
-        }
-        paymentStatus={
-          order.paymentStatus ||
-          "pending"
-        }
-        itemCount={
-          itemCount
-        }
-        subtotal={
-          order.subtotal
-        }
-        deliveryFee={
-          order.deliveryFee
-        }
-        total={
-          order.total
-        }
-        note={
-          order.note
-        }
-      />
-
-      {/* EXISTING ORDER ACTIONS COMPONENT */}
-
-      <WorkerMarketOrderActions
-        orderId={
-          order.id
-        }
-        status={
-          order.status
-        }
-      />
-
-      {/* CHAT */}
-
-      <AppButton
-        title="Chat with customer"
-        role="worker"
-        leftIconName="messages"
-        disabled={
-          !order.customerId
-        }
-        onPress={
-          handleChatCustomer
-        }
-        style={
-          styles.chatButton
-        }
+        onRefresh={() => {
+          void handleRefresh();
+        }}
       />
 
       <View
         style={
-          styles.bottomSpace
+          styles.content
         }
-      />
+      >
+        <WorkerMarketCustomer
+          customerName={
+            order.receiverName
+          }
+          customerPhone={
+            order.receiverPhone
+          }
+          orderId={
+            order.id
+          }
+          createdDate={
+            createdDate
+          }
+        />
+
+        <WorkerMarketOrderStatus
+          status={
+            order.status
+          }
+        />
+
+        <WorkerMarketProducts
+          orderId={
+            order.id
+          }
+          products={
+            order.products
+          }
+          unavailableProducts={
+            unavailableProductIdList
+          }
+          disabled={
+            order.status !==
+            "pending"
+          }
+        />
+
+        <WorkerMarketDelivery
+          receiverName={
+            order.receiverName
+          }
+          receiverPhone={
+            order.receiverPhone
+          }
+          address={
+            order.address
+          }
+          latitude={
+            order.lat
+          }
+          longitude={
+            order.lng
+          }
+        />
+
+        <WorkerMarketPayment
+          paymentMethod={
+            order.paymentMethod
+          }
+          paymentStatus={
+            order.paymentStatus
+          }
+        />
+
+        <WorkerMarketSummary
+          subtotal={
+            order.subtotal
+          }
+          deliveryFee={
+            order.deliveryFee
+          }
+          total={
+            order.total
+          }
+        />
+
+        {order.note ? (
+          <WorkerMarketNote
+            note={
+              order.note
+            }
+          />
+        ) : null}
+
+        <WorkerMarketContactActions
+          onCall={
+            handleCallCustomer
+          }
+          onChat={
+            handleChat
+          }
+          calling={
+            callingCustomer
+          }
+        />
+
+        <WorkerMarketOrderActions
+          orderId={
+            order.id
+          }
+          status={
+            order.status
+          }
+          unavailableProductCount={
+            unavailableProductCount
+          }
+        />
+      </View>
     </AppScreen>
   );
 }
 
-/* ==============================================================
+/* ============================================================
    STYLES
-============================================================== */
+============================================================ */
 
 const styles =
   StyleSheet.create({
-    container: {
+    screen: {
+      width:
+        "100%",
+
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        0,
+
+      paddingTop:
+        0,
 
       paddingBottom:
-        FixxamTokens.spacing.xxxl,
+        FixxamTokens.spacing.xl,
 
       backgroundColor:
         Colors.background,
     },
 
-    stateScreen: {
-      flex: 1,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    center: {
-      flex: 1,
+    content: {
+      width:
+        "100%",
 
       paddingHorizontal:
-        FixxamTokens.spacing.xxl,
+        FixxamTokens.spacing.md,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    centerContent: {
+      flexGrow:
+        1,
 
       alignItems:
         "center",
 
       justifyContent:
         "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        Colors.background,
     },
 
     loadingText: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       color:
         Colors.textSecondary,
@@ -1725,10 +2107,10 @@ const styles =
 
     errorIcon: {
       width:
-        FixxamTokens.size.fabLarge,
+        52,
 
       height:
-        FixxamTokens.size.fabLarge,
+        52,
 
       alignItems:
         "center",
@@ -1737,7 +2119,7 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.errorSoft,
@@ -1745,45 +2127,148 @@ const styles =
 
     errorTitle: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.sm,
+
+      textAlign:
+        "center",
 
       color:
         Colors.textPrimary,
     },
 
-    errorText: {
-      maxWidth: 340,
+    errorMessage: {
+      maxWidth:
+        320,
 
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      lineHeight: 20,
+      lineHeight:
+        20,
+
+      textAlign:
+        "center",
 
       color:
         Colors.textSecondary,
     },
 
     errorActions: {
-      width: "100%",
+      width:
+        "100%",
+
+      maxWidth:
+        320,
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
+
+      flexDirection:
+        "row",
 
       gap:
         FixxamTokens.spacing.sm,
     },
 
-    errorButton: {
-      width: "100%",
-    },
+    errorSecondaryButton: {
+      flex:
+        1,
 
-    chatButton: {
-      marginTop:
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
         FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    bottomSpace: {
-      height:
-        FixxamTokens.spacing.xxl,
+    errorPrimaryButton: {
+      flex:
+        1,
+
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        WorkerColors.primary,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    errorSecondaryText: {
+      color:
+        Colors.textPrimary,
+    },
+
+    errorPrimaryText: {
+      color:
+        "#FFFFFF",
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

@@ -1171,7 +1171,6 @@ export default function VerifyResetOtpScreen() {
             !verifying &&
             !verified
           }
-          variant="customer"
         />
 
         {/* ====================================================

@@ -7,7 +7,7 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -138,6 +138,12 @@ export default function CustomerPrivacySecurityScreen() {
   ] =
     useState(false);
 
+  const [
+    changePasswordModalVisible,
+    setChangePasswordModalVisible,
+  ] =
+    useState(false);
+
   const verificationInFlight =
     useRef(false);
 
@@ -223,28 +229,31 @@ export default function CustomerPrivacySecurityScreen() {
     ]);
 
   /* ==========================================================
-     CHANGE PASSWORD
+     CHANGE PASSWORD MODAL
   ========================================================== */
 
   const handleChangePassword =
     useCallback(() => {
-      Alert.alert(
-        "Change Password",
-        "For your security, you will continue through the password recovery flow.",
-        [
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-          {
-            text: "Continue",
-            onPress: () => {
-              router.push(
-                "/(auth)/forgot-password" as never,
-              );
-            },
-          },
-        ],
+      setChangePasswordModalVisible(
+        true,
+      );
+    }, []);
+
+  const handleCloseChangePasswordModal =
+    useCallback(() => {
+      setChangePasswordModalVisible(
+        false,
+      );
+    }, []);
+
+  const handleContinueChangePassword =
+    useCallback(() => {
+      setChangePasswordModalVisible(
+        false,
+      );
+
+      router.push(
+        "/(auth)/forgot-password" as never,
       );
     }, []);
 
@@ -339,197 +348,344 @@ export default function CustomerPrivacySecurityScreen() {
   ========================================================== */
 
   return (
-    <AppScreen
-      role="customer"
-      contentContainerStyle={
-        styles.screen
-      }
-    >
-      <ScrollView
-        showsVerticalScrollIndicator={
-          false
-        }
+    <>
+      <AppScreen
+        role="customer"
         contentContainerStyle={
-          styles.content
+          styles.screen
         }
       >
-        {/* ====================================================
-            HEADER
-        ==================================================== */}
+        <ScrollView
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.content
+          }
+        >
+          {/* ====================================================
+              HEADER
+          ==================================================== */}
 
+          <View
+            style={
+              styles.header
+            }
+          >
+            <Pressable
+              onPress={() => {
+                router.back();
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={({
+                pressed,
+              }) => [
+                styles.backButton,
+
+                pressed
+                  ? styles.pressed
+                  : null,
+              ]}
+            >
+              <AppIcon
+                name="back"
+                size="md"
+                color={
+                  Colors.textPrimary
+                }
+              />
+            </Pressable>
+
+            <View
+              style={
+                styles.headerText
+              }
+            >
+              <AppText
+                variant="heading2"
+                weight="bold"
+                style={
+                  styles.title
+                }
+              >
+                Privacy & Security
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.subtitle
+                }
+              >
+                Protect your Fixxam account
+              </AppText>
+            </View>
+          </View>
+
+          {/* ====================================================
+              ACCOUNT SECURITY
+          ==================================================== */}
+
+          <SectionTitle
+            title="ACCOUNT SECURITY"
+          />
+
+          <View
+            style={
+              styles.card
+            }
+          >
+            {/* ==================================================
+                EMAIL VERIFICATION
+            ================================================== */}
+
+            <SettingRow
+              icon="mail"
+              title="Email Verification"
+              subtitle={
+                user.emailVerified
+                  ? "Your email address is verified"
+                  : "Verify your email address"
+              }
+              status={
+                user.emailVerified
+                  ? "Verified"
+                  : "Not verified"
+              }
+              statusType={
+                user.emailVerified
+                  ? "success"
+                  : "warning"
+              }
+              onPress={
+                user.emailVerified
+                  ? undefined
+                  : () => {
+                      void handleEmailVerification();
+                    }
+              }
+              loading={
+                sendingVerification
+              }
+            />
+
+            <Divider />
+
+            {/* ==================================================
+                CHANGE PASSWORD
+            ================================================== */}
+
+            <SettingRow
+              icon="lock"
+              title="Change Password"
+              subtitle="Update your account password"
+              onPress={
+                handleChangePassword
+              }
+            />
+          </View>
+
+          {/* ====================================================
+              SECURITY INFO
+          ==================================================== */}
+
+          <View
+            style={
+              styles.infoCard
+            }
+          >
+            <View
+              style={
+                styles.infoIcon
+              }
+            >
+              <AppIcon
+                name="shield"
+                role="customer"
+                size="sm"
+                color={
+                  CustomerColors.primary
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.infoContent
+              }
+            >
+              <AppText
+                variant="caption"
+                weight="bold"
+                style={
+                  styles.infoTitle
+                }
+              >
+                Account security
+              </AppText>
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.infoText
+                }
+              >
+                Keep your email verified and use a strong password to help protect your Fixxam account.
+              </AppText>
+            </View>
+          </View>
+        </ScrollView>
+      </AppScreen>
+
+      {/* ========================================================
+          CHANGE PASSWORD MODAL
+      ======================================================== */}
+
+      <Modal
+        visible={
+          changePasswordModalVisible
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          handleCloseChangePasswordModal
+        }
+      >
         <View
           style={
-            styles.header
+            styles.modalOverlay
           }
         >
           <Pressable
-            onPress={() => {
-              router.back();
-            }}
-            hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={({
-              pressed,
-            }) => [
-              styles.backButton,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="back"
-              size="md"
-              color={
-                Colors.textPrimary
-              }
-            />
-          </Pressable>
-
-          <View
+            accessibilityLabel="Close change password dialog"
             style={
-              styles.headerText
-            }
-          >
-            <AppText
-              variant="heading2"
-              weight="bold"
-              style={
-                styles.title
-              }
-            >
-              Privacy & Security
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.subtitle
-              }
-            >
-              Protect your Fixxam account
-            </AppText>
-          </View>
-        </View>
-
-        {/* ====================================================
-            ACCOUNT SECURITY
-        ==================================================== */}
-
-        <SectionTitle
-          title="ACCOUNT SECURITY"
-        />
-
-        <View
-          style={
-            styles.card
-          }
-        >
-          {/* ==================================================
-              EMAIL VERIFICATION
-          ================================================== */}
-
-          <SettingRow
-            icon="mail"
-            title="Email Verification"
-            subtitle={
-              user.emailVerified
-                ? "Your email address is verified"
-                : "Verify your email address"
-            }
-            status={
-              user.emailVerified
-                ? "Verified"
-                : "Not verified"
-            }
-            statusType={
-              user.emailVerified
-                ? "success"
-                : "warning"
+              styles.modalBackdrop
             }
             onPress={
-              user.emailVerified
-                ? undefined
-                : () => {
-                    void handleEmailVerification();
+              handleCloseChangePasswordModal
+            }
+          />
+
+          <View
+            accessibilityViewIsModal
+            style={
+              styles.modalCard
+            }
+          >
+            {/* MODAL HEADER */}
+
+            <View
+              style={
+                styles.modalHeader
+              }
+            >
+              <View
+                style={
+                  styles.modalIcon
+                }
+              >
+                <AppIcon
+                  name="lock"
+                  role="customer"
+                  size="md"
+                  color={
+                    CustomerColors.primary
                   }
-            }
-            loading={
-              sendingVerification
-            }
-          />
+                />
+              </View>
 
-          <Divider />
+              <AppText
+                variant="heading3"
+                weight="bold"
+                style={
+                  styles.modalTitle
+                }
+              >
+                Change Password
+              </AppText>
+            </View>
 
-          {/* ==================================================
-              CHANGE PASSWORD
-          ================================================== */}
-
-          <SettingRow
-            icon="lock"
-            title="Change Password"
-            subtitle="Update your account password"
-            onPress={
-              handleChangePassword
-            }
-          />
-        </View>
-
-        {/* ====================================================
-            SECURITY INFO
-        ==================================================== */}
-
-        <View
-          style={
-            styles.infoCard
-          }
-        >
-          <View
-            style={
-              styles.infoIcon
-            }
-          >
-            <AppIcon
-              name="shield"
-              role="customer"
-              size="sm"
-              color={
-                CustomerColors.primary
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.infoContent
-            }
-          >
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.infoTitle
-              }
-            >
-              Account security
-            </AppText>
+            {/* MODAL MESSAGE */}
 
             <AppText
-              variant="caption"
+              variant="body"
               tone="secondary"
               style={
-                styles.infoText
+                styles.modalMessage
               }
             >
-              Keep your email verified and use a strong password to help protect your Fixxam account.
+              For your security, you will continue through the password recovery flow.
             </AppText>
+
+            {/* MODAL ACTIONS */}
+
+            <View
+              style={
+                styles.modalActions
+              }
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel change password"
+                onPress={
+                  handleCloseChangePasswordModal
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.modalCancelButton,
+
+                  pressed &&
+                    styles.modalButtonPressed,
+                ]}
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.modalCancelText
+                  }
+                >
+                  CANCEL
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Continue to change password"
+                onPress={
+                  handleContinueChangePassword
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.modalContinueButton,
+
+                  pressed &&
+                    styles.modalButtonPressed,
+                ]}
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.modalContinueText
+                  }
+                >
+                  CONTINUE
+                </AppText>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </ScrollView>
-    </AppScreen>
+      </Modal>
+    </>
   );
 }
 
@@ -1247,5 +1403,177 @@ const styles =
       opacity:
         FixxamTokens.motion
           .disabledOpacity,
+    },
+
+    /* ========================================================
+       FIXAM CUSTOMER MODAL
+    ======================================================== */
+
+    modalOverlay: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      backgroundColor:
+        "rgba(15, 23, 42, 0.48)",
+    },
+
+    modalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+    },
+
+    modalCard: {
+      width:
+        "100%",
+
+      maxWidth:
+        420,
+
+      padding:
+        FixxamTokens.spacing.lg,
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+
+      ...FixxamTokens.shadow.card,
+    },
+
+    modalHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    modalIcon: {
+      width: 48,
+
+      height: 48,
+
+      flexShrink: 0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    modalTitle: {
+      flex: 1,
+
+      marginLeft:
+        FixxamTokens.spacing.md,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    modalMessage: {
+      marginTop:
+        FixxamTokens.spacing.lg,
+
+      lineHeight: 22,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    modalActions: {
+      marginTop:
+        FixxamTokens.spacing.xl,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "flex-end",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    modalCancelButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    modalContinueButton: {
+      minHeight:
+        FixxamTokens.size.buttonHeight,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.button,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    modalCancelText: {
+      color:
+        Colors.textSecondary,
+    },
+
+    modalContinueText: {
+      color:
+        Colors.textInverse,
+    },
+
+    modalButtonPressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

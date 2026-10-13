@@ -83,7 +83,6 @@ function CategoryCard({
           },
         ]}
       >
-        {/* MaterialCommunityIcons intentionally preserved */}
         <MaterialCommunityIcons
           name={materialIcon}
           size={

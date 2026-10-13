@@ -1,7 +1,6 @@
 import React from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -16,7 +15,6 @@ import ProfileBadge from "@/components/profile/shared/ProfileBadge";
 
 import {
   Colors,
-  CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
@@ -36,10 +34,6 @@ type Props = {
   verified?: boolean;
 
   onEditPhoto?: () => void;
-
-  onNotifications?: () => void;
-
-  onSettings?: () => void;
 };
 
 /* ============================================================
@@ -53,8 +47,6 @@ export default function CustomerProfileHeader({
   photoUrl,
   verified = true,
   onEditPhoto,
-  onNotifications,
-  onSettings,
 }: Props) {
   const hasPhone =
     Boolean(phone?.trim());
@@ -80,84 +72,6 @@ export default function CustomerProfileHeader({
         >
           Profile
         </AppText>
-
-        <View
-          style={styles.actions}
-        >
-          {/* NOTIFICATIONS */}
-
-          <Pressable
-            onPress={
-              onNotifications
-            }
-            disabled={
-              !onNotifications
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            accessibilityState={{
-              disabled:
-                !onNotifications,
-            }}
-            hitSlop={4}
-            style={({
-              pressed,
-            }) => [
-              styles.iconButton,
-
-              pressed &&
-              onNotifications
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="notifications"
-              role="customer"
-              size="sm"
-              color={
-                Colors.textPrimary
-              }
-            />
-          </Pressable>
-
-          {/* SETTINGS */}
-
-          <Pressable
-            onPress={
-              onSettings
-            }
-            disabled={
-              !onSettings
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            accessibilityState={{
-              disabled:
-                !onSettings,
-            }}
-            hitSlop={4}
-            style={({
-              pressed,
-            }) => [
-              styles.iconButton,
-
-              pressed &&
-              onSettings
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="settings"
-              role="customer"
-              size="sm"
-              color={
-                Colors.textPrimary
-              }
-            />
-          </Pressable>
-        </View>
       </View>
 
       {/* =====================================================
@@ -312,63 +226,11 @@ const styles =
       flexDirection: "row",
 
       alignItems: "center",
-
-      justifyContent:
-        "space-between",
     },
 
     title: {
       color:
         Colors.textPrimary,
-    },
-
-    actions: {
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-    },
-
-    iconButton: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
     },
 
     /* ========================================================

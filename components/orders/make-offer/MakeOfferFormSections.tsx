@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useCallback,
   useState,
 } from "react";
 
@@ -10,7 +11,6 @@ import {
 } from "react-native";
 
 import {
-  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -21,7 +21,9 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import MakeOfferSectionTitle from "@/components/orders/make-offer/MakeOfferSectionTitle";
+/* ==============================================================
+   TYPES
+============================================================== */
 
 type FocusedField =
   | "amount"
@@ -56,6 +58,10 @@ type Props = {
   ) => void;
 };
 
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function MakeOfferFormSections({
   amount,
   message,
@@ -77,86 +83,151 @@ function MakeOfferFormSections({
       null,
     );
 
+  /* ============================================================
+     STATE
+  ============================================================ */
+
+  const hasAmount =
+    amount.length > 0;
+
+  const hasMessage =
+    message.length > 0;
+
+  const amountHasError =
+    hasAmount &&
+    !amountValid;
+
+  const messageHasError =
+    hasMessage &&
+    !messageValid;
+
+  /* ============================================================
+     FOCUS
+  ============================================================ */
+
+  const handleAmountFocus =
+    useCallback(() => {
+      setFocusedField(
+        "amount",
+      );
+    }, []);
+
+  const handleAmountBlur =
+    useCallback(() => {
+      setFocusedField(
+        current =>
+          current === "amount"
+            ? null
+            : current,
+      );
+    }, []);
+
+  const handleMessageFocus =
+    useCallback(() => {
+      setFocusedField(
+        "message",
+      );
+    }, []);
+
+  const handleMessageBlur =
+    useCallback(() => {
+      setFocusedField(
+        current =>
+          current === "message"
+            ? null
+            : current,
+      );
+    }, []);
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
+
   return (
-    <>
-      <MakeOfferSectionTitle
-        number="1"
-        title="Your offer"
-      />
+    <View
+      style={
+        styles.container
+      }
+    >
+      {/* ========================================================
+          PRICE
+      ======================================================== */}
 
       <View
         style={
-          styles.inputCard
+          styles.section
         }
       >
         <View
           style={
-            styles.inputHeader
+            styles.labelRow
           }
         >
           <View
             style={
-              styles.inputHeaderText
+              styles.labelContent
             }
           >
             <AppText
               variant="bodyMedium"
               weight="bold"
               style={
-                styles.inputTitle
+                styles.label
               }
             >
-              Offer amount
+              Your price
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
               style={
-                styles.inputHint
+                styles.helper
               }
             >
-              Enter the total price for this service.
+              Total amount for this job
             </AppText>
           </View>
 
           <View
             style={
-              styles.nairaCircle
+              styles.requiredBadge
             }
           >
             <AppText
-              variant="heading3"
+              variant="caption"
               weight="bold"
               style={
-                styles.nairaText
+                styles.required
               }
             >
-              ₦
+              Required
             </AppText>
           </View>
         </View>
 
         <View
           style={[
-            styles.amountInputWrapper,
+            styles.amountField,
 
             focusedField ===
               "amount"
-              ? styles.inputFocused
+              ? styles.fieldFocused
               : null,
 
-            amount.length >
-              0 &&
-            !amountValid
-              ? styles.inputError
+            amountHasError
+              ? styles.fieldError
+              : null,
+
+            submitting
+              ? styles.fieldDisabled
               : null,
           ]}
         >
           <AppText
             weight="bold"
             style={
-              styles.amountPrefix
+              styles.currency
             }
           >
             ₦
@@ -169,19 +240,15 @@ function MakeOfferFormSections({
             onChangeText={
               onAmountChange
             }
-            onFocus={() => {
-              setFocusedField(
-                "amount",
-              );
-            }}
-            onBlur={() => {
-              setFocusedField(
-                null,
-              );
-            }}
+            onFocus={
+              handleAmountFocus
+            }
+            onBlur={
+              handleAmountBlur
+            }
             placeholder="0"
             placeholderTextColor={
-              Colors.disabled
+              Colors.textMuted
             }
             selectionColor={
               WorkerColors.primary
@@ -190,88 +257,108 @@ function MakeOfferFormSections({
               WorkerColors.primary
             }
             keyboardType="number-pad"
+            inputMode="numeric"
+            returnKeyType="done"
             editable={
               !submitting
             }
             maxLength={9}
-            accessibilityLabel="Offer amount"
+            accessibilityLabel="Your offer price"
+            accessibilityHint="Enter the total amount you want to charge for this job"
             style={
               styles.amountInput
             }
           />
         </View>
 
-        {amount.length >
-          0 &&
-        !amountValid ? (
+        {amountHasError ? (
           <AppText
             variant="caption"
             style={
-              styles.validationText
+              styles.errorText
             }
           >
-            Enter an amount between ₦1 and ₦
+            Enter an amount from ₦1 to ₦
             {maxAmount.toLocaleString(
               "en-NG",
             )}
-            .
           </AppText>
-        ) : null}
+        ) : (
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={
+              styles.fieldHint
+            }
+          >
+            Customer sees this price before accepting.
+          </AppText>
+        )}
       </View>
 
-      <MakeOfferSectionTitle
-        number="2"
-        title="Message to customer"
-      />
+      {/* ========================================================
+          DIVIDER
+      ======================================================== */}
 
       <View
         style={
-          styles.messageCard
+          styles.divider
+        }
+      />
+
+      {/* ========================================================
+          MESSAGE
+      ======================================================== */}
+
+      <View
+        style={
+          styles.section
         }
       >
         <View
           style={
-            styles.messageTop
+            styles.labelRow
           }
         >
           <View
             style={
-              styles.messageIcon
-            }
-          >
-            <AppIcon
-              name="messages"
-              role="worker"
-              size="sm"
-              color={
-                WorkerColors.primary
-              }
-            />
-          </View>
-
-          <View
-            style={
-              styles.messageContent
+              styles.labelContent
             }
           >
             <AppText
               variant="bodyMedium"
               weight="bold"
               style={
-                styles.inputTitle
+                styles.label
               }
             >
-              Explain your offer
+              Short note
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
               style={
-                styles.inputHint
+                styles.helper
               }
             >
-              Tell the customer what your price includes.
+              Tell the customer what your price includes
+            </AppText>
+          </View>
+
+          <View
+            style={
+              styles.requiredBadge
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="bold"
+              style={
+                styles.required
+              }
+            >
+              Required
             </AppText>
           </View>
         </View>
@@ -283,17 +370,13 @@ function MakeOfferFormSections({
           onChangeText={
             onMessageChange
           }
-          onFocus={() => {
-            setFocusedField(
-              "message",
-            );
-          }}
-          onBlur={() => {
-            setFocusedField(
-              null,
-            );
-          }}
-          placeholder="Example: This includes site visit, consultation and detailed planning..."
+          onFocus={
+            handleMessageFocus
+          }
+          onBlur={
+            handleMessageBlur
+          }
+          placeholder="e.g. Labour, inspection and installation"
           placeholderTextColor={
             Colors.textMuted
           }
@@ -311,19 +394,22 @@ function MakeOfferFormSections({
           maxLength={
             maxMessageLength
           }
-          accessibilityLabel="Offer message"
+          accessibilityLabel="Message to customer"
+          accessibilityHint="Briefly explain what your offer includes"
           style={[
             styles.messageInput,
 
             focusedField ===
               "message"
-              ? styles.inputFocused
+              ? styles.fieldFocused
               : null,
 
-            message.length >
-              0 &&
-            !messageValid
-              ? styles.messageInputError
+            messageHasError
+              ? styles.fieldError
+              : null,
+
+            submitting
+              ? styles.fieldDisabled
               : null,
           ]}
         />
@@ -333,19 +419,35 @@ function MakeOfferFormSections({
             styles.messageFooter
           }
         >
-          <AppText
-            variant="caption"
+          <View
             style={
-              styles.messageValidation
+              styles.messageFooterText
             }
           >
-            {message.length >
-              0 &&
+            {messageHasError &&
             cleanMessageLength <
-              minMessageLength
-              ? `Minimum ${minMessageLength} characters`
-              : ""}
-          </AppText>
+              minMessageLength ? (
+              <AppText
+                variant="caption"
+                style={
+                  styles.errorTextInline
+                }
+              >
+                Add at least{" "}
+                {minMessageLength} characters
+              </AppText>
+            ) : (
+              <AppText
+                variant="caption"
+                tone="secondary"
+                style={
+                  styles.fieldHintInline
+                }
+              >
+                Keep it simple and clear.
+              </AppText>
+            )}
+          </View>
 
           <AppText
             variant="caption"
@@ -359,110 +461,159 @@ function MakeOfferFormSections({
           </AppText>
         </View>
       </View>
-    </>
+    </View>
   );
 }
+
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MakeOfferFormSections.displayName =
+  "MakeOfferFormSections";
 
 export default memo(
   MakeOfferFormSections,
 );
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
-    inputCard: {
-      width: "100%",
+    /* ==========================================================
+       CONTAINER
+    ========================================================== */
 
-      padding:
-        FixxamTokens.spacing.md,
+    container: {
+      width:
+        "100%",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
 
-      ...FixxamTokens.shadow.card,
+      overflow:
+        "hidden",
     },
 
-    inputHeader: {
-      width: "100%",
+    section: {
+      width:
+        "100%",
+
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
+
+    divider: {
+      height:
+        StyleSheet.hairlineWidth,
+
+      marginHorizontal:
+        FixxamTokens.spacing.sm,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    /* ==========================================================
+       LABEL
+    ========================================================== */
+
+    labelRow: {
+      width:
+        "100%",
 
       flexDirection:
         "row",
 
       alignItems:
-        "center",
+        "flex-start",
 
       justifyContent:
         "space-between",
-    },
 
-    inputHeaderText: {
-      flex: 1,
-
-      minWidth: 0,
-
-      paddingRight:
+      gap:
         FixxamTokens.spacing.sm,
     },
 
-    inputTitle: {
+    labelContent: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+    },
+
+    label: {
       color:
         Colors.textPrimary,
     },
 
-    inputHint: {
+    helper: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
 
-      lineHeight: 17,
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,
     },
 
-    nairaCircle: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
+    requiredBadge: {
+      flexShrink:
+        0,
 
-      height:
-        FixxamTokens.size.minimumTouchTarget,
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
 
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+      paddingVertical:
+        2,
 
       borderRadius:
-        FixxamTokens.radius.full,
+        FixxamTokens.radius.chip,
 
       backgroundColor:
         WorkerColors.primarySoft,
     },
 
-    nairaText: {
+    required: {
+      fontSize:
+        10,
+
       color:
         WorkerColors.primary,
     },
 
-    amountInputWrapper: {
-      width: "100%",
+    /* ==========================================================
+       AMOUNT
+    ========================================================== */
 
-      height: 68,
+    amountField: {
+      width:
+        "100%",
+
+      minHeight:
+        54,
 
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       flexDirection:
         "row",
@@ -470,7 +621,8 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -482,39 +634,41 @@ const styles =
         Colors.background,
     },
 
-    inputFocused: {
-      borderColor:
-        WorkerColors.primary,
-    },
+    currency: {
+      flexShrink:
+        0,
 
-    inputError: {
-      borderColor:
-        Colors.error,
+      fontSize:
+        24,
 
-      backgroundColor:
-        Colors.errorSoft,
-    },
-
-    amountPrefix: {
-      fontSize: 26,
+      lineHeight:
+        28,
 
       color:
         WorkerColors.primary,
     },
 
     amountInput: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      paddingVertical: 0,
+      paddingVertical:
+        0,
 
-      fontSize: 28,
+      fontSize:
+        26,
 
-      fontWeight: "700",
+      lineHeight:
+        32,
+
+      fontWeight:
+        "700",
 
       color:
         Colors.textPrimary,
@@ -523,90 +677,31 @@ const styles =
         false,
     },
 
-    validationText: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.error,
-    },
-
-    messageCard: {
-      width: "100%",
-
-      padding:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    messageTop: {
-      width: "100%",
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    messageIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    messageContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
+    /* ==========================================================
+       MESSAGE
+    ========================================================== */
 
     messageInput: {
-      width: "100%",
+      width:
+        "100%",
 
-      minHeight: 120,
+      minHeight:
+        84,
+
+      maxHeight:
+        132,
 
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
       paddingVertical:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -623,19 +718,13 @@ const styles =
       fontSize:
         Typography.fontSize.md,
 
-      lineHeight: 20,
-    },
-
-    messageInputError: {
-      borderColor:
-        Colors.error,
-
-      backgroundColor:
-        Colors.errorSoft,
+      lineHeight:
+        20,
     },
 
     messageFooter: {
-      minHeight: 20,
+      minHeight:
+        20,
 
       marginTop:
         FixxamTokens.spacing.xs,
@@ -648,17 +737,92 @@ const styles =
 
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
-    messageValidation: {
-      flex: 1,
+    messageFooterText: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+    },
+
+    characterCount: {
+      flexShrink:
+        0,
+
+      color:
+        Colors.textMuted,
+    },
+
+    /* ==========================================================
+       HINT / ERROR
+    ========================================================== */
+
+    fieldHint: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight:
+        16,
+
+      color:
+        Colors.textMuted,
+    },
+
+    fieldHintInline: {
+      lineHeight:
+        16,
+
+      color:
+        Colors.textMuted,
+    },
+
+    errorText: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      lineHeight:
+        16,
 
       color:
         Colors.error,
     },
 
-    characterCount: {
+    errorTextInline: {
+      lineHeight:
+        16,
+
       color:
-        Colors.textMuted,
+        Colors.error,
+    },
+
+    /* ==========================================================
+       STATES
+    ========================================================== */
+
+    fieldFocused: {
+      borderColor:
+        WorkerColors.primary,
+
+      borderWidth:
+        1,
+    },
+
+    fieldError: {
+      borderColor:
+        Colors.error,
+
+      borderWidth:
+        1,
+    },
+
+    fieldDisabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

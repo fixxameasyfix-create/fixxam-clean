@@ -61,7 +61,11 @@ type Props = {
    CONSTANTS
 ============================================================== */
 
-const MAX_MESSAGE_LENGTH = 300;
+const MAX_MESSAGE_LENGTH =
+  300;
+
+const MAX_OFFER_AMOUNT =
+  100_000_000;
 
 /* ==============================================================
    HELPERS
@@ -71,8 +75,11 @@ function formatAmount(
   value?: number | null,
 ): string {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value) ||
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
     value <= 0
   ) {
     return "—";
@@ -81,6 +88,56 @@ function formatAmount(
   return `₦${value.toLocaleString(
     "en-NG",
   )}`;
+}
+
+function parseAmount(
+  value: string,
+): number | null {
+  const cleaned =
+    value
+      .replace(
+        /,/g,
+        "",
+      )
+      .replace(
+        /[^\d.]/g,
+        "",
+      )
+      .trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const parsed =
+    Number(
+      cleaned,
+    );
+
+  if (
+    !Number.isFinite(
+      parsed,
+    ) ||
+    parsed <= 0
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function isSameMoneyAmount(
+  first: number,
+  second: number,
+): boolean {
+  return (
+    Math.round(
+      first * 100,
+    ) ===
+    Math.round(
+      second * 100,
+    )
+  );
 }
 
 /* ==============================================================
@@ -114,9 +171,112 @@ const WorkerCounterOfferModal =
           MAX_MESSAGE_LENGTH,
         );
 
+      /* ========================================================
+         AMOUNT VALIDATION
+      ======================================================== */
+
+      const parsedAmount =
+        parseAmount(
+          amount,
+        );
+
+      const hasEnteredAmount =
+        amount.trim().length >
+        0;
+
+      const hasValidAmount =
+        parsedAmount !==
+          null &&
+        parsedAmount <=
+          MAX_OFFER_AMOUNT;
+
+      const hasValidCustomerOffer =
+        typeof customerOfferAmount ===
+          "number" &&
+        Number.isFinite(
+          customerOfferAmount,
+        ) &&
+        customerOfferAmount >
+          0;
+
+      const isSameAsCustomerOffer =
+        parsedAmount !==
+          null &&
+        hasValidCustomerOffer &&
+        isSameMoneyAmount(
+          parsedAmount,
+          customerOfferAmount,
+        );
+
+      const isAmountTooHigh =
+        parsedAmount !==
+          null &&
+        parsedAmount >
+          MAX_OFFER_AMOUNT;
+
+      const canSubmit =
+        hasValidAmount &&
+        !isSameAsCustomerOffer &&
+        !submitting;
+
+      /* ========================================================
+         AMOUNT FEEDBACK
+      ======================================================== */
+
+      let amountFeedback:
+        | string
+        | null =
+        null;
+
+      if (
+        hasEnteredAmount &&
+        parsedAmount === null
+      ) {
+        amountFeedback =
+          "Enter a valid offer amount.";
+      } else if (
+        isAmountTooHigh
+      ) {
+        amountFeedback =
+          "Please enter a lower service amount.";
+      } else if (
+        isSameAsCustomerOffer
+      ) {
+        amountFeedback =
+          "Your new offer must be different from the customer's offer.";
+      }
+
+      /* ========================================================
+         CHANGE AMOUNT
+      ======================================================== */
+
+      const handleAmountChange =
+        (
+          value: string,
+        ) => {
+          /*
+           * Allow only numbers,
+           * decimal separator and commas.
+           *
+           * Parent still performs the final
+           * validation before Firebase write.
+           */
+          const sanitized =
+            value.replace(
+              /[^\d.,]/g,
+              "",
+            );
+
+          onAmountChange(
+            sanitized,
+          );
+        };
+
       return (
         <Modal
-          visible={visible}
+          visible={
+            visible
+          }
           transparent
           animationType="slide"
           statusBarTranslucent
@@ -131,7 +291,8 @@ const WorkerCounterOfferModal =
               styles.modalOverlay
             }
             behavior={
-              Platform.OS === "ios"
+              Platform.OS ===
+              "ios"
                 ? "padding"
                 : undefined
             }
@@ -140,12 +301,14 @@ const WorkerCounterOfferModal =
               accessibilityViewIsModal
               style={[
                 styles.counterModal,
+
                 {
                   paddingBottom:
                     Math.max(
                       insets.bottom,
                       FixxamTokens
-                        .spacing.lg,
+                        .spacing
+                        .lg,
                     ),
                 },
               ]}
@@ -238,7 +401,9 @@ const WorkerCounterOfferModal =
                     styles.referenceAmount
                   }
                 >
-                  {formattedCustomerOffer}
+                  {
+                    formattedCustomerOffer
+                  }
                 </AppText>
               </View>
 
@@ -261,9 +426,13 @@ const WorkerCounterOfferModal =
               ================================================== */}
 
               <View
-                style={
-                  styles.amountInputContainer
-                }
+                style={[
+                  styles.amountInputContainer,
+
+                  amountFeedback
+                    ? styles.amountInputInvalid
+                    : null,
+                ]}
               >
                 <AppText
                   variant="bodyLarge"
@@ -276,9 +445,11 @@ const WorkerCounterOfferModal =
                 </AppText>
 
                 <TextInput
-                  value={amount}
+                  value={
+                    amount
+                  }
                   onChangeText={
-                    onAmountChange
+                    handleAmountChange
                   }
                   placeholder="Enter amount"
                   placeholderTextColor={
@@ -288,15 +459,44 @@ const WorkerCounterOfferModal =
                   editable={
                     !submitting
                   }
-                  maxLength={12}
-                  autoCorrect={false}
+                  maxLength={
+                    12
+                  }
+                  autoCorrect={
+                    false
+                  }
                   returnKeyType="done"
                   accessibilityLabel="New counter offer amount"
+                  accessibilityHint="Enter an amount different from the customer's current offer"
                   style={
                     styles.amountInput
                   }
                 />
               </View>
+
+              {amountFeedback ? (
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.amountFeedback
+                  }
+                >
+                  {
+                    amountFeedback
+                  }
+                </AppText>
+              ) : (
+                <AppText
+                  variant="caption"
+                  tone="muted"
+                  style={
+                    styles.amountFeedback
+                  }
+                >
+                  Enter an amount different from the customer's offer.
+                </AppText>
+              )}
 
               {/* ==================================================
                   MESSAGE LABEL
@@ -321,8 +521,13 @@ const WorkerCounterOfferModal =
                   variant="caption"
                   tone="muted"
                 >
-                  {characterCount}/
-                  {MAX_MESSAGE_LENGTH}
+                  {
+                    characterCount
+                  }
+                  /
+                  {
+                    MAX_MESSAGE_LENGTH
+                  }
                 </AppText>
               </View>
 
@@ -331,7 +536,9 @@ const WorkerCounterOfferModal =
               ================================================== */}
 
               <TextInput
-                value={message}
+                value={
+                  message
+                }
                 onChangeText={
                   onMessageChange
                 }
@@ -349,6 +556,7 @@ const WorkerCounterOfferModal =
                 }
                 autoCorrect
                 accessibilityLabel="Counter offer message"
+                accessibilityHint="Optional message explaining your new offer"
                 style={
                   styles.messageInput
                 }
@@ -364,7 +572,9 @@ const WorkerCounterOfferModal =
                 }
               >
                 <Pressable
-                  onPress={onClose}
+                  onPress={
+                    onClose
+                  }
                   disabled={
                     submitting
                   }
@@ -401,15 +611,25 @@ const WorkerCounterOfferModal =
                 </Pressable>
 
                 <Pressable
-                  onPress={onSubmit}
+                  onPress={
+                    onSubmit
+                  }
                   disabled={
-                    submitting
+                    !canSubmit
                   }
                   accessibilityRole="button"
                   accessibilityLabel="Send counter offer"
+                  accessibilityHint={
+                    !hasValidAmount
+                      ? "Enter a valid amount before sending"
+                      : isSameAsCustomerOffer
+                        ? "Enter an amount different from the customer's offer"
+                        : "Send this counter offer to the customer"
+                  }
                   accessibilityState={{
                     disabled:
-                      submitting,
+                      !canSubmit,
+
                     busy:
                       submitting,
                   }}
@@ -418,12 +638,12 @@ const WorkerCounterOfferModal =
                   }) => [
                     styles.modalSendButton,
 
-                    submitting
+                    !canSubmit
                       ? styles.disabledButton
                       : null,
 
                     pressed &&
-                    !submitting
+                    canSubmit
                       ? styles.buttonPressed
                       : null,
                   ]}
@@ -495,24 +715,30 @@ const styles =
     ======================================================== */
 
     counterModal: {
-      width: "100%",
+      width:
+        "100%",
 
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.lg,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens
+          .spacing.sm,
 
       borderTopLeftRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens
+          .radius.xl,
 
       borderTopRightRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens
+          .radius.xl,
 
       backgroundColor:
         Colors.surface,
 
-      ...FixxamTokens.shadow.card,
+      ...FixxamTokens
+        .shadow.card,
     },
 
     modalHandle: {
@@ -520,13 +746,16 @@ const styles =
 
       height: 4,
 
-      alignSelf: "center",
+      alignSelf:
+        "center",
 
       marginBottom:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.lg,
 
       borderRadius:
-        FixxamTokens.radius.full,
+        FixxamTokens
+          .radius.full,
 
       backgroundColor:
         Colors.disabled,
@@ -537,31 +766,37 @@ const styles =
     ======================================================== */
 
     modalHeader: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     modalHeaderIcon: {
       width:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens
+          .size.iconBox,
 
       height:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens
+          .size.iconBox,
 
       flexShrink: 0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens
+          .radius.md,
 
       backgroundColor:
-        WorkerColors.primarySoft,
+        WorkerColors
+          .primarySoft,
     },
 
     modalHeaderContent: {
@@ -570,7 +805,8 @@ const styles =
       minWidth: 0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens
+          .spacing.md,
     },
 
     modalTitle: {
@@ -580,7 +816,8 @@ const styles =
 
     modalSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens
+          .spacing.xxs,
 
       lineHeight: 16,
     },
@@ -591,12 +828,15 @@ const styles =
 
     customerOfferReference: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.lg,
 
       padding:
-        FixxamTokens.spacing.md,
+        FixxamTokens
+          .spacing.md,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       borderWidth: 1,
 
@@ -604,7 +844,8 @@ const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens
+          .radius.md,
 
       backgroundColor:
         Colors.background,
@@ -616,7 +857,8 @@ const styles =
 
     referenceAmount: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        FixxamTokens
+          .spacing.xs,
 
       color:
         WorkerColors.primary,
@@ -628,12 +870,15 @@ const styles =
 
     inputLabel: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.lg,
 
       marginBottom:
-        FixxamTokens.spacing.xs,
+        FixxamTokens
+          .spacing.xs,
 
-      letterSpacing: 0.8,
+      letterSpacing:
+        0.8,
 
       color:
         Colors.textSecondary,
@@ -641,15 +886,18 @@ const styles =
 
     amountInputContainer: {
       height:
-        FixxamTokens.size
-          .inputHeight,
+        FixxamTokens
+          .size.inputHeight,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens
+          .spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       borderWidth: 1,
 
@@ -657,15 +905,21 @@ const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.input,
+        FixxamTokens
+          .radius.input,
 
       backgroundColor:
         Colors.background,
     },
 
+    amountInputInvalid: {
+      borderWidth: 1.5,
+    },
+
     currencySymbol: {
       marginRight:
-        FixxamTokens.spacing.xs,
+        FixxamTokens
+          .spacing.xs,
 
       color:
         WorkerColors.primary,
@@ -674,36 +928,54 @@ const styles =
     amountInput: {
       flex: 1,
 
-      height: "100%",
+      height:
+        "100%",
 
       paddingVertical: 0,
 
       fontSize:
-        Typography.fontSize.md,
+        Typography
+          .fontSize.md,
 
-      fontWeight: "700",
+      fontWeight:
+        "700",
 
       color:
         Colors.textPrimary,
     },
 
+    amountFeedback: {
+      minHeight: 18,
+
+      marginTop:
+        FixxamTokens
+          .spacing.xs,
+
+      lineHeight: 16,
+    },
+
     messageLabelRow: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.md,
 
       marginBottom:
-        FixxamTokens.spacing.xs,
+        FixxamTokens
+          .spacing.xs,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
     },
 
     messageLabel: {
-      letterSpacing: 0.8,
+      letterSpacing:
+        0.8,
 
       color:
         Colors.textSecondary,
@@ -715,10 +987,12 @@ const styles =
       maxHeight: 150,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens
+          .spacing.md,
 
       paddingVertical:
-        FixxamTokens.spacing.sm,
+        FixxamTokens
+          .spacing.sm,
 
       borderWidth: 1,
 
@@ -726,13 +1000,15 @@ const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.input,
+        FixxamTokens
+          .radius.input,
 
       backgroundColor:
         Colors.background,
 
       fontSize:
-        Typography.fontSize.md,
+        Typography
+          .fontSize.md,
 
       lineHeight: 20,
 
@@ -746,24 +1022,29 @@ const styles =
 
     modalActions: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens
+          .spacing.lg,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens
+          .spacing.sm,
     },
 
     modalCancelButton: {
       flex: 1,
 
       minHeight:
-        FixxamTokens.size
-          .buttonHeight,
+        FixxamTokens
+          .size.buttonHeight,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       borderWidth: 1,
 
@@ -771,7 +1052,8 @@ const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.button,
+        FixxamTokens
+          .radius.button,
 
       backgroundColor:
         Colors.surface,
@@ -786,20 +1068,25 @@ const styles =
       flex: 1.4,
 
       minHeight:
-        FixxamTokens.size
-          .buttonHeight,
+        FixxamTokens
+          .size.buttonHeight,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      justifyContent: "center",
+      justifyContent:
+        "center",
 
       gap:
-        FixxamTokens.spacing.xs,
+        FixxamTokens
+          .spacing.xs,
 
       borderRadius:
-        FixxamTokens.radius.button,
+        FixxamTokens
+          .radius.button,
 
       backgroundColor:
         WorkerColors.primary,
@@ -816,19 +1103,22 @@ const styles =
 
     disabledButton: {
       opacity:
-        FixxamTokens.motion
+        FixxamTokens
+          .motion
           .disabledOpacity,
     },
 
     buttonPressed: {
       opacity:
-        FixxamTokens.motion
+        FixxamTokens
+          .motion
           .pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
+            FixxamTokens
+              .motion
               .scalePressed,
         },
       ],

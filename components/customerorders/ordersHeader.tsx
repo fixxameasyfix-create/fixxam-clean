@@ -58,26 +58,7 @@ function OrdersHeader({
 
   return (
     <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-        hitSlop={8}
-        onPress={handleBack}
-        style={({ pressed }) => [
-          styles.iconButton,
-
-          pressed
-            ? styles.pressed
-            : null,
-        ]}
-      >
-        <AppIcon
-          name="back"
-          role="customer"
-          size="sm"
-        />
-      </Pressable>
-
+      
       <View style={styles.textContainer}>
         <AppText
           variant="heading3"

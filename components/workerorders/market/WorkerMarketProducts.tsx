@@ -1,13 +1,13 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 
 import {
   FlatList,
-  type ListRenderItemInfo,
   Modal,
   Pressable,
   StyleSheet,
@@ -15,12 +15,12 @@ import {
 } from "react-native";
 
 import {
-  SafeAreaView,
-} from "react-native-safe-area-context";
-
-import {
   Image,
 } from "expo-image";
+
+import {
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import {
   AppIcon,
@@ -33,7 +33,7 @@ import {
   WorkerColors,
 } from "@/theme";
 
-import WorkerMarketProductUnavailable from "./WorkerMarketProductUnavailable";
+import WorkerMarketProductUnavailable from "@/components/workerorders/market/WorkerMarketProductUnavailable";
 
 /* ============================================================
    TYPES
@@ -52,78 +52,81 @@ export type WorkerMarketProduct = {
 };
 
 type Props = {
-  orderId: string;
+  orderId?: string | null;
 
-  products: WorkerMarketProduct[];
+  products?: WorkerMarketProduct[] | null;
 
-  /*
-   * Store product IDs only.
-   *
-   * Example:
-   * ["product_123", "product_456"]
-   */
-  unavailableProducts?: string[];
+  unavailableProducts?: string[] | null;
 
   disabled?: boolean;
 };
 
-type ProductItemProps = {
-  product: WorkerMarketProduct;
-
-  orderId: string;
-
-  unavailable: boolean;
-
-  disabled: boolean;
-};
+type ProductImageVariant =
+  | "row"
+  | "sheet";
 
 /* ============================================================
    HELPERS
 ============================================================ */
 
-function getSafeText(
+function safeString(
   value: unknown,
   fallback = "",
 ): string {
   if (
-    typeof value === "string" &&
-    value.trim()
+    typeof value !==
+    "string"
   ) {
-    return value.trim();
+    return fallback;
   }
 
-  return fallback;
+  const normalized =
+    value.trim();
+
+  return (
+    normalized ||
+    fallback
+  );
 }
 
-function getSafePrice(
+function normalizePrice(
   value: unknown,
 ): number {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
-  ) {
-    return Math.max(
-      0,
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
       value,
-    );
+    )
+  ) {
+    return 0;
   }
 
-  return 0;
+  return Math.max(
+    0,
+    value,
+  );
 }
 
-function getSafeQuantity(
+function normalizeQuantity(
   value: unknown,
 ): number {
   if (
-    typeof value !== "number" ||
-    !Number.isFinite(value)
+    typeof value !==
+      "number" ||
+    !Number.isFinite(
+      value,
+    ) ||
+    value <= 0
   ) {
     return 1;
   }
 
   return Math.max(
     1,
-    Math.floor(value),
+    Math.floor(
+      value,
+    ),
   );
 }
 
@@ -131,13 +134,14 @@ function formatMoney(
   value: unknown,
 ): string {
   const amount =
-    getSafePrice(value);
+    normalizePrice(
+      value,
+    );
 
-  return `₦${amount.toLocaleString(
+  return `₦${Math.round(
+    amount,
+  ).toLocaleString(
     "en-NG",
-    {
-      maximumFractionDigits: 2,
-    },
   )}`;
 }
 
@@ -145,96 +149,176 @@ function formatMoney(
    COMPONENT
 ============================================================ */
 
-export default function WorkerMarketProducts({
+function WorkerMarketProducts({
   orderId,
   products,
-  unavailableProducts = [],
+  unavailableProducts,
   disabled = false,
 }: Props) {
   const [
     galleryVisible,
     setGalleryVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ==========================================================
-     NORMALIZED ORDER ID
+     NORMALIZE
   ========================================================== */
 
   const normalizedOrderId =
     useMemo(
       () =>
-        orderId.trim(),
-      [orderId],
+        safeString(
+          orderId,
+        ),
+      [
+        orderId,
+      ],
     );
 
-  /* ==========================================================
-     UNAVAILABLE LOOKUP
-  ========================================================== */
+  const normalizedProducts =
+    useMemo<
+      WorkerMarketProduct[]
+    >(() => {
+      if (
+        !Array.isArray(
+          products,
+        )
+      ) {
+        return [];
+      }
+
+      const result:
+        WorkerMarketProduct[] =
+        [];
+
+      products.forEach(
+        product => {
+          const productId =
+            safeString(
+              product?.productId,
+            );
+
+          if (
+            !productId
+          ) {
+            return;
+          }
+
+          const normalizedProduct:
+            WorkerMarketProduct = {
+              productId,
+
+              name:
+                safeString(
+                  product?.name,
+                  "Product",
+                ),
+
+              price:
+                normalizePrice(
+                  product?.price,
+                ),
+
+              quantity:
+                normalizeQuantity(
+                  product?.quantity,
+                ),
+            };
+
+          const image =
+            safeString(
+              product?.image,
+            );
+
+          if (
+            image
+          ) {
+            normalizedProduct.image =
+              image;
+          }
+
+          result.push(
+            normalizedProduct,
+          );
+        },
+      );
+
+      return result;
+    }, [
+      products,
+    ]);
 
   const unavailableSet =
-    useMemo(
-      () =>
-        new Set(
-          unavailableProducts
-            .map(productId =>
-              productId.trim(),
-            )
-            .filter(Boolean),
-        ),
-      [unavailableProducts],
-    );
+    useMemo(() => {
+      const ids =
+        new Set<string>();
+
+      if (
+        !Array.isArray(
+          unavailableProducts,
+        )
+      ) {
+        return ids;
+      }
+
+      unavailableProducts.forEach(
+        item => {
+          const productId =
+            safeString(
+              item,
+            );
+
+          if (
+            productId
+          ) {
+            ids.add(
+              productId,
+            );
+          }
+        },
+      );
+
+      return ids;
+    }, [
+      unavailableProducts,
+    ]);
 
   /* ==========================================================
-     PREVIEW
-  ========================================================== */
-
-  const previewProducts =
-    useMemo(
-      () =>
-        products.slice(
-          0,
-          3,
-        ),
-      [products],
-    );
-
-  const remainingCount =
-    Math.max(
-      products.length - 3,
-      0,
-    );
-
-  /* ==========================================================
-     ITEM COUNT
+     DERIVED
   ========================================================== */
 
   const itemCount =
-    useMemo(
-      () =>
-        products.reduce(
-          (
-            total,
-            product,
-          ) =>
-            total +
-            getSafeQuantity(
-              product.quantity,
-            ),
-          0,
-        ),
-      [products],
+    normalizedProducts.length;
+
+  const firstProduct =
+    normalizedProducts[0] ??
+    null;
+
+  const remainingItems =
+    Math.max(
+      0,
+      itemCount - 1,
     );
 
   /* ==========================================================
-     MODAL
+     GALLERY
   ========================================================== */
 
   const openGallery =
     useCallback(() => {
+      if (
+        itemCount <= 1
+      ) {
+        return;
+      }
+
       setGalleryVisible(
         true,
       );
-    }, []);
+    }, [
+      itemCount,
+    ]);
 
   const closeGallery =
     useCallback(() => {
@@ -244,108 +328,7 @@ export default function WorkerMarketProducts({
     }, []);
 
   /* ==========================================================
-     RENDER GALLERY ITEM
-  ========================================================== */
-
-  const renderGalleryProduct =
-    useCallback(
-      ({
-        item,
-      }: ListRenderItemInfo<WorkerMarketProduct>) => {
-        const productId =
-          getSafeText(
-            item.productId,
-          );
-
-        return (
-          <GalleryProduct
-            product={
-              item
-            }
-            orderId={
-              normalizedOrderId
-            }
-            unavailable={
-              productId
-                ? unavailableSet.has(
-                    productId,
-                  )
-                : false
-            }
-            disabled={
-              disabled ||
-              !normalizedOrderId ||
-              !productId
-            }
-          />
-        );
-      },
-      [
-        disabled,
-        normalizedOrderId,
-        unavailableSet,
-      ],
-    );
-
-  /* ==========================================================
-     EMPTY
-  ========================================================== */
-
-  if (
-    products.length === 0
-  ) {
-    return (
-      <View
-        style={
-          styles.card
-        }
-      >
-        <AppText
-          variant="heading3"
-          weight="bold"
-          style={
-            styles.title
-          }
-        >
-          Products
-        </AppText>
-
-        <View
-          style={
-            styles.empty
-          }
-        >
-          <View
-            style={
-              styles.emptyIcon
-            }
-          >
-            <AppIcon
-              name="package"
-              size="lg"
-              color={
-                Colors.textMuted
-              }
-            />
-          </View>
-
-          <AppText
-            variant="body"
-            tone="secondary"
-            center
-            style={
-              styles.emptyText
-            }
-          >
-            No products available
-          </AppText>
-        </View>
-      </View>
-    );
-  }
-
-  /* ==========================================================
-     MAIN
+     RENDER
   ========================================================== */
 
   return (
@@ -361,27 +344,28 @@ export default function WorkerMarketProducts({
 
         <View
           style={
-            styles.sectionHeader
+            styles.header
           }
         >
           <View
             style={
-              styles.headerContent
+              styles.headerInfo
             }
           >
             <AppText
-              variant="heading3"
+              variant="bodyMedium"
               weight="bold"
               style={
                 styles.title
               }
             >
-              Products
+              Items
             </AppText>
 
             <AppText
               variant="caption"
               tone="secondary"
+              numberOfLines={1}
               style={
                 styles.count
               }
@@ -393,271 +377,309 @@ export default function WorkerMarketProducts({
             </AppText>
           </View>
 
-          {products.length > 3 ? (
+          {itemCount > 1 ? (
             <Pressable
               onPress={
                 openGallery
               }
+              hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel="View all products"
+              accessibilityLabel={`View all ${itemCount} order items`}
               style={({
                 pressed,
               }) => [
-                styles.viewAllButton,
+                styles.galleryButton,
 
                 pressed
                   ? styles.pressed
                   : null,
               ]}
             >
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.viewAllText
-                }
-              >
-                View All
-              </AppText>
-
               <AppIcon
-                name="next"
-                role="worker"
+                name="image"
                 size="xs"
                 color={
                   WorkerColors.primary
                 }
               />
+
+              <AppText
+                variant="caption"
+                weight="medium"
+                style={
+                  styles.galleryText
+                }
+              >
+                View all
+              </AppText>
+
+              <View
+                style={
+                  styles.galleryCount
+                }
+              >
+                <AppText
+                  variant="caption"
+                  weight="bold"
+                  style={
+                    styles.galleryCountText
+                  }
+                >
+                  {itemCount}
+                </AppText>
+              </View>
             </Pressable>
           ) : null}
         </View>
 
         {/* ====================================================
-            PREVIEW
+            PRODUCT
         ==================================================== */}
 
-        {previewProducts.map(
-          (
-            product,
-            index,
-          ) => {
-            const productId =
-              getSafeText(
-                product.productId,
-              );
-
-            const unavailable =
-              productId
-                ? unavailableSet.has(
-                    productId,
-                  )
-                : false;
-
-            return (
-              <ProductRow
-                key={
-                  productId
-                    ? `${productId}-${index}`
-                    : `product-${index}`
-                }
-                product={
-                  product
-                }
-                orderId={
-                  normalizedOrderId
-                }
-                last={
-                  index ===
-                  previewProducts.length -
-                    1
-                }
-                unavailable={
-                  unavailable
-                }
-                disabled={
-                  disabled ||
-                  !normalizedOrderId ||
-                  !productId
-                }
-              />
-            );
-          },
-        )}
-
-        {/* ====================================================
-            MORE
-        ==================================================== */}
-
-        {remainingCount > 0 ? (
-          <Pressable
-            onPress={
-              openGallery
+        {!firstProduct ? (
+          <View
+            style={
+              styles.empty
             }
-            accessibilityRole="button"
-            accessibilityLabel={`View ${remainingCount} more products`}
-            style={({
-              pressed,
-            }) => [
-              styles.moreButton,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
           >
             <AppIcon
-              name="image"
-              role="worker"
+              name="package"
               size="sm"
               color={
-                WorkerColors.primary
+                Colors.textMuted
               }
             />
 
             <AppText
               variant="caption"
-              weight="bold"
+              tone="secondary"
               style={
-                styles.moreText
+                styles.emptyText
               }
             >
-              +{remainingCount} more{" "}
-              {remainingCount === 1
-                ? "product"
-                : "products"}
+              No items found
             </AppText>
-          </Pressable>
-        ) : null}
+          </View>
+        ) : (
+          <>
+            <View
+              style={
+                styles.items
+              }
+            >
+              <ProductRow
+                orderId={
+                  normalizedOrderId
+                }
+                product={
+                  firstProduct
+                }
+                unavailable={
+                  unavailableSet.has(
+                    firstProduct.productId,
+                  )
+                }
+                disabled={
+                  disabled
+                }
+              />
+            </View>
+
+            {remainingItems >
+            0 ? (
+              <Pressable
+                onPress={
+                  openGallery
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`View ${remainingItems} more ${
+                  remainingItems ===
+                  1
+                    ? "item"
+                    : "items"
+                }`}
+                style={({
+                  pressed,
+                }) => [
+                  styles.moreRow,
+
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
+              >
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  numberOfLines={1}
+                >
+                  +{remainingItems} more{" "}
+                  {remainingItems ===
+                  1
+                    ? "item"
+                    : "items"}
+                </AppText>
+
+                <AppIcon
+                  name="next"
+                  size="xs"
+                  color={
+                    Colors.textMuted
+                  }
+                />
+              </Pressable>
+            ) : null}
+          </>
+        )}
       </View>
 
       {/* ======================================================
           GALLERY
       ====================================================== */}
 
-      <Modal
+      <WorkerMarketGallery
         visible={
           galleryVisible
         }
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={
+        orderId={
+          normalizedOrderId
+        }
+        products={
+          normalizedProducts
+        }
+        unavailableSet={
+          unavailableSet
+        }
+        disabled={
+          disabled
+        }
+        onClose={
           closeGallery
         }
-      >
-        <SafeAreaView
-          edges={[
-            "top",
-            "bottom",
-          ]}
-          style={
-            styles.modal
-          }
-        >
-          {/* ==================================================
-              MODAL HEADER
-          ================================================== */}
-
-          <View
-            style={
-              styles.modalHeader
-            }
-          >
-            <View
-              style={
-                styles.modalHeaderContent
-              }
-            >
-              <AppText
-                variant="heading2"
-                weight="bold"
-                numberOfLines={1}
-                style={
-                  styles.modalTitle
-                }
-              >
-                Order Products
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.modalSubtitle
-                }
-              >
-                {itemCount}{" "}
-                {itemCount === 1
-                  ? "item"
-                  : "items"}
-              </AppText>
-            </View>
-
-            <Pressable
-              onPress={
-                closeGallery
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Close products"
-              hitSlop={6}
-              style={({
-                pressed,
-              }) => [
-                styles.closeButton,
-
-                pressed
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="close"
-                size="sm"
-                color={
-                  Colors.textPrimary
-                }
-              />
-            </Pressable>
-          </View>
-
-          {/* ==================================================
-              PRODUCT LIST
-          ================================================== */}
-
-          <FlatList
-            data={
-              products
-            }
-            renderItem={
-              renderGalleryProduct
-            }
-            keyExtractor={(
-              product,
-              index,
-            ) => {
-              const productId =
-                getSafeText(
-                  product.productId,
-                );
-
-              return productId
-                ? `${productId}-${index}`
-                : `gallery-product-${index}`;
-            }}
-            showsVerticalScrollIndicator={
-              false
-            }
-            contentContainerStyle={
-              styles.gallery
-            }
-            initialNumToRender={6}
-            maxToRenderPerBatch={8}
-            windowSize={7}
-          />
-        </SafeAreaView>
-      </Modal>
+      />
     </>
   );
 }
+
+/* ============================================================
+   EXPORT
+============================================================ */
+
+const MemoizedWorkerMarketProducts =
+  memo(
+    WorkerMarketProducts,
+  );
+
+MemoizedWorkerMarketProducts.displayName =
+  "WorkerMarketProducts";
+
+export default MemoizedWorkerMarketProducts;
+
+/* ============================================================
+   PRODUCT IMAGE
+============================================================ */
+
+const ProductImage =
+  memo(
+    function ProductImage({
+      image,
+      productName,
+      variant,
+      unavailable,
+    }: {
+      image?: string;
+
+      productName: string;
+
+      variant:
+        ProductImageVariant;
+
+      unavailable: boolean;
+    }) {
+      const [
+        imageFailed,
+        setImageFailed,
+      ] =
+        useState(false);
+
+      const safeImage =
+        safeString(
+          image,
+        );
+
+      useEffect(() => {
+        setImageFailed(
+          false,
+        );
+      }, [
+        safeImage,
+      ]);
+
+      const showImage =
+        Boolean(
+          safeImage &&
+          !imageFailed,
+        );
+
+      const containerStyle =
+        variant ===
+        "sheet"
+          ? styles.sheetImageBox
+          : styles.productImageBox;
+
+      return (
+        <View
+          style={[
+            containerStyle,
+
+            unavailable
+              ? styles.unavailableImage
+              : null,
+          ]}
+        >
+          {showImage ? (
+            <Image
+              source={{
+                uri:
+                  safeImage,
+              }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={
+                FixxamTokens.motion
+                  .fast
+              }
+              accessibilityLabel={`${productName} product image`}
+              onError={() => {
+                setImageFailed(
+                  true,
+                );
+              }}
+              style={
+                styles.productImage
+              }
+            />
+          ) : (
+            <AppIcon
+              name="package"
+              size={
+                variant ===
+                "sheet"
+                  ? "md"
+                  : "sm"
+              }
+              color={
+                Colors.textMuted
+              }
+            />
+          )}
+        </View>
+      );
+    },
+  );
+
+ProductImage.displayName =
+  "ProductImage";
 
 /* ============================================================
    PRODUCT ROW
@@ -666,163 +688,170 @@ export default function WorkerMarketProducts({
 const ProductRow =
   memo(
     function ProductRow({
-      product,
       orderId,
-      last,
+      product,
       unavailable,
       disabled,
-    }: ProductItemProps & {
-      last: boolean;
-    }) {
-      const productId =
-        getSafeText(
-          product.productId,
-        );
+      variant = "row",
+    }: {
+      orderId: string;
 
+      product:
+        WorkerMarketProduct;
+
+      unavailable: boolean;
+
+      disabled: boolean;
+
+      variant?:
+        ProductImageVariant;
+    }) {
       const productName =
-        getSafeText(
-          product.name,
+        safeString(
+          product?.name,
           "Product",
         );
 
-      const productImage =
-        getSafeText(
-          product.image,
-        );
-
       const price =
-        getSafePrice(
-          product.price,
+        normalizePrice(
+          product?.price,
         );
 
       const quantity =
-        getSafeQuantity(
-          product.quantity,
+        normalizeQuantity(
+          product?.quantity,
         );
 
-      const total =
+      const itemTotal =
         price *
         quantity;
 
       return (
         <View
+          accessible
+          accessibilityLabel={`${productName}. Quantity ${quantity}. Total ${formatMoney(
+            itemTotal,
+          )}.`}
           style={[
-            styles.productContainer,
+            styles.productRow,
 
-            !last
-              ? styles.productBorder
+            variant ===
+              "sheet"
+              ? styles.productRowSheet
               : null,
           ]}
         >
+          <ProductImage
+            image={
+              product.image
+            }
+            productName={
+              productName
+            }
+            variant={
+              variant
+            }
+            unavailable={
+              unavailable
+            }
+          />
+
           <View
             style={
-              styles.productRow
+              styles.productInfo
             }
           >
-            {productImage ? (
-              <Image
-                source={{
-                  uri:
-                    productImage,
-                }}
-                contentFit="cover"
-                transition={150}
-                recyclingKey={
-                  productImage
-                }
-                accessibilityLabel={`${productName} product image`}
-                style={
-                  styles.productImage
-                }
-              />
-            ) : (
-              <View
-                style={
-                  styles.placeholder
-                }
-              >
-                <AppIcon
-                  name="package"
-                  size="md"
-                  color={
-                    Colors.textMuted
-                  }
-                />
-              </View>
-            )}
+            <AppText
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={2}
+              ellipsizeMode="tail"
+              style={
+                styles.productName
+              }
+            >
+              {productName}
+            </AppText>
 
             <View
               style={
-                styles.productInfo
+                styles.productMetaRow
               }
             >
               <AppText
-                variant="bodyMedium"
-                weight="bold"
-                numberOfLines={2}
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
                 style={
-                  styles.productName
+                  styles.quantity
                 }
               >
-                {productName}
+                {quantity}
+                {" × "}
+                {formatMoney(
+                  price,
+                )}
               </AppText>
 
               <AppText
                 variant="caption"
-                tone="secondary"
+                weight="bold"
+                numberOfLines={1}
                 style={
-                  styles.productMeta
+                  styles.productTotalInline
                 }
               >
                 {formatMoney(
-                  price,
-                )}{" "}
-                × {quantity}
+                  itemTotal,
+                )}
               </AppText>
             </View>
 
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              numberOfLines={1}
-              style={
-                styles.productTotal
-              }
-            >
-              {formatMoney(
-                total,
-              )}
-            </AppText>
-          </View>
-
-          {/* ==================================================
-              UNAVAILABLE ACTION
-          ================================================== */}
-
-          <View
-            style={
-              styles.unavailableContainer
-            }
-          >
-            <WorkerMarketProductUnavailable
-              orderId={
-                orderId
-              }
-              productId={
-                productId
-              }
-              productName={
-                productName
-              }
-              disabled={
-                disabled ||
-                unavailable
-              }
-            />
-
             {unavailable ? (
-              <ReportedBadge />
-            ) : null}
+              <View
+                style={
+                  styles.unavailableRow
+                }
+              >
+                <View
+                  style={
+                    styles.unavailableDot
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="semibold"
+                  style={
+                    styles.unavailableText
+                  }
+                >
+                  Unavailable
+                </AppText>
+              </View>
+            ) : (
+              <View
+                style={
+                  styles.availabilityAction
+                }
+              >
+                <WorkerMarketProductUnavailable
+                  orderId={
+                    orderId
+                  }
+                  productId={
+                    product.productId
+                  }
+                  productName={
+                    productName
+                  }
+                  disabled={
+                    disabled ||
+                    !orderId
+                  }
+                />
+              </View>
+            )}
           </View>
         </View>
       );
@@ -830,266 +859,242 @@ const ProductRow =
   );
 
 ProductRow.displayName =
-  "WorkerMarketProductRow";
+  "ProductRow";
 
 /* ============================================================
-   GALLERY PRODUCT
+   GALLERY SHEET
 ============================================================ */
 
-const GalleryProduct =
+const WorkerMarketGallery =
   memo(
-    function GalleryProduct({
-      product,
+    function WorkerMarketGallery({
+      visible,
       orderId,
-      unavailable,
+      products,
+      unavailableSet,
       disabled,
-    }: ProductItemProps) {
-      const productId =
-        getSafeText(
-          product.productId,
+      onClose,
+    }: {
+      visible: boolean;
+
+      orderId: string;
+
+      products:
+        WorkerMarketProduct[];
+
+      unavailableSet:
+        Set<string>;
+
+      disabled: boolean;
+
+      onClose: () => void;
+    }) {
+      const insets =
+        useSafeAreaInsets();
+
+      const itemCount =
+        products.length;
+
+      const keyExtractor =
+        useCallback(
+          (
+            item:
+              WorkerMarketProduct,
+            index: number,
+          ) =>
+            safeString(
+              item.productId,
+            ) ||
+            `product-${index}`,
+          [],
         );
 
-      const productName =
-        getSafeText(
-          product.name,
-          "Product",
-        );
-
-      const productImage =
-        getSafeText(
-          product.image,
-        );
-
-      const price =
-        getSafePrice(
-          product.price,
-        );
-
-      const quantity =
-        getSafeQuantity(
-          product.quantity,
-        );
-
-      const total =
-        price *
-        quantity;
-
-      return (
-        <View
-          style={[
-            styles.galleryItem,
-
-            unavailable
-              ? styles.galleryUnavailable
-              : null,
-          ]}
-        >
-          {/* ==================================================
-              IMAGE
-          ================================================== */}
-
-          <View
-            style={
-              styles.galleryTop
-            }
-          >
-            {productImage ? (
-              <Image
-                source={{
-                  uri:
-                    productImage,
-                }}
-                contentFit="cover"
-                transition={150}
-                recyclingKey={
-                  productImage
-                }
-                accessibilityLabel={`${productName} product image`}
-                style={
-                  styles.galleryImage
-                }
-              />
-            ) : (
-              <View
-                style={[
-                  styles.galleryImage,
-                  styles.galleryPlaceholder,
-                ]}
-              >
-                <AppIcon
-                  name="package"
-                  size="xl"
-                  color={
-                    Colors.textMuted
-                  }
-                />
-              </View>
-            )}
-
-            {unavailable ? (
-              <View
-                style={
-                  styles.unavailableOverlay
-                }
-              >
-                <AppIcon
-                  name="error"
-                  size="sm"
-                  color={
-                    Colors.textInverse
-                  }
-                />
-
-                <AppText
-                  variant="caption"
-                  weight="bold"
-                  style={
-                    styles.overlayText
-                  }
-                >
-                  UNAVAILABLE
-                </AppText>
-              </View>
-            ) : null}
-          </View>
-
-          {/* ==================================================
-              INFO
-          ================================================== */}
-
-          <View
-            style={
-              styles.galleryInfo
-            }
-          >
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              numberOfLines={2}
-              style={
-                styles.galleryName
-              }
-            >
-              {productName}
-            </AppText>
-
-            <AppText
-              variant="caption"
-              tone="secondary"
-              style={
-                styles.galleryQuantity
-              }
-            >
-              Quantity: {quantity}
-            </AppText>
-
+      const renderItem =
+        useCallback(
+          ({
+            item,
+          }: {
+            item:
+              WorkerMarketProduct;
+          }) => (
             <View
               style={
-                styles.galleryBottom
+                styles.sheetItem
               }
             >
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.galleryUnitPrice
-                }
-              >
-                {formatMoney(
-                  price,
-                )}{" "}
-                each
-              </AppText>
-
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
-                numberOfLines={1}
-                style={
-                  styles.galleryTotal
-                }
-              >
-                {formatMoney(
-                  total,
-                )}
-              </AppText>
-            </View>
-
-            {/* ==================================================
-                ACTION
-            ================================================== */}
-
-            <View
-              style={
-                styles.galleryAction
-              }
-            >
-              <WorkerMarketProductUnavailable
+              <ProductRow
                 orderId={
                   orderId
                 }
-                productId={
-                  productId
+                product={
+                  item
                 }
-                productName={
-                  productName
+                unavailable={
+                  unavailableSet.has(
+                    item.productId,
+                  )
                 }
                 disabled={
-                  disabled ||
-                  unavailable
+                  disabled
+                }
+                variant="sheet"
+              />
+            </View>
+          ),
+          [
+            disabled,
+            orderId,
+            unavailableSet,
+          ],
+        );
+
+      return (
+        <Modal
+          visible={
+            visible
+          }
+          transparent
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={
+            onClose
+          }
+        >
+          <View
+            style={
+              styles.modalOverlay
+            }
+          >
+            <Pressable
+              onPress={
+                onClose
+              }
+              accessible={
+                false
+              }
+              style={
+                StyleSheet.absoluteFill
+              }
+            />
+
+            <View
+              style={[
+                styles.modal,
+
+                {
+                  paddingBottom:
+                    Math.max(
+                      insets.bottom,
+                      FixxamTokens.spacing
+                        .sm,
+                    ),
+                },
+              ]}
+            >
+              <View
+                style={
+                  styles.sheetHandle
                 }
               />
 
-              {unavailable ? (
-                <ReportedBadge />
-              ) : null}
+              <View
+                style={
+                  styles.modalHeader
+                }
+              >
+                <View
+                  style={
+                    styles.modalHeaderText
+                  }
+                >
+                  <AppText
+                    variant="bodyLarge"
+                    weight="bold"
+                    style={
+                      styles.modalTitle
+                    }
+                  >
+                    Order items
+                  </AppText>
+
+                  <AppText
+                    variant="caption"
+                    tone="secondary"
+                    style={
+                      styles.modalSubtitle
+                    }
+                  >
+                    {itemCount}{" "}
+                    {itemCount === 1
+                      ? "item"
+                      : "items"}
+                  </AppText>
+                </View>
+
+                <Pressable
+                  onPress={
+                    onClose
+                  }
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close order items"
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.closeButton,
+
+                    pressed
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppIcon
+                    name="close"
+                    size="xs"
+                    color={
+                      Colors.textPrimary
+                    }
+                  />
+                </Pressable>
+              </View>
+
+              <FlatList
+                data={
+                  products
+                }
+                keyExtractor={
+                  keyExtractor
+                }
+                renderItem={
+                  renderItem
+                }
+                showsVerticalScrollIndicator={
+                  false
+                }
+                initialNumToRender={
+                  8
+                }
+                maxToRenderPerBatch={
+                  8
+                }
+                windowSize={
+                  7
+                }
+                removeClippedSubviews
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={
+                  styles.sheetContent
+                }
+              />
             </View>
           </View>
-        </View>
+        </Modal>
       );
     },
   );
 
-GalleryProduct.displayName =
-  "WorkerMarketGalleryProduct";
-
-/* ============================================================
-   REPORTED BADGE
-============================================================ */
-
-const ReportedBadge =
-  memo(
-    function ReportedBadge() {
-      return (
-        <View
-          style={
-            styles.reportedBadge
-          }
-        >
-          <AppIcon
-            name="success"
-            size="xs"
-            color={
-              Colors.success
-            }
-          />
-
-          <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.reportedText
-            }
-          >
-            Reported unavailable
-          </AppText>
-        </View>
-      );
-    },
-  );
-
-ReportedBadge.displayName =
-  "WorkerMarketReportedBadge";
+WorkerMarketGallery.displayName =
+  "WorkerMarketGallery";
 
 /* ============================================================
    STYLES
@@ -1102,34 +1107,464 @@ const styles =
     ======================================================== */
 
     card: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      padding:
-        FixxamTokens.spacing.lg,
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-      borderWidth: 1,
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
        HEADER
     ======================================================== */
 
-    sectionHeader: {
-      marginBottom:
+    header: {
+      minHeight:
+        30,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    headerInfo: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    title: {
+      color:
+        Colors.textPrimary,
+    },
+
+    count: {
+      color:
+        Colors.textMuted,
+    },
+
+    /* ========================================================
+       GALLERY
+    ======================================================== */
+
+    galleryButton: {
+      minHeight:
+        30,
+
+      flexShrink:
+        0,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        WorkerColors.primarySoft,
+    },
+
+    galleryText: {
+      color:
+        WorkerColors.primary,
+    },
+
+    galleryCount: {
+      minWidth:
+        17,
+
+      height:
+        17,
+
+      paddingHorizontal:
+        4,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        WorkerColors.primary,
+    },
+
+    galleryCountText: {
+      color:
+        Colors.textInverse,
+    },
+
+    /* ========================================================
+       PRODUCT
+    ======================================================== */
+
+    items: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    productRow: {
+      width:
+        "100%",
+
+      minHeight:
+        54,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+
+      paddingVertical:
+        FixxamTokens.spacing.xxs,
+    },
+
+    productRowSheet: {
+      paddingVertical:
+        FixxamTokens.spacing.sm,
+    },
+
+    productImageBox: {
+      width:
+        48,
+
+      height:
+        48,
+
+      flexShrink:
+        0,
+
+      overflow:
+        "hidden",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    sheetImageBox: {
+      width:
+        56,
+
+      height:
+        56,
+
+      flexShrink:
+        0,
+
+      overflow:
+        "hidden",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    productImage: {
+      width:
+        "100%",
+
+      height:
+        "100%",
+    },
+
+    unavailableImage: {
+      opacity:
+        0.5,
+    },
+
+    productInfo: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    productName: {
+      color:
+        Colors.textPrimary,
+    },
+
+    productMetaRow: {
+      width:
+        "100%",
+
+      marginTop:
+        2,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    quantity: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    productTotalInline: {
+      flexShrink:
+        0,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    availabilityAction: {
+      alignSelf:
+        "flex-start",
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+    },
+
+    /* ========================================================
+       UNAVAILABLE
+    ======================================================== */
+
+    unavailableRow: {
+      minHeight:
+        22,
+
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    unavailableDot: {
+      width:
+        5,
+
+      height:
+        5,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.error,
+    },
+
+    unavailableText: {
+      color:
+        Colors.error,
+    },
+
+    /* ========================================================
+       MORE ITEMS
+    ======================================================== */
+
+    moreRow: {
+      minHeight:
+        34,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      marginLeft:
+        48 +
+        FixxamTokens.spacing.sm,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
+    },
+
+    /* ========================================================
+       EMPTY
+    ======================================================== */
+
+    empty: {
+      minHeight:
+        50,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    emptyText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       MODAL
+    ======================================================== */
+
+    modalOverlay: {
+      flex:
+        1,
+
+      justifyContent:
+        "flex-end",
+
+      backgroundColor:
+        Colors.overlayMedium,
+    },
+
+    modal: {
+      minHeight:
+        "38%",
+
+      maxHeight:
+        "82%",
+
+      overflow:
+        "hidden",
+
+      borderTopLeftRadius:
+        FixxamTokens.radius.xl,
+
+      borderTopRightRadius:
+        FixxamTokens.radius.xl,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    sheetHandle: {
+      width:
+        36,
+
+      height:
+        4,
+
+      alignSelf:
+        "center",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.divider,
+    },
+
+    modalHeader: {
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      paddingVertical:
         FixxamTokens.spacing.sm,
 
       flexDirection:
@@ -1142,277 +1577,47 @@ const styles =
         "space-between",
 
       gap:
-        FixxamTokens.spacing.md,
-    },
-
-    headerContent: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    title: {
-      color:
-        Colors.textPrimary,
-    },
-
-    count: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    viewAllButton: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    viewAllText: {
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ========================================================
-       PRODUCT ROW
-    ======================================================== */
-
-    productContainer: {
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-    },
-
-    productRow: {
-      minHeight: 84,
-
-      paddingVertical:
         FixxamTokens.spacing.sm,
 
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-    },
-
-    productBorder: {
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
         Colors.divider,
     },
 
-    productImage: {
-      width: 64,
+    modalHeaderText: {
+      flex:
+        1,
 
-      height: 64,
-
-      flexShrink: 0,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.disabledBackground,
+      minWidth:
+        0,
     },
 
-    placeholder: {
-      width: 64,
-
-      height: 64,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    productInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginHorizontal:
-        FixxamTokens.spacing.md,
-    },
-
-    productName: {
+    modalTitle: {
       color:
         Colors.textPrimary,
     },
 
-    productMeta: {
+    modalSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        1,
 
       color:
         Colors.textSecondary,
     },
 
-    productTotal: {
-      flexShrink: 1,
-
-      maxWidth: 110,
-
-      textAlign: "right",
-
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ========================================================
-       UNAVAILABLE
-    ======================================================== */
-
-    unavailableContainer: {
-      paddingBottom:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      flexWrap:
-        "wrap",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "flex-end",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    reportedBadge: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.success,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.successSoft,
-    },
-
-    reportedText: {
-      color:
-        Colors.success,
-    },
-
-    /* ========================================================
-       MORE
-    ======================================================== */
-
-    moreButton: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        WorkerColors.primarySoft,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    moreText: {
-      color:
-        WorkerColors.primary,
-    },
-
-    /* ========================================================
-       EMPTY
-    ======================================================== */
-
-    empty: {
-      minHeight: 140,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    emptyIcon: {
+    closeButton: {
       width:
-        FixxamTokens.size.avatarLg,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       height:
-        FixxamTokens.size.avatarLg,
+        FixxamTokens.size
+          .minimumTouchTarget,
+
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1427,272 +1632,28 @@ const styles =
         Colors.disabledBackground,
     },
 
-    emptyText: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textMuted,
-    },
-
     /* ========================================================
-       MODAL
+       SHEET LIST
     ======================================================== */
 
-    modal: {
-      flex: 1,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    modalHeader: {
-      minHeight:
-        FixxamTokens.size.headerHeight,
-
+    sheetContent: {
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.md,
-
-      borderBottomWidth: 1,
-
-      borderBottomColor:
-        Colors.divider,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    modalHeaderContent: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    modalTitle: {
-      color:
-        Colors.textPrimary,
-    },
-
-    modalSubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    closeButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    gallery: {
-      padding:
         FixxamTokens.spacing.md,
 
       paddingBottom:
-        FixxamTokens.spacing.xxl,
+        FixxamTokens.spacing.lg,
+    },
+
+    sheetItem: {
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
+
+      borderBottomColor:
+        Colors.divider,
     },
 
     /* ========================================================
-       GALLERY ITEM
-    ======================================================== */
-
-    galleryItem: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      padding:
-        FixxamTokens.spacing.sm,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    galleryUnavailable: {
-      borderColor:
-        Colors.error,
-    },
-
-    galleryTop: {
-      position: "relative",
-    },
-
-    galleryImage: {
-      width: "100%",
-
-      height: 180,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    galleryPlaceholder: {
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-    },
-
-    unavailableOverlay: {
-      position: "absolute",
-
-      left:
-        FixxamTokens.spacing.sm,
-
-      right:
-        FixxamTokens.spacing.sm,
-
-      bottom:
-        FixxamTokens.spacing.sm,
-
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.error,
-    },
-
-    overlayText: {
-      color:
-        Colors.textInverse,
-    },
-
-    galleryInfo: {
-      paddingTop:
-        FixxamTokens.spacing.xs,
-    },
-
-    galleryName: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    galleryQuantity: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    galleryBottom: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-end",
-
-      justifyContent:
-        "space-between",
-
-      gap:
-        FixxamTokens.spacing.md,
-    },
-
-    galleryUnitPrice: {
-      flex: 1,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    galleryTotal: {
-      flexShrink: 1,
-
-      color:
-        WorkerColors.primary,
-    },
-
-    galleryAction: {
-      marginTop:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      flexWrap:
-        "wrap",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "flex-end",
-
-      gap:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       INTERACTION
+       STATES
     ======================================================== */
 
     pressed: {

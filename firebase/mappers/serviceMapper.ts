@@ -6,6 +6,11 @@ import {
   buildServiceSearchDictionary,
 } from "@/firebase/search/serviceSearchDictionary";
 
+import {
+  isServiceFulfillmentMode,
+  type ServiceFulfillmentMode,
+} from "@/types/serviceFulfillment";
+
 /* ==============================================================
    TYPES
 ============================================================== */
@@ -18,6 +23,14 @@ export type ServiceCardData = {
 
   categoryId: string;
   subcategoryId: string;
+
+  /*
+   * Controls where the service is performed.
+   *
+   * Optional because existing Firestore
+   * services may not have this field yet.
+   */
+  fulfillmentMode?: ServiceFulfillmentMode;
 
   /*
    * Ionicons name stored for this service.
@@ -179,6 +192,32 @@ export function serviceMapper(
       : "";
 
   /* ============================================================
+     SERVICE FULFILLMENT
+  ============================================================ */
+
+  /*
+   * Service-level fulfillment is optional.
+   *
+   * Later, when this value is missing,
+   * Fixxam can inherit the mode from:
+   *
+   * Service
+   *   ↓
+   * Subcategory
+   *   ↓
+   * Category
+   *   ↓
+   * needs_review
+   */
+
+  const fulfillmentMode =
+    isServiceFulfillmentMode(
+      data.fulfillmentMode,
+    )
+      ? data.fulfillmentMode
+      : undefined;
+
+  /* ============================================================
      SERVICE ICON
   ============================================================ */
 
@@ -334,6 +373,11 @@ export function serviceMapper(
     categoryId,
 
     subcategoryId,
+
+    /*
+     * SERVICE FULFILLMENT
+     */
+    fulfillmentMode,
 
     /*
      * SERVICE ICON

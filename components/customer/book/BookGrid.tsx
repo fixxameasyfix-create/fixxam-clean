@@ -9,8 +9,6 @@ import {
   router,
 } from "expo-router";
 
-import DashboardWideCard from "@/components/common/dashboard/DashboardWideCard";
-
 import useTodayDeals from "@/hooks/deals/useTodayDeals";
 
 import {
@@ -18,6 +16,7 @@ import {
 } from "@/theme";
 
 import BookCard from "./BookCard";
+
 import {
   bookCards,
 } from "./BookData";
@@ -34,28 +33,6 @@ export default function BookGrid() {
     <View
       style={styles.container}
     >
-      {/* ======================================================
-          BOOK AUTOMATICALLY
-      ====================================================== */}
-
-
-      <DashboardWideCard
-  title="Book Automatically"
-  description="Let Fixxam find the right worker nearby."
-  icon="sparkles-outline"
-  iconColor="#F97316"
-  iconBackground="#FFF7ED"
-  onPress={() =>
-    router.push(
-      "/(customer)/ai-booking",
-    )
-  }
-/>
-
-      {/* ======================================================
-          BOOK OPTIONS
-      ====================================================== */}
-
       <View
         style={styles.grid}
       >
@@ -73,10 +50,6 @@ export default function BookGrid() {
             </View>
           ),
         )}
-
-        {/* ====================================================
-            TODAY'S GOOD DEALS
-        ==================================================== */}
 
         <View
           style={styles.gridItem}
@@ -117,9 +90,6 @@ const styles =
 
     grid: {
       width: "100%",
-
-      marginTop:
-        FixxamTokens.spacing.md,
 
       flexDirection: "row",
 

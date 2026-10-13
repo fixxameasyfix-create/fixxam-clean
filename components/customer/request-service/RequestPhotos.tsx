@@ -20,6 +20,8 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 import {
   AppButton,
   AppIcon,
@@ -38,8 +40,7 @@ import {
 
 const MAX_PHOTOS = 3;
 
-const PHOTO_WIDTH = 105;
-const PHOTO_HEIGHT = 118;
+const PHOTO_SIZE = 88;
 
 /* ==============================================================
    TYPES
@@ -79,68 +80,73 @@ function RequestPhotos({
   ] =
     useState(false);
 
+  const reachedLimit =
+    photos.length >=
+    MAX_PHOTOS;
+
   const canAdd =
     !disabled &&
-    photos.length <
-      MAX_PHOTOS;
+    !reachedLimit;
 
   /* ============================================================
-     OPEN PICKER
+     PICKER
   ============================================================ */
 
   const handleAddPress =
-    useCallback(() => {
-      if (!canAdd) {
-        return;
-      }
+    useCallback(
+      () => {
+        if (
+          !canAdd
+        ) {
+          return;
+        }
 
-      setPickerVisible(
-        true,
-      );
-    }, [
-      canAdd,
-    ]);
-
-  /* ============================================================
-     CLOSE PICKER
-  ============================================================ */
+        setPickerVisible(
+          true,
+        );
+      },
+      [
+        canAdd,
+      ],
+    );
 
   const handleClosePicker =
-    useCallback(() => {
-      setPickerVisible(
-        false,
-      );
-    }, []);
-
-  /* ============================================================
-     CAMERA
-  ============================================================ */
+    useCallback(
+      () => {
+        setPickerVisible(
+          false,
+        );
+      },
+      [],
+    );
 
   const handleTakePhoto =
-    useCallback(() => {
-      setPickerVisible(
-        false,
-      );
+    useCallback(
+      () => {
+        setPickerVisible(
+          false,
+        );
 
-      onTakePhoto();
-    }, [
-      onTakePhoto,
-    ]);
-
-  /* ============================================================
-     GALLERY
-  ============================================================ */
+        onTakePhoto();
+      },
+      [
+        onTakePhoto,
+      ],
+    );
 
   const handleGallery =
-    useCallback(() => {
-      setPickerVisible(
-        false,
-      );
+    useCallback(
+      () => {
+        setPickerVisible(
+          false,
+        );
 
-      onAdd();
-    }, [
-      onAdd,
-    ]);
+        onAdd();
+      },
+      [
+        onAdd,
+      ],
+    );
 
   /* ============================================================
      UI
@@ -153,27 +159,14 @@ function RequestPhotos({
       }
     >
       {/* ======================================================
-          PHOTO ROW
+          ADD PHOTOS
       ====================================================== */}
 
-      <ScrollView
-        horizontal
-        bounces={false}
-        overScrollMode="never"
-        showsHorizontalScrollIndicator={
-          false
-        }
-        contentContainerStyle={
-          styles.grid
-        }
-      >
-        {/* ====================================================
-            ADD PHOTO
-        ==================================================== */}
-
+      {!reachedLimit ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Add photo"
+          accessibilityLabel="Add photos"
+          accessibilityHint="Choose whether to take a new photo or select one from your gallery"
           accessibilityState={{
             disabled:
               !canAdd,
@@ -187,161 +180,137 @@ function RequestPhotos({
           style={({
             pressed,
           }) => [
-            styles.addCard,
-
-            !canAdd
-              ? styles.disabledCard
-              : null,
+            styles.addButton,
 
             pressed &&
-            canAdd
-              ? styles.pressed
-              : null,
+              canAdd &&
+              styles.addButtonPressed,
+
+            !canAdd &&
+              styles.disabled,
           ]}
         >
-          <View
-            style={
-              styles.addIconContainer
+          <MaterialCommunityIcons
+            name="image-plus-outline"
+            size={22}
+            color={
+              canAdd
+                ? CustomerColors.primary
+                : Colors.textMuted
             }
-          >
-            <AppIcon
-              name="camera"
-              role="customer"
-              size="md"
-              state={
-                canAdd
-                  ? "active"
-                  : "muted"
-              }
-            />
-          </View>
+          />
 
           <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.addText
-            }
+            variant="bodyMedium"
+            weight="semibold"
+            style={[
+              styles.addButtonText,
+
+              !canAdd &&
+                styles.addButtonTextDisabled,
+            ]}
           >
-            Add photo
+            Add Photos
           </AppText>
 
-          <AppText
-            variant="caption"
-            tone="muted"
-            style={
-              styles.addSubtext
+          <MaterialCommunityIcons
+            name="plus"
+            size={20}
+            color={
+              canAdd
+                ? CustomerColors.primary
+                : Colors.textMuted
             }
-          >
-            {photos.length >=
-            MAX_PHOTOS
-              ? "Limit reached"
-              : "Optional"}
-          </AppText>
+          />
         </Pressable>
-
-        {/* ====================================================
-            PHOTOS
-        ==================================================== */}
-
-        {photos.map(
-          (
-            uri,
-            index,
-          ) => (
-            <View
-              key={`${uri}-${index}`}
-              style={
-                styles.photoWrapper
-              }
-            >
-              <Image
-                source={{
-                  uri,
-                }}
-                style={
-                  styles.photo
-                }
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={
-                  FixxamTokens
-                    .motion.fast
-                }
-                accessibilityLabel={`Service request photo ${index + 1}`}
-              />
-
-              {/* ==============================================
-                  NUMBER
-              ============================================== */}
-
-              <View
-                style={
-                  styles.photoNumber
-                }
-              >
-                <AppText
-                  variant="caption"
-                  weight="bold"
-                  style={
-                    styles.photoNumberText
-                  }
-                >
-                  {index + 1}
-                </AppText>
-              </View>
-
-              {/* ==============================================
-                  REMOVE
-              ============================================== */}
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove photo ${index + 1}`}
-                accessibilityState={{
-                  disabled,
-                }}
-                disabled={
-                  disabled
-                }
-                hitSlop={6}
-                onPress={() =>
-                  onRemove(
-                    uri,
-                  )
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.removeButton,
-
-                  disabled
-                    ? styles.removeDisabled
-                    : null,
-
-                  pressed &&
-                  !disabled
-                    ? styles.removeButtonPressed
-                    : null,
-                ]}
-              >
-                <AppIcon
-                  name="close"
-                  role="customer"
-                  size="xs"
-                  color={
-                    Colors.textInverse
-                  }
-                  strokeWidth="strong"
-                />
-              </Pressable>
-            </View>
-          ),
-        )}
-      </ScrollView>
+      ) : null}
 
       {/* ======================================================
-          FOOTER
+          PHOTO PREVIEWS
+      ====================================================== */}
+
+      {photos.length > 0 ? (
+        <ScrollView
+          horizontal
+          bounces={false}
+          overScrollMode="never"
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.photoList
+          }
+        >
+          {photos.map(
+            (
+              uri,
+              index,
+            ) => (
+              <View
+                key={`${uri}-${index}`}
+                style={
+                  styles.photoWrapper
+                }
+              >
+                <Image
+                  source={{
+                    uri,
+                  }}
+                  style={
+                    styles.photo
+                  }
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={
+                    FixxamTokens.motion.fast
+                  }
+                  accessibilityLabel={`Service request photo ${index + 1}`}
+                />
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove photo ${index + 1}`}
+                  accessibilityState={{
+                    disabled,
+                  }}
+                  disabled={
+                    disabled
+                  }
+                  hitSlop={8}
+                  onPress={() =>
+                    onRemove(
+                      uri,
+                    )
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.removeButton,
+
+                    pressed &&
+                      !disabled &&
+                      styles.removeButtonPressed,
+
+                    disabled &&
+                      styles.disabled,
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={17}
+                    color={
+                      Colors.textInverse
+                    }
+                  />
+                </Pressable>
+              </View>
+            ),
+          )}
+        </ScrollView>
+      ) : null}
+
+      {/* ======================================================
+          LIMIT MESSAGE
       ====================================================== */}
 
       <View
@@ -349,39 +318,28 @@ function RequestPhotos({
           styles.footer
         }
       >
-        <View
-          style={
-            styles.footerIcon
+        <MaterialCommunityIcons
+          name={
+            reachedLimit
+              ? "check-circle-outline"
+              : "information-outline"
           }
-        >
-          <AppIcon
-            name="professional"
-            role="customer"
-            size="xs"
-            state="active"
-          />
-        </View>
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.hint
+          size={16}
+          color={
+            Colors.textMuted
           }
-        >
-          Clear photos help our pros
-          understand the job better.
-        </AppText>
+        />
 
         <AppText
           variant="caption"
           tone="muted"
           style={
-            styles.count
+            styles.footerText
           }
         >
-          {photos.length}/
-          {MAX_PHOTOS}
+          {reachedLimit
+            ? `Maximum of ${MAX_PHOTOS} photos added`
+            : `You can add up to ${MAX_PHOTOS} photos`}
         </AppText>
       </View>
 
@@ -394,7 +352,7 @@ function RequestPhotos({
           pickerVisible
         }
         transparent
-        animationType="fade"
+        animationType="slide"
         statusBarTranslucent
         onRequestClose={
           handleClosePicker
@@ -405,10 +363,6 @@ function RequestPhotos({
             styles.modalRoot
           }
         >
-          {/* ==================================================
-              BACKDROP
-          ================================================== */}
-
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Close photo options"
@@ -416,91 +370,102 @@ function RequestPhotos({
               handleClosePicker
             }
             style={
-              styles.modalBackdrop
+              styles.backdrop
             }
           />
 
-          {/* ==================================================
-              SHEET
-          ================================================== */}
-
           <View
             style={[
-              styles.modalCard,
+              styles.sheet,
 
               {
                 paddingBottom:
                   Math.max(
                     insets.bottom,
-                    FixxamTokens
-                      .spacing.lg,
+                    FixxamTokens.spacing.lg,
                   ) +
-                  FixxamTokens
-                    .spacing.sm,
+                  FixxamTokens.spacing.sm,
               },
             ]}
           >
-            {/* ================================================
-                HANDLE
-            ================================================ */}
-
             <View
               style={
-                styles.modalHandle
+                styles.handle
               }
             />
 
-            {/* ================================================
-                TITLE
-            ================================================ */}
+            {/* ==================================================
+                MODAL HEADER
+            ================================================== */}
 
-            <AppText
-              variant="heading2"
-              weight="bold"
-            >
-              Add a photo
-            </AppText>
-
-            <AppText
-              variant="body"
-              tone="secondary"
+            <View
               style={
-                styles.modalSubtitle
+                styles.modalHeader
               }
             >
-              Choose how you want to
-              add the problem photo.
-            </AppText>
+              <View
+                style={
+                  styles.modalHeaderIcon
+                }
+              >
+                <MaterialCommunityIcons
+                  name="image-plus-outline"
+                  size={26}
+                  color={
+                    CustomerColors.primary
+                  }
+                />
+              </View>
 
-            {/* ================================================
+              <View
+                style={
+                  styles.modalHeaderText
+                }
+              >
+                <AppText
+                  variant="heading2"
+                  weight="bold"
+                >
+                  Add Photos
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.modalSubtitle
+                  }
+                >
+                  Choose how you want to add a photo.
+                </AppText>
+              </View>
+            </View>
+
+            {/* ==================================================
                 CAMERA
-            ================================================ */}
+            ================================================== */}
 
             <PhotoSourceOption
               icon="camera"
-              title="Take a Photo"
-              subtitle="Use your camera"
+              title="Take Photo"
+              subtitle="Take a new photo with your camera"
               onPress={
                 handleTakePhoto
               }
             />
 
-            {/* ================================================
+            {/* ==================================================
                 GALLERY
-            ================================================ */}
+            ================================================== */}
 
             <PhotoSourceOption
               icon="image"
               title="Choose from Gallery"
-              subtitle="Select an existing photo"
+              subtitle="Select an existing photo from your device"
               onPress={
                 handleGallery
               }
             />
-
-            {/* ================================================
-                CANCEL
-            ================================================ */}
 
             <AppButton
               title="Cancel"
@@ -554,9 +519,8 @@ function PhotoSourceOption({
       }) => [
         styles.option,
 
-        pressed
-          ? styles.optionPressed
-          : null,
+        pressed &&
+          styles.optionPressed,
       ]}
     >
       <View
@@ -565,21 +529,24 @@ function PhotoSourceOption({
         }
       >
         <AppIcon
-          name={icon}
+          name={
+            icon
+          }
           role="customer"
-          size="md"
+          size="sm"
           state="active"
         />
       </View>
 
       <View
         style={
-          styles.optionText
+          styles.optionContent
         }
       >
         <AppText
           variant="bodyMedium"
           weight="bold"
+          numberOfLines={1}
         >
           {title}
         </AppText>
@@ -587,6 +554,7 @@ function PhotoSourceOption({
         <AppText
           variant="caption"
           tone="secondary"
+          numberOfLines={2}
           style={
             styles.optionSubtitle
           }
@@ -595,11 +563,12 @@ function PhotoSourceOption({
         </AppText>
       </View>
 
-      <AppIcon
-        name="next"
-        role="customer"
-        size="sm"
-        state="muted"
+      <MaterialCommunityIcons
+        name="chevron-right"
+        size={24}
+        color={
+          Colors.textSecondary
+        }
       />
     </Pressable>
   );
@@ -612,177 +581,23 @@ function PhotoSourceOption({
 const styles =
   StyleSheet.create({
     container: {
-      width: "100%",
+      width:
+        "100%",
     },
 
     /* ========================================================
-       PHOTO ROW
+       ADD BUTTON
     ======================================================== */
 
-    grid: {
+    addButton: {
+      width:
+        "100%",
+
+      minHeight:
+        62,
+
       flexDirection:
         "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      paddingRight:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       ADD PHOTO
-    ======================================================== */
-
-    addCard: {
-      width:
-        PHOTO_WIDTH,
-
-      height:
-        PHOTO_HEIGHT,
-
-      flexShrink: 0,
-
-      overflow:
-        "hidden",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderStyle:
-        "dashed",
-
-      borderColor:
-        CustomerColors.primaryLight,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    addIconContainer: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius
-          .iconButton,
-
-      backgroundColor:
-        Colors.surface,
-    },
-
-    addText: {
-      color:
-        CustomerColors.primary,
-    },
-
-    addSubtext: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    disabledCard: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    /* ========================================================
-       PHOTO
-    ======================================================== */
-
-    photoWrapper: {
-      width:
-        PHOTO_WIDTH,
-
-      height:
-        PHOTO_HEIGHT,
-
-      position:
-        "relative",
-
-      flexShrink: 0,
-
-      borderRadius:
-        FixxamTokens.radius.image,
-
-      backgroundColor:
-        Colors.disabledBackground,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    photo: {
-      width: "100%",
-
-      height: "100%",
-
-      borderRadius:
-        FixxamTokens.radius.image,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    /* ========================================================
-       PHOTO NUMBER
-    ======================================================== */
-
-    photoNumber: {
-      position:
-        "absolute",
-
-      left:
-        FixxamTokens.spacing.sm,
-
-      bottom:
-        FixxamTokens.spacing.sm,
-
-      minWidth: 24,
-
-      height: 24,
 
       alignItems:
         "center",
@@ -791,35 +606,130 @@ const styles =
         "center",
 
       paddingHorizontal:
-        FixxamTokens.spacing.xs,
+        16,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        "#BFDBFE",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        14,
 
       backgroundColor:
-        Colors.overlayStrong,
+        "#EFF6FF",
     },
 
-    photoNumberText: {
+    addButtonPressed: {
+      borderColor:
+        "#93C5FD",
+
+      backgroundColor:
+        "#EAF3FF",
+
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
+    },
+
+    addButtonText: {
+      marginHorizontal:
+        8,
+
       color:
-        Colors.textInverse,
+        "#3B82F6",
+    },
+
+    addButtonTextDisabled: {
+      color:
+        "#94A3B8",
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion.disabledOpacity,
     },
 
     /* ========================================================
-       REMOVE
+       PHOTO PREVIEWS
     ======================================================== */
+
+    photoList: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        10,
+
+      paddingTop:
+        12,
+
+      paddingRight:
+        8,
+    },
+
+    photoWrapper: {
+      width:
+        PHOTO_SIZE,
+
+      height:
+        PHOTO_SIZE,
+
+      position:
+        "relative",
+
+      flexShrink:
+        0,
+
+      overflow:
+        "hidden",
+
+      borderWidth:
+        1,
+
+      borderColor:
+        "#DDE5EF",
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        "#F8FAFC",
+    },
+
+    photo: {
+      width:
+        "100%",
+
+      height:
+        "100%",
+    },
 
     removeButton: {
       position:
         "absolute",
 
-      top: -5,
+      top:
+        6,
 
-      right: -5,
+      right:
+        6,
 
-      width: 30,
+      width:
+        28,
 
-      height: 30,
+      height:
+        28,
 
       alignItems:
         "center",
@@ -827,38 +737,29 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 2,
+      borderWidth:
+        2,
 
       borderColor:
-        Colors.surface,
+        "#FFFFFF",
 
       borderRadius:
-        FixxamTokens.radius.full,
+        14,
 
       backgroundColor:
         Colors.error,
-
-      ...FixxamTokens.shadow.card,
     },
 
     removeButtonPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
-    },
-
-    removeDisabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
     },
 
     /* ========================================================
@@ -873,15 +774,101 @@ const styles =
         "center",
 
       marginTop:
-        FixxamTokens.spacing.sm,
+        10,
     },
 
-    footerIcon: {
-      width: 28,
+    footerText: {
+      flex:
+        1,
 
-      height: 28,
+      marginLeft:
+        6,
 
-      flexShrink: 0,
+      lineHeight:
+        18,
+
+      color:
+        "#94A3B8",
+    },
+
+    /* ========================================================
+       MODAL
+    ======================================================== */
+
+    modalRoot: {
+      flex:
+        1,
+
+      justifyContent:
+        "flex-end",
+    },
+
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+
+      backgroundColor:
+        Colors.overlayMedium,
+    },
+
+    sheet: {
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        10,
+
+      borderTopLeftRadius:
+        24,
+
+      borderTopRightRadius:
+        24,
+
+      backgroundColor:
+        "#FFFFFF",
+
+      ...FixxamTokens.shadow.modal,
+    },
+
+    handle: {
+      width:
+        42,
+
+      height:
+        5,
+
+      alignSelf:
+        "center",
+
+      marginBottom:
+        20,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        "#CBD5E1",
+    },
+
+    modalHeader: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      marginBottom:
+        20,
+    },
+
+    modalHeaderIcon: {
+      width:
+        48,
+
+      height:
+        48,
+
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -890,99 +877,38 @@ const styles =
         "center",
 
       marginRight:
-        FixxamTokens.spacing.sm,
+        12,
 
       borderRadius:
-        FixxamTokens.radius.md,
+        12,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EFF6FF",
     },
 
-    hint: {
-      flex: 1,
+    modalHeaderText: {
+      flex:
+        1,
 
-      minWidth: 0,
-    },
-
-    count: {
-      flexShrink: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-    },
-
-    /* ========================================================
-       MODAL
-    ======================================================== */
-
-    modalRoot: {
-      flex: 1,
-
-      justifyContent:
-        "flex-end",
-    },
-
-    modalBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-
-      backgroundColor:
-        Colors.overlayMedium,
-    },
-
-    modalCard: {
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      paddingTop:
-        FixxamTokens.spacing.sm,
-
-      borderTopLeftRadius:
-        FixxamTokens.radius.xl,
-
-      borderTopRightRadius:
-        FixxamTokens.radius.xl,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.modal,
-    },
-
-    modalHandle: {
-      width: 42,
-
-      height: 5,
-
-      alignSelf:
-        "center",
-
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabled,
+      minWidth:
+        0,
     },
 
     modalSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        3,
 
-      marginBottom:
-        FixxamTokens.spacing.lg,
+      color:
+        "#64748B",
     },
 
     /* ========================================================
-       OPTIONS
+       SOURCE OPTIONS
     ======================================================== */
 
     option: {
       minHeight:
-        FixxamTokens.size
-          .cardMinHeight,
+        72,
 
       flexDirection:
         "row",
@@ -991,53 +917,41 @@ const styles =
         "center",
 
       marginBottom:
-        FixxamTokens.spacing.sm,
+        10,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
+      padding:
+        14,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
-        Colors.border,
+        "#DDE5EF",
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        14,
 
       backgroundColor:
-        Colors.background,
+        "#FFFFFF",
     },
 
     optionPressed: {
       borderColor:
-        CustomerColors.primaryLight,
+        "#93C5FD",
 
       backgroundColor:
-        CustomerColors.primarySoft,
-
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
+        "#EFF6FF",
     },
 
     optionIcon: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        46,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        46,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1046,32 +960,40 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius
-          .iconButton,
+        10,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        "#EFF6FF",
     },
 
-    optionText: {
-      flex: 1,
+    optionContent: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginHorizontal:
-        FixxamTokens.spacing.md,
+        12,
     },
 
     optionSubtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        3,
+
+      lineHeight:
+        18,
+
+      color:
+        "#64748B",
     },
 
     cancelButton: {
-      width: "100%",
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.xs,
+        6,
     },
   });
 

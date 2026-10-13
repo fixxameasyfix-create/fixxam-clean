@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -29,10 +30,19 @@ import {
 } from "firebase/auth";
 
 import {
+  getDownloadURL,
+  getStorage,
+  ref,
+} from "firebase/storage";
+
+import {
   AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
+
+import { getPublicWorkers } from "@/firebase/queries/workerPublicProfiles";
+import { workerMapper } from "@/firebase/mappers/workerMapper";
 
 import {
   getRecentlyContactedWorkers,
@@ -50,11 +60,155 @@ import {
    CONSTANTS
 ============================================================ */
 
-const HOME_RECENT_LIMIT =
-  3;
+const HOME_RECENT_LIMIT = 3;
 
-const RELATIVE_TIME_REFRESH_INTERVAL =
-  60_000;
+const RELATIVE_TIME_REFRESH_INTERVAL = 60_000;
+
+const PUBLIC_WORKER_CACHE_TTL = 60_000;
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type MappedPublicWorker = {
+  id?: string;
+
+  fullName?: string;
+
+  firstName?: string;
+
+  surname?: string;
+
+  rating?: number | string;
+
+  services?: Array<{
+    name?: string;
+  }>;
+
+  workerProfile?: {
+    photoUrl?: string;
+    subcategory?: string;
+    category?: string;
+  };
+};
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function cleanString(
+  value: unknown,
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+function isHttpUrl(
+  value: string,
+): boolean {
+  return (
+    value.startsWith("https://") ||
+    value.startsWith("http://")
+  );
+}
+
+function isValidWorkerName(
+  value: string,
+): boolean {
+  return (
+    Boolean(value) &&
+    value !== "Worker" &&
+    value !== "Fixxam Worker"
+  );
+}
+
+function isValidWorkerService(
+  value: string,
+): boolean {
+  return (
+    Boolean(value) &&
+    value !== "Service Provider"
+  );
+}
+
+function getMappedWorkerName(
+  worker: MappedPublicWorker,
+): string {
+  const fullName = cleanString(
+    worker.fullName,
+  );
+
+  if (fullName) {
+    return fullName;
+  }
+
+  const firstName = cleanString(
+    worker.firstName,
+  );
+
+  const surname = cleanString(
+    worker.surname,
+  );
+
+  return `${firstName} ${surname}`.trim();
+}
+
+function getMappedWorkerService(
+  worker: MappedPublicWorker,
+): string {
+  const subcategory = cleanString(
+    worker.workerProfile?.subcategory,
+  );
+
+  if (subcategory) {
+    return subcategory;
+  }
+
+  const category = cleanString(
+    worker.workerProfile?.category,
+  );
+
+  if (category) {
+    return category;
+  }
+
+  if (
+    Array.isArray(
+      worker.services,
+    )
+  ) {
+    const firstService = cleanString(
+      worker.services[0]?.name,
+    );
+
+    if (firstService) {
+      return firstService;
+    }
+  }
+
+  return "";
+}
+
+function getMappedWorkerRating(
+  worker: MappedPublicWorker,
+): number {
+  const rating = Number(
+    worker.rating,
+  );
+
+  if (
+    !Number.isFinite(rating) ||
+    rating <= 0
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(0, rating),
+  );
+}
 
 /* ============================================================
    RELATIVE CALL TIME
@@ -65,9 +219,7 @@ function formatRelativeCallTime(
   now: number,
 ): string {
   const contactedTime =
-    Date.parse(
-      contactedAt,
-    );
+    Date.parse(contactedAt);
 
   if (
     !Number.isFinite(
@@ -77,47 +229,26 @@ function formatRelativeCallTime(
     return "Recently called";
   }
 
-  const difference =
-    Math.max(
-      0,
-      now -
-        contactedTime,
-    );
+  const difference = Math.max(
+    0,
+    now - contactedTime,
+  );
 
-  const MINUTE =
-    60 * 1000;
+  const MINUTE = 60 * 1000;
+  const HOUR = 60 * MINUTE;
+  const DAY = 24 * HOUR;
+  const WEEK = 7 * DAY;
+  const MONTH = 30 * DAY;
+  const YEAR = 365 * DAY;
 
-  const HOUR =
-    60 * MINUTE;
-
-  const DAY =
-    24 * HOUR;
-
-  const WEEK =
-    7 * DAY;
-
-  const MONTH =
-    30 * DAY;
-
-  const YEAR =
-    365 * DAY;
-
-  if (
-    difference <
-    MINUTE
-  ) {
+  if (difference < MINUTE) {
     return "Called just now";
   }
 
-  if (
-    difference <
-    HOUR
-  ) {
-    const minutes =
-      Math.floor(
-        difference /
-          MINUTE,
-      );
+  if (difference < HOUR) {
+    const minutes = Math.floor(
+      difference / MINUTE,
+    );
 
     return `Called ${minutes} ${
       minutes === 1
@@ -126,15 +257,10 @@ function formatRelativeCallTime(
     } ago`;
   }
 
-  if (
-    difference <
-    DAY
-  ) {
-    const hours =
-      Math.floor(
-        difference /
-          HOUR,
-      );
+  if (difference < DAY) {
+    const hours = Math.floor(
+      difference / HOUR,
+    );
 
     return `Called ${hours} ${
       hours === 1
@@ -143,15 +269,10 @@ function formatRelativeCallTime(
     } ago`;
   }
 
-  if (
-    difference <
-    WEEK
-  ) {
-    const days =
-      Math.floor(
-        difference /
-          DAY,
-      );
+  if (difference < WEEK) {
+    const days = Math.floor(
+      difference / DAY,
+    );
 
     return `Called ${days} ${
       days === 1
@@ -160,15 +281,10 @@ function formatRelativeCallTime(
     } ago`;
   }
 
-  if (
-    difference <
-    MONTH
-  ) {
-    const weeks =
-      Math.floor(
-        difference /
-          WEEK,
-      );
+  if (difference < MONTH) {
+    const weeks = Math.floor(
+      difference / WEEK,
+    );
 
     return `Called ${weeks} ${
       weeks === 1
@@ -177,15 +293,10 @@ function formatRelativeCallTime(
     } ago`;
   }
 
-  if (
-    difference <
-    YEAR
-  ) {
-    const months =
-      Math.floor(
-        difference /
-          MONTH,
-      );
+  if (difference < YEAR) {
+    const months = Math.floor(
+      difference / MONTH,
+    );
 
     return `Called ${months} ${
       months === 1
@@ -194,11 +305,9 @@ function formatRelativeCallTime(
     } ago`;
   }
 
-  const years =
-    Math.floor(
-      difference /
-        YEAR,
-    );
+  const years = Math.floor(
+    difference / YEAR,
+  );
 
   return `Called ${years} ${
     years === 1
@@ -211,78 +320,139 @@ function formatRelativeCallTime(
    AVATAR
 ============================================================ */
 
-const RecentlyViewedAvatar =
-  memo(
-    function RecentlyViewedAvatar({
-      uri,
-      name,
-    }: {
-      uri: string;
+const RecentlyViewedAvatar = memo(
+  function RecentlyViewedAvatar({
+    uri,
+    name,
+  }: {
+    uri: string;
+    name: string;
+  }) {
+    const [
+      resolvedUri,
+      setResolvedUri,
+    ] = useState("");
 
-      name: string;
-    }) {
-      const [
-        imageFailed,
-        setImageFailed,
-      ] =
-        useState(
-          false,
-        );
+    const [
+      imageFailed,
+      setImageFailed,
+    ] = useState(false);
 
-      useEffect(() => {
-        setImageFailed(
-          false,
-        );
-      }, [
-        uri,
-      ]);
+    useEffect(() => {
+      let cancelled = false;
 
-      const showImage =
-        Boolean(
-          uri.trim(),
-        ) &&
-        !imageFailed;
+      const source =
+        typeof uri === "string"
+          ? uri.trim()
+          : "";
 
-      if (
-        !showImage
-      ) {
-        return (
-          <View
-            style={
-              styles.imagePlaceholder
-            }
-          >
-            <AppIcon
-              name="profile"
-              role="customer"
-              size="lg"
-              state="muted"
-            />
-          </View>
-        );
+      setImageFailed(false);
+
+      if (!source) {
+        setResolvedUri("");
+
+        return () => {
+          cancelled = true;
+        };
       }
 
-      return (
-        <Image
-          source={{
-            uri,
-          }}
-          style={
-            styles.image
-          }
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={150}
-          accessibilityLabel={`${name} profile photo`}
-          onError={() => {
-            setImageFailed(
-              true,
+      if (isHttpUrl(source)) {
+        setResolvedUri(source);
+
+        return () => {
+          cancelled = true;
+        };
+      }
+
+      const resolveStorageImage =
+        async () => {
+          try {
+            const storage =
+              getStorage();
+
+            const storageRef =
+              ref(
+                storage,
+                source,
+              );
+
+            const downloadUrl =
+              await getDownloadURL(
+                storageRef,
+              );
+
+            if (cancelled) {
+              return;
+            }
+
+            setResolvedUri(
+              downloadUrl,
             );
-          }}
-        />
+          } catch (error) {
+            if (cancelled) {
+              return;
+            }
+
+            console.warn(
+              "RECENTLY_CALLED_IMAGE_RESOLVE_ERROR:",
+              error,
+            );
+
+            setResolvedUri("");
+          }
+        };
+
+      void resolveStorageImage();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [uri]);
+
+    const showImage =
+      Boolean(
+        resolvedUri.trim(),
+      ) &&
+      !imageFailed;
+
+    if (!showImage) {
+      return (
+        <View
+          style={
+            styles.imagePlaceholder
+          }
+        >
+          <AppIcon
+            name="profile"
+            role="customer"
+            size="lg"
+            state="muted"
+          />
+        </View>
       );
-    },
-  );
+    }
+
+    return (
+      <Image
+        key={resolvedUri}
+        source={{
+          uri: resolvedUri,
+        }}
+        style={
+          styles.image
+        }
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={150}
+        accessibilityRole="image"
+        accessibilityLabel={`${name} profile photo`}
+        onError={() => {
+          setImageFailed(true);
+        }}
+      />
+    );
+  },
+);
 
 /* ============================================================
    CALL MODAL
@@ -300,361 +470,295 @@ type CallWorkerModalProps = {
   onConfirm: () => void;
 };
 
-const CallWorkerModal =
-  memo(
-    function CallWorkerModal({
-      visible,
-      worker,
-      onCancel,
-      onConfirm,
-    }: CallWorkerModalProps) {
-      if (
-        !worker
-      ) {
-        return null;
-      }
+const CallWorkerModal = memo(
+  function CallWorkerModal({
+    visible,
+    worker,
+    onCancel,
+    onConfirm,
+  }: CallWorkerModalProps) {
+    if (!worker) {
+      return null;
+    }
 
-      return (
-        <Modal
-          visible={
-            visible
-          }
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={
-            onCancel
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          onCancel
+        }
+      >
+        <View
+          style={
+            styles.callModalOverlay
           }
         >
           <View
+            accessibilityViewIsModal
             style={
-              styles.callModalOverlay
+              styles.callModal
             }
           >
             <View
-              accessibilityViewIsModal
               style={
-                styles.callModal
+                styles.callModalIcon
               }
             >
-              {/* ==============================================
-                  ICON
-              ============================================== */}
-
-              <View
-                style={
-                  styles.callModalIcon
+              <AppIcon
+                name="phone"
+                role="customer"
+                size="xl"
+                color={
+                  CustomerColors.primary
                 }
+              />
+            </View>
+
+            <AppText
+              variant="heading2"
+              weight="bold"
+              center
+              style={
+                styles.callModalTitle
+              }
+            >
+              Call {worker.name}?
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.callModalDescription
+              }
+            >
+              Start an in-app voice call
+              with {worker.name}.
+            </AppText>
+
+            <AppText
+              variant="body"
+              tone="secondary"
+              center
+              style={
+                styles.callModalQuestion
+              }
+            >
+              You&apos;ll stay inside Fixxam
+              and the worker&apos;s phone
+              number won&apos;t be shown.
+            </AppText>
+
+            <View
+              style={
+                styles.callModalActions
+              }
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel call"
+                onPress={onCancel}
+                style={({
+                  pressed,
+                }) => [
+                  styles.callModalCancel,
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
+              >
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.callModalCancelText
+                  }
+                >
+                  Cancel
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Call ${worker.name}`}
+                onPress={
+                  onConfirm
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.callModalConfirm,
+                  pressed
+                    ? styles.pressed
+                    : null,
+                ]}
               >
                 <AppIcon
                   name="phone"
                   role="customer"
-                  size="xl"
+                  size="xs"
                   color={
-                    CustomerColors.primary
+                    Colors.textInverse
                   }
                 />
-              </View>
 
-              {/* ==============================================
-                  TITLE
-              ============================================== */}
-
-              <AppText
-                variant="heading2"
-                weight="bold"
-                center
-                style={
-                  styles.callModalTitle
-                }
-              >
-                Call {worker.name}?
-              </AppText>
-
-              {/* ==============================================
-                  DESCRIPTION
-              ============================================== */}
-
-              <AppText
-                variant="body"
-                tone="secondary"
-                center
-                style={
-                  styles.callModalDescription
-                }
-              >
-                Start an in-app voice call with {worker.name}.
-              </AppText>
-
-              <AppText
-                variant="body"
-                tone="secondary"
-                center
-                style={
-                  styles.callModalQuestion
-                }
-              >
-                You&apos;ll stay inside Fixxam and the worker&apos;s phone number won&apos;t be shown.
-              </AppText>
-
-              {/* ==============================================
-                  ACTIONS
-              ============================================== */}
-
-              <View
-                style={
-                  styles.callModalActions
-                }
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancel call"
-                  onPress={
-                    onCancel
+                <AppText
+                  variant="body"
+                  weight="bold"
+                  style={
+                    styles.callModalConfirmText
                   }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.callModalCancel,
-
-                    pressed
-                      ? styles.pressed
-                      : null,
-                  ]}
                 >
-                  <AppText
-                    variant="body"
-                    weight="bold"
-                    style={
-                      styles.callModalCancelText
-                    }
-                  >
-                    Cancel
-                  </AppText>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Call ${worker.name}`}
-                  onPress={
-                    onConfirm
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.callModalConfirm,
-
-                    pressed
-                      ? styles.pressed
-                      : null,
-                  ]}
-                >
-                  <AppIcon
-                    name="phone"
-                    role="customer"
-                    size="xs"
-                    color={
-                      Colors.textInverse
-                    }
-                  />
-
-                  <AppText
-                    variant="body"
-                    weight="bold"
-                    style={
-                      styles.callModalConfirmText
-                    }
-                  >
-                    Call Worker
-                  </AppText>
-                </Pressable>
-              </View>
+                  Call Worker
+                </AppText>
+              </Pressable>
             </View>
           </View>
-        </Modal>
-      );
-    },
-  );
+        </View>
+      </Modal>
+    );
+  },
+);
 
 /* ============================================================
    WORKER CARD
 ============================================================ */
 
-const RecentlyViewedCard =
-  memo(
-    function RecentlyViewedCard({
-      item,
-      now,
-      onViewAgain,
-    }: {
-      item: RecentlyContactedWorker;
+const RecentlyViewedCard = memo(
+  function RecentlyViewedCard({
+    item,
+    now,
+    onViewAgain,
+  }: {
+    item: RecentlyContactedWorker;
 
-      now: number;
+    now: number;
 
-      onViewAgain: (
-        worker: RecentlyContactedWorker,
-      ) => void;
-    }) {
-      const callTime =
-        formatRelativeCallTime(
-          item.contactedAt,
-          now,
-        );
+    onViewAgain: (
+      worker: RecentlyContactedWorker,
+    ) => void;
+  }) {
+    const callTime =
+      formatRelativeCallTime(
+        item.contactedAt,
+        now,
+      );
 
-      const handleViewAgain =
-        useCallback(() => {
-          onViewAgain(
-            item,
-          );
-        }, [
-          item,
-          onViewAgain,
-        ]);
+    const handleViewAgain =
+      useCallback(() => {
+        onViewAgain(item);
+      }, [
+        item,
+        onViewAgain,
+      ]);
 
-      return (
-        <AppCard
-          role="customer"
-          style={
-            styles.card
-          }
+    return (
+      <AppCard
+        role="customer"
+        style={styles.card}
+      >
+        <RecentlyViewedAvatar
+          uri={item.image}
+          name={item.name}
+        />
+
+        <AppText
+          variant="bodyMedium"
+          weight="bold"
+          numberOfLines={1}
+          center
+          style={styles.name}
         >
-          {/* ================================================
-              IMAGE
-          ================================================ */}
+          {item.name}
+        </AppText>
 
-          <RecentlyViewedAvatar
-            uri={
-              item.image
-            }
-            name={
-              item.name
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={1}
+          center
+          style={styles.service}
+        >
+          {item.service}
+        </AppText>
+
+        <View
+          style={styles.ratingRow}
+        >
+          <AppIcon
+            name="star"
+            role="customer"
+            size="xs"
+            color={
+              Colors.warning
             }
           />
 
-          {/* ================================================
-              NAME
-          ================================================ */}
+          <AppText
+            variant="caption"
+            style={styles.rating}
+          >
+            {item.rating > 0
+              ? item.rating.toFixed(
+                  1,
+                )
+              : "New"}
+          </AppText>
+        </View>
+
+        <AppText
+          variant="caption"
+          tone="muted"
+          numberOfLines={1}
+          center
+          style={styles.callTime}
+        >
+          {callTime}
+        </AppText>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${item.name} again`}
+          onPress={
+            handleViewAgain
+          }
+          style={({
+            pressed,
+          }) => [
+            styles.button,
+
+            pressed
+              ? styles.pressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="refresh"
+            role="customer"
+            size="xs"
+            color={
+              Colors.textInverse
+            }
+          />
 
           <AppText
-            variant="bodyMedium"
+            variant="caption"
             weight="bold"
-            numberOfLines={1}
-            center
             style={
-              styles.name
+              styles.buttonText
             }
           >
-            {item.name}
+            View Again
           </AppText>
-
-          {/* ================================================
-              SERVICE
-          ================================================ */}
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            numberOfLines={1}
-            center
-            style={
-              styles.service
-            }
-          >
-            {item.service}
-          </AppText>
-
-          {/* ================================================
-              RATING
-          ================================================ */}
-
-          <View
-            style={
-              styles.ratingRow
-            }
-          >
-            <AppIcon
-              name="star"
-              role="customer"
-              size="xs"
-              color={
-                Colors.warning
-              }
-            />
-
-            <AppText
-              variant="caption"
-              style={
-                styles.rating
-              }
-            >
-              {item.rating >
-              0
-                ? item.rating.toFixed(
-                    1,
-                  )
-                : "New"}
-            </AppText>
-          </View>
-
-          {/* ================================================
-              CALL TIME
-          ================================================ */}
-
-          <AppText
-            variant="caption"
-            tone="muted"
-            numberOfLines={1}
-            center
-            style={
-              styles.callTime
-            }
-          >
-            {callTime}
-          </AppText>
-
-          {/* ================================================
-              VIEW AGAIN
-          ================================================ */}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${item.name} again`}
-            onPress={
-              handleViewAgain
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.button,
-
-              pressed
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="refresh"
-              role="customer"
-              size="xs"
-              color={
-                Colors.textInverse
-              }
-            />
-
-            <AppText
-              variant="caption"
-              weight="bold"
-              style={
-                styles.buttonText
-              }
-            >
-              View Again
-            </AppText>
-          </Pressable>
-        </AppCard>
-      );
-    },
-  );
+        </Pressable>
+      </AppCard>
+    );
+  },
+);
 
 /* ============================================================
    SEPARATOR
@@ -663,9 +767,7 @@ const RecentlyViewedCard =
 function RecentlyViewedSeparator() {
   return (
     <View
-      style={
-        styles.separator
-      }
+      style={styles.separator}
     />
   );
 }
@@ -678,51 +780,55 @@ export default function RecentlyViewed() {
   const [
     userId,
     setUserId,
-  ] =
-    useState<
-      string | null
-    >(
-      getAuth()
-        .currentUser
-        ?.uid ??
-        null,
-    );
+  ] = useState<
+    string | null
+  >(
+    getAuth()
+      .currentUser
+      ?.uid ?? null,
+  );
 
   const [
     workers,
     setWorkers,
-  ] =
-    useState<
-      RecentlyContactedWorker[]
-    >(
-      [],
-    );
+  ] = useState<
+    RecentlyContactedWorker[]
+  >([]);
 
   const [
     loaded,
     setLoaded,
-  ] =
-    useState(
-      false,
-    );
+  ] = useState(false);
 
   const [
     now,
     setNow,
-  ] =
-    useState(
-      Date.now(),
-    );
+  ] = useState(Date.now());
 
   const [
     selectedWorker,
     setSelectedWorker,
-  ] =
-    useState<
-      RecentlyContactedWorker | null
-    >(
-      null,
-    );
+  ] = useState<
+    RecentlyContactedWorker | null
+  >(null);
+
+  /*
+   * Cache authoritative public
+   * worker information by worker ID.
+   */
+  const publicWorkersRef =
+    useRef<
+      Map<
+        string,
+        MappedPublicWorker
+      >
+    >(new Map());
+
+  const publicWorkersLoadedAtRef =
+    useRef(0);
+
+  const loadRequestRef =
+    useRef(0);
 
   /* ==========================================================
      AUTH STATE
@@ -732,31 +838,29 @@ export default function RecentlyViewed() {
     const unsubscribe =
       onAuthStateChanged(
         getAuth(),
-        (
-          user,
-        ) => {
+        (user) => {
           const nextUserId =
-            user?.uid ??
-            null;
+            user?.uid ?? null;
 
           setUserId(
             nextUserId,
           );
 
-          if (
-            !nextUserId
-          ) {
-            setWorkers(
-              [],
-            );
+          if (!nextUserId) {
+            loadRequestRef.current += 1;
+
+            publicWorkersRef.current.clear();
+
+            publicWorkersLoadedAtRef.current =
+              0;
+
+            setWorkers([]);
 
             setSelectedWorker(
               null,
             );
 
-            setLoaded(
-              true,
-            );
+            setLoaded(true);
           }
         },
       );
@@ -765,26 +869,30 @@ export default function RecentlyViewed() {
   }, []);
 
   /* ==========================================================
+     RESET PUBLIC CACHE WHEN USER CHANGES
+  ========================================================== */
+
+  useEffect(() => {
+    publicWorkersRef.current.clear();
+
+    publicWorkersLoadedAtRef.current =
+      0;
+  }, [userId]);
+
+  /* ==========================================================
      RELATIVE TIME CLOCK
   ========================================================== */
 
   useEffect(() => {
     const interval =
-      setInterval(
-        () => {
-          setNow(
-            Date.now(),
-          );
-        },
-        RELATIVE_TIME_REFRESH_INTERVAL,
-      );
+      setInterval(() => {
+        setNow(Date.now());
+      }, RELATIVE_TIME_REFRESH_INTERVAL);
 
     const subscription =
       AppState.addEventListener(
         "change",
-        (
-          nextState,
-        ) => {
+        (nextState) => {
           if (
             nextState ===
             "active"
@@ -806,22 +914,271 @@ export default function RecentlyViewed() {
   }, []);
 
   /* ==========================================================
+     LOAD PUBLIC WORKER CACHE
+  ========================================================== */
+
+  const loadPublicWorkerCache =
+    useCallback(
+      async (
+        forceRefresh = false,
+      ): Promise<
+        Map<
+          string,
+          MappedPublicWorker
+        >
+      > => {
+        const currentTime =
+          Date.now();
+
+        const cacheAge =
+          currentTime -
+          publicWorkersLoadedAtRef.current;
+
+        const hasValidCache =
+          publicWorkersLoadedAtRef.current >
+            0 &&
+          cacheAge <
+            PUBLIC_WORKER_CACHE_TTL;
+
+        if (
+          !forceRefresh &&
+          hasValidCache
+        ) {
+          return publicWorkersRef.current;
+        }
+
+        try {
+          const publicWorkers =
+            await getPublicWorkers();
+
+          const workerMap =
+            new Map<
+              string,
+              MappedPublicWorker
+            >();
+
+          /*
+           * getPublicWorkers()
+           * returns a Firestore
+           * QuerySnapshot.
+           *
+           * QuerySnapshot itself is
+           * not iterated directly.
+           * We use .docs.
+           */
+          for (
+            const document of publicWorkers.docs
+          ) {
+            try {
+              const mapped =
+                workerMapper(
+                  document,
+                ) as MappedPublicWorker;
+
+              const workerId =
+                cleanString(
+                  mapped.id,
+                );
+
+              if (!workerId) {
+                continue;
+              }
+
+              workerMap.set(
+                workerId,
+                mapped,
+              );
+            } catch (error) {
+              console.warn(
+                "RECENTLY_CALLED_WORKER_MAP_ERROR:",
+                error,
+              );
+            }
+          }
+
+          publicWorkersRef.current =
+            workerMap;
+
+          publicWorkersLoadedAtRef.current =
+            Date.now();
+
+          return workerMap;
+        } catch (error) {
+          console.error(
+            "RECENTLY_CALLED_PUBLIC_WORKERS_ERROR:",
+            error,
+          );
+
+          /*
+           * Keep the previous valid
+           * cache during temporary
+           * Firestore/network failures.
+           */
+          return publicWorkersRef.current;
+        }
+      },
+      [],
+    );
+
+  /* ==========================================================
+     HYDRATE RECENT WORKERS
+  ========================================================== */
+
+  const hydrateRecentWorkers =
+    useCallback(
+      async (
+        recentWorkers: RecentlyContactedWorker[],
+        forcePublicRefresh = false,
+      ): Promise<
+        RecentlyContactedWorker[]
+      > => {
+        if (
+          recentWorkers.length ===
+          0
+        ) {
+          return [];
+        }
+
+        const workerMap =
+          await loadPublicWorkerCache(
+            forcePublicRefresh,
+          );
+
+        if (
+          workerMap.size === 0
+        ) {
+          return recentWorkers;
+        }
+
+        /*
+         * Public worker information
+         * is authoritative.
+         *
+         * Local recently-called data
+         * remains the fallback.
+         */
+        return recentWorkers.map(
+          (recentWorker) => {
+            const publicWorker =
+              workerMap.get(
+                recentWorker.id,
+              );
+
+            /*
+             * Worker is no longer
+             * available in public
+             * profiles.
+             *
+             * Keep local snapshot.
+             */
+            if (!publicWorker) {
+              return recentWorker;
+            }
+
+            const mappedName =
+              getMappedWorkerName(
+                publicWorker,
+              );
+
+            const mappedService =
+              getMappedWorkerService(
+                publicWorker,
+              );
+
+            const mappedRating =
+              getMappedWorkerRating(
+                publicWorker,
+              );
+
+            const publicPhoto =
+              cleanString(
+                publicWorker
+                  .workerProfile
+                  ?.photoUrl,
+              );
+
+            /*
+             * workerMapper only exposes
+             * valid HTTPS public photos.
+             *
+             * If public photo is missing,
+             * keep the locally stored image.
+             */
+            const resolvedImage =
+              isHttpUrl(
+                publicPhoto,
+              )
+                ? publicPhoto
+                : cleanString(
+                    recentWorker.image,
+                  );
+
+            return {
+              ...recentWorker,
+
+              /*
+               * Use current public name
+               * when it is valid.
+               */
+              name:
+                isValidWorkerName(
+                  mappedName,
+                )
+                  ? mappedName
+                  : recentWorker.name,
+
+              /*
+               * Use current public service
+               * when it is valid.
+               */
+              service:
+                isValidWorkerService(
+                  mappedService,
+                )
+                  ? mappedService
+                  : recentWorker.service,
+
+              /*
+               * Use current public rating
+               * when available.
+               */
+              rating:
+                mappedRating > 0
+                  ? mappedRating
+                  : recentWorker.rating,
+
+              /*
+               * Use current public photo
+               * when available.
+               */
+              image:
+                resolvedImage ||
+                recentWorker.image,
+            };
+          },
+        );
+      },
+      [
+        loadPublicWorkerCache,
+      ],
+    );
+
+  /* ==========================================================
      LOAD RECENT WORKERS
   ========================================================== */
 
   const loadRecentWorkers =
     useCallback(
-      async () => {
-        if (
-          !userId
-        ) {
-          setWorkers(
-            [],
-          );
+      async (
+        forcePublicRefresh = false,
+      ) => {
+        const requestId =
+          ++loadRequestRef.current;
 
-          setLoaded(
-            true,
-          );
+        if (!userId) {
+          setWorkers([]);
+
+          setLoaded(true);
 
           return;
         }
@@ -832,32 +1189,55 @@ export default function RecentlyViewed() {
               userId,
             );
 
+          if (
+            requestId !==
+            loadRequestRef.current
+          ) {
+            return;
+          }
+
+          const hydratedWorkers =
+            await hydrateRecentWorkers(
+              recentWorkers,
+              forcePublicRefresh,
+            );
+
+          if (
+            requestId !==
+            loadRequestRef.current
+          ) {
+            return;
+          }
+
           setWorkers(
-            recentWorkers,
+            hydratedWorkers,
           );
 
-          setNow(
-            Date.now(),
-          );
-        } catch (
-          error
-        ) {
+          setNow(Date.now());
+        } catch (error) {
+          if (
+            requestId !==
+            loadRequestRef.current
+          ) {
+            return;
+          }
+
           console.error(
             "LOAD_RECENTLY_CALLED_ERROR:",
             error,
           );
-
-          setWorkers(
-            [],
-          );
         } finally {
-          setLoaded(
-            true,
-          );
+          if (
+            requestId ===
+            loadRequestRef.current
+          ) {
+            setLoaded(true);
+          }
         }
       },
       [
         userId,
+        hydrateRecentWorkers,
       ],
     );
 
@@ -866,11 +1246,11 @@ export default function RecentlyViewed() {
   ========================================================== */
 
   useEffect(() => {
-    setLoaded(
-      false,
-    );
+    setLoaded(false);
 
-    void loadRecentWorkers();
+    void loadRecentWorkers(
+      true,
+    );
   }, [
     loadRecentWorkers,
   ]);
@@ -880,48 +1260,55 @@ export default function RecentlyViewed() {
   ========================================================== */
 
   useEffect(() => {
-    if (
-      !userId
-    ) {
+    if (!userId) {
       return;
     }
 
     const unsubscribe =
       subscribeToRecentlyContactedWorkers(
         userId,
-        (
-          recentWorkers,
-        ) => {
-          setWorkers(
-            recentWorkers,
-          );
+        (recentWorkers) => {
+          void (async () => {
+            const hydratedWorkers =
+              await hydrateRecentWorkers(
+                recentWorkers,
+                false,
+              );
 
-          setNow(
-            Date.now(),
-          );
+            setWorkers(
+              hydratedWorkers,
+            );
 
-          setLoaded(
-            true,
-          );
+            setNow(Date.now());
+
+            setLoaded(true);
+          })();
         },
       );
 
     return unsubscribe;
   }, [
     userId,
+    hydrateRecentWorkers,
   ]);
 
   /* ==========================================================
-     REFRESH WHEN HOME GETS FOCUS
+     REFRESH WHEN SCREEN GETS FOCUS
   ========================================================== */
 
   useFocusEffect(
     useCallback(() => {
-      setNow(
-        Date.now(),
-      );
+      setNow(Date.now());
 
-      void loadRecentWorkers();
+      /*
+       * Refresh public worker data
+       * so updated name, photo,
+       * service and rating appear
+       * when customer returns.
+       */
+      void loadRecentWorkers(
+        true,
+      );
     }, [
       loadRecentWorkers,
     ]),
@@ -938,9 +1325,7 @@ export default function RecentlyViewed() {
           0,
           HOME_RECENT_LIMIT,
         ),
-      [
-        workers,
-      ],
+      [workers],
     );
 
   const hasRecentWorkers =
@@ -980,9 +1365,7 @@ export default function RecentlyViewed() {
 
   const handleConfirmCall =
     useCallback(() => {
-      if (
-        !selectedWorker
-      ) {
+      if (!selectedWorker) {
         return;
       }
 
@@ -990,9 +1373,7 @@ export default function RecentlyViewed() {
         getAuth()
           .currentUser;
 
-      if (
-        !authUser
-      ) {
+      if (!authUser) {
         Alert.alert(
           "Login required",
           "Please login again to contact this worker.",
@@ -1009,10 +1390,8 @@ export default function RecentlyViewed() {
       );
 
       /*
-       * No phone number is sent.
-       *
-       * The call screen and realtime
-       * backend identify the worker by workerId.
+       * EXISTING CALL NAVIGATION
+       * REMAINS UNCHANGED.
        */
       router.push({
         pathname:
@@ -1178,19 +1557,13 @@ export default function RecentlyViewed() {
           }
           keyExtractor={(
             item,
-          ) =>
-            item.id
-          }
+          ) => item.id}
           renderItem={({
             item,
           }) => (
             <RecentlyViewedCard
-              item={
-                item
-              }
-              now={
-                now
-              }
+              item={item}
+              now={now}
               onViewAgain={
                 handleViewAgain
               }
@@ -1220,11 +1593,9 @@ export default function RecentlyViewed() {
       ====================================================== */}
 
       <CallWorkerModal
-        visible={
-          Boolean(
-            selectedWorker,
-          )
-        }
+        visible={Boolean(
+          selectedWorker,
+        )}
         worker={
           selectedWorker
         }

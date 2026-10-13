@@ -1,18 +1,21 @@
 import React, {
   memo,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import {
   ActivityIndicator,
+  FlatList,
   Modal,
   Pressable,
-  StyleSheet,
   View,
 } from "react-native";
 
 import {
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+  Image,
+} from "expo-image";
 
 import {
   AppIcon,
@@ -21,20 +24,35 @@ import {
 
 import {
   Colors,
-  FixxamTokens,
   WorkerColors,
 } from "@/theme";
 
-/* ==============================================================
+import {
+  styles,
+} from "./workerMarketChatStyles";
+
+/* ============================================================
    TYPES
-============================================================== */
+============================================================ */
+
+export type WorkerMarketChatMenuItem = {
+  id: string;
+
+  name: string;
+
+  image?: string;
+};
 
 type Props = {
   visible: boolean;
 
+  busy: boolean;
+
+  canCall: boolean;
+
   deleting: boolean;
 
-  hasPhone: boolean;
+  items: WorkerMarketChatMenuItem[];
 
   onClose: () => void;
 
@@ -43,37 +61,104 @@ type Props = {
   onDelete: () => void;
 };
 
-/* ==============================================================
+/* ============================================================
    COMPONENT
-============================================================== */
+============================================================ */
 
-function WorkerMarketChatMenu({
+function WorkerMarketChatMenuComponent({
   visible,
+  busy,
+  canCall,
   deleting,
-  hasPhone,
+  items,
   onClose,
   onCall,
   onDelete,
 }: Props) {
-  const insets =
-    useSafeAreaInsets();
+  const [
+    galleryVisible,
+    setGalleryVisible,
+  ] =
+    useState(false);
 
   const callDisabled =
-    deleting ||
-    !hasPhone;
+    busy ||
+    !canCall;
 
-  /* ============================================================
-     CLOSE GUARD
-  ============================================================ */
+  /* ==========================================================
+     GALLERY ITEMS
+  ========================================================== */
+
+  const galleryItems =
+    useMemo(() => {
+      const seen =
+        new Set<string>();
+
+      return items.filter(
+        item => {
+          const image =
+            typeof item.image ===
+            "string"
+              ? item.image.trim()
+              : "";
+
+          if (
+            !image ||
+            seen.has(
+              image,
+            )
+          ) {
+            return false;
+          }
+
+          seen.add(
+            image,
+          );
+
+          return true;
+        },
+      );
+    }, [
+      items,
+    ]);
+
+  const galleryDisabled =
+    busy ||
+    galleryItems.length ===
+      0;
+
+  /* ==========================================================
+     RESET
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      !visible
+    ) {
+      setGalleryVisible(
+        false,
+      );
+    }
+  }, [
+    visible,
+  ]);
+
+  /* ==========================================================
+     CLOSE
+  ========================================================== */
 
   const handleClose =
     () => {
-      if (deleting) {
-        return;
-      }
+      setGalleryVisible(
+        false,
+      );
 
       onClose();
     };
+
+  /* ==========================================================
+     RENDER
+  ========================================================== */
 
   return (
     <Modal
@@ -84,513 +169,566 @@ function WorkerMarketChatMenu({
       animationType="fade"
       statusBarTranslucent
       onRequestClose={
-        handleClose
+        galleryVisible
+          ? () => {
+              setGalleryVisible(
+                false,
+              );
+            }
+          : handleClose
       }
     >
       <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Close chat options"
-        style={[
-          styles.menuOverlay,
-
-          {
-            paddingTop:
-              insets.top +
-              FixxamTokens.size.headerHeight,
-
-            paddingRight:
-              FixxamTokens.spacing.md,
-          },
-        ]}
+        style={
+          styles.menuOverlay
+        }
         onPress={
           handleClose
         }
+        accessible={
+          false
+        }
       >
-        <Pressable
-          accessibilityRole="none"
-          style={
-            styles.menuCard
-          }
-          onPress={
-            event => {
+        {galleryVisible ? (
+          /* ==================================================
+             GALLERY
+          ================================================== */
+
+          <Pressable
+            style={[
+              styles.menuCard,
+              styles.galleryCard,
+            ]}
+            onPress={event => {
               event.stopPropagation();
-            }
-          }
-        >
-          {/* ==================================================
-              HEADER
-          ================================================== */}
-
-          <View
-            style={
-              styles.menuHeader
-            }
-          >
-            <AppText
-              variant="bodyMedium"
-              weight="bold"
-              style={
-                styles.menuTitle
-              }
-            >
-              Chat Options
-            </AppText>
-
-            <Pressable
-              onPress={
-                handleClose
-              }
-              disabled={
-                deleting
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Close chat options"
-              accessibilityState={{
-                disabled:
-                  deleting,
-              }}
-              hitSlop={4}
-              style={({
-                pressed,
-              }) => [
-                styles.menuClose,
-
-                deleting
-                  ? styles.disabled
-                  : null,
-
-                pressed &&
-                !deleting
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="close"
-                size="sm"
-                color={
-                  Colors.textPrimary
-                }
-              />
-            </Pressable>
-          </View>
-
-          {/* ==================================================
-              CALL CUSTOMER
-          ================================================== */}
-
-          <Pressable
-            onPress={
-              onCall
-            }
-            disabled={
-              callDisabled
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Call customer"
-            accessibilityHint={
-              hasPhone
-                ? "Opens the phone dialer"
-                : "Customer phone number is unavailable"
-            }
-            accessibilityState={{
-              disabled:
-                callDisabled,
             }}
-            style={({
-              pressed,
-            }) => [
-              styles.menuItem,
-
-              callDisabled
-                ? styles.disabled
-                : null,
-
-              pressed &&
-              !callDisabled
-                ? styles.menuItemPressed
-                : null,
-            ]}
+            accessible={
+              false
+            }
           >
-            <View
-              style={[
-                styles.menuIcon,
-                styles.callIcon,
-              ]}
-            >
-              <AppIcon
-                name="phone"
-                role="worker"
-                size="sm"
-                color={
-                  WorkerColors.primary
-                }
-              />
-            </View>
-
             <View
               style={
-                styles.menuItemInfo
+                styles.menuHeader
               }
             >
-              <AppText
-                variant="bodyMedium"
-                weight="bold"
+              <Pressable
+                onPress={() => {
+                  setGalleryVisible(
+                    false,
+                  );
+                }}
+                hitSlop={
+                  8
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Back to chat options"
                 style={
-                  styles.menuItemTitle
+                  styles.menuClose
                 }
               >
-                Call Customer
-              </AppText>
-
-              <AppText
-                variant="caption"
-                tone="secondary"
-                style={
-                  styles.menuItemSubtitle
-                }
-              >
-                {hasPhone
-                  ? "Call the customer directly"
-                  : "Customer phone unavailable"}
-              </AppText>
-            </View>
-
-            <AppIcon
-              name="next"
-              size="xs"
-              color={
-                Colors.textMuted
-              }
-            />
-          </Pressable>
-
-          {/* ==================================================
-              DELETE OWN MESSAGES
-          ================================================== */}
-
-          <Pressable
-            onPress={
-              onDelete
-            }
-            disabled={
-              deleting
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Delete my messages"
-            accessibilityHint="Deletes only messages you sent in this chat"
-            accessibilityState={{
-              disabled:
-                deleting,
-
-              busy:
-                deleting,
-            }}
-            style={({
-              pressed,
-            }) => [
-              styles.menuItem,
-              styles.deleteMenuItem,
-
-              deleting
-                ? styles.disabled
-                : null,
-
-              pressed &&
-              !deleting
-                ? styles.menuItemPressed
-                : null,
-            ]}
-          >
-            <View
-              style={[
-                styles.menuIcon,
-                styles.deleteIcon,
-              ]}
-            >
-              {deleting ? (
-                <ActivityIndicator
-                  size="small"
-                  color={
-                    Colors.error
-                  }
-                />
-              ) : (
                 <AppIcon
-                  name="delete"
+                  name="back"
                   size="sm"
                   color={
-                    Colors.error
+                    Colors.textPrimary
+                  }
+                />
+              </Pressable>
+
+              <AppText
+                variant="bodyMedium"
+                weight="semibold"
+                numberOfLines={
+                  1
+                }
+                style={
+                  styles.galleryTitle
+                }
+              >
+                Gallery
+              </AppText>
+
+              <Pressable
+                onPress={
+                  handleClose
+                }
+                hitSlop={
+                  8
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Close gallery"
+                style={
+                  styles.menuClose
+                }
+              >
+                <AppIcon
+                  name="close"
+                  size="sm"
+                  color={
+                    Colors.textPrimary
+                  }
+                />
+              </Pressable>
+            </View>
+
+            <FlatList
+              data={
+                galleryItems
+              }
+              numColumns={
+                2
+              }
+              keyExtractor={
+                item =>
+                  item.id
+              }
+              renderItem={({
+                item,
+              }) => (
+                <GalleryImage
+                  item={
+                    item
                   }
                 />
               )}
-            </View>
+              showsVerticalScrollIndicator={
+                false
+              }
+              initialNumToRender={
+                6
+              }
+              maxToRenderPerBatch={
+                8
+              }
+              windowSize={
+                5
+              }
+              contentContainerStyle={
+                styles.galleryContent
+              }
+              columnWrapperStyle={
+                styles.galleryRow
+              }
+            />
+          </Pressable>
+        ) : (
+          /* ==================================================
+             CHAT OPTIONS
+          ================================================== */
 
+          <Pressable
+            style={
+              styles.menuCard
+            }
+            onPress={event => {
+              event.stopPropagation();
+            }}
+            accessible={
+              false
+            }
+          >
             <View
               style={
-                styles.menuItemInfo
+                styles.menuHeader
               }
             >
               <AppText
                 variant="bodyMedium"
-                weight="bold"
+                weight="semibold"
                 style={
-                  styles.deleteTitle
+                  styles.menuTitle
                 }
               >
-                {deleting
-                  ? "Deleting Messages..."
-                  : "Delete My Messages"}
+                Chat options
               </AppText>
 
-              <AppText
-                variant="caption"
-                tone="secondary"
+              <Pressable
+                onPress={
+                  handleClose
+                }
+                hitSlop={
+                  8
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Close chat options"
                 style={
-                  styles.menuItemSubtitle
+                  styles.menuClose
                 }
               >
-                Delete only the messages you sent
-              </AppText>
+                <AppIcon
+                  name="close"
+                  size="sm"
+                  color={
+                    Colors.textPrimary
+                  }
+                />
+              </Pressable>
             </View>
 
-            <AppIcon
-              name="next"
-              size="xs"
-              color={
-                Colors.textMuted
+            {/* ==================================================
+                CALL CUSTOMER
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onCall
               }
-            />
+              disabled={
+                callDisabled
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Call customer"
+              accessibilityHint={
+                canCall
+                  ? "Start a call"
+                  : "Calling is unavailable"
+              }
+              accessibilityState={{
+                disabled:
+                  callDisabled,
+              }}
+              style={[
+                styles.menuItem,
+
+                callDisabled
+                  ? styles.menuItemDisabled
+                  : null,
+              ]}
+            >
+              <View
+                style={[
+                  styles.menuIcon,
+                  styles.callIcon,
+                ]}
+              >
+                <AppIcon
+                  name="phone"
+                  size="sm"
+                  color={
+                    Colors.success
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.menuItemInfo
+                }
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="semibold"
+                  style={
+                    styles.menuItemTitle
+                  }
+                >
+                  Call customer
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.menuItemSubtitle
+                  }
+                >
+                  {canCall
+                    ? "Start a call"
+                    : "Calling is unavailable"}
+                </AppText>
+              </View>
+
+              <AppIcon
+                name="next"
+                size="xs"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </Pressable>
+
+            {/* ==================================================
+                GALLERY
+            ================================================== */}
+
+            <Pressable
+              onPress={() => {
+                setGalleryVisible(
+                  true,
+                );
+              }}
+              disabled={
+                galleryDisabled
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Open product gallery"
+              accessibilityState={{
+                disabled:
+                  galleryDisabled,
+              }}
+              style={[
+                styles.menuItem,
+
+                galleryDisabled
+                  ? styles.menuItemDisabled
+                  : null,
+              ]}
+            >
+              <View
+                style={[
+                  styles.menuIcon,
+                  styles.galleryIcon,
+                ]}
+              >
+                <AppIcon
+                  name="image"
+                  role="worker"
+                  size="sm"
+                  color={
+                    galleryDisabled
+                      ? Colors.textMuted
+                      : WorkerColors.primary
+                  }
+                />
+              </View>
+
+              <View
+                style={
+                  styles.menuItemInfo
+                }
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="semibold"
+                  style={
+                    styles.menuItemTitle
+                  }
+                >
+                  Gallery
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.menuItemSubtitle
+                  }
+                >
+                  {galleryItems.length >
+                  0
+                    ? `View ${galleryItems.length} ${
+                        galleryItems.length ===
+                        1
+                          ? "photo"
+                          : "photos"
+                      }`
+                    : "No product photos"}
+                </AppText>
+              </View>
+
+              <AppIcon
+                name="next"
+                size="xs"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </Pressable>
+
+            {/* ==================================================
+                DELETE MY MESSAGES
+            ================================================== */}
+
+            <Pressable
+              onPress={
+                onDelete
+              }
+              disabled={
+                busy
+              }
+              accessibilityRole="button"
+              accessibilityLabel={
+                deleting
+                  ? "Deleting your messages"
+                  : "Delete my messages"
+              }
+              accessibilityHint="Deletes only messages that you sent"
+              accessibilityState={{
+                disabled:
+                  busy,
+
+                busy:
+                  deleting,
+              }}
+              style={[
+                styles.menuItem,
+                styles.deleteMenuItem,
+
+                busy
+                  ? styles.menuItemDisabled
+                  : null,
+              ]}
+            >
+              <View
+                style={[
+                  styles.menuIcon,
+                  styles.deleteIcon,
+                ]}
+              >
+                {deleting ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={
+                      Colors.error
+                    }
+                  />
+                ) : (
+                  <AppIcon
+                    name="delete"
+                    size="sm"
+                    color={
+                      Colors.error
+                    }
+                  />
+                )}
+              </View>
+
+              <View
+                style={
+                  styles.menuItemInfo
+                }
+              >
+                <AppText
+                  variant="bodyMedium"
+                  weight="semibold"
+                  style={
+                    styles.deleteTitle
+                  }
+                >
+                  {deleting
+                    ? "Deleting messages..."
+                    : "Delete my messages"}
+                </AppText>
+
+                <AppText
+                  variant="caption"
+                  tone="secondary"
+                  style={
+                    styles.menuItemSubtitle
+                  }
+                >
+                  Only messages you sent will be deleted
+                </AppText>
+              </View>
+
+              <AppIcon
+                name="next"
+                size="xs"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </Pressable>
           </Pressable>
-        </Pressable>
+        )}
       </Pressable>
     </Modal>
   );
 }
 
-export default memo(
-  WorkerMarketChatMenu,
-);
+/* ============================================================
+   GALLERY IMAGE
+============================================================ */
 
-/* ==============================================================
-   STYLES
-============================================================== */
+const GalleryImage =
+  memo(
+    function GalleryImage({
+      item,
+    }: {
+      item:
+        WorkerMarketChatMenuItem;
+    }) {
+      const [
+        imageFailed,
+        setImageFailed,
+      ] =
+        useState(false);
 
-const styles =
-  StyleSheet.create({
-    /* ==========================================================
-       OVERLAY
-    ========================================================== */
+      const image =
+        typeof item.image ===
+          "string"
+          ? item.image.trim()
+          : "";
 
-    menuOverlay: {
-      flex: 1,
+      useEffect(() => {
+        setImageFailed(
+          false,
+        );
+      }, [
+        image,
+      ]);
 
-      alignItems:
-        "flex-end",
-
-      justifyContent:
-        "flex-start",
-
-      backgroundColor:
-        Colors.overlayMedium,
+      return (
+        <View
+          style={
+            styles.galleryImageBox
+          }
+        >
+          {image &&
+          !imageFailed ? (
+            <Image
+              source={{
+                uri:
+                  image,
+              }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={
+                150
+              }
+              accessibilityLabel={`${item.name} product image`}
+              onError={() => {
+                setImageFailed(
+                  true,
+                );
+              }}
+              style={
+                styles.galleryImage
+              }
+            />
+          ) : (
+            <View
+              style={
+                styles.galleryImageFallback
+              }
+            >
+              <AppIcon
+                name="image"
+                size="md"
+                color={
+                  Colors.textMuted
+                }
+              />
+            </View>
+          )}
+        </View>
+      );
     },
+  );
 
-    /* ==========================================================
-       CARD
-    ========================================================== */
+GalleryImage.displayName =
+  "WorkerMarketGalleryImage";
 
-    menuCard: {
-      width: 288,
+/* ============================================================
+   MEMO
+============================================================ */
 
-      overflow:
-        "hidden",
+const WorkerMarketChatMenu =
+  memo(
+    WorkerMarketChatMenuComponent,
+  );
 
-      borderWidth: 1,
+WorkerMarketChatMenu.displayName =
+  "WorkerMarketChatMenu";
 
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    /* ==========================================================
-       HEADER
-    ========================================================== */
-
-    menuHeader: {
-      minHeight: 56,
-
-      paddingLeft:
-        FixxamTokens.spacing.md,
-
-      paddingRight:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-
-      borderBottomColor:
-        Colors.divider,
-    },
-
-    menuTitle: {
-      flex: 1,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    menuClose: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    /* ==========================================================
-       MENU ITEM
-    ========================================================== */
-
-    menuItem: {
-      minHeight: 72,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      borderBottomWidth:
-        StyleSheet.hairlineWidth,
-
-      borderBottomColor:
-        Colors.divider,
-    },
-
-    deleteMenuItem: {
-      borderBottomWidth: 0,
-    },
-
-    menuItemPressed: {
-      backgroundColor:
-        Colors.background,
-    },
-
-    menuIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-    },
-
-    callIcon: {
-      backgroundColor:
-        WorkerColors.primarySoft,
-    },
-
-    deleteIcon: {
-      backgroundColor:
-        Colors.errorSoft,
-    },
-
-    menuItemInfo: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
-
-      marginRight:
-        FixxamTokens.spacing.sm,
-    },
-
-    menuItemTitle: {
-      color:
-        Colors.textPrimary,
-    },
-
-    deleteTitle: {
-      color:
-        Colors.error,
-    },
-
-    menuItemSubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 16,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ==========================================================
-       INTERACTION
-    ========================================================== */
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    disabled: {
-      opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
-    },
-  });
+export default WorkerMarketChatMenu;

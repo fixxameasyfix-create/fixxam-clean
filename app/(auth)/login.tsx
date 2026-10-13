@@ -48,15 +48,21 @@ import {
 export default function LoginScreen() {
   const {
     returnTo,
+    identifier: initialIdentifier,
   } =
     useLocalSearchParams<{
       returnTo?: string;
+      identifier?: string;
     }>();
 
   const [
     identifier,
     setIdentifier,
-  ] = useState("");
+  ] = useState(
+    typeof initialIdentifier === "string"
+      ? initialIdentifier
+      : "",
+  );
 
   const [
     password,
@@ -163,23 +169,18 @@ export default function LoginScreen() {
           cleanPassword,
         );
 
-        await advanceEmergencyOnLogin();
+       await advanceEmergencyOnLogin();
 
-        if (
-          typeof returnTo ===
-            "string" &&
-          returnTo.trim()
-        ) {
-          router.replace(
-            returnTo as never,
-          );
-
-          return;
-        }
-
-        router.replace(
-          "/(auth)/role-resolver",
-        );
+/*
+ * Always resolve the authenticated user's
+ * actual Fixxam role before navigating.
+ *
+ * Never allow returnTo to bypass role
+ * resolution.
+ */
+router.replace(
+  "/(auth)/role-resolver",
+);
       } catch (error: unknown) {
         console.error(
           "LOGIN_ERROR:",

@@ -1,4 +1,6 @@
-import React, { memo } from "react";
+import React, {
+  memo,
+} from "react";
 
 import {
   StyleSheet,
@@ -16,6 +18,28 @@ import {
 } from "@/theme";
 
 const MAX_RESEND_COUNT = 10;
+
+function formatTime(
+  seconds: number,
+): string {
+  const safeSeconds =
+    Math.max(
+      0,
+      Math.floor(seconds),
+    );
+
+  const minutes =
+    Math.floor(
+      safeSeconds / 60,
+    );
+
+  const remainingSeconds =
+    safeSeconds % 60;
+
+  return `${minutes}:${String(
+    remainingSeconds,
+  ).padStart(2, "0")}`;
+}
 
 export interface OtpResendCardProps {
   otpSent: boolean;
@@ -36,41 +60,11 @@ export interface OtpResendCardProps {
 
   role?: FixxamRole;
 
-  /*
-   * Legacy support.
-   */
   variant?: "customer" | "worker";
 
-  /*
-   * Controls resend cooldown.
-   */
   resendDisabled?: boolean;
 
-  /*
-   * Custom resend label.
-   * Example: "Resend in 0:25"
-   */
   resendLabel?: string;
-}
-
-function formatTime(
-  seconds: number,
-): string {
-  const safeSeconds = Math.max(
-    0,
-    Math.floor(seconds),
-  );
-
-  const minutes = Math.floor(
-    safeSeconds / 60,
-  );
-
-  const remainingSeconds =
-    safeSeconds % 60;
-
-  return `${minutes}:${remainingSeconds
-    .toString()
-    .padStart(2, "0")}`;
 }
 
 function OtpResendCard({
@@ -87,33 +81,51 @@ function OtpResendCard({
   variant,
 
   resendDisabled = false,
-  resendLabel = "Resend Code",
+  resendLabel = "Resend code",
 }: OtpResendCardProps) {
   const resolvedRole: FixxamRole =
     variant ?? role;
 
-  const safeResendCount = Math.min(
-    MAX_RESEND_COUNT,
-    Math.max(
-      0,
-      Math.floor(resendCount),
-    ),
-  );
+  const safeResendCount =
+    Math.min(
+      MAX_RESEND_COUNT,
+      Math.max(
+        0,
+        Math.floor(
+          resendCount,
+        ),
+      ),
+    );
+
+  const cooldownActive =
+    timeLeft > 0;
+
+  /* ============================================================
+     LOCKED
+  ============================================================ */
 
   if (locked) {
     return (
-      <View style={styles.container}>
-        <AppText
-          variant="caption"
-          tone="warning"
-          center
-          style={styles.message}
+      <View
+        style={styles.container}
+      >
+        <View
+          style={styles.messageContainer}
         >
-          Too many resend attempts. Please wait before trying again.
-        </AppText>
+          <AppText
+            variant="body"
+            tone="warning"
+            center
+            style={styles.message}
+          >
+            You've requested too many
+            codes. Please try again
+            later.
+          </AppText>
+        </View>
 
         <AppButton
-          title={`Retry in ${formatTime(
+          title={`Try again in ${formatTime(
             timeLeft,
           )}`}
           role={resolvedRole}
@@ -125,13 +137,19 @@ function OtpResendCard({
     );
   }
 
+  /* ============================================================
+     INITIAL SEND
+  ============================================================ */
+
   if (!otpSent) {
     return (
-      <View style={styles.container}>
+      <View
+        style={styles.container}
+      >
         <AppButton
-          title="Send Code"
+          title="Continue"
           role={resolvedRole}
-          leftIconName="messages"
+          leftIconName="mail"
           loading={loading}
           disabled={loading}
           onPress={onSend}
@@ -140,32 +158,38 @@ function OtpResendCard({
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.sentRow}>
-        <AppText
-          variant="bodyMedium"
-          tone="success"
-        >
-          Verification code sent
-        </AppText>
+  /* ============================================================
+     OTP SENT / RESEND
+  ============================================================ */
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-        >
-          {safeResendCount}/{MAX_RESEND_COUNT}
-        </AppText>
-      </View>
+  return (
+    <View
+      style={styles.container}
+    >
+      <AppText
+        variant="body"
+        tone="success"
+        center
+        style={styles.sentText}
+      >
+        Verification code sent
+      </AppText>
 
       <AppButton
-        title={resendLabel}
+        title={
+          cooldownActive
+            ? `Resend code in ${formatTime(
+                timeLeft,
+              )}`
+            : resendLabel
+        }
         role={resolvedRole}
         variant="outline"
         loading={resending}
         disabled={
           resending ||
           resendDisabled ||
+          cooldownActive ||
           safeResendCount >=
             MAX_RESEND_COUNT
         }
@@ -175,28 +199,35 @@ function OtpResendCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
 
-    marginBottom:
-      FixxamTokens.spacing.xl,
-  },
+      marginBottom:
+        FixxamTokens.spacing.lg,
+    },
 
-  sentRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent:
-      "space-between",
+    messageContainer: {
+      width: "100%",
 
-    marginBottom:
-      FixxamTokens.spacing.sm,
-  },
+      paddingHorizontal:
+        FixxamTokens.spacing.sm,
 
-  message: {
-    marginBottom:
-      FixxamTokens.spacing.md,
-  },
-});
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
 
-export default memo(OtpResendCard);
+    message: {
+      lineHeight: 22,
+    },
+
+    sentText: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+  });
+
+export default memo(
+  OtpResendCard,
+);

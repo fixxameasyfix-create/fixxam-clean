@@ -5,9 +5,7 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Linking,
   Pressable,
   StyleSheet,
   View,
@@ -65,33 +63,137 @@ const FIRESTORE_BATCH_LIMIT =
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
+
+/* ============================================================
+   NOTIFICATION ICON
+============================================================ */
 
 function getNotificationIcon(
   type:
     CustomerNotification["type"],
 ): AppIconName {
-  switch (type) {
+  switch (
+    type
+  ) {
     case "service_request":
       return "service";
 
     case "booking":
       return "calendar";
 
+    case "shop_request":
+      return "shop";
+
+    case "market_order":
+      return "jobs";
+
+    case "incoming_call":
+    case "missed_call":
+      return "phone";
+
+    case "message":
     case "system":
     default:
       return "notifications";
   }
 }
 
+/* ============================================================
+   ACTIONABLE
+============================================================ */
+
+function isNotificationActionable(
+  notification:
+    CustomerNotification,
+): boolean {
+  switch (
+    notification.type
+  ) {
+    case "incoming_call":
+    case "missed_call":
+      return Boolean(
+        cleanString(
+          notification.callId,
+        ),
+      );
+
+    case "booking":
+      return Boolean(
+        cleanString(
+          notification.bookingId,
+        ),
+      );
+
+    case "shop_request":
+      return Boolean(
+        cleanString(
+          notification.requestId,
+        ),
+      );
+
+    case "market_order":
+    case "message":
+      return Boolean(
+        cleanString(
+          notification.orderId,
+        ),
+      );
+
+    default:
+      return false;
+  }
+}
+
+/* ============================================================
+   ACTION LABEL
+============================================================ */
+
+function getNotificationActionLabel(
+  notification:
+    CustomerNotification,
+): string {
+  switch (
+    notification.type
+  ) {
+    case "booking":
+      return "View booking";
+
+    case "shop_request":
+      return "View request";
+
+    case "market_order":
+      return "View order";
+
+    case "message":
+      return "View message";
+
+    case "incoming_call":
+      return "Open call";
+
+    case "missed_call":
+      return "View call";
+
+    default:
+      return "View update";
+  }
+}
+
+/* ============================================================
+   DATE
+============================================================ */
+
 function formatNotificationDate(
   createdAt:
     CustomerNotification["createdAt"],
 ): string {
-  if (!createdAt) {
+  if (
+    !createdAt
+  ) {
     return "Just now";
   }
 
@@ -130,34 +232,54 @@ function formatNotificationDate(
     const day =
       24 * hour;
 
-    if (diff < minute) {
+    if (
+      diff <
+      minute
+    ) {
       return "Just now";
     }
 
-    if (diff < hour) {
+    if (
+      diff <
+      hour
+    ) {
       return `${Math.floor(
-        diff / minute,
+        diff /
+          minute,
       )}m ago`;
     }
 
-    if (diff < day) {
+    if (
+      diff <
+      day
+    ) {
       return `${Math.floor(
-        diff / hour,
+        diff /
+          hour,
       )}h ago`;
     }
 
-    if (diff < 7 * day) {
+    if (
+      diff <
+      7 * day
+    ) {
       return `${Math.floor(
-        diff / day,
+        diff /
+          day,
       )}d ago`;
     }
 
     return date.toLocaleDateString(
       undefined,
       {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
+        day:
+          "numeric",
+
+        month:
+          "short",
+
+        year:
+          "numeric",
       },
     );
   } catch {
@@ -185,10 +307,12 @@ export default function CustomerNotificationsScreen() {
   const markAsRead =
     useCallback(
       async (
-        notificationId: string,
+        notificationId:
+          string,
       ) => {
         const uid =
-          auth.currentUser?.uid;
+          auth.currentUser
+            ?.uid;
 
         const safeId =
           cleanString(
@@ -212,10 +336,13 @@ export default function CustomerNotificationsScreen() {
               safeId,
             ),
             {
-              read: true,
+              read:
+                true,
             },
           );
-        } catch (markError) {
+        } catch (
+          markError
+        ) {
           console.error(
             "CUSTOMER_MARK_NOTIFICATION_READ_ERROR:",
             markError,
@@ -235,13 +362,19 @@ export default function CustomerNotificationsScreen() {
     useCallback(
       async () => {
         const uid =
-          auth.currentUser?.uid;
+          auth.currentUser
+            ?.uid;
 
-        if (!uid) {
+        if (
+          !uid
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
+
             text1:
               "Unable to update",
+
             text2:
               "Please sign in again.",
           });
@@ -251,17 +384,18 @@ export default function CustomerNotificationsScreen() {
 
         const unread =
           notifications.filter(
-            (
-              notification,
-            ) =>
+            notification =>
               !notification.read &&
-              cleanString(
-                notification.id,
+              Boolean(
+                cleanString(
+                  notification.id,
+                ),
               ),
           );
 
         if (
-          unread.length === 0
+          unread.length ===
+          0
         ) {
           return;
         }
@@ -282,12 +416,12 @@ export default function CustomerNotificationsScreen() {
               );
 
             const batch =
-              writeBatch(db);
+              writeBatch(
+                db,
+              );
 
             chunk.forEach(
-              (
-                notification,
-              ) => {
+              notification => {
                 batch.update(
                   doc(
                     db,
@@ -297,7 +431,8 @@ export default function CustomerNotificationsScreen() {
                     notification.id,
                   ),
                   {
-                    read: true,
+                    read:
+                      true,
                   },
                 );
               },
@@ -305,16 +440,21 @@ export default function CustomerNotificationsScreen() {
 
             await batch.commit();
           }
-        } catch (markError) {
+        } catch (
+          markError
+        ) {
           console.error(
             "CUSTOMER_MARK_ALL_READ_ERROR:",
             markError,
           );
 
           Toast.show({
-            type: "error",
+            type:
+              "error",
+
             text1:
               "Unable to update",
+
             text2:
               "Some notifications could not be marked as read.",
           });
@@ -323,93 +463,6 @@ export default function CustomerNotificationsScreen() {
       [
         notifications,
       ],
-    );
-
-  /* ==========================================================
-     CALL WORKER
-  ========================================================== */
-
-  const handleCallWorker =
-    useCallback(
-      async (
-        notification:
-          CustomerNotification,
-      ) => {
-        const phone =
-          cleanString(
-            notification.workerPhone,
-          );
-
-        if (!phone) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Phone unavailable",
-            text2:
-              "This worker does not have a phone number available.",
-          });
-
-          return;
-        }
-
-        const safePhone =
-          phone.replace(
-            /[^+\d]/g,
-            "",
-          );
-
-        if (!safePhone) {
-          Toast.show({
-            type: "error",
-            text1:
-              "Invalid phone number",
-            text2:
-              "This worker's phone number is unavailable.",
-          });
-
-          return;
-        }
-
-        try {
-          const phoneUrl =
-            `tel:${safePhone}`;
-
-          const supported =
-            await Linking.canOpenURL(
-              phoneUrl,
-            );
-
-          if (!supported) {
-            Toast.show({
-              type: "error",
-              text1:
-                "Calling unavailable",
-              text2:
-                "Calling is not available on this device.",
-            });
-
-            return;
-          }
-
-          await Linking.openURL(
-            phoneUrl,
-          );
-        } catch (callError) {
-          console.error(
-            "CUSTOMER_CALL_WORKER_ERROR:",
-            callError,
-          );
-
-          Toast.show({
-            type: "error",
-            text1:
-              "Calling unavailable",
-            text2:
-              "Please try again later.",
-          });
-        }
-      },
-      [],
     );
 
   /* ==========================================================
@@ -422,6 +475,10 @@ export default function CustomerNotificationsScreen() {
         notification:
           CustomerNotification,
       ) => {
+        /* ====================================================
+           MARK AS READ
+        ==================================================== */
+
         if (
           !notification.read
         ) {
@@ -431,66 +488,54 @@ export default function CustomerNotificationsScreen() {
             );
           } catch {
             /*
-             * Do not block opening the
-             * notification if marking
-             * as read fails.
+             * Navigation is still allowed.
+             *
+             * Mark-as-read failure should not
+             * block navigation.
              */
           }
         }
 
         /* ====================================================
-           SERVICE REQUEST
+           FIXXAM VOICE
         ==================================================== */
 
         if (
           notification.type ===
-          "service_request"
+            "incoming_call" ||
+          notification.type ===
+            "missed_call"
         ) {
-          const worker =
+          const callId =
             cleanString(
-              notification.workerName,
-            ) ||
-            "Fixxam Worker";
+              notification.callId,
+            );
 
-          const service =
-            cleanString(
-              notification.service,
-            ) ||
-            "Service request";
+          if (
+            !callId
+          ) {
+            Toast.show({
+              type:
+                "error",
 
-          const location =
-            cleanString(
-              notification.location,
-            ) ||
-            "Location unavailable";
+              text1:
+                "Call unavailable",
 
-          Alert.alert(
-            worker,
-            `${service}\n\n${location}`,
-            [
-              {
-                text: "Close",
-                style: "cancel",
-              },
+              text2:
+                "This notification does not contain a valid call ID.",
+            });
 
-              ...(cleanString(
-                notification.workerPhone,
-              )
-                ? [
-                    {
-                      text:
-                        "Call Worker",
+            return;
+          }
 
-                      onPress: () => {
-                        void handleCallWorker(
-                          notification,
-                        );
-                      },
-                    },
-                  ]
-                : []),
-            ],
-          );
+          router.push({
+            pathname:
+              "/voice-call/[callId]",
+
+            params: {
+              callId,
+            },
+          } as never);
 
           return;
         }
@@ -503,31 +548,202 @@ export default function CustomerNotificationsScreen() {
           notification.type ===
           "booking"
         ) {
+          const bookingId =
+            cleanString(
+              notification.bookingId,
+            );
+
+          if (
+            !bookingId
+          ) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Booking unavailable",
+
+              text2:
+                "This notification does not contain a valid booking ID.",
+            });
+
+            return;
+          }
+
+          router.push({
+            pathname:
+              "/(customer)/orders/[orderId]",
+
+            params: {
+              orderId:
+                bookingId,
+            },
+          } as never);
+
+          return;
+        }
+
+        /* ====================================================
+           SHOP REQUEST
+        ==================================================== */
+
+        if (
+          notification.type ===
+          "shop_request"
+        ) {
+          const requestId =
+            cleanString(
+              notification.requestId,
+            );
+
+          if (
+            !requestId
+          ) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Shop request unavailable",
+
+              text2:
+                "This notification does not contain a valid request ID.",
+            });
+
+            return;
+          }
+
+          router.push({
+            pathname:
+              "/(customer)/orders/shop-request/[requestId]",
+
+            params: {
+              requestId,
+            },
+          } as never);
+
+          return;
+        }
+
+        /* ====================================================
+           MARKET ORDER
+        ==================================================== */
+
+        if (
+          notification.type ===
+          "market_order"
+        ) {
+          const orderId =
+            cleanString(
+              notification.orderId,
+            );
+
+          if (
+            !orderId
+          ) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Order unavailable",
+
+              text2:
+                "This notification does not contain a valid Market order ID.",
+            });
+
+            return;
+          }
+
+          router.push({
+            pathname:
+              "/(customer)/orders/market/[orderId]",
+
+            params: {
+              orderId,
+            },
+          } as never);
+
+          return;
+        }
+
+        /* ====================================================
+           MESSAGE
+        ==================================================== */
+
+        if (
+          notification.type ===
+          "message"
+        ) {
+          const orderId =
+            cleanString(
+              notification.orderId,
+            );
+
+          if (
+            !orderId
+          ) {
+            Toast.show({
+              type:
+                "error",
+
+              text1:
+                "Chat unavailable",
+
+              text2:
+                "This message does not contain a valid order ID.",
+            });
+
+            return;
+          }
+
+          router.push({
+            pathname:
+              "/(customer)/orders/market/chat",
+
+            params: {
+              orderId,
+            },
+          } as never);
+
+          return;
+        }
+
+        /* ====================================================
+           SERVICE REQUEST
+        ==================================================== */
+
+        if (
+          notification.type ===
+          "service_request"
+        ) {
           Toast.show({
-            type: "info",
+            type:
+              "info",
 
             text1:
               cleanString(
                 notification.title,
               ) ||
-              "Booking Update",
+              "Service update",
 
             text2:
               cleanString(
                 notification.message,
               ) ||
-              "Your booking has been updated.",
+              "Your service request has been updated.",
           });
 
           return;
         }
 
         /* ====================================================
-           SYSTEM
+           SYSTEM / LEGACY
         ==================================================== */
 
         Toast.show({
-          type: "info",
+          type:
+            "info",
 
           text1:
             cleanString(
@@ -543,7 +759,6 @@ export default function CustomerNotificationsScreen() {
         });
       },
       [
-        handleCallWorker,
         markAsRead,
       ],
     );
@@ -563,20 +778,14 @@ export default function CustomerNotificationsScreen() {
           notification={
             item
           }
-          onPress={() =>
-            handleNotificationPress(
+          onPress={() => {
+            void handleNotificationPress(
               item,
-            )
-          }
-          onCall={() =>
-            handleCallWorker(
-              item,
-            )
-          }
+            );
+          }}
         />
       ),
       [
-        handleCallWorker,
         handleNotificationPress,
       ],
     );
@@ -586,7 +795,8 @@ export default function CustomerNotificationsScreen() {
       (
         item:
           CustomerNotification,
-      ) => item.id,
+      ) =>
+        item.id,
       [],
     );
 
@@ -594,7 +804,9 @@ export default function CustomerNotificationsScreen() {
      LOADING
   ========================================================== */
 
-  if (loading) {
+  if (
+    loading
+  ) {
     return (
       <AppScreen
         role="customer"
@@ -635,20 +847,26 @@ export default function CustomerNotificationsScreen() {
   return (
     <AppScreen
       role="customer"
-      style={styles.screen}
+      style={
+        styles.screen
+      }
     >
       {/* ====================================================
           HEADER
       ==================================================== */}
 
       <View
-        style={styles.header}
+        style={
+          styles.header
+        }
       >
         <Pressable
           onPress={() =>
             router.back()
           }
-          hitSlop={8}
+          hitSlop={
+            8
+          }
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={({
@@ -679,7 +897,9 @@ export default function CustomerNotificationsScreen() {
           <AppText
             variant="heading2"
             weight="bold"
-            style={styles.title}
+            style={
+              styles.title
+            }
           >
             Notifications
           </AppText>
@@ -691,7 +911,7 @@ export default function CustomerNotificationsScreen() {
               styles.subtitle
             }
           >
-            Stay updated with Fixxam
+            Service, Market, messages and Fixxam Voice
           </AppText>
         </View>
 
@@ -726,9 +946,9 @@ export default function CustomerNotificationsScreen() {
       {unreadCount >
       0 ? (
         <Pressable
-          onPress={
-            markAllAsRead
-          }
+          onPress={() => {
+            void markAllAsRead();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Mark all notifications as read"
           style={({
@@ -803,7 +1023,9 @@ export default function CustomerNotificationsScreen() {
 
             <AppText
               variant="caption"
-              numberOfLines={3}
+              numberOfLines={
+                3
+              }
               style={
                 styles.errorText
               }
@@ -848,9 +1070,15 @@ export default function CustomerNotificationsScreen() {
           ) : null
         }
         keyboardShouldPersistTaps="handled"
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={7}
+        initialNumToRender={
+          10
+        }
+        maxToRenderPerBatch={
+          10
+        }
+        windowSize={
+          7
+        }
         removeClippedSubviews
       />
     </AppScreen>
@@ -865,9 +1093,8 @@ type NotificationCardProps = {
   notification:
     CustomerNotification;
 
-  onPress: () => void;
-
-  onCall: () => void;
+  onPress:
+    () => void;
 };
 
 const NotificationCard =
@@ -875,7 +1102,6 @@ const NotificationCard =
     function NotificationCard({
       notification,
       onPress,
-      onCall,
     }: NotificationCardProps) {
       const unread =
         !notification.read;
@@ -906,19 +1132,29 @@ const NotificationCard =
           notification.location,
         );
 
-      const hasPhone =
-        Boolean(
-          cleanString(
-            notification.workerPhone,
-          ),
+      const actionable =
+        isNotificationActionable(
+          notification,
+        );
+
+      const actionLabel =
+        getNotificationActionLabel(
+          notification,
         );
 
       return (
         <Pressable
-          onPress={onPress}
+          onPress={
+            onPress
+          }
           accessibilityRole="button"
           accessibilityLabel={
             title
+          }
+          accessibilityHint={
+            actionable
+              ? "Marks this notification as read and opens the related item."
+              : "Marks this notification as read."
           }
           style={({
             pressed,
@@ -934,7 +1170,9 @@ const NotificationCard =
               : null,
           ]}
         >
-          {/* ICON */}
+          {/* =================================================
+              ICON
+          ================================================= */}
 
           <View
             style={[
@@ -946,9 +1184,11 @@ const NotificationCard =
             ]}
           >
             <AppIcon
-              name={getNotificationIcon(
-                notification.type,
-              )}
+              name={
+                getNotificationIcon(
+                  notification.type,
+                )
+              }
               role="customer"
               size="sm"
               color={
@@ -957,14 +1197,18 @@ const NotificationCard =
             />
           </View>
 
-          {/* CONTENT */}
+          {/* =================================================
+              CONTENT
+          ================================================= */}
 
           <View
             style={
               styles.notificationContent
             }
           >
-            {/* TITLE */}
+            {/* ===============================================
+                TITLE
+            =============================================== */}
 
             <View
               style={
@@ -974,7 +1218,9 @@ const NotificationCard =
               <AppText
                 variant="body"
                 weight="bold"
-                numberOfLines={2}
+                numberOfLines={
+                  2
+                }
                 style={
                   styles.notificationTitle
                 }
@@ -992,7 +1238,9 @@ const NotificationCard =
               ) : null}
             </View>
 
-            {/* WORKER */}
+            {/* ===============================================
+                WORKER
+            =============================================== */}
 
             {workerName ? (
               <DetailRow
@@ -1003,7 +1251,9 @@ const NotificationCard =
               />
             ) : null}
 
-            {/* SERVICE */}
+            {/* ===============================================
+                SERVICE
+            =============================================== */}
 
             {service ? (
               <DetailRow
@@ -1014,12 +1264,16 @@ const NotificationCard =
               />
             ) : null}
 
-            {/* MESSAGE */}
+            {/* ===============================================
+                MESSAGE
+            =============================================== */}
 
             {message ? (
               <AppText
                 variant="caption"
-                numberOfLines={3}
+                numberOfLines={
+                  3
+                }
                 style={
                   styles.notificationMessage
                 }
@@ -1028,7 +1282,9 @@ const NotificationCard =
               </AppText>
             ) : null}
 
-            {/* LOCATION */}
+            {/* ===============================================
+                LOCATION
+            =============================================== */}
 
             {location ? (
               <DetailRow
@@ -1042,7 +1298,9 @@ const NotificationCard =
               />
             ) : null}
 
-            {/* FOOTER */}
+            {/* ===============================================
+                FOOTER
+            =============================================== */}
 
             <View
               style={
@@ -1060,47 +1318,31 @@ const NotificationCard =
                 )}
               </AppText>
 
-              {hasPhone ? (
-                <Pressable
-                  onPress={(
-                    event,
-                  ) => {
-                    event.stopPropagation();
-
-                    onCall();
-                  }}
-                  hitSlop={5}
-                  accessibilityRole="button"
-                  accessibilityLabel="Call worker"
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.callButton,
-
-                    pressed
-                      ? styles.callButtonPressed
-                      : null,
-                  ]}
+              {actionable ? (
+                <View
+                  style={
+                    styles.actionContainer
+                  }
                 >
-                  <AppIcon
-                    name="phone"
-                    role="customer"
-                    size="xs"
-                    color={
-                      Colors.textInverse
-                    }
-                  />
-
                   <AppText
                     variant="caption"
                     weight="bold"
                     style={
-                      styles.callButtonText
+                      styles.actionText
                     }
                   >
-                    Call
+                    {actionLabel}
                   </AppText>
-                </Pressable>
+
+                  <AppIcon
+                    name="next"
+                    role="customer"
+                    size="xs"
+                    color={
+                      CustomerColors.primary
+                    }
+                  />
+                </View>
               ) : null}
             </View>
           </View>
@@ -1118,11 +1360,14 @@ function DetailRow({
   text,
   numberOfLines = 1,
 }: {
-  icon: AppIconName;
+  icon:
+    AppIconName;
 
-  text: string;
+  text:
+    string;
 
-  numberOfLines?: number;
+  numberOfLines?:
+    number;
 }) {
   return (
     <View
@@ -1131,7 +1376,9 @@ function DetailRow({
       }
     >
       <AppIcon
-        name={icon}
+        name={
+          icon
+        }
         size="xs"
         color={
           Colors.textSecondary
@@ -1199,7 +1446,7 @@ function NotificationEmpty() {
           styles.emptyText
         }
       >
-        New Fixxam updates and service requests will appear here.
+        Service, Market, messages and Fixxam Voice updates will appear here.
       </AppText>
     </View>
   );
@@ -1221,7 +1468,8 @@ const styles =
     },
 
     content: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1231,7 +1479,8 @@ const styles =
     },
 
     emptyContent: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
 
     /* ========================================================
@@ -1239,9 +1488,11 @@ const styles =
     ======================================================== */
 
     loadingContainer: {
-      flex: 1,
+      flex:
+        1,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1269,9 +1520,11 @@ const styles =
       paddingBottom:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
     },
 
     backButton: {
@@ -1283,14 +1536,17 @@ const styles =
         FixxamTokens.size
           .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1305,9 +1561,11 @@ const styles =
     },
 
     headerContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -1327,14 +1585,17 @@ const styles =
     },
 
     unreadBadge: {
-      minWidth: 30,
+      minWidth:
+        30,
 
-      minHeight: 30,
+      minHeight:
+        30,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1372,9 +1633,11 @@ const styles =
       paddingHorizontal:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1408,11 +1671,14 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.error,
@@ -1426,16 +1692,16 @@ const styles =
 
     errorIcon: {
       width:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
       height:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1448,9 +1714,11 @@ const styles =
     },
 
     errorContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -1465,7 +1733,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xxs,
 
-      lineHeight: 16,
+      lineHeight:
+        16,
 
       color:
         Colors.error,
@@ -1476,25 +1745,31 @@ const styles =
     ======================================================== */
 
     emptyCard: {
-      flex: 1,
+      flex:
+        1,
 
-      minHeight: 300,
+      minHeight:
+        300,
 
       paddingHorizontal:
         FixxamTokens.spacing.xl,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
     },
 
     emptyIcon: {
-      width: 68,
+      width:
+        68,
 
-      height: 68,
+      height:
+        68,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1515,12 +1790,14 @@ const styles =
     },
 
     emptyText: {
-      maxWidth: 280,
+      maxWidth:
+        280,
 
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
 
       color:
         Colors.textSecondary,
@@ -1537,9 +1814,11 @@ const styles =
       padding:
         FixxamTokens.spacing.md,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1561,16 +1840,16 @@ const styles =
 
     notificationIcon: {
       width:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
       height:
-        FixxamTokens.size
-          .iconBox,
+        FixxamTokens.size.iconBox,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -1588,9 +1867,11 @@ const styles =
     },
 
     notificationContent: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -1601,25 +1882,30 @@ const styles =
     ======================================================== */
 
     titleRow: {
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
       alignItems:
         "flex-start",
     },
 
     notificationTitle: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       color:
         Colors.textPrimary,
     },
 
     unreadDot: {
-      width: 8,
+      width:
+        8,
 
-      height: 8,
+      height:
+        8,
 
       marginTop:
         FixxamTokens.spacing.xs,
@@ -1642,18 +1928,22 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       gap:
         FixxamTokens.spacing.xs,
     },
 
     detailText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       color:
         Colors.textSecondary,
@@ -1663,7 +1953,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 17,
+      lineHeight:
+        17,
 
       color:
         Colors.textSecondary,
@@ -1674,12 +1965,18 @@ const styles =
     ======================================================== */
 
     notificationFooter: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       marginTop:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "space-between",
@@ -1690,44 +1987,20 @@ const styles =
         Colors.textMuted,
     },
 
-    /* ========================================================
-       CALL
-    ======================================================== */
+    actionContainer: {
+      flexDirection:
+        "row",
 
-    callButton: {
-      minHeight:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      justifyContent:
+      alignItems:
         "center",
 
       gap:
         FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.button,
-
-      backgroundColor:
-        CustomerColors.primary,
     },
 
-    callButtonPressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-    },
-
-    callButtonText: {
+    actionText: {
       color:
-        Colors.textInverse,
+        CustomerColors.primary,
     },
 
     /* ========================================================

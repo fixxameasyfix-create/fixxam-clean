@@ -127,7 +127,9 @@ function getStock(
   value: unknown,
 ): number {
   const stock =
-    Number(value);
+    Number(
+      value,
+    );
 
   if (
     !Number.isFinite(
@@ -149,7 +151,9 @@ function getValidDeal(
     | ActiveProductDeal
     | null,
 ): ActiveProductDeal | null {
-  if (!deal) {
+  if (
+    !deal
+  ) {
     return null;
   }
 
@@ -210,7 +214,9 @@ function getUnitPrice(
       deal,
     );
 
-  if (!validDeal) {
+  if (
+    !validDeal
+  ) {
     return originalPrice;
   }
 
@@ -252,24 +258,30 @@ export default function WorkerStoreScreen() {
     products,
     setProducts,
   ] =
-    useState<ProductWithDeal[]>(
-      [],
-    );
+    useState<
+      ProductWithDeal[]
+    >([]);
 
   const [
     loading,
     setLoading,
   ] =
-    useState(true);
+    useState(
+      true,
+    );
 
   const [
     refreshing,
     setRefreshing,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
 
   const loadRequestId =
-    useRef(0);
+    useRef(
+      0,
+    );
 
   const {
     addToCart,
@@ -336,10 +348,6 @@ export default function WorkerStoreScreen() {
               .map(
                 item =>
                   ({
-                    /*
-                     * Firestore document ID
-                     * remains authoritative.
-                     */
                     ...item.data(),
 
                     id:
@@ -378,14 +386,12 @@ export default function WorkerStoreScreen() {
                     product.id,
                   ),
               )
-              .filter(Boolean);
+              .filter(
+                Boolean,
+              );
 
           /* ================================================
              DEALS
-
-             Deal lookup is optional presentation data.
-             A temporary deal-query failure must not make
-             the entire store disappear.
           ================================================ */
 
           let dealsByProductId =
@@ -472,7 +478,8 @@ export default function WorkerStoreScreen() {
           }
 
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Unable to load store",
@@ -512,9 +519,6 @@ export default function WorkerStoreScreen() {
     void loadProducts();
 
     return () => {
-      /*
-       * Invalidates any in-flight request.
-       */
       loadRequestId.current +=
         1;
     };
@@ -527,25 +531,28 @@ export default function WorkerStoreScreen() {
   ========================================================== */
 
   const handleRefresh =
-    useCallback(() => {
-      if (
-        refreshing
-      ) {
-        return;
-      }
+    useCallback(
+      () => {
+        if (
+          refreshing
+        ) {
+          return;
+        }
 
-      setRefreshing(
-        true,
-      );
-
-      void loadProducts({
-        preserveExisting:
+        setRefreshing(
           true,
-      });
-    }, [
-      loadProducts,
-      refreshing,
-    ]);
+        );
+
+        void loadProducts({
+          preserveExisting:
+            true,
+        });
+      },
+      [
+        loadProducts,
+        refreshing,
+      ],
+    );
 
   /* ==========================================================
      PRODUCT DETAILS
@@ -590,18 +597,17 @@ export default function WorkerStoreScreen() {
         product:
           ProductWithDeal,
       ) => {
-        /* ================================================
-           PRODUCT
-        ================================================ */
-
         const productId =
           normalizeString(
             product.id,
           );
 
-        if (!productId) {
+        if (
+          !productId
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Product unavailable",
@@ -618,9 +624,12 @@ export default function WorkerStoreScreen() {
             product.name,
           );
 
-        if (!productName) {
+        if (
+          !productName
+        ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Invalid product",
@@ -645,7 +654,8 @@ export default function WorkerStoreScreen() {
           stock <= 0
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Out of Stock",
@@ -665,7 +675,8 @@ export default function WorkerStoreScreen() {
           !normalizedWorkerId
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Worker unavailable",
@@ -690,7 +701,8 @@ export default function WorkerStoreScreen() {
           originalPrice <= 0
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Invalid product price",
@@ -723,7 +735,8 @@ export default function WorkerStoreScreen() {
             originalPrice
         ) {
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Invalid product price",
@@ -777,15 +790,9 @@ export default function WorkerStoreScreen() {
               name:
                 productName,
 
-              /*
-               * Original market price.
-               */
               price:
                 originalPrice,
 
-              /*
-               * Customer's current display price.
-               */
               unitPrice,
 
               image:
@@ -803,10 +810,6 @@ export default function WorkerStoreScreen() {
                   product.storeId,
                 ),
 
-              /*
-               * Existing Fixxam market
-               * ownership behavior preserved.
-               */
               sellerId:
                 normalizedWorkerId,
 
@@ -883,7 +886,8 @@ export default function WorkerStoreScreen() {
           );
 
           Toast.show({
-            type: "error",
+            type:
+              "error",
 
             text1:
               "Unable to add to cart",
@@ -1044,7 +1048,9 @@ export default function WorkerStoreScreen() {
           onPress={() => {
             router.back();
           }}
-          hitSlop={8}
+          hitSlop={
+            8
+          }
           accessibilityRole="button"
           accessibilityLabel="Go back"
           style={({
@@ -1138,7 +1144,9 @@ export default function WorkerStoreScreen() {
           renderItem={
             renderProduct
           }
-          numColumns={2}
+          numColumns={
+            2
+          }
           showsVerticalScrollIndicator={
             false
           }
@@ -1247,13 +1255,17 @@ const styles =
     ======================================================== */
 
     screen: {
-      flex: 1,
+      flex:
+        1,
 
-      paddingHorizontal: 0,
+      paddingHorizontal:
+        0,
 
-      paddingTop: 0,
+      paddingTop:
+        0,
 
-      paddingBottom: 0,
+      paddingBottom:
+        0,
 
       backgroundColor:
         Colors.background,
@@ -1265,13 +1277,13 @@ const styles =
 
     header: {
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       paddingTop:
         FixxamTokens.spacing.sm,
 
       paddingBottom:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
@@ -1290,7 +1302,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1298,7 +1311,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1313,12 +1327,14 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     title: {
@@ -1335,31 +1351,36 @@ const styles =
     },
 
     /* ========================================================
-       LIST
+       COMPACT PRODUCT GRID
     ======================================================== */
 
     list: {
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       paddingBottom:
         FixxamTokens.spacing.xxl,
     },
 
     emptyList: {
-      flexGrow: 1,
+      flexGrow:
+        1,
     },
 
     row: {
       justifyContent:
         "space-between",
 
+      alignItems:
+        "flex-start",
+
       marginBottom:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
     productWrapper: {
-      width: "48.2%",
+      width:
+        "48.8%",
     },
 
     /* ========================================================
@@ -1367,7 +1388,8 @@ const styles =
     ======================================================== */
 
     loadingContainer: {
-      flex: 1,
+      flex:
+        1,
 
       alignItems:
         "center",
@@ -1392,9 +1414,11 @@ const styles =
     ======================================================== */
 
     empty: {
-      flex: 1,
+      flex:
+        1,
 
-      minHeight: 360,
+      minHeight:
+        320,
 
       paddingHorizontal:
         FixxamTokens.spacing.xl,
@@ -1428,19 +1452,21 @@ const styles =
 
     emptyTitle: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       color:
         Colors.textPrimary,
     },
 
     emptyText: {
-      maxWidth: 310,
+      maxWidth:
+        310,
 
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 21,
+      lineHeight:
+        21,
 
       color:
         Colors.textSecondary,
@@ -1452,14 +1478,12 @@ const styles =
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

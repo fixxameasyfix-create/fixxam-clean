@@ -24,11 +24,17 @@ import {
 ============================================================== */
 
 type Props = {
-  onReview: () => void;
+  onRate: () => void;
 
   onCall: () => void;
 
   onFavorite: () => void;
+
+  rating?: boolean;
+
+  saved?: boolean;
+
+  saving?: boolean;
 };
 
 /* ==============================================================
@@ -36,9 +42,12 @@ type Props = {
 ============================================================== */
 
 function WorkerActions({
-  onReview,
+  onRate,
   onCall,
   onFavorite,
+  rating = false,
+  saved = false,
+  saving = false,
 }: Props) {
   return (
     <View
@@ -47,21 +56,32 @@ function WorkerActions({
       }
     >
       {/* ======================================================
-          REVIEWS
+          RATE — 3 STARS
       ====================================================== */}
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="View worker reviews"
+        accessibilityLabel="Rate worker 3 stars"
+        accessibilityState={{
+          disabled: rating,
+        }}
+        disabled={
+          rating
+        }
         onPress={
-          onReview
+          onRate
         }
         style={({
           pressed,
         }) => [
           styles.actionButton,
 
-          pressed
+          rating
+            ? styles.disabledButton
+            : null,
+
+          pressed &&
+          !rating
             ? styles.pressed
             : null,
         ]}
@@ -83,7 +103,9 @@ function WorkerActions({
             styles.actionText
           }
         >
-          Reviews
+          {rating
+            ? "Rating..."
+            : "Rate"}
         </AppText>
       </Pressable>
 
@@ -130,12 +152,25 @@ function WorkerActions({
       </Pressable>
 
       {/* ======================================================
-          SAVE
+          SAVE / UNSAVE
       ====================================================== */}
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Save worker"
+        accessibilityLabel={
+          saved
+            ? "Remove saved worker"
+            : "Save worker"
+        }
+        accessibilityState={{
+          disabled:
+            saving,
+          selected:
+            saved,
+        }}
+        disabled={
+          saving
+        }
         onPress={
           onFavorite
         }
@@ -144,7 +179,16 @@ function WorkerActions({
         }) => [
           styles.actionButton,
 
-          pressed
+          saved
+            ? styles.savedButton
+            : null,
+
+          saving
+            ? styles.disabledButton
+            : null,
+
+          pressed &&
+          !saving
             ? styles.pressed
             : null,
         ]}
@@ -153,18 +197,30 @@ function WorkerActions({
           name="heart"
           role="customer"
           size="sm"
-          state="muted"
+          color={
+            saved
+              ? CustomerColors.primary
+              : Colors.textSecondary
+          }
         />
 
         <AppText
           variant="caption"
           weight="bold"
           numberOfLines={1}
-          style={
-            styles.actionText
-          }
+          style={[
+            styles.actionText,
+
+            saved
+              ? styles.savedText
+              : null,
+          ]}
         >
-          Save
+          {saving
+            ? "Saving..."
+            : saved
+              ? "Saved"
+              : "Save"}
         </AppText>
       </Pressable>
     </View>
@@ -193,10 +249,6 @@ const styles =
       marginBottom:
         FixxamTokens.spacing.sm,
     },
-
-    /* ========================================================
-       ACTION
-    ======================================================== */
 
     actionButton: {
       flex: 1,
@@ -239,9 +291,22 @@ const styles =
         Colors.textPrimary,
     },
 
-    /* ========================================================
-       CALL
-    ======================================================== */
+    disabledButton: {
+      opacity: 0.6,
+    },
+
+    savedButton: {
+      borderColor:
+        CustomerColors.primary,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    savedText: {
+      color:
+        CustomerColors.primary,
+    },
 
     callButton: {
       borderColor:
@@ -255,10 +320,6 @@ const styles =
       color:
         Colors.textInverse,
     },
-
-    /* ========================================================
-       PRESSED
-    ======================================================== */
 
     pressed: {
       opacity:

@@ -39,8 +39,7 @@ export const styles =
         FixxamTokens.spacing.md,
 
       paddingTop:
-        Platform.OS ===
-        "android"
+        Platform.OS === "android"
           ? FixxamTokens.spacing.sm
           : FixxamTokens.spacing.md,
 
@@ -53,10 +52,11 @@ export const styles =
       alignItems:
         "center",
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
-        Colors.border,
+        Colors.divider,
 
       backgroundColor:
         Colors.surface,
@@ -64,12 +64,10 @@ export const styles =
 
     headerButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       flexShrink: 0,
 
@@ -80,10 +78,10 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabledBackground,
+        Colors.surface,
     },
 
     headerInfo: {
@@ -92,7 +90,7 @@ export const styles =
       minWidth: 0,
 
       marginLeft:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
     },
 
     headerTitle: {
@@ -101,29 +99,22 @@ export const styles =
     },
 
     onlineRow: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
 
       flexDirection:
         "row",
 
       alignItems:
         "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
     },
 
+    /*
+     * No fake online presence.
+     * The subtitle now represents the order only.
+     */
     onlineDot: {
-      width: 6,
-
-      height: 6,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.success,
+      display:
+        "none",
     },
 
     onlineText: {
@@ -131,41 +122,22 @@ export const styles =
         Colors.textSecondary,
     },
 
+    /*
+     * Cart icon is redundant in a chat header.
+     * Keep the style key for compatibility with
+     * the existing screen while hiding it visually.
+     */
     headerIcon: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      flexShrink: 0,
-
-      marginRight:
-        FixxamTokens.spacing.xs,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
+      display:
+        "none",
     },
 
     menuButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       flexShrink: 0,
 
@@ -176,16 +148,15 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.background,
+        Colors.surface,
     },
 
     disabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     /* ========================================================
@@ -200,8 +171,7 @@ export const styles =
 
     orderLoading: {
       minHeight:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       alignItems:
         "center",
@@ -212,13 +182,13 @@ export const styles =
 
     messagesContent: {
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       paddingTop:
         FixxamTokens.spacing.md,
 
       paddingBottom:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
     },
 
     emptyMessages: {
@@ -239,8 +209,11 @@ export const styles =
       marginBottom:
         FixxamTokens.spacing.xs,
 
-      padding:
+      paddingHorizontal:
         FixxamTokens.spacing.md,
+
+      paddingVertical:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
@@ -248,17 +221,14 @@ export const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     orderSummaryHeader: {
-      marginBottom:
-        FixxamTokens.spacing.sm,
+      minHeight: 42,
 
       flexDirection:
         "row",
@@ -268,6 +238,9 @@ export const styles =
 
       justifyContent:
         "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
     },
 
     orderHeaderInfo: {
@@ -282,23 +255,19 @@ export const styles =
     },
 
     orderSummarySubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
 
       color:
         Colors.textMuted,
     },
 
     orderCount: {
-      minWidth: 44,
+      minWidth: 38,
 
-      minHeight: 36,
+      minHeight: 30,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
 
       alignItems:
         "center",
@@ -307,7 +276,7 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.chip,
 
       backgroundColor:
         CustomerColors.primarySoft,
@@ -324,10 +293,10 @@ export const styles =
     },
 
     orderItem: {
-      minHeight: 60,
+      minHeight: 54,
 
       paddingVertical:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -335,20 +304,22 @@ export const styles =
       alignItems:
         "center",
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
         Colors.divider,
     },
 
     orderItemImage: {
-      width:
-        FixxamTokens.size.avatarSm,
+      width: 44,
 
-      height:
-        FixxamTokens.size.avatarSm,
+      height: 44,
 
       flexShrink: 0,
+
+      overflow:
+        "hidden",
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -358,11 +329,9 @@ export const styles =
     },
 
     orderItemPlaceholder: {
-      width:
-        FixxamTokens.size.avatarSm,
+      width: 44,
 
-      height:
-        FixxamTokens.size.avatarSm,
+      height: 44,
 
       flexShrink: 0,
 
@@ -394,14 +363,15 @@ export const styles =
     },
 
     orderItemQuantity: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
 
       color:
         Colors.textSecondary,
     },
 
     orderItemTotal: {
+      flexShrink: 0,
+
       marginLeft:
         FixxamTokens.spacing.sm,
 
@@ -410,11 +380,13 @@ export const styles =
     },
 
     orderTotalRow: {
+      minHeight: 38,
+
       marginTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -425,10 +397,11 @@ export const styles =
       justifyContent:
         "space-between",
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
-        Colors.border,
+        Colors.divider,
     },
 
     orderTotalLabel: {
@@ -442,7 +415,7 @@ export const styles =
     },
 
     noItems: {
-      minHeight: 56,
+      minHeight: 50,
 
       flexDirection:
         "row",
@@ -453,7 +426,8 @@ export const styles =
       gap:
         FixxamTokens.spacing.sm,
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
         Colors.divider,
@@ -469,10 +443,11 @@ export const styles =
     ======================================================== */
 
     messageRow: {
-      width: "100%",
+      width:
+        "100%",
 
       marginBottom:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       alignItems:
         "flex-start",
@@ -484,7 +459,8 @@ export const styles =
     },
 
     messageBubble: {
-      maxWidth: "78%",
+      maxWidth:
+        "82%",
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -507,8 +483,6 @@ export const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     myBubble: {
@@ -520,7 +494,7 @@ export const styles =
     },
 
     messageText: {
-      lineHeight: 17,
+      lineHeight: 18,
     },
 
     sellerMessageText: {
@@ -534,8 +508,7 @@ export const styles =
     },
 
     messageTime: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 3,
     },
 
     sellerMessageTime: {
@@ -547,7 +520,7 @@ export const styles =
       color:
         Colors.textInverse,
 
-      opacity: 0.8,
+      opacity: 0.75,
     },
 
     /* ========================================================
@@ -568,9 +541,9 @@ export const styles =
     },
 
     emptyIcon: {
-      width: 64,
+      width: 56,
 
-      height: 64,
+      height: 56,
 
       alignItems:
         "center",
@@ -579,7 +552,7 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         CustomerColors.primarySoft,
@@ -594,10 +567,12 @@ export const styles =
     },
 
     emptyText: {
+      maxWidth: 280,
+
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 16,
+      lineHeight: 18,
 
       textAlign:
         "center",
@@ -618,15 +593,15 @@ export const styles =
         FixxamTokens.spacing.sm,
 
       paddingBottom:
-        Platform.OS ===
-        "ios"
+        Platform.OS === "ios"
           ? FixxamTokens.spacing.xl
           : FixxamTokens.spacing.sm,
 
-      borderTopWidth: 1,
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
 
       borderTopColor:
-        Colors.border,
+        Colors.divider,
 
       backgroundColor:
         Colors.surface,
@@ -656,7 +631,7 @@ export const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.input,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.background,
@@ -666,10 +641,9 @@ export const styles =
       flex: 1,
 
       minHeight:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
-      maxHeight: 105,
+      maxHeight: 104,
 
       paddingTop:
         FixxamTokens.spacing.sm,
@@ -690,12 +664,10 @@ export const styles =
 
     sendButton: {
       width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+        FixxamTokens.size.minimumTouchTarget,
 
       flexShrink: 0,
 
@@ -709,7 +681,7 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.button,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         CustomerColors.primary,
@@ -717,8 +689,7 @@ export const styles =
 
     sendDisabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     /* ========================================================
@@ -746,11 +717,6 @@ export const styles =
 
       gap:
         FixxamTokens.spacing.xs,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.error,
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -792,9 +758,9 @@ export const styles =
     },
 
     errorIcon: {
-      width: 64,
+      width: 60,
 
-      height: 64,
+      height: 60,
 
       alignItems:
         "center",
@@ -803,7 +769,7 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.xl,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.errorSoft,
@@ -823,7 +789,7 @@ export const styles =
       marginTop:
         FixxamTokens.spacing.sm,
 
-      lineHeight: 17,
+      lineHeight: 18,
 
       textAlign:
         "center",
@@ -834,7 +800,7 @@ export const styles =
 
     backButton: {
       minHeight:
-        FixxamTokens.size.buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       marginTop:
         FixxamTokens.spacing.lg,
@@ -868,8 +834,7 @@ export const styles =
       flex: 1,
 
       paddingTop:
-        Platform.OS ===
-        "android"
+        Platform.OS === "android"
           ? 62
           : 86,
 
@@ -887,7 +852,7 @@ export const styles =
     },
 
     menuCard: {
-      width: 285,
+      width: 270,
 
       overflow:
         "hidden",
@@ -898,7 +863,7 @@ export const styles =
         Colors.border,
 
       borderRadius:
-        FixxamTokens.radius.lg,
+        FixxamTokens.radius.xl,
 
       backgroundColor:
         Colors.surface,
@@ -907,7 +872,7 @@ export const styles =
     },
 
     menuHeader: {
-      minHeight: 56,
+      minHeight: 50,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -921,7 +886,8 @@ export const styles =
       justifyContent:
         "space-between",
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
         Colors.divider,
@@ -944,14 +910,14 @@ export const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
         Colors.disabledBackground,
     },
 
     menuItem: {
-      minHeight: 70,
+      minHeight: 60,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -962,7 +928,8 @@ export const styles =
       alignItems:
         "center",
 
-      borderBottomWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
       borderBottomColor:
         Colors.divider,
@@ -974,18 +941,13 @@ export const styles =
 
     menuItemDisabled: {
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     menuIcon: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
+      width: 40,
 
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
+      height: 40,
 
       flexShrink: 0,
 
@@ -1008,6 +970,21 @@ export const styles =
       backgroundColor:
         Colors.errorSoft,
     },
+
+
+menuOrderSection: {
+  paddingVertical:
+    FixxamTokens.spacing.xs,
+
+  borderBottomWidth:
+    StyleSheet.hairlineWidth,
+
+  borderBottomColor:
+    Colors.divider,
+
+  backgroundColor:
+    Colors.background,
+},
 
     menuItemInfo: {
       flex: 1,
@@ -1032,12 +1009,92 @@ export const styles =
     },
 
     menuItemSubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
+      marginTop: 2,
 
-      lineHeight: 14,
+      lineHeight: 16,
 
       color:
         Colors.textSecondary,
     },
+
+galleryIcon: {
+  backgroundColor:
+    CustomerColors.primarySoft,
+},
+
+galleryCard: {
+  maxHeight:
+    "72%",
+},
+
+galleryTitle: {
+  flex:
+    1,
+
+  minWidth:
+    0,
+
+  marginHorizontal:
+    FixxamTokens.spacing.sm,
+
+  textAlign:
+    "center",
+
+  color:
+    Colors.textPrimary,
+},
+
+galleryContent: {
+  padding:
+    FixxamTokens.spacing.sm,
+},
+
+galleryRow: {
+  gap:
+    FixxamTokens.spacing.sm,
+},
+
+galleryImageBox: {
+  flex:
+    1,
+
+  aspectRatio:
+    1,
+
+  marginBottom:
+    FixxamTokens.spacing.sm,
+
+  overflow:
+    "hidden",
+
+  borderRadius:
+    FixxamTokens.radius.md,
+
+  backgroundColor:
+    Colors.background,
+},
+
+galleryImage: {
+  width:
+    "100%",
+
+  height:
+    "100%",
+},
+
+galleryImageFallback: {
+  flex:
+    1,
+
+  alignItems:
+    "center",
+
+  justifyContent:
+    "center",
+
+  backgroundColor:
+    Colors.disabledBackground,
+},
+
+
   });

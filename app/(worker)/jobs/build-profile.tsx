@@ -11,9 +11,7 @@ import {
   AppText,
 } from "@/components/ui";
 
-import {
-  WorkerProfileForm,
-} from "@/components/worker/profile/WorkerProfileForm";
+import WorkerProfileForm from "@/components/worker/profile/WorkerProfileForm";
 
 import {
   useWorkerProfile,
@@ -30,19 +28,19 @@ import {
 ============================================================ */
 
 export default function BuildProfileScreen() {
-  const {
-    profile,
-    loading,
-    saving,
-    uploadingPhoto,
-    uploadingGallery,
-    updateField,
-    pickProfilePhoto,
-    addGalleryPhoto,
-    removeGalleryPhoto,
-    saveProfile,
-  } =
-    useWorkerProfile();
+ const {
+  profile,
+  loading,
+  saving,
+  uploadingPhoto,
+  uploadingGallery,
+  updateField,
+  pickProfilePhoto,
+  addGalleryPhoto,
+  replaceGalleryPhoto,
+  removeGalleryPhoto,
+  saveProfile,
+} = useWorkerProfile();
 
   /* ==========================================================
      LOADING
@@ -95,34 +93,17 @@ export default function BuildProfileScreen() {
       role="worker"
     >
       <WorkerProfileForm
-        profile={
-          profile
-        }
-        saving={
-          saving
-        }
-        uploadingPhoto={
-          uploadingPhoto
-        }
-        uploadingGallery={
-          uploadingGallery
-        }
-        updateField={
-          updateField
-        }
-        pickProfilePhoto={
-          pickProfilePhoto
-        }
-        addGalleryPhoto={
-          addGalleryPhoto
-        }
-        removeGalleryPhoto={
-          removeGalleryPhoto
-        }
-        saveProfile={
-          saveProfile
-        }
-      />
+  profile={profile}
+  saving={saving}
+  uploadingPhoto={uploadingPhoto}
+  uploadingGallery={uploadingGallery}
+  updateField={updateField}
+  pickProfilePhoto={pickProfilePhoto}
+  addGalleryPhoto={addGalleryPhoto}
+  replaceGalleryPhoto={replaceGalleryPhoto}
+  removeGalleryPhoto={removeGalleryPhoto}
+  saveProfile={saveProfile}
+/>
     </AppScreen>
   );
 }
@@ -135,32 +116,26 @@ const styles =
   StyleSheet.create({
     loading: {
       flex: 1,
-
       minHeight: 420,
-
       alignItems:
         "center",
-
       justifyContent:
         "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.lg,
     },
 
     loadingIcon: {
       width:
         FixxamTokens.size.avatarLg,
-
       height:
         FixxamTokens.size.avatarLg,
-
       alignItems:
         "center",
-
       justifyContent:
         "center",
-
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
         WorkerColors.primarySoft,
     },
@@ -168,7 +143,6 @@ const styles =
     loadingText: {
       marginTop:
         FixxamTokens.spacing.md,
-
       color:
         Colors.textSecondary,
     },

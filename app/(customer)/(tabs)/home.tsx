@@ -24,6 +24,7 @@ import {
   HomeCategories,
   HomeHeader,
   HomeSearch,
+  LocationLanguageTicker,
   NewArrivals,
   PopularServices,
   RecentlyViewed,
@@ -55,17 +56,42 @@ export default function CustomerHome() {
   ========================================================== */
 
   /*
-   * Keeps the authenticated customer's
-   * location data updated.
+   * Gets the authenticated customer's
+   * real device location.
    *
-   * Expected user location fields:
+   * The hook:
    *
-   * latitude
-   * longitude
-   * geohash
+   * - requests location permission
+   * - gets GPS coordinates
+   * - reverse-geocodes the coordinates
+   * - saves latitude/longitude/geohash
+   * - returns a readable address
    */
 
-  useCustomerLocation();
+  const {
+    address,
+    loading: locationLoading,
+  } = useCustomerLocation();
+
+  /* ==========================================================
+     LOCATION DISPLAY
+  ========================================================== */
+
+  /*
+   * Never use a fake or hard-coded address.
+   *
+   * While GPS/reverse-geocoding is still loading,
+   * keep the ticker empty.
+   *
+   * If the device cannot provide an address,
+   * the ticker receives a safe fallback.
+   */
+
+  const currentLocation =
+    address ??
+    (locationLoading
+      ? "Finding your current location..."
+      : "Location unavailable");
 
   /* ==========================================================
      RENDER
@@ -79,42 +105,70 @@ export default function CustomerHome() {
         styles.container
       }
     >
-      {/* HEADER */}
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
 
       <HomeHeader />
 
-      {/* SEARCH */}
+      {/* ======================================================
+          LOCATION LANGUAGE TICKER
+      ====================================================== */}
+
+      <LocationLanguageTicker
+        location={
+          currentLocation
+        }
+      />
+
+      {/* ======================================================
+          SEARCH
+      ====================================================== */}
 
       <HomeSearch />
 
-      {/* HERO */}
+      {/* ======================================================
+          HERO
+      ====================================================== */}
 
       <HeroCarousel />
 
-      {/* CATEGORIES */}
+      {/* ======================================================
+          CATEGORIES
+      ====================================================== */}
 
       <HomeCategories />
 
-      {/* NEW ARRIVALS */}
+      {/* ======================================================
+          NEW ARRIVALS
+      ====================================================== */}
 
       <NewArrivals
         products={products}
         loading={loading}
       />
 
-      {/* POPULAR SERVICES */}
+      {/* ======================================================
+          POPULAR SERVICES
+      ====================================================== */}
 
       <PopularServices />
 
-      {/* CONTACT WORKERS */}
+      {/* ======================================================
+          CONTACT WORKERS
+      ====================================================== */}
 
       <ContactWorkers />
 
-      {/* RECENTLY VIEWED */}
+      {/* ======================================================
+          RECENTLY VIEWED
+      ====================================================== */}
 
       <RecentlyViewed />
 
-      {/* EMERGENCY */}
+      {/* ======================================================
+          EMERGENCY
+      ====================================================== */}
 
       <EmergencyCallModal
         visible={

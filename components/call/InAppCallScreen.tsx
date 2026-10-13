@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -13,13 +14,9 @@ import {
   View,
 } from "react-native";
 
-import {
-  Image,
-} from "expo-image";
-
-import {
-  Ionicons,
-} from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   getDownloadURL,
@@ -34,7 +31,6 @@ import {
 
 import {
   Colors,
-  CustomerColors,
   FixxamTokens,
 } from "@/theme";
 
@@ -43,48 +39,27 @@ import type {
   CallStatus,
 } from "@/types/call";
 
-/* ============================================================
-   TYPES
-============================================================ */
+export type CallRemoteRole =
+  | "customer"
+  | "worker";
 
 type Props = {
   participant: CallParticipant;
-
   status: CallStatus;
-
   connectedAt?: number | null;
+  remoteRole?: CallRemoteRole;
 
   onEndCall: () => void;
 
-  /**
-   * Disable audio controls while:
-   *
-   * - LiveKit is joining
-   * - LiveKit is reconnecting
-   * - microphone is not ready
-   * - audio session is not ready
-   */
   audioControlsDisabled?: boolean;
 
-  /**
-   * Real microphone action supplied
-   * by the LiveKit room screen.
-   */
   onToggleMute?: (
     muted: boolean,
-  ) =>
-    | Promise<void>
-    | void;
+  ) => Promise<void> | void;
 
-  /**
-   * Real native audio-route action supplied
-   * by the LiveKit room screen.
-   */
   onToggleSpeaker?: (
     enabled: boolean,
-  ) =>
-    | Promise<void>
-    | void;
+  ) => Promise<void> | void;
 };
 
 /* ============================================================
@@ -94,8 +69,7 @@ type Props = {
 function cleanString(
   value: unknown,
 ): string {
-  return typeof value ===
-    "string"
+  return typeof value === "string"
     ? value.trim()
     : "";
 }
@@ -104,96 +78,58 @@ function isHttpUrl(
   value: string,
 ): boolean {
   return (
-    value.startsWith(
-      "https://",
-    ) ||
-    value.startsWith(
-      "http://",
-    )
+    value.startsWith("https://") ||
+    value.startsWith("http://")
   );
 }
-
-function isLocalUri(
-  value: string,
-): boolean {
-  return (
-    value.startsWith(
-      "file://",
-    ) ||
-    value.startsWith(
-      "content://",
-    )
-  );
-}
-
-/* ============================================================
-   IMAGE
-============================================================ */
 
 async function resolveParticipantImage(
-  source: unknown,
+  source: string,
 ): Promise<string> {
-  const value =
-    cleanString(
-      source,
-    );
+  const value = cleanString(source);
 
-  if (
-    !value
-  ) {
+  if (!value) {
     return "";
   }
 
-  if (
-    isHttpUrl(
-      value,
-    )
-  ) {
+  /*
+   * Already a remote URL.
+   */
+  if (isHttpUrl(value)) {
     return value;
   }
 
+  /*
+   * Local device paths are not valid
+   * Firebase profile image references.
+   */
   if (
-    isLocalUri(
-      value,
-    )
+    value.startsWith("file://") ||
+    value.startsWith("content://")
   ) {
     return "";
   }
 
+  /*
+   * Firebase Storage path.
+   */
   try {
-    const storage =
-      getStorage();
-
-    const imageRef =
-      ref(
-        storage,
-        value,
-      );
-
     const downloadUrl =
       await getDownloadURL(
-        imageRef,
+        ref(
+          getStorage(),
+          value,
+        ),
       );
 
-    return isHttpUrl(
-      downloadUrl,
-    )
+    return isHttpUrl(downloadUrl)
       ? downloadUrl
       : "";
-  } catch (
-    error
-  ) {
-    if (
-      __DEV__
-    ) {
+  } catch (error) {
+    if (__DEV__) {
       console.warn(
-        "CALL_WORKER_IMAGE_ERROR:",
-        {
-          source:
-            value,
-
-          error,
-        },
+        "FIXXAM_CALL_IMAGE_RESOLVE_ERROR:",
+        error,
       );
     }
 
@@ -201,82 +137,64 @@ async function resolveParticipantImage(
   }
 }
 
-/* ============================================================
-   DURATION
-============================================================ */
-
 function formatDuration(
   totalSeconds: number,
 ): string {
-  const hours =
+  const seconds = Math.max(
+    0,
     Math.floor(
-      totalSeconds /
-        3600,
-    );
+      Number.isFinite(totalSeconds)
+        ? totalSeconds
+        : 0,
+    ),
+  );
 
-  const minutes =
-    Math.floor(
-      (
-        totalSeconds %
-        3600
-      ) /
-        60,
-    );
+  const hours = Math.floor(
+    seconds / 3600,
+  );
 
-  const seconds =
-    totalSeconds %
-    60;
+  const minutes = Math.floor(
+    (seconds % 3600) / 60,
+  );
 
-  if (
-    hours >
-    0
-  ) {
-    return `${hours
-      .toString()
-      .padStart(
-        2,
-        "0",
-      )}:${minutes
-      .toString()
-      .padStart(
-        2,
-        "0",
-      )}:${seconds
-      .toString()
-      .padStart(
-        2,
-        "0",
-      )}`;
+  const remainingSeconds =
+    seconds % 60;
+
+  if (hours > 0) {
+    return [
+      hours,
+      minutes,
+      remainingSeconds,
+    ]
+      .map(value =>
+        value
+          .toString()
+          .padStart(2, "0"),
+      )
+      .join(":");
   }
 
-  return `${minutes
-    .toString()
-    .padStart(
-      2,
-      "0",
-    )}:${seconds
-    .toString()
-    .padStart(
-      2,
-      "0",
-    )}`;
+  return [
+    minutes,
+    remainingSeconds,
+  ]
+    .map(value =>
+      value
+        .toString()
+        .padStart(2, "0"),
+    )
+    .join(":");
 }
-
-/* ============================================================
-   STATUS
-============================================================ */
 
 function getStatusLabel(
   status: CallStatus,
 ): string {
-  switch (
-    status
-  ) {
+  switch (status) {
     case "connecting":
       return "Connecting";
 
     case "ringing":
-      return "Calling";
+      return "Calling...";
 
     case "connected":
       return "Connected";
@@ -288,24 +206,31 @@ function getStatusLabel(
       return "Call failed";
 
     default:
-      return "Calling";
+      return "Calling...";
   }
 }
 
 function getStatusDescription(
   status: CallStatus,
+  remoteRole?: CallRemoteRole,
 ): string {
-  switch (
-    status
-  ) {
+  switch (status) {
     case "connecting":
-      return "Preparing your secure voice call";
+      return "Connecting securely";
 
     case "ringing":
-      return "Waiting for the worker to answer";
+      if (remoteRole === "worker") {
+        return "Waiting for the worker to answer";
+      }
+
+      if (remoteRole === "customer") {
+        return "Waiting for the customer to answer";
+      }
+
+      return "Waiting for the other person to answer";
 
     case "connected":
-      return "Your voice call is active";
+      return "Secure voice call";
 
     case "ended":
       return "This voice call has ended";
@@ -314,293 +239,362 @@ function getStatusDescription(
       return "We couldn't connect this call";
 
     default:
-      return "Preparing your voice call";
+      return "Connecting securely";
   }
 }
 
 /* ============================================================
-   COMPONENT
+   SCREEN
 ============================================================ */
 
 function InAppCallScreen({
   participant,
   status,
   connectedAt = null,
+  remoteRole,
   onEndCall,
   audioControlsDisabled = false,
   onToggleMute,
   onToggleSpeaker,
 }: Props) {
-  const [
-    muted,
-    setMuted,
-  ] =
-    useState(
-      false,
-    );
+  const [muted, setMuted] =
+    useState(false);
 
-  const [
-    speakerEnabled,
-    setSpeakerEnabled,
-  ] =
-    useState(
-      false,
-    );
+  const [speakerEnabled, setSpeakerEnabled] =
+    useState(false);
 
-  const [
-    muteUpdating,
-    setMuteUpdating,
-  ] =
-    useState(
-      false,
-    );
+  const [muteUpdating, setMuteUpdating] =
+    useState(false);
 
-  const [
-    speakerUpdating,
-    setSpeakerUpdating,
-  ] =
-    useState(
-      false,
-    );
+  const [speakerUpdating, setSpeakerUpdating] =
+    useState(false);
 
-  const [
-    controlError,
-    setControlError,
-  ] =
-    useState<
-      string | null
-    >(
-      null,
-    );
+  const [controlError, setControlError] =
+    useState<string | null>(null);
 
-  const [
-    elapsedSeconds,
-    setElapsedSeconds,
-  ] =
-    useState(
-      0,
-    );
-
-  const [
-    resolvedImage,
-    setResolvedImage,
-  ] =
-    useState(
-      "",
-    );
-
-  const [
-    imageLoading,
-    setImageLoading,
-  ] =
-    useState(
-      false,
-    );
-
-  const [
-    imageFailed,
-    setImageFailed,
-  ] =
-    useState(
-      false,
-    );
+  const [elapsedSeconds, setElapsedSeconds] =
+    useState(0);
 
   /* ==========================================================
-     RESET AUDIO UI FOR NEW PARTICIPANT
+     IMAGE STATE
+  ========================================================== */
+
+  /*
+   * The actual image currently displayed.
+   *
+   * IMPORTANT:
+   * This value is intentionally NOT cleared when
+   * participant.image temporarily becomes empty.
+   */
+  const [resolvedImage, setResolvedImage] =
+    useState("");
+
+  const [imageLoading, setImageLoading] =
+    useState(false);
+
+  /*
+   * Last successfully resolved source.
+   *
+   * Example:
+   * "workers/abc/profile.jpg"
+   */
+  const resolvedSourceRef =
+    useRef("");
+
+  /*
+   * Last remote participant ID.
+   *
+   * Image is reset ONLY when this changes.
+   */
+  const imageParticipantIdRef =
+    useRef("");
+
+  /*
+   * Prevents old async Firebase Storage
+   * requests from overwriting a newer image.
+   */
+  const imageRequestIdRef =
+    useRef(0);
+
+  /*
+   * Latest resolved image for async callbacks.
+   */
+  const resolvedImageRef =
+    useRef("");
+
+  /*
+   * Keep ref synchronized with state.
+   */
+  useEffect(() => {
+    resolvedImageRef.current =
+      resolvedImage;
+  }, [
+    resolvedImage,
+  ]);
+
+  /* ==========================================================
+     RESET AUDIO CONTROLS
   ========================================================== */
 
   useEffect(() => {
-    setMuted(
-      false,
-    );
-
-    setSpeakerEnabled(
-      false,
-    );
-
-    setMuteUpdating(
-      false,
-    );
-
-    setSpeakerUpdating(
-      false,
-    );
-
-    setControlError(
-      null,
-    );
+    setMuted(false);
+    setSpeakerEnabled(false);
+    setMuteUpdating(false);
+    setSpeakerUpdating(false);
+    setControlError(null);
   }, [
     participant.id,
   ]);
 
   /* ==========================================================
-     CLEAR CONTROL ERROR AFTER CALL ENDS
+     STOP CONTROL LOADING WHEN CALL ENDS
   ========================================================== */
 
   useEffect(() => {
     if (
-      status ===
-        "ended" ||
-      status ===
-        "failed"
+      status === "ended" ||
+      status === "failed"
     ) {
-      setControlError(
-        null,
-      );
-
-      setMuteUpdating(
-        false,
-      );
-
-      setSpeakerUpdating(
-        false,
-      );
+      setMuteUpdating(false);
+      setSpeakerUpdating(false);
+      setControlError(null);
     }
   }, [
     status,
   ]);
 
   /* ==========================================================
-     RESOLVE PHOTO
+     PARTICIPANT IMAGE
   ========================================================== */
 
   useEffect(() => {
-    let active =
-      true;
+    let cancelled = false;
+
+    const participantId =
+      cleanString(
+        participant.id,
+      );
 
     const source =
       cleanString(
         participant.image,
       );
 
-    setResolvedImage(
-      "",
-    );
+    /*
+     * Every image effect gets its own request ID.
+     */
+    const requestId =
+      ++imageRequestIdRef.current;
 
-    setImageFailed(
-      false,
-    );
-
+    /*
+     * ========================================================
+     * PARTICIPANT CHANGED
+     * ========================================================
+     *
+     * Only here do we clear the old image.
+     *
+     * This prevents customer A's image from appearing
+     * for customer B.
+     */
     if (
-      !source
+      imageParticipantIdRef.current !==
+      participantId
     ) {
-      setImageLoading(
-        false,
-      );
+      imageParticipantIdRef.current =
+        participantId;
+
+      resolvedSourceRef.current =
+        "";
+
+      resolvedImageRef.current =
+        "";
+
+      setResolvedImage("");
+      setImageLoading(false);
+    }
+
+    /*
+     * ========================================================
+     * EMPTY IMAGE SOURCE
+     * ========================================================
+     *
+     * This is the important fix.
+     *
+     * Firestore may temporarily return:
+     *
+     * participant.image === ""
+     *
+     * during call updates.
+     *
+     * NEVER clear an already valid image here.
+     */
+    if (!source) {
+      setImageLoading(false);
 
       return () => {
-        active =
-          false;
+        cancelled = true;
       };
     }
 
+    /*
+     * ========================================================
+     * SAME SOURCE ALREADY LOADED
+     * ========================================================
+     */
+    if (
+      resolvedSourceRef.current ===
+        source &&
+      resolvedImageRef.current
+    ) {
+      setImageLoading(false);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    /*
+     * ========================================================
+     * DIRECT HTTP IMAGE
+     * ========================================================
+     */
+    if (
+      isHttpUrl(source)
+    ) {
+      resolvedSourceRef.current =
+        source;
+
+      resolvedImageRef.current =
+        source;
+
+      setResolvedImage(source);
+      setImageLoading(false);
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    /*
+     * ========================================================
+     * FIREBASE STORAGE IMAGE
+     * ========================================================
+     *
+     * Keep the old image visible while Firebase resolves
+     * the new Storage path.
+     */
     setImageLoading(
-      true,
+      !resolvedImageRef.current,
     );
 
     void resolveParticipantImage(
       source,
     )
-      .then(
-        (
-          image,
-        ) => {
-          if (
-            !active
-          ) {
-            return;
-          }
+      .then(image => {
+        /*
+         * Ignore stale requests.
+         */
+        if (
+          cancelled ||
+          requestId !==
+            imageRequestIdRef.current
+        ) {
+          return;
+        }
 
-          setResolvedImage(
-            image,
+        /*
+         * Valid image found.
+         */
+        if (image) {
+          resolvedSourceRef.current =
+            source;
+
+          resolvedImageRef.current =
+            image;
+
+          setResolvedImage(image);
+
+          return;
+        }
+
+        /*
+         * No valid new image.
+         *
+         * IMPORTANT:
+         * Do NOT clear the existing image.
+         */
+      })
+      .catch(error => {
+        if (__DEV__) {
+          console.warn(
+            "FIXXAM_CALL_IMAGE_LOAD_ERROR:",
+            error,
           );
+        }
 
-          setImageFailed(
-            !image,
-          );
-        },
-      )
-      .catch(
-        () => {
-          if (
-            active
-          ) {
-            setResolvedImage(
-              "",
-            );
+        /*
+         * IMPORTANT:
+         * Existing image stays untouched.
+         */
+      })
+      .finally(() => {
+        if (
+          cancelled ||
+          requestId !==
+            imageRequestIdRef.current
+        ) {
+          return;
+        }
 
-            setImageFailed(
-              true,
-            );
-          }
-        },
-      )
-      .finally(
-        () => {
-          if (
-            active
-          ) {
-            setImageLoading(
-              false,
-            );
-          }
-        },
-      );
+        setImageLoading(false);
+      });
 
     return () => {
-      active =
-        false;
+      cancelled = true;
     };
   }, [
+    participant.id,
     participant.image,
   ]);
 
   /* ==========================================================
-     TIMER
+     CALL TIMER
   ========================================================== */
 
   useEffect(() => {
     if (
-      status !==
-        "connected" ||
+      status !== "connected" ||
       !connectedAt
     ) {
-      setElapsedSeconds(
-        0,
-      );
+      setElapsedSeconds(0);
 
       return;
     }
 
-    const updateDuration =
-      () => {
-        const difference =
-          Date.now() -
-          connectedAt;
-
-        setElapsedSeconds(
-          Math.max(
-            0,
-            Math.floor(
-              difference /
-                1000,
-            ),
+    const update = () => {
+      setElapsedSeconds(
+        Math.max(
+          0,
+          Math.floor(
+            (
+              Date.now() -
+              connectedAt
+            ) / 1000,
           ),
-        );
-      };
+        ),
+      );
+    };
 
-    updateDuration();
+    update();
 
     const interval =
       setInterval(
-        updateDuration,
+        update,
         1000,
       );
 
     return () => {
-      clearInterval(
-        interval,
-      );
+      clearInterval(interval);
     };
   }, [
     connectedAt,
@@ -608,7 +602,7 @@ function InAppCallScreen({
   ]);
 
   /* ==========================================================
-     LABELS
+     UI STATE
   ========================================================== */
 
   const statusLabel =
@@ -627,193 +621,208 @@ function InAppCallScreen({
       () =>
         getStatusDescription(
           status,
+          remoteRole,
         ),
       [
+        remoteRole,
         status,
       ],
     );
 
+  const callFinished =
+    status === "ended" ||
+    status === "failed";
+
+  /*
+   * IMPORTANT:
+   *
+   * If we have a resolved image, always display it.
+   *
+   * Do NOT use an imageFailed boolean to hide it.
+   */
   const showImage =
     Boolean(
+      resolvedImageRef.current ||
       resolvedImage,
-    ) &&
-    !imageFailed;
-
-  const callFinished =
-    status ===
-      "failed" ||
-    status ===
-      "ended";
+    );
 
   /* ==========================================================
-     CONTROL AVAILABILITY
+     AUDIO CONTROLS
   ========================================================== */
 
   const muteDisabled =
     audioControlsDisabled ||
-    status !==
-      "connected" ||
+    status !== "connected" ||
     muteUpdating ||
     !onToggleMute;
 
   const speakerDisabled =
     audioControlsDisabled ||
-    status !==
-      "connected" ||
+    status !== "connected" ||
     speakerUpdating ||
     !onToggleSpeaker;
 
   /* ==========================================================
-     REAL MICROPHONE CONTROL
+     MUTE
   ========================================================== */
 
   const handleMute =
-    useCallback(async () => {
-      if (
-        muteDisabled ||
-        !onToggleMute
-      ) {
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          muteDisabled ||
+          !onToggleMute
+        ) {
+          return;
+        }
 
-      const next =
-        !muted;
+        const nextMuted =
+          !muted;
 
-      setMuteUpdating(
-        true,
-      );
+        setMuteUpdating(true);
+        setControlError(null);
 
-      setControlError(
-        null,
-      );
+        try {
+          await onToggleMute(
+            nextMuted,
+          );
 
-      try {
-        /*
-         * Wait for the real LiveKit microphone
-         * operation before changing UI state.
-         */
-        await onToggleMute(
-          next,
-        );
+          setMuted(
+            nextMuted,
+          );
+        } catch (error) {
+          console.error(
+            "FIXXAM_MUTE_ERROR:",
+            error,
+          );
 
-        setMuted(
-          next,
-        );
-      } catch (
-        error
-      ) {
-        console.error(
-          "FIXXAM_CALL_MUTE_CONTROL_ERROR:",
-          error,
-        );
-
-        setControlError(
-          "Microphone control is temporarily unavailable.",
-        );
-      } finally {
-        setMuteUpdating(
-          false,
-        );
-      }
-    }, [
-      muteDisabled,
-      muted,
-      onToggleMute,
-    ]);
+          setControlError(
+            "Microphone control is temporarily unavailable.",
+          );
+        } finally {
+          setMuteUpdating(false);
+        }
+      },
+      [
+        muteDisabled,
+        muted,
+        onToggleMute,
+      ],
+    );
 
   /* ==========================================================
-     REAL SPEAKER CONTROL
+     SPEAKER
   ========================================================== */
 
   const handleSpeaker =
-    useCallback(async () => {
-      if (
-        speakerDisabled ||
-        !onToggleSpeaker
-      ) {
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          speakerDisabled ||
+          !onToggleSpeaker
+        ) {
+          return;
+        }
 
-      const next =
-        !speakerEnabled;
+        const nextEnabled =
+          !speakerEnabled;
 
-      setSpeakerUpdating(
-        true,
-      );
+        setSpeakerUpdating(true);
+        setControlError(null);
 
-      setControlError(
-        null,
-      );
+        try {
+          await onToggleSpeaker(
+            nextEnabled,
+          );
 
-      try {
-        /*
-         * Wait for the native audio-route
-         * operation before changing UI state.
-         */
-        await onToggleSpeaker(
-          next,
-        );
+          setSpeakerEnabled(
+            nextEnabled,
+          );
+        } catch (error) {
+          console.error(
+            "FIXXAM_SPEAKER_ERROR:",
+            error,
+          );
 
-        setSpeakerEnabled(
-          next,
-        );
-      } catch (
-        error
-      ) {
-        console.error(
-          "FIXXAM_CALL_SPEAKER_CONTROL_ERROR:",
-          error,
-        );
-
-        setControlError(
-          "Speaker control is temporarily unavailable.",
-        );
-      } finally {
-        setSpeakerUpdating(
-          false,
-        );
-      }
-    }, [
-      onToggleSpeaker,
-      speakerDisabled,
-      speakerEnabled,
-    ]);
+          setControlError(
+            "Speaker control is temporarily unavailable.",
+          );
+        } finally {
+          setSpeakerUpdating(false);
+        }
+      },
+      [
+        onToggleSpeaker,
+        speakerDisabled,
+        speakerEnabled,
+      ],
+    );
 
   /* ==========================================================
-     UI
+     RENDER
   ========================================================== */
 
   return (
-    <View
+    <LinearGradient
+      colors={[
+        "#0867E8",
+        "#0758D4",
+        "#003FAE",
+      ]}
+      start={{
+        x: 0.1,
+        y: 0,
+      }}
+      end={{
+        x: 0.9,
+        y: 1,
+      }}
       style={
         styles.container
       }
     >
+      <View
+        pointerEvents="none"
+        style={
+          styles.topGlow
+        }
+      />
+
+      <View
+        pointerEvents="none"
+        style={
+          styles.bottomGlow
+        }
+      />
+
       {/* ======================================================
-          SECURE CALL BADGE
+          HEADER
       ====================================================== */}
 
       <View
         style={
-          styles.secureBadge
+          styles.header
         }
       >
-        <Ionicons
-          name="shield-checkmark-outline"
-          size={15}
-          color={
-            CustomerColors.primary
-          }
-        />
-
         <AppText
-          variant="caption"
           weight="bold"
+          center
           style={
-            styles.secureText
+            styles.brand
           }
         >
-          Fixxam Voice
+          FIXXAM
+        </AppText>
+
+        <AppText
+          variant="heading2"
+          weight="semibold"
+          center
+          style={
+            styles.callingText
+          }
+        >
+          {statusLabel}
         </AppText>
       </View>
 
@@ -826,74 +835,88 @@ function InAppCallScreen({
           styles.participantArea
         }
       >
-        {/* AVATAR HALO */}
-
         <View
           style={[
-            styles.avatarHalo,
+            styles.avatarGlowOuter,
 
             status ===
-              "connected"
-              ? styles.avatarHaloConnected
-              : null,
+              "connected" &&
+              styles.avatarGlowConnected,
 
             status ===
-              "failed"
-              ? styles.avatarHaloFailed
-              : null,
+              "failed" &&
+              styles.avatarGlowFailed,
           ]}
         >
           <View
             style={
-              styles.avatarOuter
+              styles.avatarGlowMiddle
             }
           >
-            {showImage ? (
-              <Image
-                source={{
-                  uri:
-                    resolvedImage,
-                }}
-                style={
-                  styles.avatar
-                }
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                transition={200}
-                accessibilityLabel={`${participant.name} profile photo`}
-                onError={() => {
-                  setImageFailed(
-                    true,
-                  );
-                }}
-              />
-            ) : (
-              <View
-                style={
-                  styles.avatarPlaceholder
-                }
-              >
-                {imageLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      CustomerColors.primary
+            <View
+              style={
+                styles.avatarOuter
+              }
+            >
+              {showImage ? (
+                <Image
+                  source={{
+                    uri:
+                      resolvedImageRef.current ||
+                      resolvedImage,
+                  }}
+                  style={
+                    styles.avatar
+                  }
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                  transition={0}
+                  recyclingKey={
+                    `${participant.id}-${resolvedImageRef.current || resolvedImage}`
+                  }
+                  accessibilityLabel={`${participant.name} profile photo`}
+                  onError={
+                    error => {
+                      /*
+                       * Do NOT clear the image.
+                       *
+                       * expo-image can temporarily report
+                       * a rendering/cache error while the
+                       * call UI is transitioning.
+                       */
+                      if (__DEV__) {
+                        console.warn(
+                          "FIXXAM_CALL_IMAGE_RENDER_ERROR:",
+                          error,
+                        );
+                      }
                     }
-                  />
-                ) : (
-                  <AppIcon
-                    name="profile"
-                    role="customer"
-                    size="lg"
-                    state="muted"
-                  />
-                )}
-              </View>
-            )}
+                  }
+                />
+              ) : (
+                <View
+                  style={
+                    styles.avatarPlaceholder
+                  }
+                >
+                  {imageLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#FFFFFF"
+                    />
+                  ) : (
+                    <AppIcon
+                      name="profile"
+                      role="customer"
+                      size="lg"
+                      state="muted"
+                    />
+                  )}
+                </View>
+              )}
+            </View>
           </View>
         </View>
-
-        {/* NAME */}
 
         <AppText
           variant="heading1"
@@ -907,11 +930,8 @@ function InAppCallScreen({
           {participant.name}
         </AppText>
 
-        {/* SERVICE */}
-
         <AppText
           variant="body"
-          tone="secondary"
           center
           numberOfLines={1}
           style={
@@ -921,88 +941,47 @@ function InAppCallScreen({
           {participant.service}
         </AppText>
 
-        {/* STATUS */}
-
         <View
-          style={[
-            styles.statusPill,
-
-            status ===
-              "connected"
-              ? styles.statusPillConnected
-              : null,
-
-            status ===
-              "failed"
-              ? styles.statusPillFailed
-              : null,
-          ]}
+          style={
+            styles.statusRow
+          }
         >
           {status ===
             "ringing" ||
           status ===
             "connecting" ? (
             <ActivityIndicator
-              size={13}
-              color={
-                CustomerColors.primary
-              }
+              size="small"
+              color="#67D9FF"
             />
-          ) : null}
-
-          {status ===
-          "connected" ? (
+          ) : status ===
+            "connected" ? (
             <View
               style={
                 styles.liveDot
               }
             />
-          ) : null}
-
-          {status ===
-          "failed" ? (
+          ) : status ===
+            "failed" ? (
             <Ionicons
               name="alert-circle-outline"
-              size={15}
-              color={
-                Colors.error
-              }
+              size={16}
+              color="#FFB4B4"
             />
           ) : null}
 
           <AppText
             variant="caption"
             weight="bold"
-            style={[
-              styles.statusText,
-
-              status ===
-                "connected"
-                ? styles.statusTextConnected
-                : null,
-
-              status ===
-                "failed"
-                ? styles.statusTextFailed
-                : null,
-            ]}
+            style={
+              styles.statusText
+            }
           >
-            {statusLabel}
+            {
+              statusDescription
+            }
           </AppText>
         </View>
-
-        <AppText
-          variant="caption"
-          tone="muted"
-          center
-          style={
-            styles.statusDescription
-          }
-        >
-          {statusDescription}
-        </AppText>
-
-        {/* TIMER */}
 
         <AppText
           variant="heading2"
@@ -1022,100 +1001,20 @@ function InAppCallScreen({
       </View>
 
       {/* ======================================================
-          CONTROL DOCK
+          CONTROLS
       ====================================================== */}
 
-      {!callFinished ? (
-        <>
+      {!callFinished && (
+        <View
+          style={
+            styles.controlsArea
+          }
+        >
           <View
             style={
-              styles.controlsDock
+              styles.controlsRow
             }
           >
-            {/* MUTE */}
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                muted
-                  ? "Unmute microphone"
-                  : "Mute microphone"
-              }
-              accessibilityState={{
-                selected:
-                  muted,
-
-                disabled:
-                  muteDisabled,
-              }}
-              disabled={
-                muteDisabled
-              }
-              onPress={
-                handleMute
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.controlItem,
-
-                muteDisabled
-                  ? styles.controlDisabled
-                  : null,
-
-                pressed &&
-                !muteDisabled
-                  ? styles.pressed
-                  : null,
-              ]}
-            >
-              <View
-                style={[
-                  styles.controlCircle,
-
-                  muted
-                    ? styles.controlCircleActive
-                    : null,
-                ]}
-              >
-                {muteUpdating ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={
-                      CustomerColors.primary
-                    }
-                  />
-                ) : (
-                  <Ionicons
-                    name={
-                      muted
-                        ? "mic-off-outline"
-                        : "mic-outline"
-                    }
-                    size={24}
-                    color={
-                      muted
-                        ? CustomerColors.primary
-                        : Colors.textPrimary
-                    }
-                  />
-                )}
-              </View>
-
-              <AppText
-                variant="caption"
-                weight="bold"
-                center
-                style={
-                  styles.controlLabel
-                }
-              >
-                {muted
-                  ? "Unmute"
-                  : "Mute"}
-              </AppText>
-            </Pressable>
-
             {/* SPEAKER */}
 
             <Pressable
@@ -1128,7 +1027,6 @@ function InAppCallScreen({
               accessibilityState={{
                 selected:
                   speakerEnabled,
-
                 disabled:
                   speakerDisabled,
               }}
@@ -1143,52 +1041,43 @@ function InAppCallScreen({
               }) => [
                 styles.controlItem,
 
-                speakerDisabled
-                  ? styles.controlDisabled
-                  : null,
+                speakerDisabled &&
+                  styles.controlDisabled,
 
                 pressed &&
-                !speakerDisabled
-                  ? styles.pressed
-                  : null,
+                  !speakerDisabled &&
+                  styles.controlPressed,
               ]}
             >
               <View
                 style={[
                   styles.controlCircle,
 
-                  speakerEnabled
-                    ? styles.controlCircleActive
-                    : null,
+                  speakerEnabled &&
+                    styles.controlCircleActive,
                 ]}
               >
                 {speakerUpdating ? (
                   <ActivityIndicator
                     size="small"
-                    color={
-                      CustomerColors.primary
-                    }
+                    color="#FFFFFF"
                   />
                 ) : (
                   <Ionicons
                     name={
                       speakerEnabled
-                        ? "volume-high-outline"
+                        ? "volume-high"
                         : "volume-medium-outline"
                     }
-                    size={25}
-                    color={
-                      speakerEnabled
-                        ? CustomerColors.primary
-                        : Colors.textPrimary
-                    }
+                    size={28}
+                    color="#FFFFFF"
                   />
                 )}
               </View>
 
               <AppText
                 variant="caption"
-                weight="bold"
+                weight="semibold"
                 center
                 style={
                   styles.controlLabel
@@ -1197,14 +1086,85 @@ function InAppCallScreen({
                 Speaker
               </AppText>
             </Pressable>
+
+            {/* MUTE */}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                muted
+                  ? "Unmute microphone"
+                  : "Mute microphone"
+              }
+              accessibilityState={{
+                selected:
+                  muted,
+                disabled:
+                  muteDisabled,
+              }}
+              disabled={
+                muteDisabled
+              }
+              onPress={
+                handleMute
+              }
+              style={({
+                pressed,
+              }) => [
+                styles.controlItem,
+
+                muteDisabled &&
+                  styles.controlDisabled,
+
+                pressed &&
+                  !muteDisabled &&
+                  styles.controlPressed,
+              ]}
+            >
+              <View
+                style={[
+                  styles.controlCircle,
+
+                  muted &&
+                    styles.controlCircleActive,
+                ]}
+              >
+                {muteUpdating ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#FFFFFF"
+                  />
+                ) : (
+                  <Ionicons
+                    name={
+                      muted
+                        ? "mic-off"
+                        : "mic-outline"
+                    }
+                    size={28}
+                    color="#FFFFFF"
+                  />
+                )}
+              </View>
+
+              <AppText
+                variant="caption"
+                weight="semibold"
+                center
+                style={
+                  styles.controlLabel
+                }
+              >
+                {muted
+                  ? "Unmute"
+                  : "Mute"}
+              </AppText>
+            </Pressable>
           </View>
 
-          {/* AUDIO CONTROL ERROR */}
-
-          {controlError ? (
+          {controlError && (
             <AppText
               variant="caption"
-              tone="muted"
               center
               style={
                 styles.controlError
@@ -1212,12 +1172,12 @@ function InAppCallScreen({
             >
               {controlError}
             </AppText>
-          ) : null}
-        </>
-      ) : null}
+          )}
+        </View>
+      )}
 
       {/* ======================================================
-          END / CLOSE
+          END CALL
       ====================================================== */}
 
       <View
@@ -1240,13 +1200,11 @@ function InAppCallScreen({
           }) => [
             styles.endCallButton,
 
-            callFinished
-              ? styles.closeButton
-              : null,
+            callFinished &&
+              styles.closeButton,
 
-            pressed
-              ? styles.endCallPressed
-              : null,
+            pressed &&
+              styles.endCallPressed,
           ]}
         >
           <Ionicons
@@ -1257,12 +1215,10 @@ function InAppCallScreen({
             }
             size={
               callFinished
-                ? 27
-                : 25
+                ? 28
+                : 30
             }
-            color={
-              Colors.textInverse
-            }
+            color="#FFFFFF"
             style={
               !callFinished
                 ? styles.endCallIcon
@@ -1284,7 +1240,7 @@ function InAppCallScreen({
             : "End Call"}
         </AppText>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -1300,309 +1256,198 @@ const styles =
   StyleSheet.create({
     container: {
       flex: 1,
-
       paddingHorizontal:
         FixxamTokens.spacing.xl,
-
       paddingTop:
         FixxamTokens.spacing.lg,
-
       paddingBottom:
         FixxamTokens.spacing.lg,
-
-      backgroundColor:
-        Colors.background,
+      overflow: "hidden",
     },
 
-    /* ========================================================
-       SECURE BADGE
-    ======================================================== */
+    topGlow: {
+      position: "absolute",
+      width: 300,
+      height: 300,
+      top: -120,
+      right: -100,
+      borderRadius: 300,
+      backgroundColor:
+        "rgba(48, 151, 255, 0.18)",
+    },
 
-    secureBadge: {
-      alignSelf:
-        "center",
+    bottomGlow: {
+      position: "absolute",
+      width: 420,
+      height: 240,
+      bottom: -150,
+      left: -80,
+      borderRadius: 420,
+      backgroundColor:
+        "rgba(0, 112, 255, 0.28)",
+    },
 
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xxs,
-
-      paddingHorizontal:
+    header: {
+      alignItems: "center",
+      paddingTop:
         FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.surface,
     },
 
-    secureText: {
-      color:
-        CustomerColors.primary,
+    brand: {
+      fontSize: 42,
+      lineHeight: 48,
+      letterSpacing: 1.2,
+      color: "#FFFFFF",
     },
 
-    /* ========================================================
-       PARTICIPANT
-    ======================================================== */
+    callingText: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+      fontSize: 28,
+      lineHeight: 34,
+      color: "#55D5FF",
+    },
 
     participantArea: {
       flex: 1,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      paddingBottom:
-        FixxamTokens.spacing.lg,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical:
+        FixxamTokens.spacing.md,
     },
 
-    /* ========================================================
-       AVATAR
-    ======================================================== */
-
-    avatarHalo: {
-      width: 126,
-
-      height: 126,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
+    avatarGlowOuter: {
+      width: 190,
+      height: 190,
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
-        CustomerColors.primarySoft,
+        "rgba(71, 170, 255, 0.18)",
+      borderWidth: 1,
+      borderColor:
+        "rgba(123, 203, 255, 0.18)",
     },
 
-    avatarHaloConnected: {
+    avatarGlowConnected: {
       backgroundColor:
-        CustomerColors.primarySoft,
+        "rgba(55, 220, 180, 0.18)",
     },
 
-    avatarHaloFailed: {
+    avatarGlowFailed: {
       backgroundColor:
-        Colors.errorSoft,
+        "rgba(255, 80, 80, 0.18)",
+    },
+
+    avatarGlowMiddle: {
+      width: 160,
+      height: 160,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius:
+        FixxamTokens.radius.full,
+      backgroundColor:
+        "rgba(66, 163, 255, 0.25)",
+      borderWidth: 1,
+      borderColor:
+        "rgba(125, 210, 255, 0.25)",
     },
 
     avatarOuter: {
-      width: 108,
-
-      height: 108,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      padding: 4,
-
+      width: 138,
+      height: 138,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 5,
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+        "#FFFFFF",
     },
 
     avatar: {
-      width: 100,
-
-      height: 100,
-
+      width: 128,
+      height: 128,
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
         Colors.disabledBackground,
     },
 
     avatarPlaceholder: {
-      width: 100,
-
-      height: 100,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
+      width: 128,
+      height: 128,
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
         Colors.disabledBackground,
     },
 
-    /* ========================================================
-       NAME
-    ======================================================== */
-
     name: {
-      maxWidth: 310,
-
+      maxWidth: 320,
       marginTop:
         FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textPrimary,
+      fontSize: 34,
+      lineHeight: 40,
+      color: "#FFFFFF",
     },
 
     service: {
       maxWidth: 280,
-
       marginTop:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens.spacing.xs,
+      color:
+        "rgba(255,255,255,0.82)",
     },
 
-    /* ========================================================
-       STATUS
-    ======================================================== */
-
-    statusPill: {
-      minHeight: 34,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-
+    statusRow: {
+      minHeight: 28,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: FixxamTokens.spacing.xs,
       marginTop:
-        FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
         FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.xs,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    statusPillConnected: {
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    statusPillFailed: {
-      backgroundColor:
-        Colors.errorSoft,
     },
 
     statusText: {
       color:
-        CustomerColors.primary,
-    },
-
-    statusTextConnected: {
-      color:
-        Colors.success,
-    },
-
-    statusTextFailed: {
-      color:
-        Colors.error,
+        "rgba(255,255,255,0.88)",
     },
 
     liveDot: {
-      width: 7,
-
-      height: 7,
-
+      width: 8,
+      height: 8,
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
-        Colors.success,
-    },
-
-    statusDescription: {
-      marginTop:
-        FixxamTokens.spacing.sm,
+        "#5DE3A5",
     },
 
     timer: {
       marginTop:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textPrimary,
+        FixxamTokens.spacing.sm,
+      color: "#FFFFFF",
+      fontSize: 22,
     },
 
-    /* ========================================================
-       CONTROLS
-    ======================================================== */
+    controlsArea: {
+      alignItems: "center",
+    },
 
-    controlsDock: {
-      alignSelf:
-        "center",
-
-      flexDirection:
-        "row",
-
-      justifyContent:
-        "center",
-
-      gap:
-        FixxamTokens.spacing.xxl,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xl,
-
-      paddingVertical:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.xl,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+    controlsRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      gap: 52,
     },
 
     controlItem: {
-      minWidth: 68,
-
-      alignItems:
-        "center",
+      width: 78,
+      alignItems: "center",
     },
 
     controlDisabled: {
@@ -1610,99 +1455,82 @@ const styles =
     },
 
     controlCircle: {
-      width: 52,
-
-      height: 52,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
+      width: 68,
+      height: 68,
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius:
         FixxamTokens.radius.full,
-
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.24)",
       backgroundColor:
-        Colors.background,
+        "rgba(255,255,255,0.12)",
     },
 
     controlCircleActive: {
       borderColor:
-        CustomerColors.primary,
-
+        "rgba(255,255,255,0.75)",
       backgroundColor:
-        CustomerColors.primarySoft,
+        "rgba(255,255,255,0.28)",
     },
 
     controlLabel: {
       marginTop:
         FixxamTokens.spacing.xs,
+      color: "#FFFFFF",
+    },
 
-      color:
-        Colors.textPrimary,
+    controlPressed: {
+      opacity:
+        FixxamTokens.motion.pressedOpacity,
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion.scalePressed,
+        },
+      ],
     },
 
     controlError: {
-      alignSelf:
-        "center",
-
       maxWidth: 300,
-
       marginTop:
         FixxamTokens.spacing.sm,
-
-      color:
-        Colors.error,
+      color: "#FFD0D0",
     },
 
-    /* ========================================================
-       BOTTOM
-    ======================================================== */
-
     bottomArea: {
-      alignItems:
-        "center",
-
+      alignItems: "center",
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
+      paddingBottom:
+        FixxamTokens.spacing.sm,
     },
 
     endCallButton: {
-      width: 60,
-
-      height: 60,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
+      width: 76,
+      height: 76,
+      alignItems: "center",
+      justifyContent: "center",
       borderRadius:
         FixxamTokens.radius.full,
-
       backgroundColor:
-        Colors.error,
-
+        "#FF3B3B",
+      borderWidth: 3,
+      borderColor:
+        "rgba(255,255,255,0.24)",
       ...FixxamTokens.shadow.card,
     },
 
     closeButton: {
       backgroundColor:
-        Colors.textPrimary,
+        "rgba(255,255,255,0.22)",
     },
 
     endCallIcon: {
       transform: [
         {
-          rotate:
-            "135deg",
+          rotate: "135deg",
         },
       ],
     },
@@ -1710,35 +1538,16 @@ const styles =
     endCallLabel: {
       marginTop:
         FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
+      color: "#FFFFFF",
     },
 
     endCallPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
+        FixxamTokens.motion.pressedOpacity,
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

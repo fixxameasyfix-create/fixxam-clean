@@ -1,7 +1,6 @@
 import React from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -36,10 +35,6 @@ type Props = {
   verified?: boolean;
 
   onEditPhoto?: () => void;
-
-  onNotifications?: () => void;
-
-  onSettings?: () => void;
 };
 
 /* ============================================================
@@ -65,8 +60,6 @@ export default function WorkerProfileHeader({
   photoUrl,
   verified = false,
   onEditPhoto,
-  onNotifications,
-  onSettings,
 }: Props) {
   const safeName =
     cleanText(name) ||
@@ -97,84 +90,6 @@ export default function WorkerProfileHeader({
         >
           Profile
         </AppText>
-
-        <View
-          style={styles.headerActions}
-        >
-          {/* NOTIFICATIONS */}
-
-          <Pressable
-            onPress={
-              onNotifications
-            }
-            disabled={
-              !onNotifications
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-            accessibilityState={{
-              disabled:
-                !onNotifications,
-            }}
-            hitSlop={4}
-            style={({
-              pressed,
-            }) => [
-              styles.headerButton,
-
-              pressed &&
-              onNotifications
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="notifications"
-              role="worker"
-              size="sm"
-              color={
-                Colors.textPrimary
-              }
-            />
-          </Pressable>
-
-          {/* SETTINGS */}
-
-          <Pressable
-            onPress={
-              onSettings
-            }
-            disabled={
-              !onSettings
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            accessibilityState={{
-              disabled:
-                !onSettings,
-            }}
-            hitSlop={4}
-            style={({
-              pressed,
-            }) => [
-              styles.headerButton,
-
-              pressed &&
-              onSettings
-                ? styles.pressed
-                : null,
-            ]}
-          >
-            <AppIcon
-              name="settings"
-              role="worker"
-              size="sm"
-              color={
-                Colors.textPrimary
-              }
-            />
-          </Pressable>
-        </View>
       </View>
 
       {/* =====================================================
@@ -190,9 +105,7 @@ export default function WorkerProfileHeader({
 
         <ProfileAvatar
           role="worker"
-          photoUrl={
-            photoUrl
-          }
+          photoUrl={photoUrl}
           size={
             FixxamTokens.size
               .avatarXl
@@ -367,63 +280,11 @@ const styles =
       flexDirection: "row",
 
       alignItems: "center",
-
-      justifyContent:
-        "space-between",
     },
 
     title: {
       color:
         Colors.textPrimary,
-    },
-
-    headerActions: {
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      gap:
-        FixxamTokens.spacing.xs,
-    },
-
-    headerButton: {
-      width:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      height:
-        FixxamTokens.size
-          .minimumTouchTarget,
-
-      alignItems: "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        Colors.background,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion
-              .scalePressed,
-        },
-      ],
     },
 
     /* ========================================================

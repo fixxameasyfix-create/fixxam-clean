@@ -9,6 +9,10 @@ import {
   showError,
 } from "@/utils/showToast";
 
+import {
+  uploadWorkerWorkPhotos,
+} from "@/hooks/useWorkerPhoto";
+
 const MAX_WORK_GALLERY_IMAGES = 6;
 
 type UseWorkerWorkGalleryProps = {
@@ -27,14 +31,12 @@ export default function useWorkerWorkGallery({
     useState(false);
 
   /* ============================================================
-     ADD WORK PHOTOS
+     CAMERA
   ============================================================ */
 
-  const addWorkPhoto =
+  const takeWorkPhoto =
     useCallback(async () => {
-      if (loading) {
-        return;
-      }
+      if (loading) return;
 
       if (
         workGallery.length >=
@@ -51,33 +53,23 @@ export default function useWorkerWorkGallery({
       try {
         setLoading(true);
 
-        const remainingSlots =
-          MAX_WORK_GALLERY_IMAGES -
-          workGallery.length;
-
         const permission =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+          await ImagePicker.requestCameraPermissionsAsync();
 
         if (!permission.granted) {
           showError(
             "Permission Required",
-            "Please allow photo library access to add work photos.",
+            "Please allow camera access to take a work photo.",
           );
 
           return;
         }
 
         const result =
-          await ImagePicker.launchImageLibraryAsync({
+          await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
-
-            allowsMultipleSelection: true,
-
-            selectionLimit:
-              remainingSlots,
-
-            allowsEditing: false,
-
+            allowsEditing: true,
+            aspect: [1, 1],
             quality: 0.8,
           });
 
@@ -88,39 +80,22 @@ export default function useWorkerWorkGallery({
           return;
         }
 
-        const selectedUris =
-          result.assets
-            .map(
-              (asset) =>
-                asset.uri?.trim(),
-            )
-            .filter(
-              (
-                uri,
-              ): uri is string =>
-                Boolean(uri),
-            );
+        const uri =
+          result.assets[0]?.uri?.trim();
 
-        if (
-          selectedUris.length === 0
-        ) {
-          return;
-        }
+        if (!uri) return;
 
         setWorkGallery(
           (current) => {
-            const existing =
-              new Set(current);
-
-            const newImages =
-              selectedUris.filter(
-                (uri) =>
-                  !existing.has(uri),
-              );
+            if (
+              current.includes(uri)
+            ) {
+              return current;
+            }
 
             return [
               ...current,
-              ...newImages,
+              uri,
             ].slice(
               0,
               MAX_WORK_GALLERY_IMAGES,
@@ -129,7 +104,79 @@ export default function useWorkerWorkGallery({
         );
       } catch (error) {
         console.error(
-          "Add Work Photo Error:",
+          "Take Work Photo Error:",
+          error,
+        );
+
+        showError(
+          "Camera Error",
+          "Unable to take a work photo. Please try again.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    }, [
+      loading,
+      workGallery.length,
+      setWorkGallery,
+    ]);
+
+  /* ============================================================
+     GALLERY
+  ============================================================ */
+
+  const pickWorkPhotos =
+    useCallback(async () => {
+      if (loading) return;
+
+      if (
+        workGallery.length >=
+        MAX_WORK_GALLERY_IMAGES
+      ) {
+        showError(
+          "Gallery Full",
+          `You can upload up to ${MAX_WORK_GALLERY_IMAGES} work photos.`,
+        );
+
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const selected =
+          await uploadWorkerWorkPhotos(
+            workGallery.length,
+            MAX_WORK_GALLERY_IMAGES,
+          );
+
+        if (!selected.length) {
+          return;
+        }
+
+        setWorkGallery(
+          (current) => {
+            const existing =
+              new Set(current);
+
+            const unique =
+              selected.filter(
+                (uri) =>
+                  !existing.has(uri),
+              );
+
+            return [
+              ...current,
+              ...unique,
+            ].slice(
+              0,
+              MAX_WORK_GALLERY_IMAGES,
+            );
+          },
+        );
+      } catch (error) {
+        console.error(
+          "Pick Work Photos Error:",
           error,
         );
 
@@ -147,7 +194,62 @@ export default function useWorkerWorkGallery({
     ]);
 
   /* ============================================================
-     REMOVE WORK PHOTO
+     ADD PHOTO
+  ============================================================ */
+
+  const addWorkPhoto =
+    useCallback(async () => {
+      if (loading) return;
+
+      if (
+        workGallery.length >=
+        MAX_WORK_GALLERY_IMAGES
+      ) {
+        showError(
+          "Gallery Full",
+          `You can upload up to ${MAX_WORK_GALLERY_IMAGES} work photos.`,
+        );
+
+        return;
+      }
+
+      // Native action sheet would be preferable here.
+      // Alert keeps this component dependency-free.
+      const {
+        Alert,
+      } = await import("react-native");
+
+      Alert.alert(
+        "Add Work Photo",
+        "Choose how you want to add your work photo.",
+        [
+          {
+            text: "Camera",
+            onPress: () => {
+              void takeWorkPhoto();
+            },
+          },
+          {
+            text: "Gallery",
+            onPress: () => {
+              void pickWorkPhotos();
+            },
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ],
+      );
+    }, [
+      loading,
+      workGallery.length,
+      takeWorkPhoto,
+      pickWorkPhotos,
+    ]);
+
+  /* ============================================================
+     REMOVE
   ============================================================ */
 
   const removeWorkPhoto =
@@ -173,7 +275,7 @@ export default function useWorkerWorkGallery({
     );
 
   /* ============================================================
-     CLEAR GALLERY
+     CLEAR
   ============================================================ */
 
   const clearWorkGallery =
@@ -181,14 +283,14 @@ export default function useWorkerWorkGallery({
       setWorkGallery([]);
     }, [setWorkGallery]);
 
-  /* ============================================================
-     RETURN
-  ============================================================ */
-
   return {
     loading,
 
     addWorkPhoto,
+
+    takeWorkPhoto,
+
+    pickWorkPhotos,
 
     removeWorkPhoto,
 

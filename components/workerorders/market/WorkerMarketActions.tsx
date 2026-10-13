@@ -1,11 +1,13 @@
 import React, {
   useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import {
   Alert,
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
@@ -27,6 +29,7 @@ import {
 import {
   Colors,
   FixxamTokens,
+  WorkerColors,
 } from "@/theme";
 
 import {
@@ -42,6 +45,8 @@ type WorkerMarketOrderActionsProps = {
   orderId: string;
 
   status?: string;
+
+  unavailableProductCount?: number;
 };
 
 type LoadingAction =
@@ -52,6 +57,17 @@ type LoadingAction =
 type MarketOrderAction =
   | "accept"
   | "unavailable";
+
+type ActionErrorCode =
+  | "ORDER_NOT_FOUND"
+  | "NOT_ASSIGNED_WORKER"
+  | "NOT_MARKET_ORDER"
+  | "ORDER_NOT_PENDING"
+  | "PRODUCTS_UNAVAILABLE";
+
+type FirebaseLikeError = {
+  code?: unknown;
+};
 
 /* ============================================================
    CONSTANTS
@@ -78,6 +94,83 @@ function normalizeStatus(
     );
 }
 
+function getUnavailableProductCount(
+  value: unknown,
+): number {
+  if (!Array.isArray(value)) {
+    return 0;
+  }
+
+  const productIds =
+    new Set<string>();
+
+  value.forEach(
+    item => {
+      if (
+        typeof item ===
+        "string"
+      ) {
+        const productId =
+          item.trim();
+
+        if (productId) {
+          productIds.add(
+            productId,
+          );
+        }
+
+        return;
+      }
+
+      if (
+        !item ||
+        typeof item !==
+          "object"
+      ) {
+        return;
+      }
+
+      const productId =
+        "productId" in item &&
+        typeof item.productId ===
+          "string"
+          ? item.productId.trim()
+          : "";
+
+      if (productId) {
+        productIds.add(
+          productId,
+        );
+      }
+    },
+  );
+
+  return productIds.size;
+}
+
+function getFirebaseErrorCode(
+  error: unknown,
+): string {
+  if (
+    typeof error !==
+      "object" ||
+    error === null ||
+    !("code" in error)
+  ) {
+    return "";
+  }
+
+  const code =
+    (
+      error as FirebaseLikeError
+    ).code;
+
+  return typeof code ===
+    "string"
+    ? code
+    : "";
+}
+
 /* ============================================================
    COMPONENT
 ============================================================ */
@@ -85,6 +178,7 @@ function normalizeStatus(
 export default function WorkerMarketOrderActions({
   orderId,
   status,
+  unavailableProductCount = 0,
 }: WorkerMarketOrderActionsProps) {
   const [
     loadingAction,
@@ -93,6 +187,13 @@ export default function WorkerMarketOrderActions({
     useState<LoadingAction>(
       null,
     );
+
+  const actionInFlightRef =
+    useRef(false);
+
+  /* ==========================================================
+     NORMALIZED STATE
+  ========================================================== */
 
   const cleanOrderId =
     useMemo(
@@ -108,8 +209,13 @@ export default function WorkerMarketOrderActions({
       status,
     ) === "pending";
 
+  const hasUnavailableProducts =
+    unavailableProductCount >
+    0;
+
   const busy =
-    loadingAction !== null;
+    loadingAction !==
+    null;
 
   /* ==========================================================
      VALIDATION
@@ -122,10 +228,11 @@ export default function WorkerMarketOrderActions({
 
       if (!user) {
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
-            "Authentication required",
+            "Sign in required",
 
           text2:
             "Please sign in again.",
@@ -136,107 +243,186 @@ export default function WorkerMarketOrderActions({
 
       if (!cleanOrderId) {
         Toast.show({
-          type: "error",
+          type:
+            "error",
 
           text1:
-            "Invalid order",
+            "Order unavailable",
 
           text2:
-            "Order ID is missing.",
+            "Order information is missing.",
         });
 
         return null;
       }
 
-      return user;
+      return {
+        orderId:
+          cleanOrderId,
+
+        workerId:
+          user.uid,
+      };
     }, [
       cleanOrderId,
     ]);
+
+  /* ==========================================================
+     RUN ACTION
+  ========================================================== */
+
+  const runAction =
+    useCallback(
+      async (
+        action: MarketOrderAction,
+      ) => {
+        if (
+          actionInFlightRef.current
+        ) {
+          return;
+        }
+
+        const validation =
+          validateAction();
+
+        if (!validation) {
+          return;
+        }
+
+        actionInFlightRef.current =
+          true;
+
+        setLoadingAction(
+          action,
+        );
+
+        try {
+          await updateMarketOrder(
+            validation.orderId,
+            validation.workerId,
+            action,
+          );
+
+          if (
+            action ===
+            "accept"
+          ) {
+            Toast.show({
+              type:
+                "success",
+
+              text1:
+                "Order accepted",
+
+              text2:
+                "This order is ready for the next delivery step.",
+            });
+
+            return;
+          }
+
+          Toast.show({
+            type:
+              "success",
+
+            text1:
+              "Order updated",
+
+            text2:
+              "The customer has been notified.",
+          });
+        } catch (error) {
+          if (__DEV__) {
+            console.warn(
+              action ===
+              "accept"
+                ? "WORKER_ACCEPT_MARKET_ORDER_ERROR"
+                : "WORKER_UNAVAILABLE_MARKET_ORDER_ERROR",
+              error,
+            );
+          }
+
+          handleActionError(
+            error,
+            action,
+          );
+        } finally {
+          actionInFlightRef.current =
+            false;
+
+          setLoadingAction(
+            null,
+          );
+        }
+      },
+      [
+        validateAction,
+      ],
+    );
 
   /* ==========================================================
      ACCEPT
   ========================================================== */
 
   const handleAccept =
-    useCallback(async () => {
-      if (busy) {
+    useCallback(() => {
+      if (
+        actionInFlightRef.current
+      ) {
         return;
       }
 
-      const user =
-        validateAction();
-
-      if (!user) {
-        return;
-      }
-
-      try {
-        setLoadingAction(
-          "accept",
-        );
-
-        await updateMarketOrder(
-          cleanOrderId,
-          user.uid,
-          "accept",
-        );
-
+      if (
+        hasUnavailableProducts
+      ) {
         Toast.show({
-          type: "success",
+          type:
+            "info",
 
           text1:
-            "Order accepted",
+            "Products need attention",
 
           text2:
-            "You have accepted this market order.",
+            "Resolve unavailable products before accepting this order.",
         });
-      } catch (error) {
-        console.error(
-          "FIXXAM_WORKER_ACCEPT_MARKET_ORDER_ERROR:",
-          error,
-        );
 
-        handleActionError(
-          error,
-          "accept",
-        );
-      } finally {
-        setLoadingAction(
-          null,
-        );
+        return;
       }
+
+      void runAction(
+        "accept",
+      );
     }, [
-      busy,
-      cleanOrderId,
-      validateAction,
+      hasUnavailableProducts,
+      runAction,
     ]);
 
   /* ==========================================================
-     UNAVAILABLE CONFIRMATION
+     WHOLE ORDER UNAVAILABLE
   ========================================================== */
 
   const handleUnavailable =
     useCallback(() => {
-      if (busy) {
+      if (
+        actionInFlightRef.current
+      ) {
         return;
       }
 
-      const user =
+      const validation =
         validateAction();
 
-      if (!user) {
+      if (!validation) {
         return;
       }
 
       Alert.alert(
-        "Product unavailable",
-
-        "Are you sure the requested product is currently unavailable?",
-
+        "Can't fulfil this order?",
+        "This will cancel the entire market order and notify the customer that the requested product cannot be fulfilled.",
         [
           {
             text:
-              "Cancel",
+              "Keep Order",
 
             style:
               "cancel",
@@ -244,61 +430,26 @@ export default function WorkerMarketOrderActions({
 
           {
             text:
-              "Unavailable",
+              "Cancel Order",
 
             style:
               "destructive",
 
-            onPress:
-              async () => {
-                try {
-                  setLoadingAction(
-                    "unavailable",
-                  );
-
-                  await updateMarketOrder(
-                    cleanOrderId,
-                    user.uid,
-                    "unavailable",
-                  );
-
-                  Toast.show({
-                    type:
-                      "success",
-
-                    text1:
-                      "Product unavailable",
-
-                    text2:
-                      "The customer has been notified.",
-                  });
-                } catch (error) {
-                  console.error(
-                    "FIXXAM_WORKER_UNAVAILABLE_MARKET_ORDER_ERROR:",
-                    error,
-                  );
-
-                  handleActionError(
-                    error,
-                    "unavailable",
-                  );
-                } finally {
-                  setLoadingAction(
-                    null,
-                  );
-                }
-              },
+            onPress: () => {
+              void runAction(
+                "unavailable",
+              );
+            },
           },
         ],
       );
     }, [
-      busy,
-      cleanOrderId,
+      runAction,
       validateAction,
     ]);
 
   /* ==========================================================
-     HIDDEN WHEN NOT PENDING
+     ONLY PENDING ORDER HAS THESE ACTIONS
   ========================================================== */
 
   if (!isPending) {
@@ -316,65 +467,79 @@ export default function WorkerMarketOrderActions({
       }
     >
       {/* ======================================================
-          NOTICE
+          STATUS
       ====================================================== */}
 
       <View
         style={
-          styles.notice
+          styles.statusRow
         }
       >
         <View
           style={
-            styles.noticeIcon
+            styles.statusIcon
           }
         >
           <AppIcon
-            name="info"
+            name={
+              hasUnavailableProducts
+                ? "warning"
+                : "package"
+            }
             size="sm"
             color={
-              Colors.warning
+              hasUnavailableProducts
+                ? Colors.warning
+                : WorkerColors.primary
             }
           />
         </View>
 
         <View
           style={
-            styles.noticeContent
+            styles.statusContent
           }
         >
           <AppText
             variant="bodyMedium"
-            weight="bold"
+            weight="medium"
             style={
-              styles.noticeTitle
+              styles.statusTitle
             }
           >
-            New market order
+            {hasUnavailableProducts
+              ? "Products need attention"
+              : "Ready to accept"}
           </AppText>
 
           <AppText
             variant="caption"
-            tone="secondary"
             style={
-              styles.noticeText
+              styles.statusText
             }
           >
-            Review the products and delivery information before responding.
+            {hasUnavailableProducts
+              ? `${unavailableProductCount} ${
+                  unavailableProductCount ===
+                  1
+                    ? "product is"
+                    : "products are"
+                } unavailable. Resolve this before accepting the order.`
+              : "Review the products and delivery details before accepting."}
           </AppText>
         </View>
       </View>
 
       {/* ======================================================
-          ACCEPT
+          PRIMARY ACTION
       ====================================================== */}
 
       <AppButton
         title={
           loadingAction ===
           "accept"
-            ? "ACCEPTING..."
-            : "ACCEPT ORDER"
+            ? "Accepting..."
+            : "Accept order"
         }
         role="worker"
         variant="primary"
@@ -384,45 +549,71 @@ export default function WorkerMarketOrderActions({
           "accept"
         }
         disabled={
-          busy
+          busy ||
+          hasUnavailableProducts
         }
         onPress={
           handleAccept
         }
         style={
-          styles.button
+          styles.primaryButton
         }
       />
 
       {/* ======================================================
-          UNAVAILABLE
+          SECONDARY DESTRUCTIVE ACTION
       ====================================================== */}
 
-      <AppButton
-        title={
-          loadingAction ===
-          "unavailable"
-            ? "UPDATING..."
-            : "UNAVAILABLE"
-        }
-        role="worker"
-        variant="danger"
-        leftIconName="error"
-        loading={
-          loadingAction ===
-          "unavailable"
-        }
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Cannot fulfil this order"
+        accessibilityState={{
+          disabled:
+            busy,
+        }}
         disabled={
           busy
         }
+        hitSlop={8}
         onPress={
           handleUnavailable
         }
-        style={[
-          styles.button,
-          styles.unavailableButton,
+        style={({
+          pressed,
+        }) => [
+          styles.unavailableAction,
+
+          busy
+            ? styles.disabled
+            : null,
+
+          pressed &&
+          !busy
+            ? styles.pressed
+            : null,
         ]}
-      />
+      >
+        <AppIcon
+          name="error"
+          size="xs"
+          color={
+            Colors.error
+          }
+        />
+
+        <AppText
+          variant="bodyMedium"
+          weight="medium"
+          style={
+            styles.unavailableText
+          }
+        >
+          {loadingAction ===
+          "unavailable"
+            ? "Updating..."
+            : "Can't fulfil this order"}
+        </AppText>
+      </Pressable>
     </View>
   );
 }
@@ -462,33 +653,59 @@ async function updateMarketOrder(
       const data =
         snapshot.data();
 
+      /* ======================================================
+         OWNERSHIP
+      ====================================================== */
+
       const assignedWorkerId =
         typeof data.workerId ===
         "string"
           ? data.workerId.trim()
           : "";
 
-      const currentStatus =
-        normalizeStatus(
-          data.status,
-        );
-
-      /* ========================================================
-         OWNERSHIP
-      ======================================================== */
-
       if (
+        !assignedWorkerId ||
         assignedWorkerId !==
-        workerUid
+          workerUid
       ) {
         throw new Error(
           "NOT_ASSIGNED_WORKER",
         );
       }
 
-      /* ========================================================
-         STATE TRANSITION
-      ======================================================== */
+      /* ======================================================
+         MARKET ORDER
+      ====================================================== */
+
+      const orderType =
+        normalizeStatus(
+          data.orderType,
+        );
+
+      const type =
+        normalizeStatus(
+          data.type,
+        );
+
+      if (
+        orderType !==
+          "market" &&
+        type !==
+          "market"
+      ) {
+        throw new Error(
+          "NOT_MARKET_ORDER",
+        );
+      }
+
+      /* ======================================================
+         STATUS
+      ====================================================== */
+
+      const currentStatus =
+        normalizeStatus(
+          data.status,
+        );
 
       if (
         currentStatus !==
@@ -499,14 +716,31 @@ async function updateMarketOrder(
         );
       }
 
-      /* ========================================================
+      /* ======================================================
          ACCEPT
-      ======================================================== */
+      ====================================================== */
 
       if (
         action ===
         "accept"
       ) {
+        /*
+         * Transaction-level protection.
+         *
+         * Even if UI state is stale, an order with a reported
+         * unavailable product cannot be accepted.
+         */
+        if (
+          getUnavailableProductCount(
+            data.unavailableProducts,
+          ) >
+          0
+        ) {
+          throw new Error(
+            "PRODUCTS_UNAVAILABLE",
+          );
+        }
+
         transaction.update(
           orderRef,
           {
@@ -530,9 +764,9 @@ async function updateMarketOrder(
         return;
       }
 
-      /* ========================================================
-         UNAVAILABLE
-      ======================================================== */
+      /* ======================================================
+         CANCEL ENTIRE ORDER
+      ====================================================== */
 
       transaction.update(
         orderRef,
@@ -572,43 +806,64 @@ function handleActionError(
   action: MarketOrderAction,
 ): void {
   const message =
-    error instanceof Error
-      ? error.message
+    error instanceof
+    Error
+      ? (
+          error.message as
+            ActionErrorCode
+        )
       : "";
 
   switch (message) {
     case "ORDER_NOT_FOUND":
       Toast.show({
-        type: "error",
+        type:
+          "error",
 
         text1:
-          "Order not found",
+          "Order unavailable",
 
         text2:
-          "This order may have been removed.",
+          "This order could not be found.",
       });
 
       return;
 
     case "NOT_ASSIGNED_WORKER":
       Toast.show({
-        type: "error",
+        type:
+          "error",
 
         text1:
-          "Permission denied",
+          "Order unavailable",
 
         text2:
-          "You are not assigned to this order.",
+          "You are no longer assigned to this order.",
+      });
+
+      return;
+
+    case "NOT_MARKET_ORDER":
+      Toast.show({
+        type:
+          "error",
+
+        text1:
+          "Invalid order",
+
+        text2:
+          "This is not a market order.",
       });
 
       return;
 
     case "ORDER_NOT_PENDING":
       Toast.show({
-        type: "info",
+        type:
+          "info",
 
         text1:
-          "Order already updated",
+          "Order changed",
 
         text2:
           "This order has already been processed.",
@@ -616,20 +871,79 @@ function handleActionError(
 
       return;
 
-    default:
+    case "PRODUCTS_UNAVAILABLE":
       Toast.show({
-        type: "error",
+        type:
+          "info",
 
         text1:
-          action ===
-          "accept"
-            ? "Unable to accept order"
-            : "Unable to update order",
+          "Products need attention",
 
         text2:
-          "Please try again.",
+          "Resolve unavailable products before accepting this order.",
       });
+
+      return;
   }
+
+  const firebaseCode =
+    getFirebaseErrorCode(
+      error,
+    );
+
+  if (
+    firebaseCode ===
+      "permission-denied" ||
+    firebaseCode ===
+      "firestore/permission-denied"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Order changed",
+
+      text2:
+        "This action is no longer available. Refresh the order and try again.",
+    });
+
+    return;
+  }
+
+  if (
+    firebaseCode ===
+      "unavailable" ||
+    firebaseCode ===
+      "firestore/unavailable"
+  ) {
+    Toast.show({
+      type:
+        "error",
+
+      text1:
+        "Connection problem",
+
+      text2:
+        "Check your internet connection and try again.",
+    });
+
+    return;
+  }
+
+  Toast.show({
+    type:
+      "error",
+
+    text1:
+      action ===
+      "accept"
+        ? "Unable to accept order"
+        : "Unable to update order",
+
+    text2:
+      "Please try again.",
+  });
 }
 
 /* ============================================================
@@ -641,45 +955,34 @@ const styles =
     container: {
       width: "100%",
 
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      gap:
+      marginTop:
         FixxamTokens.spacing.sm,
+
+      marginBottom:
+        FixxamTokens.spacing.lg,
     },
 
     /* ========================================================
-       NOTICE
+       TRUECALLER-STYLE STATUS ROW
     ======================================================== */
 
-    notice: {
-      padding:
+    statusRow: {
+      minHeight: 64,
+
+      marginBottom:
         FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
 
-      gap:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.warning,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.warningSoft,
+      alignItems:
+        "center",
     },
 
-    noticeIcon: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
+    statusIcon: {
+      width: 42,
 
-      height:
-        FixxamTokens.size.minimumTouchTarget,
+      height: 42,
 
       flexShrink: 0,
 
@@ -690,29 +993,29 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.surface,
+        WorkerColors.primarySoft,
     },
 
-    noticeContent: {
+    statusContent: {
       flex: 1,
 
       minWidth: 0,
 
-      justifyContent:
-        "center",
+      marginLeft:
+        FixxamTokens.spacing.md,
     },
 
-    noticeTitle: {
+    statusTitle: {
       color:
         Colors.textPrimary,
     },
 
-    noticeText: {
+    statusText: {
       marginTop:
-        FixxamTokens.spacing.xs,
+        FixxamTokens.spacing.xxs,
 
       lineHeight: 18,
 
@@ -721,15 +1024,63 @@ const styles =
     },
 
     /* ========================================================
-       ACTIONS
+       PRIMARY CTA
     ======================================================== */
 
-    button: {
+    primaryButton: {
       width: "100%",
     },
 
-    unavailableButton: {
+    /* ========================================================
+       SECONDARY ACTION
+    ======================================================== */
+
+    unavailableAction: {
+      minHeight:
+        FixxamTokens.size
+          .minimumTouchTarget,
+
       marginTop:
+        FixxamTokens.spacing.sm,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      gap:
         FixxamTokens.spacing.xs,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+    },
+
+    unavailableText: {
+      color:
+        Colors.error,
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
+    },
+
+    pressed: {
+      opacity:
+        FixxamTokens.motion
+          .pressedOpacity,
+
+      transform: [
+        {
+          scale:
+            FixxamTokens.motion
+              .scalePressed,
+        },
+      ],
     },
   });

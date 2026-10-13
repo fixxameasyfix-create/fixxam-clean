@@ -7,6 +7,7 @@ import React, {
 
 import {
   StyleSheet,
+  View,
 } from "react-native";
 
 import BookingCard from "../booking/BookingCard";
@@ -25,6 +26,7 @@ import BookingCurrentLocation from "./BookingCurrentLocation";
 import useBookingLocation from "@/hooks/booking/useBookingLocation";
 
 import {
+  Colors,
   FixxamTokens,
 } from "@/theme";
 
@@ -84,7 +86,7 @@ function BookingLocationCard({
       address.trim();
 
     setManualAddress(
-      (current) =>
+      current =>
         current === nextAddress
           ? current
           : nextAddress,
@@ -143,13 +145,15 @@ function BookingLocationCard({
       ) => {
         if (
           busy ||
-          type === locationType
+          type ===
+            locationType
         ) {
           return;
         }
 
         if (
-          type === "manual"
+          type ===
+          "manual"
         ) {
           const existingAddress =
             address.trim();
@@ -213,57 +217,67 @@ function BookingLocationCard({
   ============================================================ */
 
   const handleGetCurrentLocation =
-    useCallback(async () => {
-      if (
-        location.loading
-      ) {
-        return;
-      }
-
-      try {
-        const result =
-          await location.getCurrentLocation();
-
-        const nextAddress =
-          result?.address?.trim();
-
+    useCallback(
+      async () => {
         if (
-          nextAddress
+          location.loading
         ) {
-          onAddressChange(
-            nextAddress,
+          return;
+        }
+
+        try {
+          const result =
+            await location
+              .getCurrentLocation();
+
+          const nextAddress =
+            result?.address
+              ?.trim();
+
+          if (
+            nextAddress
+          ) {
+            onAddressChange(
+              nextAddress,
+            );
+          }
+        } catch (
+          error
+        ) {
+          console.error(
+            "BOOKING_GET_CURRENT_LOCATION_ERROR:",
+            error,
           );
         }
-      } catch (error) {
-        console.error(
-          "BOOKING_GET_CURRENT_LOCATION_ERROR:",
-          error,
-        );
-      }
-    }, [
-      location.getCurrentLocation,
-      location.loading,
-      onAddressChange,
-    ]);
+      },
+      [
+        location.getCurrentLocation,
+        location.loading,
+        onAddressChange,
+      ],
+    );
 
   /* ============================================================
      MAP LOCATE
   ============================================================ */
 
   const handleLocateMe =
-    useCallback(() => {
-      if (
-        locationType !==
-        "current"
-      ) {
-        return;
-      }
+    useCallback(
+      () => {
+        if (
+          locationType !==
+          "current"
+        ) {
+          return;
+        }
 
-      void handleGetCurrentLocation();
-    }, [
-      handleGetCurrentLocation,
-      locationType,
-    ]);
+        void handleGetCurrentLocation();
+      },
+      [
+        handleGetCurrentLocation,
+        locationType,
+      ],
+    );
 
   /* ============================================================
      MARKER DRAG
@@ -290,12 +304,14 @@ function BookingLocationCard({
 
         try {
           const result =
-            await location.onMarkerDragEnd(
-              event,
-            );
+            await location
+              .onMarkerDragEnd(
+                event,
+              );
 
           const nextAddress =
-            result?.address?.trim();
+            result?.address
+              ?.trim();
 
           if (
             nextAddress
@@ -304,7 +320,9 @@ function BookingLocationCard({
               nextAddress,
             );
           }
-        } catch (error) {
+        } catch (
+          error
+        ) {
           console.error(
             "BOOKING_MARKER_DRAG_ERROR:",
             error,
@@ -333,27 +351,39 @@ function BookingLocationCard({
           HEADER
       ====================================================== */}
 
-      <BookingLocationHeader
-        address={
-          address
+      <View
+        style={
+          styles.headerSection
         }
-      />
+      >
+        <BookingLocationHeader
+          address={
+            address
+          }
+        />
+      </View>
 
       {/* ======================================================
-          CURRENT / MANUAL
+          CURRENT / MANUAL SELECTOR
       ====================================================== */}
 
-      <BookingLocationType
-        value={
-          locationType
+      <View
+        style={
+          styles.typeSection
         }
-        onChange={
-          handleLocationTypeChange
-        }
-        disabled={
-          busy
-        }
-      />
+      >
+        <BookingLocationType
+          value={
+            locationType
+          }
+          onChange={
+            handleLocationTypeChange
+          }
+          disabled={
+            busy
+          }
+        />
+      </View>
 
       {/* ======================================================
           CURRENT LOCATION
@@ -361,7 +391,11 @@ function BookingLocationCard({
 
       {locationType ===
       "current" ? (
-        <>
+        <View
+          style={
+            styles.locationContent
+          }
+        >
           {!location.permissionGranted ? (
             <BookingLocationPermission
               granted={
@@ -377,33 +411,43 @@ function BookingLocationCard({
           ) : (
             <>
               <BookingCurrentLocation
-  loading={location.loading}
-  address={address}
-  onRefresh={
-    handleGetCurrentLocation
-  }
-/>
-
-              <BookingLocationMap
-                region={
-                  location.region
-                }
-                marker={
-                  location.marker
+                loading={
+                  location.loading
                 }
                 address={
                   address
                 }
-                onLocateMe={
-                  handleLocateMe
-                }
-                onMarkerDragEnd={
-                  handleMarkerDragEnd
+                onRefresh={
+                  handleGetCurrentLocation
                 }
               />
+
+              <View
+                style={
+                  styles.mapSection
+                }
+              >
+                <BookingLocationMap
+                  region={
+                    location.region
+                  }
+                  marker={
+                    location.marker
+                  }
+                  address={
+                    address
+                  }
+                  onLocateMe={
+                    handleLocateMe
+                  }
+                  onMarkerDragEnd={
+                    handleMarkerDragEnd
+                  }
+                />
+              </View>
             </>
           )}
-        </>
+        </View>
       ) : null}
 
       {/* ======================================================
@@ -412,17 +456,23 @@ function BookingLocationCard({
 
       {locationType ===
       "manual" ? (
-        <BookingManualLocation
-          value={
-            manualAddress
+        <View
+          style={
+            styles.manualSection
           }
-          onChange={
-            handleManualAddressChange
-          }
-          disabled={
-            busy
-          }
-        />
+        >
+          <BookingManualLocation
+            value={
+              manualAddress
+            }
+            onChange={
+              handleManualAddressChange
+            }
+            disabled={
+              busy
+            }
+          />
+        </View>
       ) : null}
     </BookingCard>
   );
@@ -435,8 +485,70 @@ function BookingLocationCard({
 const styles =
   StyleSheet.create({
     card: {
+      width:
+        "100%",
+
       marginTop:
         FixxamTokens.spacing.xxs,
+
+      overflow:
+        "hidden",
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    /* ========================================================
+       HEADER
+    ======================================================== */
+
+    headerSection: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    /* ========================================================
+       LOCATION TYPE
+    ======================================================== */
+
+    typeSection: {
+      marginBottom:
+        FixxamTokens.spacing.sm,
+    },
+
+    /* ========================================================
+       CURRENT LOCATION
+    ======================================================== */
+
+    locationContent: {
+      width:
+        "100%",
+    },
+
+    mapSection: {
+      width:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
+
+      overflow:
+        "hidden",
+
+      borderRadius:
+        FixxamTokens.radius.xl,
+    },
+
+    /* ========================================================
+       MANUAL LOCATION
+    ======================================================== */
+
+    manualSection: {
+      width:
+        "100%",
+
+      marginTop:
+        FixxamTokens.spacing.sm,
     },
   });
 

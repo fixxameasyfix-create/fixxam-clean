@@ -32,8 +32,42 @@ type Props = {
 };
 
 /* ============================================================
-   TOAST
+   HELPERS
 ============================================================ */
+
+function normalizePhone(
+  value?: string,
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  const trimmed =
+    value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const hasLeadingPlus =
+    trimmed.startsWith("+");
+
+  const digits =
+    trimmed.replace(
+      /\D/g,
+      "",
+    );
+
+  if (!digits) {
+    return "";
+  }
+
+  return hasLeadingPlus
+    ? `+${digits}`
+    : digits;
+}
 
 function showErrorToast(
   title: string,
@@ -65,25 +99,18 @@ function MarketOrderCall({
   phone,
 }: Props) {
   const cleanPhone =
-    useMemo(() => {
-      if (
-        typeof phone !== "string"
-      ) {
-        return "";
-      }
-
-      return phone
-        .trim()
-        .replace(
-          /[^+\d]/g,
-          "",
-        );
-    }, [
-      phone,
-    ]);
+    useMemo(
+      () =>
+        normalizePhone(
+          phone,
+        ),
+      [
+        phone,
+      ],
+    );
 
   const disabled =
-    cleanPhone.length === 0;
+    !cleanPhone;
 
   /* ==========================================================
      CALL STORE
@@ -100,13 +127,13 @@ function MarketOrderCall({
         return;
       }
 
-      const url =
+      const phoneUrl =
         `tel:${cleanPhone}`;
 
       try {
         const supported =
           await Linking.canOpenURL(
-            url,
+            phoneUrl,
           );
 
         if (!supported) {
@@ -119,7 +146,7 @@ function MarketOrderCall({
         }
 
         await Linking.openURL(
-          url,
+          phoneUrl,
         );
       } catch (
         error
@@ -182,8 +209,9 @@ function MarketOrderCall({
       />
 
       <AppText
-        variant="caption"
-        weight="bold"
+        variant="bodyMedium"
+        weight="semibold"
+        numberOfLines={1}
         style={[
           styles.text,
 
@@ -192,7 +220,7 @@ function MarketOrderCall({
             : null,
         ]}
       >
-        CALL STORE
+        Call store
       </AppText>
     </Pressable>
   );
@@ -219,23 +247,32 @@ export default MemoizedMarketOrderCall;
 const styles =
   StyleSheet.create({
     button: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
       minHeight:
-        FixxamTokens.size.buttonHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
       gap:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         CustomerColors.primary,
@@ -244,10 +281,13 @@ const styles =
         FixxamTokens.radius.button,
 
       backgroundColor:
-        CustomerColors.primarySoft,
+        Colors.surface,
     },
 
     text: {
+      flexShrink:
+        1,
+
       color:
         CustomerColors.primary,
     },
@@ -260,8 +300,7 @@ const styles =
         Colors.disabledBackground,
 
       opacity:
-        FixxamTokens.motion
-          .disabledOpacity,
+        FixxamTokens.motion.disabledOpacity,
     },
 
     disabledText: {
@@ -271,14 +310,12 @@ const styles =
 
     pressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },

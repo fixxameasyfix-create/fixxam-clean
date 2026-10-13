@@ -34,6 +34,17 @@ export type ActiveProductDeal = {
   expiresAt: Date | null;
 };
 
+/**
+ * Internal type used only for deciding
+ * which deal is the newest when legacy
+ * duplicate active deals exist.
+ */
+type MappedActiveProductDeal = {
+  deal: ActiveProductDeal;
+
+  sortTimestamp: number;
+};
+
 /* ============================================================
    CONSTANTS
 ============================================================ */
@@ -42,10 +53,11 @@ export type ActiveProductDeal = {
  * Firestore `in` queries support a limited
  * number of comparison values.
  *
- * Keep this below the platform limit so
- * the service remains safe and predictable.
+ * Keep chunks predictable and within
+ * the supported query limit.
  */
-const FIRESTORE_IN_LIMIT = 30;
+const FIRESTORE_IN_LIMIT =
+  30;
 
 /* ============================================================
    HELPERS
@@ -57,76 +69,120 @@ const FIRESTORE_IN_LIMIT = 30;
 function normalizeString(
   value: unknown,
 ): string {
-  return typeof value === "string"
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
 
 /**
- * Convert a Firestore timestamp-like
- * value into a Date.
+ * Convert Firestore timestamp-like values
+ * or Date instances into a valid Date.
  */
 function toDateOrNull(
   value: unknown,
 ): Date | null {
   if (
     value &&
-    typeof value === "object" &&
+    typeof value ===
+      "object" &&
     "toDate" in value &&
     typeof (
       value as {
         toDate?: unknown;
       }
-    ).toDate === "function"
+    ).toDate ===
+      "function"
   ) {
-    const date = (
-      value as {
-        toDate: () => unknown;
-      }
-    ).toDate();
+    const converted =
+      (
+        value as {
+          toDate: () => unknown;
+        }
+      ).toDate();
 
-    return date instanceof Date &&
+    if (
+      converted instanceof Date &&
       Number.isFinite(
-        date.getTime(),
+        converted.getTime(),
       )
-      ? date
-      : null;
+    ) {
+      return converted;
+    }
+
+    return null;
   }
 
-  /*
-   * Also support an already-created Date.
-   */
-  if (value instanceof Date) {
-    return Number.isFinite(
+  if (
+    value instanceof Date &&
+    Number.isFinite(
       value.getTime(),
     )
-      ? value
-      : null;
+  ) {
+    return value;
   }
 
   return null;
 }
 
 /**
- * Safely convert a value to a finite number.
+ * Convert timestamp-like values directly
+ * into milliseconds for sorting.
+ */
+function toTimestampMs(
+  value: unknown,
+): number {
+  const date =
+    toDateOrNull(
+      value,
+    );
+
+  if (!date) {
+    return 0;
+  }
+
+  return date.getTime();
+}
+
+/**
+ * Safely convert unknown values
+ * into finite numbers.
  */
 function toFiniteNumber(
   value: unknown,
 ): number | null {
   const number =
-    Number(value);
+    Number(
+      value,
+    );
 
-  return Number.isFinite(number)
+  return Number.isFinite(
+    number,
+  )
     ? number
     : null;
 }
 
+/* ============================================================
+   MAP DEAL
+============================================================ */
+
 /**
- * Validate an active deal.
+ * Validate and map one Firestore deal.
+ *
+ * `sortTimestamp` is used only to resolve
+ * legacy duplicate active deals.
+ *
+ * Priority:
+ *
+ * 1. updatedAt
+ * 2. createdAt
+ * 3. startsAt
+ * 4. expiresAt
  */
 function mapDeal(
   document: QueryDocumentSnapshot<DocumentData>,
-): ActiveProductDeal | null {
+): MappedActiveProductDeal | null {
   const data =
     document.data();
 
@@ -170,21 +226,24 @@ function mapDeal(
     Date.now();
 
   /*
-   * Deal has not started yet.
+   * Ignore deals that have
+   * not started yet.
    */
   if (
     startsAt &&
-    startsAt.getTime() > now
+    startsAt.getTime() >
+      now
   ) {
     return null;
   }
 
   /*
-   * Deal has already expired.
+   * Ignore expired deals.
    */
   if (
     expiresAt &&
-    expiresAt.getTime() <= now
+    expiresAt.getTime() <=
+      now
   ) {
     return null;
   }
@@ -209,14 +268,16 @@ function mapDeal(
     );
 
   if (
-    originalPrice === null ||
+    originalPrice ===
+      null ||
     originalPrice <= 0
   ) {
     return null;
   }
 
   if (
-    discountedPrice === null ||
+    discountedPrice ===
+      null ||
     discountedPrice <= 0 ||
     discountedPrice >=
       originalPrice
@@ -225,7 +286,8 @@ function mapDeal(
   }
 
   if (
-    discountPercentage === null ||
+    discountPercentage ===
+      null ||
     discountPercentage <= 0 ||
     discountPercentage >= 100
   ) {
@@ -233,29 +295,63 @@ function mapDeal(
   }
 
   /* ----------------------------------------------------------
+     SORT TIMESTAMP
+  ---------------------------------------------------------- */
+
+  const updatedAtMs =
+    toTimestampMs(
+      data.updatedAt,
+    );
+
+  const createdAtMs =
+    toTimestampMs(
+      data.createdAt,
+    );
+
+  const startsAtMs =
+    startsAt?.getTime() ??
+    0;
+
+  const expiresAtMs =
+    expiresAt?.getTime() ??
+    0;
+
+  const sortTimestamp =
+    Math.max(
+      updatedAtMs,
+      createdAtMs,
+      startsAtMs,
+      expiresAtMs,
+    );
+
+  /* ----------------------------------------------------------
      RETURN
   ---------------------------------------------------------- */
 
   return {
-    id:
-      document.id,
+    deal: {
+      id:
+        document.id,
 
-    productId,
+      productId,
 
-    workerId,
+      workerId,
 
-    originalPrice,
+      originalPrice,
 
-    discountedPrice,
+      discountedPrice,
 
-    discountPercentage,
+      discountPercentage,
 
-    status:
-      "active",
+      status:
+        "active",
 
-    startsAt,
+      startsAt,
 
-    expiresAt,
+      expiresAt,
+    },
+
+    sortTimestamp,
   };
 }
 
@@ -271,21 +367,16 @@ function mapDeal(
  *
  * Map<productId, ActiveProductDeal>
  *
- * Example:
- *
- * const deals =
- *   await getActiveProductDeals([
- *     "product-1",
- *     "product-2",
- *   ]);
- *
- * const deal =
- *   deals.get("product-1") ?? null;
+ * If legacy duplicate active deals exist,
+ * the most recently updated valid deal wins.
  */
 export default async function getActiveProductDeals(
   productIds: string[],
 ): Promise<
-  Map<string, ActiveProductDeal>
+  Map<
+    string,
+    ActiveProductDeal
+  >
 > {
   /* ----------------------------------------------------------
      NORMALIZE IDS
@@ -303,15 +394,17 @@ export default async function getActiveProductDeals(
               "string",
           )
           .map(
-            (id) =>
+            id =>
               id.trim(),
           )
-          .filter(Boolean),
+          .filter(
+            Boolean,
+          ),
       ),
     );
 
   /* ----------------------------------------------------------
-     EMPTY INPUT
+     RESULT MAPS
   ---------------------------------------------------------- */
 
   const dealsMap =
@@ -320,8 +413,19 @@ export default async function getActiveProductDeals(
       ActiveProductDeal
     >();
 
+  const dealSortMap =
+    new Map<
+      string,
+      number
+    >();
+
+  /* ----------------------------------------------------------
+     EMPTY INPUT
+  ---------------------------------------------------------- */
+
   if (
-    normalizedIds.length === 0
+    normalizedIds.length ===
+    0
   ) {
     return dealsMap;
   }
@@ -345,7 +449,8 @@ export default async function getActiveProductDeals(
       );
 
     if (
-      chunk.length === 0
+      chunk.length ===
+      0
     ) {
       continue;
     }
@@ -390,29 +495,106 @@ export default async function getActiveProductDeals(
       const document of
         snapshot.docs
     ) {
-      const deal =
+      const mapped =
         mapDeal(
           document,
         );
 
-      if (!deal) {
+      if (!mapped) {
         continue;
       }
 
-      /*
-       * If multiple active deals
-       * somehow exist for one product,
-       * keep the first valid result.
-       */
-      if (
-        !dealsMap.has(
+      const {
+        deal,
+        sortTimestamp,
+      } = mapped;
+
+      const existingDeal =
+        dealsMap.get(
           deal.productId,
-        )
+        );
+
+      /*
+       * First valid active deal
+       * for this product.
+       */
+      if (!existingDeal) {
+        dealsMap.set(
+          deal.productId,
+          deal,
+        );
+
+        dealSortMap.set(
+          deal.productId,
+          sortTimestamp,
+        );
+
+        continue;
+      }
+
+      /* ------------------------------------------------------
+         DUPLICATE ACTIVE DEAL
+
+         Prefer the most recently updated/
+         created active deal.
+      ------------------------------------------------------ */
+
+      const existingSortTimestamp =
+        dealSortMap.get(
+          deal.productId,
+        ) ??
+        0;
+
+      if (
+        sortTimestamp >
+        existingSortTimestamp
       ) {
         dealsMap.set(
           deal.productId,
           deal,
         );
+
+        dealSortMap.set(
+          deal.productId,
+          sortTimestamp,
+        );
+
+        continue;
+      }
+
+      /*
+       * Final deterministic fallback:
+       * if timestamps are identical/missing,
+       * prefer the deal with the later expiry.
+       */
+      if (
+        sortTimestamp ===
+          existingSortTimestamp
+      ) {
+        const existingExpiry =
+          existingDeal.expiresAt
+            ?.getTime() ??
+          0;
+
+        const candidateExpiry =
+          deal.expiresAt
+            ?.getTime() ??
+          0;
+
+        if (
+          candidateExpiry >
+          existingExpiry
+        ) {
+          dealsMap.set(
+            deal.productId,
+            deal,
+          );
+
+          dealSortMap.set(
+            deal.productId,
+            sortTimestamp,
+          );
+        }
       }
     }
   }

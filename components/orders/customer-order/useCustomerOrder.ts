@@ -25,6 +25,12 @@ import {
   db,
 } from "@/firebase/config";
 
+import {
+  acceptBooking,
+  cancelBooking,
+  declineOffer,
+} from "@/firebase/queries/bookings";
+
 import type {
   CustomerBooking,
   LiveLocation,
@@ -33,16 +39,23 @@ import type {
 import {
   formatAmount,
   mapBooking,
-  normalizeCounterOfferBy,
-  normalizeCounterOfferStatus,
-  normalizeOfferStatus,
   normalizeStatus,
   resolveTimestampMillis,
 } from "./customerOrder.utils";
 
+import type {
+  CustomerCancellationReason,
+} from "@/firebase/queries/bookings";
+
 /* ============================================================
    TYPES
 ============================================================ */
+
+type WorkerReviewPrompt = {
+  bookingId: string;
+  workerId: string;
+  workerName: string;
+};
 
 type UseCustomerOrderResult = {
   booking:
@@ -69,6 +82,13 @@ type UseCustomerOrderResult = {
 
   callAvailable: boolean;
 
+  reviewPrompt:
+    | WorkerReviewPrompt
+    | null;
+
+  dismissReviewPrompt:
+    () => void;
+
   handleOrderExpired:
     () => Promise<void>;
 
@@ -81,8 +101,10 @@ type UseCustomerOrderResult = {
   handleCall:
     () => Promise<void>;
 
-  handleCancel:
-    () => void;
+  handleCancel: (
+  reason: CustomerCancellationReason,
+  note?: string,
+) => Promise<boolean>;
 
   handleConfirmServiceStarted:
     () => void;
@@ -90,6 +112,83 @@ type UseCustomerOrderResult = {
   handleConfirmServiceCompleted:
     () => void;
 };
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function isValidAmount(
+  value: unknown,
+): value is number {
+  return (
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    ) &&
+    value > 0
+  );
+}
+
+function hasActiveCounter(
+  booking:
+    | CustomerBooking
+    | null,
+): boolean {
+  if (!booking) {
+    return false;
+  }
+
+  return (
+    booking.counterOfferStatus ===
+      "sent" &&
+    (
+      booking.counterOfferBy ===
+        "customer" ||
+      booking.counterOfferBy ===
+        "worker"
+    ) &&
+    isValidAmount(
+      booking.counterOfferAmount,
+    )
+  );
+}
+
+function isOfferExpiredBooking(
+  booking:
+    | CustomerBooking
+    | null,
+): boolean {
+  if (!booking) {
+    return false;
+  }
+
+  /*
+   * Backward compatibility for older
+   * bookings that may still contain:
+   *
+   * status = expired
+   */
+  if (
+    booking.status ===
+    "expired"
+  ) {
+    return true;
+  }
+
+  /*
+   * New authoritative backend state:
+   *
+   * status = cancelled
+   * cancellationReason = offer_expired
+   */
+  return (
+    booking.status ===
+      "cancelled" &&
+    booking.cancellationReason ===
+      "offer_expired"
+  );
+}
 
 /* ============================================================
    TOAST
@@ -101,9 +200,7 @@ function showErrorToast(
 ) {
   Toast.show({
     type: "error",
-
     text1: title,
-
     text2: message,
   });
 }
@@ -114,9 +211,7 @@ function showInfoToast(
 ) {
   Toast.show({
     type: "info",
-
     text1: title,
-
     text2: message,
   });
 }
@@ -127,13 +222,11 @@ function showSuccessToast(
 ) {
   Toast.show({
     type: "success",
-
     text1: title,
 
     ...(message
       ? {
-          text2:
-            message,
+          text2: message,
         }
       : {}),
   });
@@ -157,7 +250,8 @@ export function useCustomerOrder(
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     error,
@@ -181,12 +275,59 @@ export function useCustomerOrder(
       null,
     );
 
+  const [
+    reviewPrompt,
+    setReviewPrompt,
+  ] =
+    useState<WorkerReviewPrompt | null>(
+      null,
+    );
+
   /*
-   * Protect state-changing actions from
-   * repeated taps while a write is running.
+   * Local UX-only expiry state.
+   *
+   * IMPORTANT:
+   *
+   * This does NOT change Firestore.
+   *
+   * Backend scheduled expiry remains the
+   * authoritative source of cancellation.
+   */
+  const [
+    localOfferExpired,
+    setLocalOfferExpired,
+  ] =
+    useState(false);
+
+  /*
+   * Prevent repeated state-changing writes
+   * from fast/repeated button taps.
    */
   const mutationInFlight =
     useRef(false);
+
+  /* ==========================================================
+     REVIEW PROMPT
+  ========================================================== */
+
+  const dismissReviewPrompt =
+    useCallback(() => {
+      setReviewPrompt(
+        null,
+      );
+    }, []);
+
+  /* ==========================================================
+     RESET LOCAL EXPIRY
+  ========================================================== */
+
+  useEffect(() => {
+    setLocalOfferExpired(
+      false,
+    );
+  }, [
+    orderId,
+  ]);
 
   /* ==========================================================
      BOOKING LISTENER
@@ -194,19 +335,33 @@ export function useCustomerOrder(
 
   useEffect(() => {
     const customerId =
-      auth.currentUser?.uid;
+      auth.currentUser
+        ?.uid
+        ?.trim();
 
     const resolvedOrderId =
       orderId.trim();
 
     if (!customerId) {
-      setBooking(null);
+      setBooking(
+        null,
+      );
 
       setWorkerLiveLocation(
         null,
       );
 
-      setLoading(false);
+      setReviewPrompt(
+        null,
+      );
+
+      setLocalOfferExpired(
+        false,
+      );
+
+      setLoading(
+        false,
+      );
 
       setError(
         "Please sign in to view this order.",
@@ -216,13 +371,25 @@ export function useCustomerOrder(
     }
 
     if (!resolvedOrderId) {
-      setBooking(null);
+      setBooking(
+        null,
+      );
 
       setWorkerLiveLocation(
         null,
       );
 
-      setLoading(false);
+      setReviewPrompt(
+        null,
+      );
+
+      setLocalOfferExpired(
+        false,
+      );
+
+      setLoading(
+        false,
+      );
 
       setError(
         "This order could not be found.",
@@ -231,9 +398,13 @@ export function useCustomerOrder(
       return;
     }
 
-    setLoading(true);
+    setLoading(
+      true,
+    );
 
-    setError(null);
+    setError(
+      null,
+    );
 
     const bookingRef =
       doc(
@@ -246,17 +417,29 @@ export function useCustomerOrder(
       onSnapshot(
         bookingRef,
 
-        (snapshot) => {
+        snapshot => {
           if (
             !snapshot.exists()
           ) {
-            setBooking(null);
+            setBooking(
+              null,
+            );
 
             setWorkerLiveLocation(
               null,
             );
 
-            setLoading(false);
+            setReviewPrompt(
+              null,
+            );
+
+            setLocalOfferExpired(
+              false,
+            );
+
+            setLoading(
+              false,
+            );
 
             setError(
               "This order no longer exists.",
@@ -269,22 +452,34 @@ export function useCustomerOrder(
             snapshot.data();
 
           /*
-           * Client-side protection for UX.
+           * Client-side UX validation.
            *
-           * Firestore Security Rules must
-           * independently enforce ownership.
+           * Firestore Rules remain the actual
+           * authorization/security boundary.
            */
           if (
             data.customerId !==
             customerId
           ) {
-            setBooking(null);
+            setBooking(
+              null,
+            );
 
             setWorkerLiveLocation(
               null,
             );
 
-            setLoading(false);
+            setReviewPrompt(
+              null,
+            );
+
+            setLocalOfferExpired(
+              false,
+            );
+
+            setLoading(
+              false,
+            );
 
             setError(
               "You do not have access to this order.",
@@ -304,15 +499,47 @@ export function useCustomerOrder(
           );
 
           /*
-           * workerLiveLocation already arrives
-           * through the booking snapshot.
-           *
-           * A second Firestore listener is
-           * unnecessary.
+           * Once backend cancellation arrives,
+           * local expiry state is no longer needed.
            */
           if (
-            mapped.status !==
-            "in-progress"
+            isOfferExpiredBooking(
+              mapped,
+            )
+          ) {
+            setLocalOfferExpired(
+              true,
+            );
+          }
+
+          /* ================================================
+             WORKER LIVE LOCATION
+
+             Tracking lifecycle:
+
+             pending
+               -> unavailable
+
+             accepted
+               -> available
+
+             in-progress
+               -> continues
+
+             completed / cancelled / expired
+               -> unavailable
+          ================================================= */
+
+          const trackingActive =
+            mapped.status ===
+              "accepted" ||
+            mapped.status ===
+              "in-progress";
+
+          if (
+            mapped.fulfillmentMode !==
+              "worker_visits_customer" ||
+            !trackingActive
           ) {
             setWorkerLiveLocation(
               null,
@@ -322,15 +549,31 @@ export function useCustomerOrder(
               mapped.workerLiveLocation ??
               null;
 
+            /*
+             * Verify live location belongs
+             * to the assigned worker.
+             */
             if (
               location?.userId &&
               mapped.workerId &&
               location.userId !==
                 mapped.workerId
             ) {
-              console.warn(
-                "CUSTOMER_LIVE_LOCATION_WORKER_MISMATCH",
-              );
+              if (__DEV__) {
+                console.warn(
+                  "CUSTOMER_LIVE_LOCATION_WORKER_MISMATCH",
+                  {
+                    bookingId:
+                      mapped.id,
+
+                    expectedWorkerId:
+                      mapped.workerId,
+
+                    liveLocationUserId:
+                      location.userId,
+                  },
+                );
+              }
 
               setWorkerLiveLocation(
                 null,
@@ -342,26 +585,42 @@ export function useCustomerOrder(
             }
           }
 
-          setLoading(false);
-
-          setError(null);
-        },
-
-        (
-          snapshotError,
-        ) => {
-          console.error(
-            "CUSTOMER_ORDER_LISTENER_ERROR",
-            snapshotError,
+          setLoading(
+            false,
           );
 
-          setBooking(null);
+          setError(
+            null,
+          );
+        },
+
+        snapshotError => {
+          if (__DEV__) {
+            console.warn(
+              "CUSTOMER_ORDER_LISTENER_ERROR",
+              snapshotError,
+            );
+          }
+
+          setBooking(
+            null,
+          );
 
           setWorkerLiveLocation(
             null,
           );
 
-          setLoading(false);
+          setReviewPrompt(
+            null,
+          );
+
+          setLocalOfferExpired(
+            false,
+          );
+
+          setLoading(
+            false,
+          );
 
           setError(
             "Unable to load this order. Please try again.",
@@ -373,6 +632,21 @@ export function useCustomerOrder(
   }, [
     orderId,
   ]);
+
+  /* ==========================================================
+     NEGOTIATION STATE
+  ========================================================== */
+
+  const activeCounter =
+    useMemo(
+      () =>
+        hasActiveCounter(
+          booking,
+        ),
+      [
+        booking,
+      ],
+    );
 
   /* ==========================================================
      OFFER EXPIRY
@@ -389,115 +663,97 @@ export function useCustomerOrder(
       ],
     );
 
+  /*
+   * Backend expiry OR local UX expiry.
+   *
+   * Local expiry is not a Firestore state.
+   */
   const orderExpired =
-    booking?.status ===
-      "expired" ||
-    (offerExpiresAt !==
-      null &&
+    isOfferExpiredBooking(
+      booking,
+    ) ||
+    localOfferExpired ||
+    (
+      booking?.status ===
+        "pending" &&
+      !activeCounter &&
+      offerExpiresAt !==
+        null &&
       offerExpiresAt <=
-        Date.now());
+        Date.now()
+    );
 
   /* ==========================================================
-     MARK EXPIRED
+     MARK INITIAL OFFER EXPIRED — CLIENT UX ONLY
   ========================================================== */
 
   const handleOrderExpired =
-    useCallback(async () => {
-      if (
-        !booking ||
-        booking.status !==
-          "pending"
-      ) {
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          !booking ||
+          booking.status !==
+            "pending"
+        ) {
+          return;
+        }
 
-      const customerId =
-        auth.currentUser?.uid;
+        /*
+         * Counter negotiation has started.
+         *
+         * The original 24-hour timer no longer
+         * controls the negotiation.
+         */
+        if (
+          hasActiveCounter(
+            booking,
+          )
+        ) {
+          return;
+        }
 
-      if (!customerId) {
-        return;
-      }
+        /*
+         * Check the current expiry timestamp.
+         */
+        const expiresAt =
+          resolveTimestampMillis(
+            booking.offerExpiresAt,
+          );
 
-      try {
-        await runTransaction(
-          db,
+        if (
+          expiresAt ===
+            null ||
+          expiresAt >
+            Date.now()
+        ) {
+          return;
+        }
 
-          async (
-            transaction,
-          ) => {
-            const bookingRef =
-              doc(
-                db,
-                "bookings",
-                booking.id,
-              );
-
-            const snapshot =
-              await transaction.get(
-                bookingRef,
-              );
-
-            if (
-              !snapshot.exists()
-            ) {
-              return;
-            }
-
-            const data =
-              snapshot.data();
-
-            if (
-              data.customerId !==
-              customerId
-            ) {
-              return;
-            }
-
-            if (
-              normalizeStatus(
-                data.status,
-              ) !== "pending"
-            ) {
-              return;
-            }
-
-            const expiresAt =
-              resolveTimestampMillis(
-                data.offerExpiresAt,
-              );
-
-            if (
-              expiresAt ===
-                null ||
-              expiresAt >
-                Date.now()
-            ) {
-              return;
-            }
-
-            transaction.update(
-              bookingRef,
-              {
-                status:
-                  "expired",
-
-                updatedAt:
-                  serverTimestamp(),
-              },
-            );
-          },
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT update Firestore here.
+         *
+         * The backend scheduled function is
+         * responsible for authoritative cancellation.
+         *
+         * Client only updates local UI so the
+         * customer immediately sees the offer
+         * as expired.
+         */
+        setLocalOfferExpired(
+          true,
         );
-      } catch (
-        expiryError
-      ) {
-        console.error(
-          "CUSTOMER_ORDER_EXPIRY_ERROR",
-          expiryError,
+
+        showInfoToast(
+          "Offer expired",
+          "The 24-hour response window has ended. This order is being cancelled.",
         );
-      }
-    }, [
-      booking,
-    ]);
+      },
+      [
+        booking,
+      ],
+    );
 
   /* ==========================================================
      EXPIRY WATCHER
@@ -508,8 +764,35 @@ export function useCustomerOrder(
       !booking ||
       booking.status !==
         "pending" ||
+      activeCounter ||
       offerExpiresAt ===
         null
+    ) {
+      return;
+    }
+
+    /*
+     * Counter negotiation has started.
+     *
+     * offerRound is an audit sequence only.
+     */
+    if (
+      typeof booking.offerRound ===
+        "number" &&
+      Number.isFinite(
+        booking.offerRound,
+      ) &&
+      booking.offerRound >=
+        2
+    ) {
+      return;
+    }
+
+    /*
+     * Already expired locally.
+     */
+    if (
+      localOfferExpired
     ) {
       return;
     }
@@ -519,7 +802,8 @@ export function useCustomerOrder(
       Date.now();
 
     if (
-      remaining <= 0
+      remaining <=
+      0
     ) {
       void handleOrderExpired();
 
@@ -531,7 +815,6 @@ export function useCustomerOrder(
         () => {
           void handleOrderExpired();
         },
-
         remaining + 100,
       );
 
@@ -541,8 +824,10 @@ export function useCustomerOrder(
       );
     };
   }, [
+    activeCounter,
     booking,
     offerExpiresAt,
+    localOfferExpired,
     handleOrderExpired,
   ]);
 
@@ -560,43 +845,124 @@ export function useCustomerOrder(
       }
 
       if (
-        orderExpired ||
         booking.status !==
-          "pending"
+        "pending"
       ) {
         showErrorToast(
           "Offer unavailable",
-
-          orderExpired
-            ? "This offer has expired."
-            : "This order is no longer available.",
+          "This order is no longer available.",
         );
 
         return;
       }
 
-      const isWorkerCounter =
+      /*
+       * Never allow accepting an expired offer
+       * from the customer UI.
+       */
+      if (
+        orderExpired
+      ) {
+        showErrorToast(
+          "Offer expired",
+          "The 24-hour response window has ended. This offer can no longer be accepted.",
+        );
+
+        return;
+      }
+
+      /* ======================================================
+         ACTIVE COUNTER
+      ====================================================== */
+
+      const currentCounterActive =
         booking.counterOfferStatus ===
-          "sent" &&
+        "sent";
+
+      const workerCounterActive =
+        currentCounterActive &&
         booking.counterOfferBy ===
-          "worker";
+          "worker" &&
+        isValidAmount(
+          booking.counterOfferAmount,
+        );
+
+      const customerCounterActive =
+        currentCounterActive &&
+        booking.counterOfferBy ===
+          "customer";
+
+      /*
+       * Customer cannot accept their own
+       * counter offer.
+       */
+      if (
+        customerCounterActive
+      ) {
+        showInfoToast(
+          "Waiting for worker",
+          "Your counter offer is waiting for the worker.",
+        );
+
+        return;
+      }
+
+      /* ======================================================
+         INITIAL WORKER OFFER
+      ====================================================== */
+
+      const initialWorkerOfferActive =
+        !currentCounterActive &&
+        booking.offerStatus ===
+          "sent" &&
+        isValidAmount(
+          booking.offerAmount,
+        );
+
+      if (
+        !workerCounterActive &&
+        !initialWorkerOfferActive
+      ) {
+        showErrorToast(
+          "Offer unavailable",
+          "There is no active worker offer to accept.",
+        );
+
+        return;
+      }
+
+      /*
+       * Extra timestamp protection.
+       */
+      if (
+        initialWorkerOfferActive &&
+        offerExpiresAt !==
+          null &&
+        offerExpiresAt <=
+          Date.now()
+      ) {
+        void handleOrderExpired();
+
+        showErrorToast(
+          "Offer expired",
+          "This worker offer has expired.",
+        );
+
+        return;
+      }
 
       const amount =
-        isWorkerCounter
+        workerCounterActive
           ? booking.counterOfferAmount
           : booking.offerAmount;
 
       if (
-        typeof amount !==
-          "number" ||
-        !Number.isFinite(
+        !isValidAmount(
           amount,
-        ) ||
-        amount <= 0
+        )
       ) {
         showErrorToast(
           "Invalid offer",
-
           "The offer amount is not valid.",
         );
 
@@ -612,16 +978,19 @@ export function useCustomerOrder(
 
         [
           {
-            text: "Cancel",
+            text:
+              "Cancel",
 
-            style: "cancel",
+            style:
+              "cancel",
           },
 
           {
-            text: "Accept",
+            text:
+              "Accept",
 
-            onPress:
-              async () => {
+            onPress: () => {
+              void (async () => {
                 if (
                   mutationInFlight.current
                 ) {
@@ -632,163 +1001,9 @@ export function useCustomerOrder(
                   true;
 
                 try {
-                  const customerId =
-                    auth.currentUser?.uid;
-
-                  if (!customerId) {
-                    throw new Error(
-                      "AUTH_REQUIRED",
-                    );
-                  }
-
-                  await runTransaction(
-                    db,
-
-                    async (
-                      transaction,
-                    ) => {
-                      const bookingRef =
-                        doc(
-                          db,
-                          "bookings",
-                          booking.id,
-                        );
-
-                      const snapshot =
-                        await transaction.get(
-                          bookingRef,
-                        );
-
-                      if (
-                        !snapshot.exists()
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_FOUND",
-                        );
-                      }
-
-                      const data =
-                        snapshot.data();
-
-                      if (
-                        data.customerId !==
-                        customerId
-                      ) {
-                        throw new Error(
-                          "ORDER_ACCESS_DENIED",
-                        );
-                      }
-
-                      if (
-                        normalizeStatus(
-                          data.status,
-                        ) !==
-                        "pending"
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_PENDING",
-                        );
-                      }
-
-                      const expiresAt =
-                        resolveTimestampMillis(
-                          data.offerExpiresAt,
-                        );
-
-                      if (
-                        expiresAt !==
-                          null &&
-                        expiresAt <=
-                          Date.now()
-                      ) {
-                        throw new Error(
-                          "OFFER_EXPIRED",
-                        );
-                      }
-
-                      const currentWorkerCounter =
-                        normalizeCounterOfferStatus(
-                          data.counterOfferStatus,
-                        ) ===
-                          "sent" &&
-                        normalizeCounterOfferBy(
-                          data.counterOfferBy,
-                        ) ===
-                          "worker";
-
-                      const currentOfferAmount =
-                        currentWorkerCounter
-                          ? data.counterOfferAmount
-                          : data.offerAmount;
-
-                      if (
-                        typeof currentOfferAmount !==
-                          "number" ||
-                        !Number.isFinite(
-                          currentOfferAmount,
-                        ) ||
-                        currentOfferAmount <=
-                          0
-                      ) {
-                        throw new Error(
-                          "INVALID_OFFER",
-                        );
-                      }
-
-                      /*
-                       * Ensure the user is accepting
-                       * the same offer displayed in UI.
-                       */
-                      if (
-                        currentOfferAmount !==
-                          amount ||
-                        currentWorkerCounter !==
-                          isWorkerCounter
-                      ) {
-                        throw new Error(
-                          "OFFER_CHANGED",
-                        );
-                      }
-
-                      transaction.update(
-                        bookingRef,
-                        {
-                          /*
-                           * Preserve compatibility with
-                           * existing payment/order logic.
-                           */
-                          amount,
-
-                          /*
-                           * Final mutually agreed price.
-                           */
-                          agreedPrice:
-                            amount,
-
-                          offerStatus:
-                            "accepted",
-
-                          status:
-                            "accepted",
-
-                          offerRespondedAt:
-                            serverTimestamp(),
-
-                          ...(isWorkerCounter
-                            ? {
-                                counterOfferStatus:
-                                  "accepted",
-
-                                counterOfferRespondedAt:
-                                  serverTimestamp(),
-                              }
-                            : {}),
-
-                          updatedAt:
-                            serverTimestamp(),
-                        },
-                      );
-                    },
+                  await acceptBooking(
+                    booking.id,
+                    "customer",
                   );
 
                   showSuccessToast(
@@ -801,26 +1016,117 @@ export function useCustomerOrder(
                 } catch (
                   acceptError
                 ) {
-                  console.error(
-                    "CUSTOMER_ACCEPT_OFFER_ERROR",
-                    acceptError,
-                  );
+                  if (__DEV__) {
+                    console.warn(
+                      "CUSTOMER_ACCEPT_OFFER_ERROR",
+                      acceptError,
+                    );
+                  }
+
+                  const message =
+                    acceptError instanceof
+                    Error
+                      ? acceptError.message
+                      : "";
+
+                  const firebaseCode =
+                    (
+                      acceptError as {
+                        code?: string;
+                      }
+                    )?.code;
+
+                  if (
+                    firebaseCode ===
+                      "permission-denied" ||
+                    firebaseCode ===
+                      "firestore/permission-denied"
+                  ) {
+                    showErrorToast(
+                      "Permission denied",
+                      "You are not allowed to accept this offer.",
+                    );
+
+                    return;
+                  }
+
+                  const normalizedMessage =
+                    message.toLowerCase();
+
+                  if (
+                    normalizedMessage.includes(
+                      "expired",
+                    )
+                  ) {
+                    setLocalOfferExpired(
+                      true,
+                    );
+
+                    showErrorToast(
+                      "Offer expired",
+                      "This offer has expired and can no longer be accepted.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "own offer",
+                    )
+                  ) {
+                    showInfoToast(
+                      "Waiting for worker",
+                      "You cannot accept your own counter offer.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "not found",
+                    )
+                  ) {
+                    showErrorToast(
+                      "Order unavailable",
+                      "This order no longer exists.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "no longer",
+                    )
+                  ) {
+                    showInfoToast(
+                      "Offer changed",
+                      "This offer is no longer active.",
+                    );
+
+                    return;
+                  }
 
                   showErrorToast(
                     "Unable to accept",
-
-                    "The offer may have changed or expired. Please try again.",
+                    message ||
+                      "The offer may have changed. Please try again.",
                   );
                 } finally {
                   mutationInFlight.current =
                     false;
                 }
-              },
+              })();
+            },
           },
         ],
       );
     }, [
       booking,
+      handleOrderExpired,
+      offerExpiresAt,
       orderExpired,
     ]);
 
@@ -838,46 +1144,100 @@ export function useCustomerOrder(
       }
 
       if (
-        orderExpired ||
         booking.status !==
-          "pending"
+        "pending"
       ) {
         showErrorToast(
           "Offer unavailable",
-
-          orderExpired
-            ? "This offer has expired."
-            : "This order is no longer available.",
+          "This order is no longer available.",
         );
 
         return;
       }
 
-      const hasWorkerCounter =
-        booking.counterOfferStatus ===
-          "sent" &&
-        booking.counterOfferBy ===
-          "worker";
+      /*
+       * Do not allow customer to decline
+       * after the initial offer has expired.
+       */
+      if (
+        orderExpired
+      ) {
+        showErrorToast(
+          "Offer expired",
+          "The 24-hour response window has ended. This offer can no longer be declined manually.",
+        );
 
-      const hasWorkerOffer =
-        booking.offerStatus ===
-          "sent" &&
-        typeof booking.offerAmount ===
-          "number" &&
-        Number.isFinite(
-          booking.offerAmount,
-        ) &&
-        booking.offerAmount >
-          0;
+        return;
+      }
+
+      /* ======================================================
+         ACTIVE COUNTER
+      ====================================================== */
+
+      const currentCounterActive =
+        booking.counterOfferStatus ===
+        "sent";
+
+      const workerCounterActive =
+        currentCounterActive &&
+        booking.counterOfferBy ===
+          "worker" &&
+        isValidAmount(
+          booking.counterOfferAmount,
+        );
+
+      const customerCounterActive =
+        currentCounterActive &&
+        booking.counterOfferBy ===
+          "customer";
 
       if (
-        !hasWorkerCounter &&
-        !hasWorkerOffer
+        customerCounterActive
+      ) {
+        showInfoToast(
+          "Waiting for worker",
+          "Your counter offer is waiting for the worker.",
+        );
+
+        return;
+      }
+
+      /* ======================================================
+         INITIAL WORKER OFFER
+      ====================================================== */
+
+      const initialWorkerOfferActive =
+        !currentCounterActive &&
+        booking.offerStatus ===
+          "sent" &&
+        isValidAmount(
+          booking.offerAmount,
+        );
+
+      if (
+        !workerCounterActive &&
+        !initialWorkerOfferActive
       ) {
         showErrorToast(
           "Offer unavailable",
-
           "There is no active worker offer to decline.",
+        );
+
+        return;
+      }
+
+      if (
+        initialWorkerOfferActive &&
+        offerExpiresAt !==
+          null &&
+        offerExpiresAt <=
+          Date.now()
+      ) {
+        void handleOrderExpired();
+
+        showErrorToast(
+          "Offer expired",
+          "This worker offer has expired.",
         );
 
         return;
@@ -886,23 +1246,26 @@ export function useCustomerOrder(
       Alert.alert(
         "Decline offer?",
 
-        `Are you sure you want to decline ${booking.workerName}'s offer?`,
+        "Declining this offer will end the negotiation and cancel this order.",
 
         [
           {
-            text: "Keep offer",
+            text:
+              "Keep negotiating",
 
-            style: "cancel",
+            style:
+              "cancel",
           },
 
           {
-            text: "Decline",
+            text:
+              "Decline",
 
             style:
               "destructive",
 
-            onPress:
-              async () => {
+            onPress: () => {
+              void (async () => {
                 if (
                   mutationInFlight.current
                 ) {
@@ -913,148 +1276,129 @@ export function useCustomerOrder(
                   true;
 
                 try {
-                  const customerId =
-                    auth.currentUser?.uid;
-
-                  if (!customerId) {
-                    throw new Error(
-                      "AUTH_REQUIRED",
-                    );
-                  }
-
-                  await runTransaction(
-                    db,
-
-                    async (
-                      transaction,
-                    ) => {
-                      const bookingRef =
-                        doc(
-                          db,
-                          "bookings",
-                          booking.id,
-                        );
-
-                      const snapshot =
-                        await transaction.get(
-                          bookingRef,
-                        );
-
-                      if (
-                        !snapshot.exists()
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_FOUND",
-                        );
-                      }
-
-                      const data =
-                        snapshot.data();
-
-                      if (
-                        data.customerId !==
-                        customerId
-                      ) {
-                        throw new Error(
-                          "ORDER_ACCESS_DENIED",
-                        );
-                      }
-
-                      if (
-                        normalizeStatus(
-                          data.status,
-                        ) !==
-                        "pending"
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_PENDING",
-                        );
-                      }
-
-                      const currentWorkerCounter =
-                        normalizeCounterOfferStatus(
-                          data.counterOfferStatus,
-                        ) ===
-                          "sent" &&
-                        normalizeCounterOfferBy(
-                          data.counterOfferBy,
-                        ) ===
-                          "worker";
-
-                      const currentWorkerOffer =
-                        normalizeOfferStatus(
-                          data.offerStatus,
-                        ) ===
-                          "sent" &&
-                        typeof data.offerAmount ===
-                          "number" &&
-                        Number.isFinite(
-                          data.offerAmount,
-                        ) &&
-                        data.offerAmount >
-                          0;
-
-                      if (
-                        !currentWorkerCounter &&
-                        !currentWorkerOffer
-                      ) {
-                        throw new Error(
-                          "NO_ACTIVE_OFFER",
-                        );
-                      }
-
-                      transaction.update(
-                        bookingRef,
-                        {
-                          offerStatus:
-                            "declined",
-
-                          offerRespondedAt:
-                            serverTimestamp(),
-
-                          ...(currentWorkerCounter
-                            ? {
-                                counterOfferStatus:
-                                  "declined",
-
-                                counterOfferRespondedAt:
-                                  serverTimestamp(),
-                              }
-                            : {}),
-
-                          updatedAt:
-                            serverTimestamp(),
-                        },
-                      );
-                    },
+                  await declineOffer(
+                    booking.id,
+                    "customer",
                   );
 
                   showSuccessToast(
                     "Offer declined",
+                    "The negotiation has ended.",
                   );
                 } catch (
                   declineError
                 ) {
-                  console.error(
-                    "CUSTOMER_DECLINE_OFFER_ERROR",
-                    declineError,
-                  );
+                  if (__DEV__) {
+                    console.warn(
+                      "CUSTOMER_DECLINE_OFFER_ERROR",
+                      declineError,
+                    );
+                  }
+
+                  const message =
+                    declineError instanceof
+                    Error
+                      ? declineError.message
+                      : "";
+
+                  const firebaseCode =
+                    (
+                      declineError as {
+                        code?: string;
+                      }
+                    )?.code;
+
+                  if (
+                    firebaseCode ===
+                      "permission-denied" ||
+                    firebaseCode ===
+                      "firestore/permission-denied"
+                  ) {
+                    showErrorToast(
+                      "Permission denied",
+                      "You are not allowed to decline this offer.",
+                    );
+
+                    return;
+                  }
+
+                  const normalizedMessage =
+                    message.toLowerCase();
+
+                  if (
+                    normalizedMessage.includes(
+                      "expired",
+                    )
+                  ) {
+                    setLocalOfferExpired(
+                      true,
+                    );
+
+                    showErrorToast(
+                      "Offer expired",
+                      "This offer has expired and is being cancelled automatically.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "own offer",
+                    )
+                  ) {
+                    showInfoToast(
+                      "Waiting for worker",
+                      "You cannot decline your own counter offer.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "not found",
+                    )
+                  ) {
+                    showErrorToast(
+                      "Order unavailable",
+                      "This order no longer exists.",
+                    );
+
+                    return;
+                  }
+
+                  if (
+                    normalizedMessage.includes(
+                      "no longer",
+                    )
+                  ) {
+                    showInfoToast(
+                      "Offer changed",
+                      "This offer is no longer active.",
+                    );
+
+                    return;
+                  }
 
                   showErrorToast(
                     "Unable to decline",
-
-                    "The offer may have changed. Please try again.",
+                    message ||
+                      "The offer may have changed. Please try again.",
                   );
                 } finally {
                   mutationInFlight.current =
                     false;
                 }
-              },
+              })();
+            },
           },
         ],
       );
     }, [
       booking,
+      handleOrderExpired,
+      offerExpiresAt,
       orderExpired,
     ]);
 
@@ -1076,601 +1420,619 @@ export function useCustomerOrder(
   ========================================================== */
 
   const handleCall =
-    useCallback(async () => {
-      if (
-        !booking ||
-        callLoading
-      ) {
-        return;
-      }
+    useCallback(
+      async () => {
+        if (
+          !booking ||
+          callLoading
+        ) {
+          return;
+        }
 
-      if (
-        !callAvailable
-      ) {
-        showInfoToast(
-          "Call unavailable",
-
-          "Calling will become available after the offer is accepted.",
-        );
-
-        return;
-      }
-
-      const phone =
-        booking.workerPhone?.trim();
-
-      if (!phone) {
-        showErrorToast(
-          "Phone unavailable",
-
-          "The worker's phone number is not available.",
-        );
-
-        return;
-      }
-
-      const safePhone =
-        phone.replace(
-          /[^+\d]/g,
-          "",
-        );
-
-      if (!safePhone) {
-        showErrorToast(
-          "Phone unavailable",
-
-          "The worker's phone number is not valid.",
-        );
-
-        return;
-      }
-
-      try {
-        setCallLoading(
-          true,
-        );
-
-        const url =
-          `tel:${safePhone}`;
-
-        const supported =
-          await Linking.canOpenURL(
-            url,
-          );
-
-        if (!supported) {
-          showErrorToast(
+        if (
+          !callAvailable
+        ) {
+          showInfoToast(
             "Call unavailable",
-
-            "Your device cannot start a phone call.",
+            "Calling will become available after the offer is accepted.",
           );
 
           return;
         }
 
-        await Linking.openURL(
-          url,
-        );
-      } catch (
-        callError
-      ) {
-        console.error(
-          "CUSTOMER_CALL_WORKER_ERROR",
-          callError,
-        );
+        const phone =
+          booking.workerPhone
+            ?.trim();
 
-        showErrorToast(
-          "Unable to call",
+        if (!phone) {
+          showErrorToast(
+            "Phone unavailable",
+            "The worker's phone number is not available.",
+          );
 
-          "We could not start the call. Please try again.",
-        );
-      } finally {
-        setCallLoading(
-          false,
-        );
-      }
-    }, [
-      booking,
-      callAvailable,
-      callLoading,
-    ]);
+          return;
+        }
+
+        const safePhone =
+          phone.replace(
+            /[^+\d]/g,
+            "",
+          );
+
+        if (!safePhone) {
+          showErrorToast(
+            "Phone unavailable",
+            "The worker's phone number is not valid.",
+          );
+
+          return;
+        }
+
+        try {
+          setCallLoading(
+            true,
+          );
+
+          const url =
+            `tel:${safePhone}`;
+
+          const supported =
+            await Linking.canOpenURL(
+              url,
+            );
+
+          if (
+            !supported
+          ) {
+            showErrorToast(
+              "Call unavailable",
+              "Your device cannot start a phone call.",
+            );
+
+            return;
+          }
+
+          await Linking.openURL(
+            url,
+          );
+        } catch (
+          callError
+        ) {
+          if (__DEV__) {
+            console.warn(
+              "CUSTOMER_CALL_WORKER_ERROR",
+              callError,
+            );
+          }
+
+          showErrorToast(
+            "Unable to call",
+            "We could not start the call. Please try again.",
+          );
+        } finally {
+          setCallLoading(
+            false,
+          );
+        }
+      },
+      [
+        booking,
+        callAvailable,
+        callLoading,
+      ],
+    );
 
   /* ==========================================================
      CANCEL ORDER
   ========================================================== */
 
-  const handleCancel =
-    useCallback(() => {
-      if (
-        !booking ||
-        mutationInFlight.current
-      ) {
-        return;
-      }
-
-      if (
-        booking.status !==
-        "pending"
-      ) {
-        showErrorToast(
-          "Cannot cancel",
-
-          "This order can no longer be cancelled.",
-        );
-
-        return;
-      }
-
-      Alert.alert(
-        "Cancel order?",
-
-        "Are you sure you want to cancel this order?",
-
-        [
-          {
-            text:
-              "Keep order",
-
-            style:
-              "cancel",
-          },
-
-          {
-            text:
-              "Cancel order",
-
-            style:
-              "destructive",
-
-            onPress:
-              async () => {
-                if (
-                  mutationInFlight.current
-                ) {
-                  return;
-                }
-
-                mutationInFlight.current =
-                  true;
-
-                try {
-                  const customerId =
-                    auth.currentUser?.uid;
-
-                  if (!customerId) {
-                    throw new Error(
-                      "AUTH_REQUIRED",
-                    );
-                  }
-
-                  await runTransaction(
-                    db,
-
-                    async (
-                      transaction,
-                    ) => {
-                      const bookingRef =
-                        doc(
-                          db,
-                          "bookings",
-                          booking.id,
-                        );
-
-                      const snapshot =
-                        await transaction.get(
-                          bookingRef,
-                        );
-
-                      if (
-                        !snapshot.exists()
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_FOUND",
-                        );
-                      }
-
-                      const data =
-                        snapshot.data();
-
-                      if (
-                        data.customerId !==
-                        customerId
-                      ) {
-                        throw new Error(
-                          "ORDER_ACCESS_DENIED",
-                        );
-                      }
-
-                      if (
-                        normalizeStatus(
-                          data.status,
-                        ) !==
-                        "pending"
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_PENDING",
-                        );
-                      }
-
-                      transaction.update(
-                        bookingRef,
-                        {
-                          status:
-                            "cancelled",
-
-                          updatedAt:
-                            serverTimestamp(),
-                        },
-                      );
-                    },
-                  );
-
-                  showSuccessToast(
-                    "Order cancelled",
-                  );
-                } catch (
-                  cancelError
-                ) {
-                  console.error(
-                    "CUSTOMER_CANCEL_ORDER_ERROR",
-                    cancelError,
-                  );
-
-                  showErrorToast(
-                    "Unable to cancel",
-
-                    "This order may have changed. Please try again.",
-                  );
-                } finally {
-                  mutationInFlight.current =
-                    false;
-                }
-              },
-          },
-        ],
-      );
-    }, [
-      booking,
-    ]);
-
   /* ==========================================================
-     CONFIRM SERVICE STARTED
-  ========================================================== */
+CANCEL ORDER
+========================================================== */
 
-  const handleConfirmServiceStarted =
-    useCallback(() => {
-      if (
-        !booking ||
-        mutationInFlight.current
-      ) {
-        return;
-      }
+const handleCancel = useCallback(
+  async (
+    reason: CustomerCancellationReason,
+    note = "",
+  ): Promise<boolean> => {
+    if (!booking || mutationInFlight.current) {
+      return false;
+    }
 
-      if (
-        booking.status !==
-        "in-progress"
-      ) {
-        showInfoToast(
-          "Confirmation unavailable",
+    if (booking.status !== "pending") {
+      showErrorToast(
+        "Cannot cancel",
+        "This order can no longer be cancelled.",
+      );
+      return false;
+    }
 
-          "The worker has not started this service yet.",
+    if (orderExpired) {
+      showInfoToast(
+        "Offer expired",
+        "This order is being cancelled automatically because the offer expired.",
+      );
+      return false;
+    }
+
+    if (
+      booking.offerStatus === "sent" ||
+      booking.counterOfferStatus === "sent"
+    ) {
+      showInfoToast(
+        "Offer in progress",
+        "Use Decline if you want to end the current negotiation.",
+      );
+      return false;
+    }
+
+    if (reason === "other" && !note.trim()) {
+      showErrorToast(
+        "Reason required",
+        "Please explain why you want to cancel this order.",
+      );
+      return false;
+    }
+
+    mutationInFlight.current = true;
+
+    try {
+      await cancelBooking(
+        booking.id,
+        reason,
+        note.trim(),
+      );
+
+      showSuccessToast("Order cancelled");
+
+      return true;
+    } catch (cancelError) {
+      if (__DEV__) {
+        console.warn(
+          "CUSTOMER_CANCEL_ORDER_ERROR",
+          cancelError,
         );
-
-        return;
       }
 
-      if (
-        booking.customerStartedConfirmedAt
-      ) {
-        return;
-      }
+      const message =
+        cancelError instanceof Error
+          ? cancelError.message
+          : "";
 
-      Alert.alert(
-        "Confirm service started?",
+      showErrorToast(
+        "Unable to cancel",
+        message ||
+          "This order may have changed. Please try again.",
+      );
 
-        `Please confirm that ${booking.workerName} has started working on your service.`,
+      return false;
+    } finally {
+      mutationInFlight.current = false;
+    }
+  },
+  [booking, orderExpired],
+);
 
-        [
-          {
-            text:
-              "Not yet",
+  
 
-            style:
-              "cancel",
-          },
 
-          {
-            text:
-              "Confirm",
+/* ==========================================================
+   CONFIRM SERVICE STARTED
+========================================================== */
 
-            onPress:
-              async () => {
-                if (
-                  mutationInFlight.current
-                ) {
-                  return;
+const handleConfirmServiceStarted =
+  useCallback(() => {
+    if (
+      !booking ||
+      mutationInFlight.current
+    ) {
+      return;
+    }
+
+  const canConfirmStart =
+  booking.status === "awaiting_start_confirmation" ||
+  (
+    booking.status === "accepted" &&
+    booking.startConfirmationRequestedAt != null
+  );
+
+if (!canConfirmStart) {
+  showInfoToast(
+    "Confirmation unavailable",
+    "The worker has not requested service-start confirmation yet.",
+  );
+  return;
+}
+
+    if (
+      booking.customerStartedConfirmedAt
+    ) {
+      return;
+    }
+
+    Alert.alert(
+      "Confirm service started?",
+      `Please confirm that ${booking.workerName} has started working on your service.`,
+      [
+        {
+          text: "Not yet",
+          style: "cancel",
+        },
+        {
+          text: "Confirm",
+          onPress: () => {
+            void (async () => {
+              if (
+                mutationInFlight.current
+              ) {
+                return;
+              }
+
+              mutationInFlight.current = true;
+
+              try {
+                const customerId =
+                  auth.currentUser?.uid?.trim();
+
+                if (!customerId) {
+                  throw new Error(
+                    "AUTH_REQUIRED",
+                  );
                 }
 
-                mutationInFlight.current =
-                  true;
-
-                try {
-                  const customerId =
-                    auth.currentUser?.uid;
-
-                  if (!customerId) {
-                    throw new Error(
-                      "AUTH_REQUIRED",
+                await runTransaction(
+                  db,
+                  async transaction => {
+                    const bookingRef = doc(
+                      db,
+                      "bookings",
+                      booking.id,
                     );
-                  }
 
-                  await runTransaction(
-                    db,
-
-                    async (
-                      transaction,
-                    ) => {
-                      const bookingRef =
-                        doc(
-                          db,
-                          "bookings",
-                          booking.id,
-                        );
-
-                      const snapshot =
-                        await transaction.get(
-                          bookingRef,
-                        );
-
-                      if (
-                        !snapshot.exists()
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_FOUND",
-                        );
-                      }
-
-                      const data =
-                        snapshot.data();
-
-                      if (
-                        data.customerId !==
-                        customerId
-                      ) {
-                        throw new Error(
-                          "ORDER_ACCESS_DENIED",
-                        );
-                      }
-
-                      if (
-                        normalizeStatus(
-                          data.status,
-                        ) !==
-                        "in-progress"
-                      ) {
-                        throw new Error(
-                          "SERVICE_NOT_IN_PROGRESS",
-                        );
-                      }
-
-                      /*
-                       * Idempotent:
-                       * already confirmed means
-                       * no additional write.
-                       */
-                      if (
-                        data.customerStartedConfirmedAt
-                      ) {
-                        return;
-                      }
-
-                      transaction.update(
+                    const snapshot =
+                      await transaction.get(
                         bookingRef,
-                        {
-                          customerStartedConfirmedAt:
-                            serverTimestamp(),
-
-                          updatedAt:
-                            serverTimestamp(),
-                        },
                       );
-                    },
-                  );
 
-                  showSuccessToast(
-                    "Service start confirmed",
-                  );
-                } catch (
-                  confirmError
-                ) {
-                  console.error(
+                    if (!snapshot.exists()) {
+                      throw new Error(
+                        "ORDER_NOT_FOUND",
+                      );
+                    }
+
+                    const data =
+                      snapshot.data();
+
+                    if (
+                      data.customerId !==
+                      customerId
+                    ) {
+                      throw new Error(
+                        "ORDER_ACCESS_DENIED",
+                      );
+                    }
+
+                     
+                   if (
+  normalizeStatus(data.status) !== "accepted" ||
+  !data.startConfirmationRequestedAt
+) {
+  throw new Error(
+    "SERVICE_START_CONFIRMATION_UNAVAILABLE",
+  );
+}
+
+
+                    if (
+                      data.customerStartedConfirmedAt
+                    ) {
+                      return;
+                    }
+
+                    transaction.update(bookingRef, {
+  status: "in-progress",
+  customerStartedConfirmedAt: serverTimestamp(),
+  startedAt: serverTimestamp(),
+  serviceStartedAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+});
+                  },
+                );
+
+                showSuccessToast(
+                  "Service start confirmed",
+                );
+              } catch (confirmError) {
+                if (__DEV__) {
+                  console.warn(
                     "CUSTOMER_CONFIRM_SERVICE_STARTED_ERROR",
                     confirmError,
                   );
+                }
 
-                  showErrorToast(
-                    "Unable to confirm",
+                const errorCode =
+  typeof confirmError === "object" &&
+  confirmError !== null &&
+  "code" in confirmError
+    ? String(confirmError.code)
+    : "unknown";
 
-                    "We could not save your confirmation. Please try again.",
+const errorMessage =
+  confirmError instanceof Error
+    ? confirmError.message
+    : String(confirmError);
+
+if (__DEV__) {
+  console.error(
+    "CUSTOMER_CONFIRM_SERVICE_STARTED_FAILURE",
+    {
+      code: errorCode,
+      message: errorMessage,
+      bookingId: booking.id,
+      expectedStatus: "awaiting_start_confirmation",
+    },
+  );
+}
+
+showErrorToast(
+  "Unable to confirm",
+  __DEV__
+    ? `${errorCode}: ${errorMessage}`
+    : "We could not save your confirmation. Please try again.",
+);
+              } finally {
+                mutationInFlight.current = false;
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [booking]);
+
+ 
+
+/* ==========================================================
+   CONFIRM SERVICE COMPLETED
+   Customer confirms completion and finalizes the booking.
+========================================================== */
+
+const handleConfirmServiceCompleted = useCallback(() => {
+  if (!booking || mutationInFlight.current) {
+    return;
+  }
+
+
+  if (
+  booking.status !== "awaiting_completion_confirmation" ||
+  !booking.workerMarkedCompletedAt
+) {
+  showInfoToast(
+    "Confirmation unavailable",
+    "The worker must mark this service as finished before you can confirm it.",
+  );
+  return;
+}
+
+  if (booking.customerCompletedConfirmedAt) {
+    return;
+  }
+
+  Alert.alert(
+    "Confirm service completed?",
+    `Please confirm that ${booking.workerName} has finished the service.`,
+    [
+      {
+        text: "Not yet",
+        style: "cancel",
+      },
+      {
+        text: "Confirm Completion",
+        onPress: () => {
+          void (async () => {
+            if (mutationInFlight.current) {
+              return;
+            }
+
+            mutationInFlight.current = true;
+
+            try {
+              const customerId = auth.currentUser?.uid?.trim();
+
+              if (!customerId) {
+                throw new Error("AUTH_REQUIRED");
+              }
+
+              const confirmed = await runTransaction(
+                db,
+                async transaction => {
+                  const bookingRef = doc(
+                    db,
+                    "bookings",
+                    booking.id,
                   );
-                } finally {
-                  mutationInFlight.current =
-                    false;
-                }
-              },
-          },
-        ],
-      );
-    }, [
-      booking,
-    ]);
 
-  /* ==========================================================
-     CONFIRM SERVICE COMPLETED
-  ========================================================== */
+                  const snapshot = await transaction.get(
+                    bookingRef,
+                  );
 
-  const handleConfirmServiceCompleted =
-    useCallback(() => {
-      if (
-        !booking ||
-        mutationInFlight.current
-      ) {
-        return;
-      }
+                  if (!snapshot.exists()) {
+                    throw new Error("ORDER_NOT_FOUND");
+                  }
 
-      if (
-        booking.status !==
-        "completed"
-      ) {
-        showInfoToast(
-          "Confirmation unavailable",
+                  const data = snapshot.data();
 
-          "The worker has not marked this service as completed yet.",
-        );
+                  if (data.customerId !== customerId) {
+                    throw new Error("ORDER_ACCESS_DENIED");
+                  }
 
-        return;
-      }
-
-      if (
-        booking.customerCompletedConfirmedAt
-      ) {
-        return;
-      }
-
-      Alert.alert(
-        "Confirm service completed?",
-
-        `Please confirm that ${booking.workerName} has finished the service.`,
-
-        [
-          {
-            text:
-              "Not yet",
-
-            style:
-              "cancel",
-          },
-
-          {
-            text:
-              "Confirm",
-
-            onPress:
-              async () => {
-                if (
-                  mutationInFlight.current
-                ) {
-                  return;
-                }
-
-                mutationInFlight.current =
-                  true;
-
-                try {
-                  const customerId =
-                    auth.currentUser?.uid;
-
-                  if (!customerId) {
+                  if (
+                    normalizeStatus(data.status) !==
+                    "awaiting_completion_confirmation"
+                  ) {
                     throw new Error(
-                      "AUTH_REQUIRED",
+                      "SERVICE_COMPLETION_CONFIRMATION_UNAVAILABLE",
                     );
                   }
 
-                  await runTransaction(
-                    db,
+                  if (
+                    !data.workerMarkedCompletedAt ||
+                    typeof data.workerMarkedCompletedAt.toDate !==
+                      "function"
+                  ) {
+                    throw new Error(
+                      "WORKER_COMPLETION_NOT_MARKED",
+                    );
+                  }
 
-                    async (
-                      transaction,
-                    ) => {
-                      const bookingRef =
-                        doc(
-                          db,
-                          "bookings",
-                          booking.id,
-                        );
+                  if (data.customerCompletedConfirmedAt) {
+                    return false;
+                  }
 
-                      const snapshot =
-                        await transaction.get(
-                          bookingRef,
-                        );
+                  const agreedPrice = data.agreedPrice;
 
-                      if (
-                        !snapshot.exists()
-                      ) {
-                        throw new Error(
-                          "ORDER_NOT_FOUND",
-                        );
-                      }
+                  if (
+                    typeof agreedPrice !== "number" ||
+                    !Number.isFinite(agreedPrice) ||
+                    agreedPrice <= 0
+                  ) {
+                    throw new Error(
+                      "INVALID_AGREED_SERVICE_AMOUNT",
+                    );
+                  }
 
-                      const data =
-                        snapshot.data();
+                  transaction.update(bookingRef, {
+                    status: "completed",
+                    amount: agreedPrice,
+                    serviceCompletedAt: serverTimestamp(),
+                    completedAt: serverTimestamp(),
+                    customerCompletedConfirmedAt:
+                      serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                  });
 
-                      if (
-                        data.customerId !==
-                        customerId
-                      ) {
-                        throw new Error(
-                          "ORDER_ACCESS_DENIED",
-                        );
-                      }
+                  return true;
+                },
+              );
 
-                      if (
-                        normalizeStatus(
-                          data.status,
-                        ) !==
-                        "completed"
-                      ) {
-                        throw new Error(
-                          "SERVICE_NOT_COMPLETED",
-                        );
-                      }
+              if (!confirmed) {
+                showInfoToast(
+                  "Already confirmed",
+                  "This service completion has already been confirmed.",
+                );
+                return;
+              }
 
-                      if (
-                        data.customerCompletedConfirmedAt
-                      ) {
-                        return;
-                      }
+              showSuccessToast(
+                "Service completion confirmed",
+                "The order has now been marked as completed.",
+              );
 
-                      transaction.update(
-                        bookingRef,
-                        {
-                          customerCompletedConfirmedAt:
-                            serverTimestamp(),
+              const workerId =
+                typeof booking.workerId === "string"
+                  ? booking.workerId.trim()
+                  : "";
 
-                          updatedAt:
-                            serverTimestamp(),
-                        },
-                      );
-                    },
-                  );
+              const workerName =
+                typeof booking.workerName === "string" &&
+                booking.workerName.trim()
+                  ? booking.workerName.trim()
+                  : "this worker";
 
-                  showSuccessToast(
-                    "Service completion confirmed",
-                  );
-                } catch (
-                  confirmError
-                ) {
-                  console.error(
-                    "CUSTOMER_CONFIRM_SERVICE_COMPLETED_ERROR",
-                    confirmError,
-                  );
+              if (workerId) {
+                setReviewPrompt({
+                  bookingId: booking.id,
+                  workerId,
+                  workerName,
+                });
+              }
+            } catch (confirmError) {
+              const errorCode =
+                typeof confirmError === "object" &&
+                confirmError !== null &&
+                "code" in confirmError
+                  ? String(confirmError.code)
+                  : "unknown";
 
-                  showErrorToast(
-                    "Unable to confirm",
+              const errorMessage =
+                confirmError instanceof Error
+                  ? confirmError.message
+                  : String(confirmError);
 
-                    "We could not save your confirmation. Please try again.",
-                  );
-                } finally {
-                  mutationInFlight.current =
-                    false;
-                }
-              },
-          },
-        ],
-      );
-    }, [
-      booking,
-    ]);
+              if (__DEV__) {
+                console.error(
+                  "CUSTOMER_CONFIRM_SERVICE_COMPLETED_FAILURE",
+                  {
+                    code: errorCode,
+                    message: errorMessage,
+                    bookingId: booking.id,
+                    expectedStatus:
+                      "awaiting_completion_confirmation",
+                  },
+                );
+              }
+
+              if (
+                errorCode === "permission-denied" ||
+                errorCode === "firestore/permission-denied"
+              ) {
+                showErrorToast(
+                  "Permission denied",
+                  "Firestore rejected this confirmation. Check the booking security rules.",
+                );
+              } else if (
+                errorMessage === "ORDER_NOT_FOUND"
+              ) {
+                showErrorToast(
+                  "Order unavailable",
+                  "This order no longer exists.",
+                );
+              } else if (
+                errorMessage === "ORDER_ACCESS_DENIED"
+              ) {
+                showErrorToast(
+                  "Access denied",
+                  "You cannot confirm this order.",
+                );
+              } else if (
+                errorMessage ===
+                "SERVICE_COMPLETION_CONFIRMATION_UNAVAILABLE"
+              ) {
+                showInfoToast(
+                  "Order changed",
+                  "The order is no longer awaiting completion confirmation. Refresh and try again.",
+                );
+              } else if (
+                errorMessage === "WORKER_COMPLETION_NOT_MARKED"
+              ) {
+                showInfoToast(
+                  "Completion unavailable",
+                  "The worker must mark the service as finished first.",
+                );
+              } else if (
+                errorMessage === "INVALID_AGREED_SERVICE_AMOUNT"
+              ) {
+                showErrorToast(
+                  "Amount unavailable",
+                  "The agreed service amount is invalid.",
+                );
+              } else {
+                showErrorToast(
+                  "Unable to confirm",
+                  __DEV__
+                    ? `${errorCode}: ${errorMessage}`
+                    : "We could not save your confirmation. Please refresh the order and try again.",
+                );
+              }
+            } finally {
+              mutationInFlight.current = false;
+            }
+          })();
+        },
+      },
+    ],
+  );
+}, [booking]);
 
   /* ==========================================================
      RESULT
@@ -1692,6 +2054,10 @@ export function useCustomerOrder(
     callLoading,
 
     callAvailable,
+
+    reviewPrompt,
+
+    dismissReviewPrompt,
 
     handleOrderExpired,
 

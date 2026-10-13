@@ -1,55 +1,89 @@
 import { useState } from "react";
 
-export function useCustomerFormState() {
-  const [firstName, setFirstName] =
-    useState("");
+export type CustomerFormInitialValues = {
+  firstName?: string;
+  surname?: string;
+  otherName?: string;
+  email?: string;
+  emailOtp?: string;
+  phone?: string;
+  otp?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  password?: string;
+  confirmPassword?: string;
+  acceptedTerms?: boolean;
+  photo?: string | null;
+};
 
-  const [surname, setSurname] =
-    useState("");
+export function useCustomerFormState(
+  initialValues?: CustomerFormInitialValues,
+) {
+  const [firstName, setFirstName] = useState(
+    initialValues?.firstName ?? "",
+  );
 
-  const [otherName, setOtherName] =
-    useState("");
+  const [surname, setSurname] = useState(
+    initialValues?.surname ?? "",
+  );
 
-  const [email, setEmail] =
-    useState("");
+  const [otherName, setOtherName] = useState(
+    initialValues?.otherName ?? "",
+  );
 
-  const [emailOtp, setEmailOtp] =
-    useState("");
+  const [email, setEmail] = useState(
+    initialValues?.email ?? "",
+  );
 
-  const [phone, setPhone] =
-    useState("");
+  const [emailOtp, setEmailOtp] = useState(
+    initialValues?.emailOtp ?? "",
+  );
 
-  const [otp, setOtp] =
-    useState("");
+  const [phone, setPhone] = useState(
+    initialValues?.phone ?? "",
+  );
+
+  const [otp, setOtp] = useState(
+    initialValues?.otp ?? "",
+  );
 
   const [
     emailVerified,
     setEmailVerified,
-  ] = useState(false);
+  ] = useState(
+    initialValues?.emailVerified ?? false,
+  );
 
   const [
     phoneVerified,
     setPhoneVerified,
-  ] = useState(false);
+  ] = useState(
+    initialValues?.phoneVerified ?? false,
+  );
 
-  const [password, setPassword] =
-    useState("");
+  const [password, setPassword] = useState(
+    initialValues?.password ?? "",
+  );
 
   const [
     confirmPassword,
     setConfirmPassword,
-  ] = useState("");
+  ] = useState(
+    initialValues?.confirmPassword ?? "",
+  );
 
   const [
     acceptedTerms,
     setAcceptedTerms,
-  ] = useState(false);
+  ] = useState(
+    initialValues?.acceptedTerms ?? false,
+  );
 
-  const [photo, setPhoto] =
-    useState<string | null>(null);
+  const [photo, setPhoto] = useState<string | null>(
+    initialValues?.photo ?? null,
+  );
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
   return {
     firstName,

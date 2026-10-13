@@ -1,13 +1,13 @@
 export const WorkerColors = {
   // Fixxam Worker Brand
-  primary: "#F59E0B",
-  primaryDark: "#D97706",
-  primaryLight: "#FCD34D",
-  primarySoft: "#FFF7E6",
-  primaryPressed: "#D97706",
-  primaryDisabled: "#FDE68A",
+  primary: "#FF9500",
+  primaryDark: "#F57C00",
+  primaryLight: "#FFB52E",
+  primarySoft: "#FFF4E0",
+  primaryPressed: "#F57C00",
+  primaryDisabled: "#FFD699",
 
-  secondary: "#F59E0B",
+  secondary: "#FFB000",
 
   // Backgrounds
   background: "#F8FAFC",
@@ -24,7 +24,7 @@ export const WorkerColors = {
   // Borders
   border: "#E2E8F0",
   borderStrong: "#CBD5E1",
-  borderFocus: "#F59E0B",
+  borderFocus: "#FF9500",
 
   // Status
   success: "#16A34A",
@@ -40,9 +40,9 @@ export const WorkerColors = {
 
   // Icons
   icon: "#475569",
-  iconActive: "#F59E0B",
+  iconActive: "#FF9500",
   iconBackground: "#F1F5F9",
-  iconActiveBackground: "#FFF7E6",
+  iconActiveBackground: "#FFF4E0",
 
   // Divider
   divider: "#E5E7EB",

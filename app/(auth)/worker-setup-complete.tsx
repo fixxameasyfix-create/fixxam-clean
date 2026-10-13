@@ -16,7 +16,6 @@ import {
 
 import {
   AppButton,
-  AppCard,
   AppIcon,
   AppScreen,
   AppText,
@@ -49,7 +48,7 @@ export default function WorkerSetupComplete() {
   }, []);
 
   /* ==========================================================
-     CONTINUE
+     CONTINUE TO WORKER HOME
   ========================================================== */
 
   const handleContinue =
@@ -85,89 +84,75 @@ export default function WorkerSetupComplete() {
             styles.container
           }
         >
-          <AppCard
+          {/* ==================================================
+              SUCCESS ICON
+          ================================================== */}
+
+          <View
             style={
-              styles.card
+              styles.successIcon
             }
           >
-            {/* ==================================================
-                SUCCESS ICON
-            ================================================== */}
-
-            <View
-              style={
-                styles.successIcon
+            <AppIcon
+              name="success"
+              role="worker"
+              state="active"
+              size="xl"
+              color={
+                Colors.success
               }
-            >
-              <AppIcon
-                name="success"
-                size="xl"
-                color={
-                  Colors.success
-                }
-              />
-            </View>
+            />
+          </View>
 
-            {/* ==================================================
-                TITLE
-            ================================================== */}
+          {/* ==================================================
+              TITLE
+          ================================================== */}
 
-            <AppText
-              variant="heading2"
-              weight="bold"
-              center
-              style={
-                styles.title
+          <AppText
+            variant="heading1"
+            weight="bold"
+            center
+            style={
+              styles.title
+            }
+          >
+            Welcome to Fixxam!
+          </AppText>
+
+          {/* ==================================================
+              DESCRIPTION
+          ================================================== */}
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.description
+            }
+          >
+            Your worker account has been created successfully.
+          </AppText>
+
+          {/* ==================================================
+              CONTINUE
+          ================================================== */}
+
+          <View
+            style={
+              styles.buttonContainer
+            }
+          >
+            <AppButton
+              title="Continue to Dashboard"
+              role="worker"
+              variant="primary"
+              size="md"
+              onPress={
+                handleContinue
               }
-            >
-              Setup Complete
-            </AppText>
-
-            {/* ==================================================
-                DESCRIPTION
-            ================================================== */}
-
-            <AppText
-              variant="body"
-              tone="secondary"
-              center
-              style={
-                styles.description
-              }
-            >
-              Your worker profile has been created successfully.
-            </AppText>
-
-            <AppText
-              variant="body"
-              tone="secondary"
-              center
-              style={
-                styles.subtitle
-              }
-            >
-              You can now start receiving job requests from customers.
-            </AppText>
-
-            {/* ==================================================
-                ACTION
-            ================================================== */}
-
-            <View
-              style={
-                styles.buttonContainer
-              }
-            >
-              <AppButton
-                title="Go to Home"
-                role="worker"
-                variant="primary"
-                onPress={
-                  handleContinue
-                }
-              />
-            </View>
-          </AppCard>
+            />
+          </View>
         </View>
       </AppScreen>
     </>
@@ -190,42 +175,28 @@ const styles =
     container: {
       flex: 1,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.lg,
+      alignItems: "center",
 
       justifyContent:
         "center",
-    },
 
-    card: {
       paddingHorizontal:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.lg,
 
-      paddingVertical:
+      paddingBottom:
         FixxamTokens.spacing.xxl,
-
-      alignItems:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.xl,
-
-      ...FixxamTokens.shadow.card,
     },
 
-    /* ========================================================
-       SUCCESS
-    ======================================================== */
+    /* ==========================================================
+       SUCCESS ICON
+    ========================================================== */
 
     successIcon: {
-      width:
-        FixxamTokens.size.avatarXl,
+      width: 96,
 
-      height:
-        FixxamTokens.size.avatarXl,
+      height: 96,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
       justifyContent:
         "center",
@@ -237,17 +208,21 @@ const styles =
         Colors.successSoft,
     },
 
-    /* ========================================================
-       TEXT
-    ======================================================== */
+    /* ==========================================================
+       TITLE
+    ========================================================== */
 
     title: {
       marginTop:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.xl,
 
       color:
         Colors.textPrimary,
     },
+
+    /* ==========================================================
+       DESCRIPTION
+    ========================================================== */
 
     description: {
       maxWidth: 320,
@@ -261,26 +236,14 @@ const styles =
         Colors.textSecondary,
     },
 
-    subtitle: {
-      maxWidth: 320,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
-
-      lineHeight: 21,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    /* ========================================================
+    /* ==========================================================
        BUTTON
-    ======================================================== */
+    ========================================================== */
 
     buttonContainer: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.xl,
+        FixxamTokens.spacing.xxl,
     },
   });

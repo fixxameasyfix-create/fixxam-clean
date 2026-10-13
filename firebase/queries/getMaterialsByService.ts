@@ -133,6 +133,15 @@ export async function getMaterialsByService(
             ? data.rating
             : 0,
 
+        workerRating:
+          typeof data.workerRating ===
+          "number" &&
+          Number.isFinite(
+            data.workerRating,
+          )
+            ? data.workerRating
+            : 0,
+
         sold:
           typeof data.sold ===
           "number"

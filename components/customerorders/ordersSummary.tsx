@@ -4,20 +4,13 @@ import React, {
 } from "react";
 
 import {
-  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  AppCard,
-  AppIcon,
   AppText,
 } from "@/components/ui";
-
-import type {
-  AppIconName,
-} from "@/components/ui/AppIcon";
 
 import {
   Colors,
@@ -58,8 +51,6 @@ type StatProps = {
 
   value: number;
 
-  icon: AppIconName;
-
   tone: StatTone;
 };
 
@@ -71,14 +62,18 @@ function safeCount(
   value: number,
 ): number {
   if (
-    !Number.isFinite(value)
+    !Number.isFinite(
+      value,
+    )
   ) {
     return 0;
   }
 
   return Math.max(
     0,
-    Math.floor(value),
+    Math.floor(
+      value,
+    ),
   );
 }
 
@@ -88,8 +83,6 @@ function safeCount(
 
 function OrderSummary({
   counts,
-  authenticated,
-  onManage,
 }: Props) {
   const safeCounts =
     useMemo(
@@ -135,98 +128,44 @@ function OrderSummary({
     );
 
   return (
-    <AppCard
-      role="customer"
-      variant="outlined"
+    <View
       style={
-        styles.card
+        styles.container
       }
     >
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
+      {/* ======================================================
+          TOTAL
+      ====================================================== */}
 
       <View
         style={
-          styles.header
+          styles.heading
         }
       >
-        <View
+        <AppText
+          variant="bodyLarge"
+          weight="bold"
+        >
+          {total}{" "}
+          {total === 1
+            ? "order"
+            : "orders"}
+        </AppText>
+
+        <AppText
+          variant="caption"
+          tone="secondary"
           style={
-            styles.heading
+            styles.subtitle
           }
         >
-          <AppText
-            variant="bodyLarge"
-            weight="bold"
-            style={
-              styles.title
-            }
-          >
-            Order Overview
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.subtitle
-            }
-          >
-            {total}{" "}
-            {total === 1
-              ? "order"
-              : "orders"}{" "}
-            in total
-          </AppText>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Manage orders"
-          accessibilityHint="Opens your order management screen"
-          accessibilityState={{
-            disabled:
-              !authenticated,
-          }}
-          disabled={
-            !authenticated
-          }
-          hitSlop={8}
-          onPress={
-            onManage
-          }
-          style={({
-            pressed,
-          }) => [
-            styles.manageButton,
-
-            !authenticated
-              ? styles.manageDisabled
-              : null,
-
-            pressed &&
-            authenticated
-              ? styles.pressed
-              : null,
-          ]}
-        >
-          <AppIcon
-            name="settings"
-            role="customer"
-            size="sm"
-            state={
-              authenticated
-                ? "active"
-                : "muted"
-            }
-          />
-        </Pressable>
+          Your service requests
+        </AppText>
       </View>
 
-      {/* ========================================================
-          STATS
-      ======================================================== */}
+      {/* ======================================================
+          COMPACT STATS
+      ====================================================== */}
 
       <View
         style={
@@ -238,7 +177,6 @@ function OrderSummary({
           value={
             safeCounts.pending
           }
-          icon="clock"
           tone="pending"
         />
 
@@ -247,7 +185,6 @@ function OrderSummary({
           value={
             safeCounts.active
           }
-          icon="professional"
           tone="active"
         />
 
@@ -256,7 +193,6 @@ function OrderSummary({
           value={
             safeCounts.completed
           }
-          icon="success"
           tone="completed"
         />
 
@@ -265,11 +201,10 @@ function OrderSummary({
           value={
             safeCounts.cancelled
           }
-          icon="error"
           tone="cancelled"
         />
       </View>
-    </AppCard>
+    </View>
   );
 }
 
@@ -286,11 +221,10 @@ const Stat =
     function Stat({
       label,
       value,
-      icon,
       tone,
     }: StatProps) {
-      const appearance =
-        getStatAppearance(
+      const color =
+        getToneColor(
           tone,
         );
 
@@ -299,65 +233,38 @@ const Stat =
           accessible
           accessibilityRole="text"
           accessibilityLabel={`${label}: ${value}`}
-          style={[
-            styles.stat,
-
-            {
-              backgroundColor:
-                appearance.backgroundColor,
-
-              borderColor:
-                appearance.borderColor,
-            },
-          ]}
+          style={
+            styles.stat
+          }
         >
           <View
             style={[
-              styles.statIcon,
+              styles.dot,
 
               {
                 backgroundColor:
-                  appearance.iconBackgroundColor,
+                  color,
               },
             ]}
-          >
-            <AppIcon
-              name={
-                icon
-              }
-              role="customer"
-              size="sm"
-              state={
-                appearance.iconState
-              }
-            />
-          </View>
+          />
 
-          <View
-            style={
-              styles.statContent
-            }
+          <AppText
+            variant="caption"
+            weight="bold"
+            style={{
+              color,
+            }}
           >
-            <AppText
-              variant="heading3"
-              weight="bold"
-              numberOfLines={1}
-              style={{
-                color:
-                  appearance.valueColor,
-              }}
-            >
-              {value}
-            </AppText>
+            {value}
+          </AppText>
 
-            <AppText
-              variant="caption"
-              tone="secondary"
-              numberOfLines={1}
-            >
-              {label}
-            </AppText>
-          </View>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+          >
+            {label}
+          </AppText>
         </View>
       );
     },
@@ -367,85 +274,25 @@ Stat.displayName =
   "OrderSummaryStat";
 
 /* ==============================================================
-   APPEARANCE
+   TONE
 ============================================================== */
 
-function getStatAppearance(
+function getToneColor(
   tone: StatTone,
-) {
+): string {
   switch (tone) {
     case "pending":
-      return {
-        backgroundColor:
-          Colors.warningSoft,
-
-        iconBackgroundColor:
-          Colors.warningSoft,
-
-        borderColor:
-          Colors.warning,
-
-        valueColor:
-          Colors.warning,
-
-        iconState:
-          "warning" as const,
-      };
+      return Colors.warning;
 
     case "active":
-      return {
-        backgroundColor:
-          CustomerColors.primarySoft,
-
-        iconBackgroundColor:
-          CustomerColors.primarySoft,
-
-        borderColor:
-          CustomerColors.primary,
-
-        valueColor:
-          CustomerColors.primary,
-
-        iconState:
-          "active" as const,
-      };
+      return CustomerColors.primary;
 
     case "completed":
-      return {
-        backgroundColor:
-          Colors.successSoft,
-
-        iconBackgroundColor:
-          Colors.successSoft,
-
-        borderColor:
-          Colors.success,
-
-        valueColor:
-          Colors.success,
-
-        iconState:
-          "success" as const,
-      };
+      return Colors.success;
 
     case "cancelled":
     default:
-      return {
-        backgroundColor:
-          Colors.errorSoft,
-
-        iconBackgroundColor:
-          Colors.errorSoft,
-
-        borderColor:
-          Colors.error,
-
-        valueColor:
-          Colors.error,
-
-        iconState:
-          "error" as const,
-      };
+      return Colors.error;
   }
 }
 
@@ -455,122 +302,47 @@ function getStatAppearance(
 
 const styles =
   StyleSheet.create({
-    card: {
-      width: "100%",
+    container: {
+      width:
+        "100%",
 
       marginTop:
-        FixxamTokens.spacing.sm,
-
-      padding:
-        FixxamTokens.spacing.lg,
-    },
-
-    /* ==========================================================
-       HEADER
-    ========================================================== */
-
-    header: {
-      flexDirection:
-        "row",
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "space-between",
-
-      gap:
         FixxamTokens.spacing.md,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.xs,
     },
 
     heading: {
-      flex: 1,
-
-      minWidth: 0,
-    },
-
-    title: {
-      color:
-        Colors.textPrimary,
+      width:
+        "100%",
     },
 
     subtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
     },
-
-    manageButton: {
-      width:
-        FixxamTokens.size.minimumTouchTarget,
-
-      height:
-        FixxamTokens.size.minimumTouchTarget,
-
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    manageDisabled: {
-      backgroundColor:
-        Colors.disabledBackground,
-
-      opacity:
-        FixxamTokens.motion.disabledOpacity,
-    },
-
-    pressed: {
-      opacity:
-        FixxamTokens.motion.pressedOpacity,
-
-      transform: [
-        {
-          scale:
-            FixxamTokens.motion.scalePressed,
-        },
-      ],
-    },
-
-    /* ==========================================================
-       STATS
-    ========================================================== */
 
     stats: {
-      marginTop:
-        FixxamTokens.spacing.lg,
-
       flexDirection:
         "row",
 
       flexWrap:
         "wrap",
 
-      gap:
+      columnGap:
+        FixxamTokens.spacing.lg,
+
+      rowGap:
         FixxamTokens.spacing.sm,
+
+      marginTop:
+        FixxamTokens.spacing.md,
     },
 
     stat: {
-      flexGrow: 1,
-
-      flexBasis: "47%",
-
-      minWidth: 0,
-
-      minHeight:
-        FixxamTokens.size.cardMinHeight,
-
-      padding:
-        FixxamTokens.spacing.md,
+      minWidth:
+        "42%",
 
       flexDirection:
         "row",
@@ -578,37 +350,21 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
-
-      borderRadius:
-        FixxamTokens.radius.md,
+      gap:
+        FixxamTokens.spacing.xs,
     },
 
-    statIcon: {
+    dot: {
       width:
-        FixxamTokens.size.iconBox,
+        7,
 
       height:
-        FixxamTokens.size.iconBox,
+        7,
 
-      flexShrink: 0,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
+      flexShrink:
+        0,
 
       borderRadius:
-        FixxamTokens.radius.md,
-    },
-
-    statContent: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.radius.full,
     },
   });

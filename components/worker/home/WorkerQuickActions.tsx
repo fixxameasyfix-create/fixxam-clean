@@ -143,21 +143,35 @@ function WorkerQuickActions() {
 
         {
           title:
-            "Market",
+            "My Shop",
+
+          icon:
+            "shop",
+
+          route:
+            "/(worker)/my-shop",
+        },
+
+        {
+          title:
+            "Add Products",
 
           icon:
             "cart",
 
           route:
-            "/(worker)/(tabs)/my-products",
+            "/(worker)/products/add",
         },
 
         {
           title:
-            "More",
+            "My Contacts",
 
           icon:
-            "grid",
+            "phone",
+
+          route:
+            "/(worker)/contacts/my-contacts",
         },
       ],
       [
@@ -233,10 +247,6 @@ function WorkerQuickActions() {
                     : null,
                 ]}
               >
-                {/* ============================================
-                    ICON
-                ============================================ */}
-
                 <View
                   style={
                     styles.iconWrapper
@@ -252,10 +262,6 @@ function WorkerQuickActions() {
                       WorkerColors.primary
                     }
                   />
-
-                  {/* ==========================================
-                      BADGE
-                  ========================================== */}
 
                   {item.badge ? (
                     <View
@@ -275,10 +281,6 @@ function WorkerQuickActions() {
                     </View>
                   ) : null}
                 </View>
-
-                {/* ============================================
-                    TITLE
-                ============================================ */}
 
                 <AppText
                   variant="caption"
@@ -317,10 +319,6 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
-
     container: {
       width: "100%",
 
@@ -343,10 +341,6 @@ const styles =
 
       ...FixxamTokens.shadow.card,
     },
-
-    /* ========================================================
-       GRID
-    ======================================================== */
 
     grid: {
       flexDirection:
@@ -375,10 +369,6 @@ const styles =
         "center",
     },
 
-    /* ========================================================
-       ICON
-    ======================================================== */
-
     iconWrapper: {
       width:
         FixxamTokens.size.iconBox,
@@ -402,10 +392,6 @@ const styles =
         WorkerColors.primarySoft,
     },
 
-    /* ========================================================
-       TITLE
-    ======================================================== */
-
     title: {
       width: "100%",
 
@@ -415,10 +401,6 @@ const styles =
       color:
         Colors.textSecondary,
     },
-
-    /* ========================================================
-       BADGE
-    ======================================================== */
 
     badge: {
       position:
@@ -461,10 +443,6 @@ const styles =
       color:
         Colors.textInverse,
     },
-
-    /* ========================================================
-       INTERACTION
-    ======================================================== */
 
     pressed: {
       opacity:

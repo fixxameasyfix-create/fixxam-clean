@@ -36,6 +36,36 @@ export type BookCardItem = {
 ============================================================== */
 
 export const bookCards: BookCardItem[] = [
+  /* ============================================================
+     BOOK AUTOMATICALLY
+  ============================================================ */
+
+ {
+  title:
+    "Book Automatically",
+
+  description:
+    "Let Fixxam find the right worker nearby.",
+
+  icon:
+  "calendar-check-outline",
+
+  iconColor:
+    "#F97316",
+
+  iconBackground:
+    "#FFF7ED",
+
+  onPress: () =>
+    router.push(
+      "/(customer)/ai-booking",
+    ),
+},
+
+  /* ============================================================
+     FIND WORKER NEARBY
+  ============================================================ */
+
   {
     title:
       "Find Worker Nearby",
@@ -57,6 +87,36 @@ export const bookCards: BookCardItem[] = [
         "/(customer)/nearby-workers",
       ),
   },
+
+  /* ============================================================
+     FIND SHOP NEARBY
+  ============================================================ */
+
+  {
+    title:
+      "Find Shop Nearby",
+
+    description:
+      "Shop for services near you.",
+
+    icon:
+      "storefront-outline",
+
+    iconColor:
+      "#0D9488",
+
+    iconBackground:
+      "#F0FDFA",
+
+    onPress: () =>
+      router.push(
+        "/(customer)/find-shop",
+      ),
+  },
+
+  /* ============================================================
+     CHOOSE YOUR SERVICES
+  ============================================================ */
 
   {
     title:
@@ -80,6 +140,10 @@ export const bookCards: BookCardItem[] = [
       ),
   },
 
+  /* ============================================================
+     HELP ME FIX
+  ============================================================ */
+
   {
     title:
       "Help Me Fix",
@@ -101,6 +165,10 @@ export const bookCards: BookCardItem[] = [
         "/(customer)/ai",
       ),
   },
+
+  /* ============================================================
+     FIX YOURSELF
+  ============================================================ */
 
   {
     title:
@@ -124,6 +192,10 @@ export const bookCards: BookCardItem[] = [
       ),
   },
 
+  /* ============================================================
+     BUY YOUR SPARE PARTS
+  ============================================================ */
+
   {
     title:
       "Buy Your Spare Parts",
@@ -146,6 +218,10 @@ export const bookCards: BookCardItem[] = [
       ),
   },
 
+  /* ============================================================
+     FIND MATERIALS
+  ============================================================ */
+
   {
     title:
       "Find Materials",
@@ -167,6 +243,10 @@ export const bookCards: BookCardItem[] = [
         "/(customer)/find-materials/services",
       ),
   },
+
+  /* ============================================================
+     GET WORKER BY CALL
+  ============================================================ */
 
   {
     title:

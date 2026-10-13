@@ -18,10 +18,19 @@ import {
   FixxamTokens,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 type Props = {
   disabled?: boolean;
+
   onBack: () => void;
 };
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function MakeOfferHeader({
   disabled = false,
@@ -30,9 +39,13 @@ function MakeOfferHeader({
   return (
     <View
       style={
-        styles.header
+        styles.container
       }
     >
+      {/* ========================================================
+          BACK
+      ======================================================== */}
+
       <Pressable
         onPress={
           onBack
@@ -40,8 +53,10 @@ function MakeOfferHeader({
         disabled={
           disabled
         }
+        hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel="Go back"
+        accessibilityHint="Return to the order"
         accessibilityState={{
           disabled,
         }}
@@ -54,27 +69,36 @@ function MakeOfferHeader({
           !disabled
             ? styles.pressed
             : null,
+
+          disabled
+            ? styles.disabled
+            : null,
         ]}
       >
         <AppIcon
           name="back"
-          size="md"
+          size="xs"
           color={
             Colors.textPrimary
           }
         />
       </Pressable>
 
+      {/* ========================================================
+          TITLE
+      ======================================================== */}
+
       <View
         style={
-          styles.headerText
+          styles.content
         }
       >
         <AppText
-          variant="heading2"
+          variant="bodyLarge"
           weight="bold"
+          numberOfLines={1}
           style={
-            styles.headerTitle
+            styles.title
           }
         >
           Make Offer
@@ -83,31 +107,48 @@ function MakeOfferHeader({
         <AppText
           variant="caption"
           tone="secondary"
+          numberOfLines={1}
           style={
-            styles.headerSubtitle
+            styles.subtitle
           }
         >
-          Send your price to the customer.
+          Set your price for this job
         </AppText>
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MakeOfferHeader.displayName =
+  "MakeOfferHeader";
+
 export default memo(
   MakeOfferHeader,
 );
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
-    header: {
-      width: "100%",
+    /* ==========================================================
+       CONTAINER
+    ========================================================== */
+
+    container: {
+      width:
+        "100%",
 
       minHeight:
-        FixxamTokens.size.headerHeight,
+        60,
 
-      paddingBottom:
-        FixxamTokens.spacing.sm,
+      paddingVertical:
+        FixxamTokens.spacing.xs,
 
       flexDirection:
         "row",
@@ -116,14 +157,21 @@ const styles =
         "center",
     },
 
+    /* ==========================================================
+       BACK
+    ========================================================== */
+
     backButton: {
       width:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
       height:
-        FixxamTokens.size.minimumTouchTarget,
+        FixxamTokens.size
+          .minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -131,7 +179,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -141,31 +190,42 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
-    headerText: {
-      flex: 1,
+    /* ==========================================================
+       CONTENT
+    ========================================================== */
 
-      minWidth: 0,
+    content: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
     },
 
-    headerTitle: {
+    title: {
       color:
         Colors.textPrimary,
     },
 
-    headerSubtitle: {
+    subtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
+
+      lineHeight:
+        16,
 
       color:
         Colors.textSecondary,
     },
+
+    /* ==========================================================
+       STATES
+    ========================================================== */
 
     pressed: {
       opacity:
@@ -179,5 +239,11 @@ const styles =
               .scalePressed,
         },
       ],
+    },
+
+    disabled: {
+      opacity:
+        FixxamTokens.motion
+          .disabledOpacity,
     },
   });

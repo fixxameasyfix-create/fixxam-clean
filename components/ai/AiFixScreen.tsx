@@ -8,6 +8,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -247,6 +248,8 @@ export default function AiFixScreen() {
     conversationMessages,
     isTyping,
 
+    currentChatLoaded,
+
     sendMessage,
     receiveMessage,
     setTyping,
@@ -258,7 +261,8 @@ export default function AiFixScreen() {
 
     clearAndStartNew,
     saveAndStartNew,
-  } = useAiChat();
+  } =
+    useAiChat();
 
   /* ============================================================
      AI CONVERSATION
@@ -272,10 +276,12 @@ export default function AiFixScreen() {
             (
               item,
             ) =>
-              (item.role ===
-                "user" ||
+              (
                 item.role ===
-                  "assistant") &&
+                  "user" ||
+                item.role ===
+                  "assistant"
+              ) &&
               typeof item.content ===
                 "string",
           )
@@ -325,11 +331,19 @@ export default function AiFixScreen() {
       (
         action: string,
       ) => {
+        if (
+          !currentChatLoaded
+        ) {
+          return;
+        }
+
         setMessage(
           `I need help with ${action.toLowerCase()}.`,
         );
       },
-      [],
+      [
+        currentChatLoaded,
+      ],
     );
 
   /* ============================================================
@@ -400,6 +414,18 @@ export default function AiFixScreen() {
         false,
       );
 
+      /*
+       * Do not modify the current
+       * conversation before restoration
+       * has completed.
+       */
+
+      if (
+        !currentChatLoaded
+      ) {
+        return;
+      }
+
       if (
         !hasCurrentChat
       ) {
@@ -412,6 +438,7 @@ export default function AiFixScreen() {
         true,
       );
     }, [
+      currentChatLoaded,
       hasCurrentChat,
       resetComposer,
     ]);
@@ -429,6 +456,12 @@ export default function AiFixScreen() {
 
   const handleClearAndNew =
     useCallback(() => {
+      if (
+        !currentChatLoaded
+      ) {
+        return;
+      }
+
       setNewChatModalVisible(
         false,
       );
@@ -438,6 +471,7 @@ export default function AiFixScreen() {
       resetComposer();
     }, [
       clearAndStartNew,
+      currentChatLoaded,
       resetComposer,
     ]);
 
@@ -447,14 +481,20 @@ export default function AiFixScreen() {
 
   const handleSaveAndNew =
     useCallback(async () => {
+      if (
+        !currentChatLoaded
+      ) {
+        return;
+      }
+
       try {
         const saved =
           await saveAndStartNew();
 
         if (!saved) {
           Alert.alert(
-            "History Full",
-            "You already have 5 saved chats. Delete an old chat from History before saving this one.",
+            "Unable to save chat",
+            "This conversation could not be saved right now. Please try again.",
           );
 
           return;
@@ -465,24 +505,23 @@ export default function AiFixScreen() {
         );
 
         resetComposer();
-      } catch (error) {
-        console.error(
-          "SAVE_AND_NEW_CHAT_ERROR:",
-          error,
-        );
-
-        setNewChatModalVisible(
-          false,
-        );
-
-        resetComposer();
+      } catch (
+        error: unknown
+      ) {
+        if (__DEV__) {
+          console.warn(
+            "SAVE_AND_NEW_CHAT_ERROR:",
+            error,
+          );
+        }
 
         Alert.alert(
           "Save Failed",
-          "The chat could not be saved to History. A new chat has been started.",
+          "The chat could not be saved. Your current conversation has not been intentionally changed.",
         );
       }
     }, [
+      currentChatLoaded,
       resetComposer,
       saveAndStartNew,
     ]);
@@ -498,6 +537,7 @@ export default function AiFixScreen() {
       );
 
       if (
+        !currentChatLoaded ||
         !hasCurrentChat
       ) {
         return;
@@ -507,12 +547,15 @@ export default function AiFixScreen() {
         true,
       );
     }, [
+      currentChatLoaded,
       hasCurrentChat,
     ]);
 
   const handleCancelClearChat =
     useCallback(() => {
-      if (clearingChat) {
+      if (
+        clearingChat
+      ) {
         return;
       }
 
@@ -525,7 +568,10 @@ export default function AiFixScreen() {
 
   const handleDeleteChat =
     useCallback(() => {
-      if (clearingChat) {
+      if (
+        clearingChat ||
+        !currentChatLoaded
+      ) {
         return;
       }
 
@@ -541,11 +587,15 @@ export default function AiFixScreen() {
         setClearChatModalVisible(
           false,
         );
-      } catch (error) {
-        console.error(
-          "CLEAR_CHAT_ERROR:",
-          error,
-        );
+      } catch (
+        error: unknown
+      ) {
+        if (__DEV__) {
+          console.warn(
+            "CLEAR_CHAT_ERROR:",
+            error,
+          );
+        }
 
         Alert.alert(
           "Unable to clear chat",
@@ -559,6 +609,7 @@ export default function AiFixScreen() {
     }, [
       clearChat,
       clearingChat,
+      currentChatLoaded,
       resetComposer,
     ]);
 
@@ -572,8 +623,11 @@ export default function AiFixScreen() {
         message.trim();
 
       if (
-        (!text &&
-          !selectedImageBase64) ||
+        !currentChatLoaded ||
+        (
+          !text &&
+          !selectedImageBase64
+        ) ||
         isTyping
       ) {
         return;
@@ -615,6 +669,9 @@ export default function AiFixScreen() {
 
       /* --------------------------------------------------------
          LOCAL USER MESSAGE
+
+         useAiChat automatically persists
+         this current conversation.
       -------------------------------------------------------- */
 
       sendMessage(
@@ -628,7 +685,9 @@ export default function AiFixScreen() {
 
       resetComposer();
 
-      setTyping(true);
+      setTyping(
+        true,
+      );
 
       try {
         /* ------------------------------------------------------
@@ -641,7 +700,8 @@ export default function AiFixScreen() {
               ...aiConversationMessages,
 
               {
-                role: "user",
+                role:
+                  "user",
 
                 content:
                   userContent,
@@ -674,18 +734,23 @@ export default function AiFixScreen() {
           error &&
           typeof error ===
             "object"
-            ? (error as {
-                code?: string;
-                message?: string;
-              })
+            ? (
+                error as {
+                  code?: string;
+
+                  message?: string;
+                }
+              )
             : null;
 
         const errorCode =
-          firebaseError?.code ??
+          firebaseError
+            ?.code ??
           "";
 
         const errorMessage =
-          firebaseError?.message ??
+          firebaseError
+            ?.message ??
           "";
 
         const normalizedError =
@@ -718,20 +783,33 @@ export default function AiFixScreen() {
           return;
         }
 
-        console.error(
-          "Customer AI request failed:",
-          error,
-        );
+        if (__DEV__) {
+          console.warn(
+            "Customer AI request failed",
+            {
+              code:
+                firebaseError
+                  ?.code,
+
+              message:
+                firebaseError
+                  ?.message,
+            },
+          );
+        }
 
         Alert.alert(
           "AI Assistant",
           "We couldn't process your request right now. Please try again.",
         );
       } finally {
-        setTyping(false);
+        setTyping(
+          false,
+        );
       }
     }, [
       aiConversationMessages,
+      currentChatLoaded,
       isTyping,
       message,
       openLoginModal,
@@ -774,7 +852,9 @@ export default function AiFixScreen() {
               },
             );
 
-          if (!base64) {
+          if (
+            !base64
+          ) {
             throw new Error(
               "Unable to read selected image.",
             );
@@ -792,11 +872,15 @@ export default function AiFixScreen() {
             asset.mimeType ??
               "image/jpeg",
           );
-        } catch (error) {
-          console.error(
-            "IMAGE_LOAD_ERROR:",
-            error,
-          );
+        } catch (
+          error: unknown
+        ) {
+          if (__DEV__) {
+            console.warn(
+              "IMAGE_LOAD_ERROR:",
+              error,
+            );
+          }
 
           Alert.alert(
             "Image Error",
@@ -814,6 +898,12 @@ export default function AiFixScreen() {
   const handleCamera =
     useCallback(
       async () => {
+        if (
+          !currentChatLoaded
+        ) {
+          return;
+        }
+
         try {
           const permission =
             await ImagePicker
@@ -840,7 +930,8 @@ export default function AiFixScreen() {
                 allowsEditing:
                   false,
 
-                quality: 0.8,
+                quality:
+                  0.8,
               });
 
           if (
@@ -851,11 +942,15 @@ export default function AiFixScreen() {
               result.assets[0],
             );
           }
-        } catch (error) {
-          console.error(
-            "CAMERA_ERROR:",
-            error,
-          );
+        } catch (
+          error: unknown
+        ) {
+          if (__DEV__) {
+            console.warn(
+              "CAMERA_ERROR:",
+              error,
+            );
+          }
 
           Alert.alert(
             "Camera Error",
@@ -864,6 +959,7 @@ export default function AiFixScreen() {
         }
       },
       [
+        currentChatLoaded,
         loadImage,
       ],
     );
@@ -875,6 +971,12 @@ export default function AiFixScreen() {
   const handleGallery =
     useCallback(
       async () => {
+        if (
+          !currentChatLoaded
+        ) {
+          return;
+        }
+
         try {
           const permission =
             await ImagePicker
@@ -902,7 +1004,8 @@ export default function AiFixScreen() {
                   allowsEditing:
                     false,
 
-                  quality: 0.8,
+                  quality:
+                    0.8,
                 },
               );
 
@@ -914,11 +1017,15 @@ export default function AiFixScreen() {
               result.assets[0],
             );
           }
-        } catch (error) {
-          console.error(
-            "GALLERY_ERROR:",
-            error,
-          );
+        } catch (
+          error: unknown
+        ) {
+          if (__DEV__) {
+            console.warn(
+              "GALLERY_ERROR:",
+              error,
+            );
+          }
 
           Alert.alert(
             "Gallery Error",
@@ -927,6 +1034,7 @@ export default function AiFixScreen() {
         }
       },
       [
+        currentChatLoaded,
         loadImage,
       ],
     );
@@ -937,6 +1045,12 @@ export default function AiFixScreen() {
 
   const handleRemoveImage =
     useCallback(() => {
+      if (
+        !currentChatLoaded
+      ) {
+        return;
+      }
+
       setSelectedImage(
         null,
       );
@@ -948,106 +1062,72 @@ export default function AiFixScreen() {
       setSelectedImageMimeType(
         null,
       );
-    }, []);
+    }, [
+      currentChatLoaded,
+    ]);
 
   /* ============================================================
      UI
   ============================================================ */
 
-  return (
-    <AppScreen
-      role="customer"
-      padded={false}
-      edges={[
-        "bottom",
-      ]}
+ return (
+  <AppScreen
+    role="customer"
+    padded={false}
+    scrollEnabled={false}
+    keyboardAvoiding={false}
+    edges={["bottom"]}
+    style={styles.screen}
+  >
+    <AiHeader onMenuPress={handleOpenMenu} />
+
+    <KeyboardAvoidingView
+      style={styles.keyboard}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
     >
-      {/* ======================================================
-          HEADER
-      ====================================================== */}
+      <View style={styles.content}>
+        {!currentChatLoaded ? (
+          <View style={styles.restoreState}>
+            <ActivityIndicator
+              size="small"
+              color={CustomerColors.primary}
+            />
+            <AppText
+              variant="caption"
+              tone="secondary"
+              center
+              style={styles.restoreText}
+            >
+              Restoring your conversation...
+            </AppText>
+          </View>
+        ) : messages.length === 0 ? (
+          <AiWelcome
+            onQuickActionPress={handleQuickActionPress}
+          />
+        ) : (
+          <MessageList
+            messages={messages}
+            isTyping={isTyping}
+          />
+        )}
+      </View>
 
-      <AiHeader
-        onMenuPress={
-          handleOpenMenu
-        }
+      <AiComposer
+        value={message}
+        onChangeText={setMessage}
+        onSend={handleSend}
+        onCameraPress={handleCamera}
+        onGalleryPress={handleGallery}
+        selectedImage={selectedImage}
+        onRemoveImage={handleRemoveImage}
+        disabled={!currentChatLoaded}
+        isSending={isTyping}
       />
+    </KeyboardAvoidingView>
 
-      {/* ======================================================
-          KEYBOARD AREA
-      ====================================================== */}
-
-      <KeyboardAvoidingView
-        style={
-          styles.keyboard
-        }
-        behavior={
-          Platform.OS ===
-          "ios"
-            ? "padding"
-            : "height"
-        }
-        keyboardVerticalOffset={
-          0
-        }
-      >
-        {/* ====================================================
-            CONTENT
-        ==================================================== */}
-
-        <View
-          style={
-            styles.content
-          }
-        >
-          {messages.length ===
-          0 ? (
-            <AiWelcome
-              onQuickActionPress={
-                handleQuickActionPress
-              }
-            />
-          ) : (
-            <MessageList
-              messages={
-                messages
-              }
-              isTyping={
-                isTyping
-              }
-            />
-          )}
-        </View>
-
-        {/* ====================================================
-            COMPOSER
-        ==================================================== */}
-
-        <AiComposer
-          value={message}
-          onChangeText={
-            setMessage
-          }
-          onSend={
-            handleSend
-          }
-          onCameraPress={
-            handleCamera
-          }
-          onGalleryPress={
-            handleGallery
-          }
-          selectedImage={
-            selectedImage
-          }
-          onRemoveImage={
-            handleRemoveImage
-          }
-          disabled={false}
-          isSending={
-            isTyping
-          }
-        />
-      </KeyboardAvoidingView>
+    
 
       {/* ======================================================
           MENU
@@ -1137,6 +1217,10 @@ export default function AiFixScreen() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       MAIN
+    ======================================================== */
+
     keyboard: {
       flex: 1,
 
@@ -1150,6 +1234,30 @@ const styles =
       flex: 1,
 
       minHeight: 0,
+    },
+
+    /* ========================================================
+       RESTORE STATE
+    ======================================================== */
+
+    restoreState: {
+      flex: 1,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        FixxamTokens.spacing
+          .xl,
+    },
+
+    restoreText: {
+      marginTop:
+        FixxamTokens.spacing
+          .sm,
     },
 
     /* ========================================================
@@ -1237,6 +1345,12 @@ const styles =
     },
 
     modalAction: {
-      minWidth: 100,
+      minWidth:
+        100,
     },
+
+    screen: {
+  flex: 1,
+},
+
   });

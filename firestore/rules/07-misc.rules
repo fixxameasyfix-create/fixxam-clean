@@ -1,0 +1,52 @@
+/* ============================================================
+   FIXXAM — MISCELLANEOUS FIRESTORE RULES
+
+   IMPORTANT:
+   This is a PARTIAL Firestore rules source file.
+
+   Do NOT add:
+   - rules_version
+   - service cloud.firestore
+   - match /databases/{database}/documents
+   - closing braces for the root wrapper
+
+   The build script manages the Firestore wrapper.
+============================================================ */
+
+
+/* ============================================================
+   WORKER CONTACTS
+
+   Structure:
+
+   workerContacts/{workerId}/customers/{customerId}
+
+   Contacts are created by the trusted backend after a valid
+   customer -> worker call relationship is established.
+
+   The worker can read only their own contacts.
+
+   Clients are not allowed to create, update, or delete
+   contact records directly.
+============================================================ */
+
+match /workerContacts/{workerId}/customers/{customerId} {
+
+  allow read:
+    if signedIn()
+    && request.auth.uid == workerId;
+
+  allow create, update, delete:
+    if false;
+}
+
+
+/* ============================================================
+   DEFAULT FALLBACK
+
+   Unknown Firestore paths are denied by default.
+============================================================ */
+
+match /{document=**} {
+  allow read, write: if false;
+}

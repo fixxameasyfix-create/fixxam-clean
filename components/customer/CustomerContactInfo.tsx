@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useCallback,
 } from "react";
 
 import {
@@ -8,33 +9,30 @@ import {
 } from "react-native";
 
 import {
+  AppInput,
   AppText,
 } from "@/components/ui";
 
-import EmailOtpField from "@/components/auth/EmailOtpField";
-import PhoneOtpField from "@/components/auth/PhoneOtpField";
+import OtpVerification from "@/components/auth/OtpVerification";
 
 import {
-  Colors,
   FixxamTokens,
 } from "@/theme";
 
-/* ==============================================================
-   TYPES
-============================================================== */
+export type CustomerRegistrationSource =
+  | "new"
+  | "worker";
+
+export type CustomerPrefillMode =
+  | "worker"
+  | "blank";
 
 type Props = {
   email: string;
 
   emailOtp: string;
 
-  phone: string;
-
-  otp: string;
-
   emailVerified: boolean;
-
-  phoneVerified: boolean;
 
   setEmail: (
     value: string,
@@ -44,149 +42,207 @@ type Props = {
     value: string,
   ) => void;
 
-  setPhone: (
-    value: string,
-  ) => void;
-
-  setOtp: (
-    value: string,
-  ) => void;
-
   setEmailVerified: (
     value: boolean,
   ) => void;
 
-  setPhoneVerified: (
-    value: boolean,
+  onExistingAccount?: (
+    email: string,
   ) => void;
-};
 
-/* ==============================================================
-   COMPONENT
-============================================================== */
+  onOtpSent?: () => void;
+
+  registrationSource?: CustomerRegistrationSource;
+
+  prefillMode?: CustomerPrefillMode;
+};
 
 function CustomerContactInfo({
   email,
   emailOtp,
-  phone,
-  otp,
   emailVerified,
-  phoneVerified,
   setEmail,
   setEmailOtp,
-  setPhone,
-  setOtp,
   setEmailVerified,
-  setPhoneVerified,
+  onExistingAccount,
+  onOtpSent,
+  registrationSource = "new",
+  prefillMode = "blank",
 }: Props) {
+  const isWorkerRegistration =
+    registrationSource === "worker";
+
+  const isWorkerPrefill =
+    isWorkerRegistration &&
+    prefillMode === "worker";
+
+  /* ============================================================
+     EMAIL CHANGE
+  ============================================================ */
+
+  const handleEmailChange =
+    useCallback(
+      (value: string) => {
+        /*
+         * Worker-detail registration uses the
+         * authenticated Firebase account email.
+         *
+         * It must not be changed from this screen.
+         */
+        if (isWorkerPrefill) {
+          return;
+        }
+
+        const normalizedValue =
+          value.trim();
+
+        /*
+         * Changing the email invalidates
+         * the previous verification state.
+         */
+        if (
+          normalizedValue !==
+          email
+        ) {
+          setEmailVerified(false);
+          setEmailOtp("");
+        }
+
+        setEmail(
+          normalizedValue,
+        );
+      },
+      [
+        email,
+        isWorkerPrefill,
+        setEmail,
+        setEmailOtp,
+        setEmailVerified,
+      ],
+    );
+
+  /* ============================================================
+     OTP SENT
+  ============================================================ */
+
+  const handleOtpSent =
+    useCallback(() => {
+      onOtpSent?.();
+    }, [onOtpSent]);
+
+  /* ============================================================
+     EXISTING ACCOUNT
+  ============================================================ */
+
+  const handleExistingAccount =
+    useCallback(
+      (existingEmail: string) => {
+        /*
+         * Existing-account handling only applies
+         * to the normal customer registration flow.
+         */
+        if (isWorkerRegistration) {
+          return;
+        }
+
+        /*
+         * Do not navigate here.
+         *
+         * CustomerSignup owns the decision screen.
+         */
+        onExistingAccount?.(
+          existingEmail,
+        );
+      },
+      [
+        isWorkerRegistration,
+        onExistingAccount,
+      ],
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
     <View
-      style={
-        styles.container
-      }
+      style={styles.container}
     >
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <AppText
-        variant="heading2"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        How can we reach you?
-      </AppText>
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        style={
-          styles.subtitle
-        }
-      >
-        Add your contact details. Verify at least one to continue.
-      </AppText>
-
-      {/* ========================================================
-          EMAIL
-      ======================================================== */}
-
       <View
-        style={
-          styles.emailSection
-        }
+        style={styles.inputSection}
       >
-        <EmailOtpField
-          email={
-            email
-          }
-          otp={
-            emailOtp
-          }
-          onEmailChange={
-            setEmail
-          }
-          onOtpChange={
-            setEmailOtp
+        <AppInput
+          label="Email address"
+          placeholder="Enter your email"
+          value={email}
+          onChangeText={
+            handleEmailChange
           }
           variant="customer"
-          isVerified={
-            emailVerified
+          leftIconName="mail"
+          keyboardType="email-address"
+          inputMode="email"
+          autoComplete="email"
+          textContentType="emailAddress"
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={
+            !emailVerified &&
+            !isWorkerPrefill
           }
-          onVerifiedChange={
-            setEmailVerified
-          }
+          accessibilityLabel="Email address"
         />
       </View>
 
-      {/* ========================================================
-          PHONE
-      ======================================================== */}
+      {isWorkerPrefill ? (
+        <View
+          style={styles.workerNotice}
+        >
+          <AppText
+            variant="caption"
+            tone="secondary"
+            style={styles.workerNoticeText}
+          >
+            Your worker account email is
+            being used for your customer
+            profile. Your customer profile
+            will remain separate after
+            registration.
+          </AppText>
+        </View>
+      ) : null}
 
-      <View
-        style={
-          styles.phoneSection
-        }
-      >
-        <PhoneOtpField
-          phone={
-            phone
+      {!emailVerified &&
+      !isWorkerPrefill ? (
+        <View
+          style={
+            styles.actionSection
           }
-          otp={
-            otp
-          }
-          onPhoneChange={
-            setPhone
-          }
-          onOtpChange={
-            setOtp
-          }
-          variant="customer"
-          isVerified={
-            phoneVerified
-          }
-          onVerifiedChange={
-            setPhoneVerified
-          }
-        />
-      </View>
-
-      {/* ========================================================
-          SECURITY NOTE
-      ======================================================== */}
-
-      <AppText
-        accessibilityRole="text"
-        variant="caption"
-        tone="secondary"
-        style={
-          styles.securityText
-        }
-      >
-        Your contact details are kept secure.
-      </AppText>
+        >
+          <OtpVerification
+            type="email"
+            value={email}
+            otp={emailOtp}
+            onOtpChange={
+              setEmailOtp
+            }
+            variant="customer"
+            verified={
+              emailVerified
+            }
+            onVerified={
+              setEmailVerified
+            }
+            mode="send"
+            onOtpSent={
+              handleOtpSent
+            }
+            onExistingAccount={
+              handleExistingAccount
+            }
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -195,58 +251,37 @@ export default memo(
   CustomerContactInfo,
 );
 
-/* ==============================================================
-   STYLES
-============================================================== */
-
 const styles =
   StyleSheet.create({
     container: {
       width: "100%",
 
       paddingTop:
-        FixxamTokens.spacing.xl,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.xxs,
+        FixxamTokens.spacing.sm,
     },
 
-    title: {
-      color:
-        Colors.textPrimary,
-
-      marginBottom:
-        FixxamTokens.spacing.xs,
+    inputSection: {
+      width: "100%",
     },
 
-    subtitle: {
-      maxWidth: 340,
+    actionSection: {
+      width: "100%",
 
-      marginBottom:
-        FixxamTokens.spacing.xl,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    emailSection: {
-      marginBottom:
-        FixxamTokens.spacing.lg,
-    },
-
-    phoneSection: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
-    },
-
-    securityText: {
       marginTop:
+        FixxamTokens.spacing.lg,
+
+      paddingBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    workerNotice: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+      paddingHorizontal:
         FixxamTokens.spacing.xs,
+    },
 
-      marginLeft:
-        FixxamTokens.spacing.xxs,
-
-      color:
-        Colors.textSecondary,
+    workerNoticeText: {
+      lineHeight: 18,
     },
   });

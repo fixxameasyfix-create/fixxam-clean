@@ -54,6 +54,9 @@
     "plugins": [
       "expo-router",
 
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+
       "@livekit/react-native-expo-plugin",
 
       "@config-plugins/react-native-webrtc",
@@ -63,7 +66,7 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#FFFFFF",
-          "defaultChannel": "fixxam-default",
+          "defaultChannel": "fixxam-default-v2",
           "sounds": [],
           "enableBackgroundRemoteNotifications": true
         }

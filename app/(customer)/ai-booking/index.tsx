@@ -297,7 +297,7 @@ export default function AiBookingScreen() {
                   styles.aiBadgeText
                 }
               >
-                AI ASSISTED
+                Smarter Way
               </AppText>
             </View>
           </View>
@@ -411,7 +411,7 @@ export default function AiBookingScreen() {
                 styles.securityText
               }
             >
-              AI only prepares your
+              Fixxam only prepares your
               request. You will review
               the service, problem,
               location and worker before

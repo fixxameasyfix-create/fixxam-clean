@@ -3,10 +3,15 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from "react";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import {
+  useAuth,
+} from "@/contexts/AuthContext";
 
 import type {
   AiConversation,
@@ -21,10 +26,27 @@ import type {
    CONSTANTS
 ============================================================== */
 
-const HISTORY_STORAGE_KEY =
+const HISTORY_STORAGE_KEY_PREFIX =
   "@fixxam_smarter_chat_history";
 
-const MAX_HISTORY_ITEMS = 5;
+const CURRENT_CHAT_STORAGE_KEY_PREFIX =
+  "@fixxam_smarter_current_chat";
+
+const CURRENT_CHAT_STORAGE_VERSION =
+  1;
+
+const MAX_HISTORY_ITEMS =
+  5;
+
+/*
+ * Prevent one active conversation
+ * from growing forever in local storage.
+ *
+ * The current UI session can contain more,
+ * but restoration keeps the latest messages.
+ */
+const MAX_PERSISTED_CURRENT_MESSAGES =
+  100;
 
 /* ==============================================================
    TYPES
@@ -35,31 +57,46 @@ export interface AiChatHistoryItem
 
 interface AiChatState {
   messages: AiMessage[];
+
   isTyping: boolean;
 }
+
+type PersistedCurrentChat = {
+  version: number;
+
+  messages: AiMessage[];
+
+  updatedAt: number;
+};
 
 type Action =
   | {
       type: "ADD_MESSAGE";
+
       payload: AiMessage;
     }
   | {
       type: "UPDATE_MESSAGE";
+
       payload: {
         id: string;
+
         content: string;
       };
     }
   | {
       type: "REMOVE_MESSAGE";
+
       payload: string;
     }
   | {
       type: "SET_TYPING";
+
       payload: boolean;
     }
   | {
       type: "LOAD_MESSAGES";
+
       payload: AiMessage[];
     }
   | {
@@ -70,10 +107,12 @@ type Action =
    INITIAL STATE
 ============================================================== */
 
-const initialState: AiChatState = {
-  messages: [],
-  isTyping: false,
-};
+const initialState: AiChatState =
+  {
+    messages: [],
+
+    isTyping: false,
+  };
 
 /* ==============================================================
    REDUCER
@@ -151,7 +190,7 @@ function reducer(
       };
 
     /* ----------------------------------------------------------
-       LOAD SAVED CHAT
+       LOAD
     ---------------------------------------------------------- */
 
     case "LOAD_MESSAGES":
@@ -179,7 +218,7 @@ function reducer(
 }
 
 /* ==============================================================
-   VALIDATION
+   MESSAGE VALIDATION
 ============================================================== */
 
 function isValidMessage(
@@ -187,7 +226,8 @@ function isValidMessage(
 ): value is AiMessage {
   if (
     !value ||
-    typeof value !== "object"
+    typeof value !==
+      "object"
   ) {
     return false;
   }
@@ -196,20 +236,28 @@ function isValidMessage(
     value as Partial<AiMessage>;
 
   return (
-    typeof message.id === "string" &&
+    typeof message.id ===
+      "string" &&
     (
-      message.role === "user" ||
-      message.role === "assistant" ||
-      message.role === "system"
+      message.role ===
+        "user" ||
+      message.role ===
+        "assistant" ||
+      message.role ===
+        "system"
     ) &&
-    typeof message.content === "string" &&
+    typeof message.content ===
+      "string" &&
     typeof message.createdAt ===
-      "number"
+      "number" &&
+    Number.isFinite(
+      message.createdAt,
+    )
   );
 }
 
 /* ==============================================================
-   VALIDATE HISTORY ITEM
+   HISTORY VALIDATION
 ============================================================== */
 
 function isValidHistoryItem(
@@ -217,7 +265,8 @@ function isValidHistoryItem(
 ): value is AiChatHistoryItem {
   if (
     !value ||
-    typeof value !== "object"
+    typeof value !==
+      "object"
   ) {
     return false;
   }
@@ -226,17 +275,134 @@ function isValidHistoryItem(
     value as Partial<AiChatHistoryItem>;
 
   return (
-    typeof item.id === "string" &&
-    typeof item.title === "string" &&
+    typeof item.id ===
+      "string" &&
+    typeof item.title ===
+      "string" &&
     typeof item.createdAt ===
       "number" &&
+    Number.isFinite(
+      item.createdAt,
+    ) &&
     typeof item.updatedAt ===
       "number" &&
-    Array.isArray(item.messages) &&
+    Number.isFinite(
+      item.updatedAt,
+    ) &&
+    Array.isArray(
+      item.messages,
+    ) &&
     item.messages.every(
       isValidMessage,
     )
   );
+}
+
+/* ==============================================================
+   CURRENT CHAT VALIDATION
+============================================================== */
+
+function isValidCurrentChat(
+  value: unknown,
+): value is PersistedCurrentChat {
+  if (
+    !value ||
+    typeof value !==
+      "object"
+  ) {
+    return false;
+  }
+
+  const chat =
+    value as Partial<PersistedCurrentChat>;
+
+  return (
+    chat.version ===
+      CURRENT_CHAT_STORAGE_VERSION &&
+    typeof chat.updatedAt ===
+      "number" &&
+    Number.isFinite(
+      chat.updatedAt,
+    ) &&
+    Array.isArray(
+      chat.messages,
+    ) &&
+    chat.messages.every(
+      isValidMessage,
+    )
+  );
+}
+
+/* ==============================================================
+   PARSE HISTORY
+============================================================== */
+
+function parseStoredHistory(
+  raw: string | null,
+): AiChatHistoryItem[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown =
+      JSON.parse(raw);
+
+    if (
+      !Array.isArray(
+        parsed,
+      )
+    ) {
+      return [];
+    }
+
+    return parsed
+      .filter(
+        isValidHistoryItem,
+      )
+      .sort(
+        (a, b) =>
+          b.updatedAt -
+          a.updatedAt,
+      )
+      .slice(
+        0,
+        MAX_HISTORY_ITEMS,
+      );
+  } catch {
+    return [];
+  }
+}
+
+/* ==============================================================
+   PARSE CURRENT CHAT
+============================================================== */
+
+function parseStoredCurrentChat(
+  raw: string | null,
+): AiMessage[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed: unknown =
+      JSON.parse(raw);
+
+    if (
+      !isValidCurrentChat(
+        parsed,
+      )
+    ) {
+      return [];
+    }
+
+    return parsed.messages.slice(
+      -MAX_PERSISTED_CURRENT_MESSAGES,
+    );
+  } catch {
+    return [];
+  }
 }
 
 /* ==============================================================
@@ -261,25 +427,39 @@ function createChatTitle(
   const firstUserMessage =
     messages.find(
       (message) =>
-        message.role === "user" &&
-        message.content.trim()
+        message.role ===
+          "user" &&
+        message.content
+          .trim()
           .length > 0,
     );
 
-  if (!firstUserMessage) {
+  if (
+    !firstUserMessage
+  ) {
     return "New Chat";
   }
 
   const title =
     firstUserMessage.content
       .trim()
-      .replace(/\s+/g, " ");
+      .replace(
+        /\s+/g,
+        " ",
+      );
 
-  if (title.length <= 50) {
+  if (
+    title.length <= 50
+  ) {
     return title;
   }
 
-  return `${title.slice(0, 50).trim()}…`;
+  return `${title
+    .slice(
+      0,
+      50,
+    )
+    .trim()}…`;
 }
 
 /* ==============================================================
@@ -287,101 +467,453 @@ function createChatTitle(
 ============================================================== */
 
 export default function useAiChat() {
+  /* ============================================================
+     AUTH
+  ============================================================ */
+
+  const {
+    user,
+    loading:
+      authLoading,
+  } =
+    useAuth();
+
+  const userId =
+    user?.uid ??
+    null;
+
+  /* ============================================================
+     STORAGE KEYS
+  ============================================================ */
+
+  const historyStorageKey =
+    useMemo(
+      () =>
+        userId
+          ? `${HISTORY_STORAGE_KEY_PREFIX}:${userId}`
+          : null,
+      [
+        userId,
+      ],
+    );
+
+  const currentChatStorageKey =
+    useMemo(
+      () =>
+        userId
+          ? `${CURRENT_CHAT_STORAGE_KEY_PREFIX}:${userId}`
+          : null,
+      [
+        userId,
+      ],
+    );
+
+  /* ============================================================
+     CHAT STATE
+  ============================================================ */
+
   const [
     state,
     dispatch,
-  ] = useReducer(
-    reducer,
-    initialState,
-  );
+  ] =
+    useReducer(
+      reducer,
+      initialState,
+    );
+
+  /* ============================================================
+     HISTORY STATE
+  ============================================================ */
 
   const [
     history,
     setHistory,
-  ] = useState<
-    AiChatHistoryItem[]
-  >([]);
+  ] =
+    useState<
+      AiChatHistoryItem[]
+    >([]);
 
   const [
     historyLoaded,
     setHistoryLoaded,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* ============================================================
-     LOAD HISTORY FROM STORAGE
+     CURRENT CHAT STORAGE STATE
+  ============================================================ */
+
+  const [
+    currentChatLoaded,
+    setCurrentChatLoaded,
+  ] =
+    useState(false);
+
+  /*
+   * Protect against account switching.
+   *
+   * We only persist messages when the
+   * currently loaded storage belongs to
+   * the active Firebase user.
+   */
+  const [
+    loadedUserId,
+    setLoadedUserId,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  /* ============================================================
+     STORAGE WRITE QUEUE
+  ============================================================ */
+
+  const currentChatWriteQueue =
+    useRef<
+      Promise<void>
+    >(
+      Promise.resolve(),
+    );
+
+  /* ============================================================
+     LOAD USER CHAT DATA
   ============================================================ */
 
   useEffect(() => {
-    let mounted = true;
+    let mounted =
+      true;
 
-    async function loadHistory() {
-      try {
-        const stored =
-          await AsyncStorage.getItem(
-            HISTORY_STORAGE_KEY,
+    async function loadChatData() {
+      if (
+        authLoading
+      ) {
+        return;
+      }
+
+      /* --------------------------------------------------------
+         LOCK STORAGE WHILE USER CHANGES
+      -------------------------------------------------------- */
+
+      setHistoryLoaded(
+        false,
+      );
+
+      setCurrentChatLoaded(
+        false,
+      );
+
+      setLoadedUserId(
+        null,
+      );
+
+      setHistory([]);
+
+      dispatch({
+        type:
+          "CLEAR_CHAT",
+      });
+
+      /* --------------------------------------------------------
+         GUEST
+      -------------------------------------------------------- */
+
+      if (
+        !userId ||
+        !historyStorageKey ||
+        !currentChatStorageKey
+      ) {
+        if (
+          mounted
+        ) {
+          setHistoryLoaded(
+            true,
           );
 
-        if (!stored) {
-          if (mounted) {
-            setHistory([]);
-          }
+          setCurrentChatLoaded(
+            true,
+          );
+        }
 
+        return;
+      }
+
+      try {
+        /* ------------------------------------------------------
+           LOAD BOTH STORAGE VALUES
+        ------------------------------------------------------ */
+
+        const entries =
+          await AsyncStorage.multiGet([
+            historyStorageKey,
+            currentChatStorageKey,
+          ]);
+
+        if (
+          !mounted
+        ) {
           return;
         }
 
-        const parsed: unknown =
-          JSON.parse(stored);
+        const historyRaw =
+          entries[0]?.[1] ??
+          null;
 
-        if (
-          !Array.isArray(parsed)
-        ) {
-          throw new Error(
-            "Invalid AI chat history.",
+        const currentChatRaw =
+          entries[1]?.[1] ??
+          null;
+
+        /* ------------------------------------------------------
+           HISTORY
+        ------------------------------------------------------ */
+
+        const storedHistory =
+          parseStoredHistory(
+            historyRaw,
           );
-        }
 
-        const validHistory =
-          parsed
-            .filter(
-              isValidHistoryItem,
-            )
-            .sort(
-              (a, b) =>
-                b.updatedAt -
-                a.updatedAt,
-            )
-            .slice(
-              0,
-              MAX_HISTORY_ITEMS,
-            );
-
-        if (mounted) {
-          setHistory(
-            validHistory,
-          );
-        }
-      } catch (error) {
-        console.error(
-          "AI_HISTORY_LOAD_ERROR:",
-          error,
+        setHistory(
+          storedHistory,
         );
 
-        if (mounted) {
-          setHistory([]);
+        /* ------------------------------------------------------
+           CURRENT CHAT
+        ------------------------------------------------------ */
+
+        const storedCurrentMessages =
+          parseStoredCurrentChat(
+            currentChatRaw,
+          );
+
+        if (
+          storedCurrentMessages
+            .length > 0
+        ) {
+          dispatch({
+            type:
+              "LOAD_MESSAGES",
+
+            payload:
+              storedCurrentMessages,
+          });
+        } else {
+          dispatch({
+            type:
+              "CLEAR_CHAT",
+          });
         }
+
+        /* ------------------------------------------------------
+           STORAGE OWNER
+        ------------------------------------------------------ */
+
+        setLoadedUserId(
+          userId,
+        );
+      } catch (
+        error: unknown
+      ) {
+        if (
+          __DEV__
+        ) {
+          console.warn(
+            "AI_CHAT_STORAGE_LOAD_ERROR:",
+            error,
+          );
+        }
+
+        if (
+          !mounted
+        ) {
+          return;
+        }
+
+        setHistory([]);
+
+        dispatch({
+          type:
+            "CLEAR_CHAT",
+        });
+
+        setLoadedUserId(
+          userId,
+        );
       } finally {
-        if (mounted) {
-          setHistoryLoaded(true);
+        if (
+          mounted
+        ) {
+          setHistoryLoaded(
+            true,
+          );
+
+          setCurrentChatLoaded(
+            true,
+          );
         }
       }
     }
 
-    void loadHistory();
+    void loadChatData();
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
     };
-  }, []);
+  }, [
+    authLoading,
+    currentChatStorageKey,
+    historyStorageKey,
+    userId,
+  ]);
+
+  /* ============================================================
+     AUTO-SAVE CURRENT CHAT
+  ============================================================ */
+
+  useEffect(() => {
+    if (
+      !userId ||
+      !currentChatStorageKey ||
+      !currentChatLoaded ||
+      loadedUserId !==
+        userId
+    ) {
+      return;
+    }
+
+    const messages =
+      state.messages.slice(
+        -MAX_PERSISTED_CURRENT_MESSAGES,
+      );
+
+    const storageKey =
+      currentChatStorageKey;
+
+    /*
+     * Serialize AsyncStorage writes.
+     *
+     * This prevents an older write from
+     * finishing after a newer write and
+     * restoring stale chat data.
+     */
+
+    currentChatWriteQueue.current =
+      currentChatWriteQueue.current
+        .catch(
+          () =>
+            undefined,
+        )
+        .then(
+          async () => {
+            /* -----------------------------------------------
+               EMPTY CHAT
+            ----------------------------------------------- */
+
+            if (
+              messages.length ===
+              0
+            ) {
+              await AsyncStorage.removeItem(
+                storageKey,
+              );
+
+              return;
+            }
+
+            /* -----------------------------------------------
+               SAVE CHAT
+            ----------------------------------------------- */
+
+            const payload: PersistedCurrentChat =
+              {
+                version:
+                  CURRENT_CHAT_STORAGE_VERSION,
+
+                messages,
+
+                updatedAt:
+                  Date.now(),
+              };
+
+            await AsyncStorage.setItem(
+              storageKey,
+              JSON.stringify(
+                payload,
+              ),
+            );
+          },
+        )
+        .catch(
+          (
+            error: unknown,
+          ) => {
+            if (
+              __DEV__
+            ) {
+              console.warn(
+                "AI_CURRENT_CHAT_SAVE_ERROR:",
+                error,
+              );
+            }
+          },
+        );
+  }, [
+    currentChatLoaded,
+    currentChatStorageKey,
+    loadedUserId,
+    state.messages,
+    userId,
+  ]);
+
+  /* ============================================================
+     REMOVE PERSISTED CURRENT CHAT
+  ============================================================ */
+
+  const removePersistedCurrentChat =
+    useCallback(() => {
+      if (
+        !userId ||
+        !currentChatStorageKey ||
+        loadedUserId !==
+          userId
+      ) {
+        return;
+      }
+
+      const storageKey =
+        currentChatStorageKey;
+
+      currentChatWriteQueue.current =
+        currentChatWriteQueue.current
+          .catch(
+            () =>
+              undefined,
+          )
+          .then(
+            async () => {
+              await AsyncStorage.removeItem(
+                storageKey,
+              );
+            },
+          )
+          .catch(
+            (
+              error: unknown,
+            ) => {
+              if (
+                __DEV__
+              ) {
+                console.warn(
+                  "AI_CURRENT_CHAT_REMOVE_ERROR:",
+                  error,
+                );
+              }
+            },
+          );
+    }, [
+      currentChatStorageKey,
+      loadedUserId,
+      userId,
+    ]);
 
   /* ============================================================
      PERSIST HISTORY
@@ -392,21 +924,33 @@ export default function useAiChat() {
       async (
         nextHistory: AiChatHistoryItem[],
       ) => {
+        if (
+          !userId ||
+          !historyStorageKey ||
+          loadedUserId !==
+            userId
+        ) {
+          return;
+        }
+
         const limitedHistory =
-          nextHistory
-            .slice(
-              0,
-              MAX_HISTORY_ITEMS,
-            );
+          nextHistory.slice(
+            0,
+            MAX_HISTORY_ITEMS,
+          );
 
         await AsyncStorage.setItem(
-          HISTORY_STORAGE_KEY,
+          historyStorageKey,
           JSON.stringify(
             limitedHistory,
           ),
         );
       },
-      [],
+      [
+        historyStorageKey,
+        loadedUserId,
+        userId,
+      ],
     );
 
   /* ============================================================
@@ -415,11 +959,15 @@ export default function useAiChat() {
 
   const addMessage =
     useCallback(
-      (message: AiMessage) => {
+      (
+        message: AiMessage,
+      ) => {
         dispatch({
-          type: "ADD_MESSAGE",
+          type:
+            "ADD_MESSAGE",
 
-          payload: message,
+          payload:
+            message,
         });
 
         return message;
@@ -438,10 +986,12 @@ export default function useAiChat() {
         content: string,
       ) => {
         dispatch({
-          type: "UPDATE_MESSAGE",
+          type:
+            "UPDATE_MESSAGE",
 
           payload: {
             id,
+
             content,
           },
         });
@@ -455,11 +1005,15 @@ export default function useAiChat() {
 
   const removeMessage =
     useCallback(
-      (id: string) => {
+      (
+        id: string,
+      ) => {
         dispatch({
-          type: "REMOVE_MESSAGE",
+          type:
+            "REMOVE_MESSAGE",
 
-          payload: id,
+          payload:
+            id,
         });
       },
       [],
@@ -471,11 +1025,15 @@ export default function useAiChat() {
 
   const setTyping =
     useCallback(
-      (typing: boolean) => {
+      (
+        typing: boolean,
+      ) => {
         dispatch({
-          type: "SET_TYPING",
+          type:
+            "SET_TYPING",
 
-          payload: typing,
+          payload:
+            typing,
         });
       },
       [],
@@ -488,9 +1046,14 @@ export default function useAiChat() {
   const clearChat =
     useCallback(() => {
       dispatch({
-        type: "CLEAR_CHAT",
+        type:
+          "CLEAR_CHAT",
       });
-    }, []);
+
+      removePersistedCurrentChat();
+    }, [
+      removePersistedCurrentChat,
+    ]);
 
   /* ============================================================
      SEND USER MESSAGE
@@ -504,9 +1067,13 @@ export default function useAiChat() {
       ) => {
         const message: AiMessage =
           {
-            id: createId("user"),
+            id:
+              createId(
+                "user",
+              ),
 
-            role: "user",
+            role:
+              "user",
 
             content,
 
@@ -519,14 +1086,17 @@ export default function useAiChat() {
             createdAt:
               Date.now(),
 
-            status: "sent",
+            status:
+              "sent",
           };
 
         return addMessage(
           message,
         );
       },
-      [addMessage],
+      [
+        addMessage,
+      ],
     );
 
   /* ============================================================
@@ -535,28 +1105,35 @@ export default function useAiChat() {
 
   const receiveMessage =
     useCallback(
-      (content: string) => {
+      (
+        content: string,
+      ) => {
         const message: AiMessage =
           {
-            id: createId(
-              "assistant",
-            ),
+            id:
+              createId(
+                "assistant",
+              ),
 
-            role: "assistant",
+            role:
+              "assistant",
 
             content,
 
             createdAt:
               Date.now(),
 
-            status: "sent",
+            status:
+              "sent",
           };
 
         return addMessage(
           message,
         );
       },
-      [addMessage],
+      [
+        addMessage,
+      ],
     );
 
   /* ============================================================
@@ -576,16 +1153,132 @@ export default function useAiChat() {
         }
 
         dispatch({
-          type: "LOAD_MESSAGES",
+          type:
+            "LOAD_MESSAGES",
 
           payload:
             conversation.messages,
         });
 
+        /*
+         * Auto-save effect will now
+         * persist this conversation as
+         * the active/current chat.
+         */
+
         return true;
       },
       [],
     );
+
+
+    /* ============================================================
+   ACTIVATE SAVED CONVERSATION
+============================================================ */
+
+const activateConversation =
+  useCallback(
+    async (
+      conversation: AiChatHistoryItem,
+    ) => {
+      if (
+        !userId ||
+        !currentChatStorageKey ||
+        !currentChatLoaded ||
+        loadedUserId !== userId
+      ) {
+        return false;
+      }
+
+      const conversationMessages =
+        conversation.messages
+          .filter(
+            isValidMessage,
+          )
+          .slice(
+            -MAX_PERSISTED_CURRENT_MESSAGES,
+          );
+
+      if (
+        conversationMessages.length ===
+        0
+      ) {
+        return false;
+      }
+
+      const payload: PersistedCurrentChat =
+        {
+          version:
+            CURRENT_CHAT_STORAGE_VERSION,
+
+          messages:
+            conversationMessages,
+
+          updatedAt:
+            Date.now(),
+        };
+
+      const storageKey =
+        currentChatStorageKey;
+
+      try {
+        /*
+         * Wait for any previous storage
+         * writes before activating this chat.
+         */
+
+        currentChatWriteQueue.current =
+          currentChatWriteQueue.current
+            .catch(
+              () =>
+                undefined,
+            )
+            .then(
+              async () => {
+                await AsyncStorage.setItem(
+                  storageKey,
+                  JSON.stringify(
+                    payload,
+                  ),
+                );
+              },
+            );
+
+        await currentChatWriteQueue.current;
+
+        /*
+         * Keep this hook instance in sync too.
+         */
+
+        dispatch({
+          type:
+            "LOAD_MESSAGES",
+
+          payload:
+            conversationMessages,
+        });
+
+        return true;
+      } catch (
+        error: unknown
+      ) {
+        if (__DEV__) {
+          console.warn(
+            "AI_HISTORY_ACTIVATE_ERROR:",
+            error,
+          );
+        }
+
+        return false;
+      }
+    },
+    [
+      currentChatLoaded,
+      currentChatStorageKey,
+      loadedUserId,
+      userId,
+    ],
+  );
 
   /* ============================================================
      SAVE CURRENT CHAT
@@ -593,17 +1286,27 @@ export default function useAiChat() {
 
   const saveCurrentChat =
     useCallback(async () => {
+      if (
+        !userId ||
+        loadedUserId !==
+          userId ||
+        !currentChatLoaded
+      ) {
+        return null;
+      }
+
       const currentMessages =
         state.messages.filter(
           (message) =>
-            message.role === "user" ||
+            message.role ===
+              "user" ||
             message.role ===
               "assistant",
         );
 
-      /*
-       * Do not save an empty chat.
-       */
+      /* --------------------------------------------------------
+         EMPTY
+      -------------------------------------------------------- */
 
       if (
         currentMessages.length ===
@@ -612,12 +1315,13 @@ export default function useAiChat() {
         return null;
       }
 
-      /*
-       * Do not save while AI
-       * is still responding.
-       */
+      /* --------------------------------------------------------
+         AI STILL RESPONDING
+      -------------------------------------------------------- */
 
-      if (state.isTyping) {
+      if (
+        state.isTyping
+      ) {
         return null;
       }
 
@@ -626,7 +1330,10 @@ export default function useAiChat() {
 
       const savedChat: AiChatHistoryItem =
         {
-          id: createId("chat"),
+          id:
+            createId(
+              "chat",
+            ),
 
           title:
             createChatTitle(
@@ -638,42 +1345,45 @@ export default function useAiChat() {
 
           createdAt:
             currentMessages[0]
-              ?.createdAt ?? now,
+              ?.createdAt ??
+            now,
 
-          updatedAt: now,
+          updatedAt:
+            now,
         };
 
       /*
-       * Newest chat first.
+       * Newest first.
        *
-       * If there are already
-       * 5 chats, the oldest
-       * one is automatically
-       * removed.
+       * Maximum 5 explicit history items.
        */
 
-      const nextHistory = [
-        savedChat,
-        ...history,
-      ].slice(
-        0,
-        MAX_HISTORY_ITEMS,
+      const nextHistory =
+        [
+          savedChat,
+          ...history,
+        ].slice(
+          0,
+          MAX_HISTORY_ITEMS,
+        );
+
+      await persistHistory(
+        nextHistory,
       );
 
       setHistory(
         nextHistory,
       );
 
-      await persistHistory(
-        nextHistory,
-      );
-
       return savedChat;
     }, [
+      currentChatLoaded,
       history,
+      loadedUserId,
       persistHistory,
       state.isTyping,
       state.messages,
+      userId,
     ]);
 
   /* ============================================================
@@ -683,9 +1393,14 @@ export default function useAiChat() {
   const clearAndStartNew =
     useCallback(() => {
       dispatch({
-        type: "CLEAR_CHAT",
+        type:
+          "CLEAR_CHAT",
       });
-    }, []);
+
+      removePersistedCurrentChat();
+    }, [
+      removePersistedCurrentChat,
+    ]);
 
   /* ============================================================
      SAVE + START NEW
@@ -697,11 +1412,17 @@ export default function useAiChat() {
         await saveCurrentChat();
 
       dispatch({
-        type: "CLEAR_CHAT",
+        type:
+          "CLEAR_CHAT",
       });
 
+      removePersistedCurrentChat();
+
       return savedChat;
-    }, [saveCurrentChat]);
+    }, [
+      removePersistedCurrentChat,
+      saveCurrentChat,
+    ]);
 
   /* ============================================================
      DELETE HISTORY ITEM
@@ -709,11 +1430,15 @@ export default function useAiChat() {
 
   const deleteHistoryItem =
     useCallback(
-      async (id: string) => {
+      async (
+        id: string,
+      ) => {
         const normalizedId =
           id.trim();
 
-        if (!normalizedId) {
+        if (
+          !normalizedId
+        ) {
           return false;
         }
 
@@ -724,10 +1449,6 @@ export default function useAiChat() {
               normalizedId,
           );
 
-        /*
-         * Nothing was deleted.
-         */
-
         if (
           nextHistory.length ===
           history.length
@@ -735,11 +1456,11 @@ export default function useAiChat() {
           return false;
         }
 
-        setHistory(
+        await persistHistory(
           nextHistory,
         );
 
-        await persistHistory(
+        setHistory(
           nextHistory,
         );
 
@@ -757,12 +1478,27 @@ export default function useAiChat() {
 
   const clearAllHistory =
     useCallback(async () => {
-      setHistory([]);
+      if (
+        !userId ||
+        !historyStorageKey ||
+        loadedUserId !==
+          userId
+      ) {
+        setHistory([]);
+
+        return;
+      }
 
       await AsyncStorage.removeItem(
-        HISTORY_STORAGE_KEY,
+        historyStorageKey,
       );
-    }, []);
+
+      setHistory([]);
+    }, [
+      historyStorageKey,
+      loadedUserId,
+      userId,
+    ]);
 
   /* ============================================================
      FIND HISTORY ITEM
@@ -770,16 +1506,21 @@ export default function useAiChat() {
 
   const getHistoryItem =
     useCallback(
-      (id: string) => {
+      (
+        id: string,
+      ) => {
         return (
           history.find(
             (item) =>
               item.id ===
               id,
-          ) ?? null
+          ) ??
+          null
         );
       },
-      [history],
+      [
+        history,
+      ],
     );
 
   /* ============================================================
@@ -787,7 +1528,9 @@ export default function useAiChat() {
   ============================================================ */
 
   const conversationMessages =
-    useMemo<ChatMessage[]>(
+    useMemo<
+      ChatMessage[]
+    >(
       () =>
         state.messages
           .filter(
@@ -806,7 +1549,9 @@ export default function useAiChat() {
                 message.content,
             }),
           ),
-      [state.messages],
+      [
+        state.messages,
+      ],
     );
 
   /* ============================================================
@@ -814,7 +1559,8 @@ export default function useAiChat() {
   ============================================================ */
 
   const hasCurrentChat =
-    state.messages.length > 0;
+    state.messages.length >
+    0;
 
   const hasUserMessages =
     state.messages.some(
@@ -822,13 +1568,20 @@ export default function useAiChat() {
         message.role ===
           "user" &&
         message.content
-          .trim().length > 0,
+          .trim()
+          .length > 0,
     );
 
   const canSaveCurrentChat =
     hasUserMessages &&
     !state.isTyping &&
-    historyLoaded;
+    historyLoaded &&
+    currentChatLoaded &&
+    Boolean(
+      userId &&
+      loadedUserId ===
+        userId,
+    );
 
   /* ============================================================
      RETURN
@@ -846,6 +1599,8 @@ export default function useAiChat() {
 
     isTyping:
       state.isTyping,
+
+    currentChatLoaded,
 
     hasCurrentChat,
 
@@ -897,14 +1652,16 @@ export default function useAiChat() {
 
     saveCurrentChat,
 
-    saveAndStartNew,
+saveAndStartNew,
 
-    loadConversation,
+loadConversation,
 
-    deleteHistoryItem,
+activateConversation,
 
-    clearAllHistory,
+deleteHistoryItem,
 
-    getHistoryItem,
+clearAllHistory,
+
+getHistoryItem,
   };
 }

@@ -53,24 +53,30 @@ function ServiceConfirmationCardComponent({
   const isStarted =
     type === "started";
 
+  const safeWorkerName =
+    typeof workerName === "string" &&
+    workerName.trim()
+      ? workerName.trim()
+      : "The worker";
+
   const title =
     isStarted
-      ? "SERVICE STARTED"
-      : "SERVICE COMPLETED";
+      ? "Service started"
+      : "Service completed";
 
   const message =
     confirmed
       ? isStarted
-        ? "You confirmed that the worker has started the service."
-        : "You confirmed that the worker has completed the service."
+        ? "You confirmed that the service has started."
+        : "You confirmed that the service has been completed."
       : isStarted
-        ? `${workerName} has started working. Please confirm that the service has started.`
-        : `${workerName} has marked the service as completed. Please confirm that the work is finished.`;
+        ? `${safeWorkerName} says the service has started. Confirm only if work has actually begun.`
+        : `${safeWorkerName} marked the service as completed. Confirm only if the work is finished.`;
 
   const confirmLabel =
     isStarted
-      ? "CONFIRM START"
-      : "CONFIRM COMPLETION";
+      ? "Confirm start"
+      : "Confirm completion";
 
   const accessibilityLabel =
     isStarted
@@ -79,142 +85,202 @@ function ServiceConfirmationCardComponent({
 
   return (
     <View
-      style={styles.card}
+      accessible
       accessibilityLabel={`${title}. ${message}`}
+      style={[
+        styles.card,
+
+        confirmed
+          ? styles.cardConfirmed
+          : null,
+      ]}
     >
       {/* ======================================================
-          STATUS ICON
+          HEADER
       ====================================================== */}
 
       <View
-        style={styles.icon}
+        style={
+          styles.header
+        }
       >
-        <AppIcon
-          name={
-            isStarted
-              ? "service"
-              : "success"
+        <View
+          style={[
+            styles.icon,
+
+            confirmed
+              ? styles.iconConfirmed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name={
+              isStarted
+                ? "service"
+                : "success"
+            }
+            size="xs"
+            color={
+              Colors.success
+            }
+          />
+        </View>
+
+        <View
+          style={
+            styles.headerContent
           }
-          size="lg"
-          color={
-            Colors.success
-          }
-        />
+        >
+          <View
+            style={
+              styles.titleRow
+            }
+          >
+            <AppText
+              variant="bodyMedium"
+              weight="semibold"
+              numberOfLines={1}
+              style={
+                styles.title
+              }
+            >
+              {title}
+            </AppText>
+
+            {confirmed ? (
+              <View
+                style={
+                  styles.confirmedBadge
+                }
+              >
+                <View
+                  style={
+                    styles.confirmedDot
+                  }
+                />
+
+                <AppText
+                  variant="caption"
+                  weight="semibold"
+                  style={
+                    styles.confirmedBadgeText
+                  }
+                >
+                  Confirmed
+                </AppText>
+              </View>
+            ) : null}
+          </View>
+
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={
+              confirmed
+                ? 2
+                : 3
+            }
+            style={
+              styles.message
+            }
+          >
+            {message}
+          </AppText>
+        </View>
       </View>
 
       {/* ======================================================
-          CONTENT
+          NOT CONFIRMED
       ====================================================== */}
 
-      <View
-        style={styles.content}
-      >
-        <AppText
-          variant="caption"
-          weight="bold"
-          style={styles.title}
+      {!confirmed ? (
+        <View
+          style={
+            styles.actions
+          }
         >
-          {title}
-        </AppText>
+          <Pressable
+            onPress={
+              onConfirm
+            }
+            accessibilityRole="button"
+            accessibilityLabel={
+              accessibilityLabel
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.confirmButton,
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={styles.text}
-        >
-          {message}
-        </AppText>
-
-        {/* ====================================================
-            NOT CONFIRMED
-        ==================================================== */}
-
-        {!confirmed ? (
-          <View
-            style={styles.actions}
+              pressed
+                ? styles.buttonPressed
+                : null,
+            ]}
           >
-            <Pressable
-              onPress={onConfirm}
-              accessibilityRole="button"
-              accessibilityLabel={
-                accessibilityLabel
+            <AppIcon
+              name="check"
+              size="xs"
+              color={
+                Colors.textInverse
               }
-              style={({
-                pressed,
-              }) => [
-                styles.confirmButton,
-
-                pressed
-                  ? styles.buttonPressed
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="check"
-                size="xs"
-                color={
-                  Colors.textInverse
-                }
-              />
-
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.confirmButtonText
-                }
-              >
-                {confirmLabel}
-              </AppText>
-            </Pressable>
-
-            <HelpButton
-              onPress={onHelp}
             />
-          </View>
-        ) : (
-          <>
-            {/* =================================================
-                CONFIRMED
-            ================================================= */}
 
-            <View
+            <AppText
+              variant="caption"
+              weight="semibold"
+              numberOfLines={1}
               style={
-                styles.confirmedRow
+                styles.confirmButtonText
               }
             >
-              <AppIcon
-                name="success"
-                size="xs"
-                color={
-                  Colors.success
-                }
-              />
+              {confirmLabel}
+            </AppText>
+          </Pressable>
 
-              <AppText
-                variant="caption"
-                weight="bold"
-                style={
-                  styles.confirmedText
-                }
-              >
-                CONFIRMED
-              </AppText>
-            </View>
+          <HelpButton
+            onPress={
+              onHelp
+            }
+          />
+        </View>
+      ) : (
+        <Pressable
+          onPress={
+            onHelp
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Get help with this service"
+          hitSlop={8}
+          style={({
+            pressed,
+          }) => [
+            styles.confirmedHelp,
 
-            <View
-              style={
-                styles.confirmedHelpWrapper
-              }
-            >
-              <HelpButton
-                onPress={onHelp}
-                compact
-              />
-            </View>
-          </>
-        )}
-      </View>
+            pressed
+              ? styles.buttonPressed
+              : null,
+          ]}
+        >
+          <AppIcon
+            name="help"
+            role="customer"
+            size="xs"
+            color={
+              CustomerColors.primary
+            }
+          />
+
+          <AppText
+            variant="caption"
+            weight="semibold"
+            style={
+              styles.confirmedHelpText
+            }
+          >
+            Need help?
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -225,25 +291,20 @@ function ServiceConfirmationCardComponent({
 
 function HelpButton({
   onPress,
-  compact = false,
 }: {
   onPress: () => void;
-
-  compact?: boolean;
 }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={
+        onPress
+      }
       accessibilityRole="button"
       accessibilityLabel="Get help"
       style={({
         pressed,
       }) => [
         styles.helpButton,
-
-        compact
-          ? styles.helpButtonCompact
-          : null,
 
         pressed
           ? styles.buttonPressed
@@ -261,27 +322,16 @@ function HelpButton({
 
       <AppText
         variant="caption"
-        weight="bold"
+        weight="semibold"
         style={
           styles.helpButtonText
         }
       >
-        HELP
+        Help
       </AppText>
     </Pressable>
   );
 }
-
-/* ============================================================
-   MEMO
-============================================================ */
-
-const ServiceConfirmationCard =
-  memo(
-    ServiceConfirmationCardComponent,
-  );
-
-export default ServiceConfirmationCard;
 
 /* ============================================================
    STYLES
@@ -294,21 +344,17 @@ const styles =
     ======================================================== */
 
     card: {
-      marginTop:
-        FixxamTokens.spacing.lg,
+      width:
+        "100%",
 
-      marginHorizontal:
-        FixxamTokens.spacing.lg,
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       padding:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
-
-      alignItems:
-        "flex-start",
-
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.success,
@@ -318,24 +364,37 @@ const styles =
 
       backgroundColor:
         Colors.successSoft,
+    },
 
-      ...FixxamTokens.shadow.card,
+    cardConfirmed: {
+      borderColor:
+        Colors.border,
     },
 
     /* ========================================================
-       ICON
+       HEADER
     ======================================================== */
+
+    header: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-start",
+    },
 
     icon: {
       width:
-        FixxamTokens.size.iconBox,
+        34,
 
       height:
-        FixxamTokens.size.iconBox,
+        34,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -347,32 +406,117 @@ const styles =
         Colors.surface,
     },
 
-    /* ========================================================
-       CONTENT
-    ======================================================== */
+    iconConfirmed: {
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
-    content: {
-      flex: 1,
-
-      minWidth: 0,
-
-      marginLeft:
-        FixxamTokens.spacing.md,
-    },
-
-    title: {
-      color:
+      borderColor:
         Colors.success,
     },
 
-    text: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+    headerContent: {
+      flex:
+        1,
 
-      lineHeight: 17,
+      minWidth:
+        0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    titleRow: {
+      minHeight:
+        22,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      gap:
+        FixxamTokens.spacing.sm,
+    },
+
+    title: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
+      color:
+        Colors.textPrimary,
+    },
+
+    message: {
+      marginTop:
+        2,
+
+      lineHeight:
+        17,
 
       color:
         Colors.textSecondary,
+    },
+
+    /* ========================================================
+       CONFIRMED BADGE
+    ======================================================== */
+
+    confirmedBadge: {
+      flexShrink:
+        0,
+
+      minHeight:
+        21,
+
+      paddingHorizontal:
+        7,
+
+      paddingVertical:
+        2,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      gap:
+        4,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.surface,
+    },
+
+    confirmedDot: {
+      width:
+        5,
+
+      height:
+        5,
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        Colors.success,
+    },
+
+    confirmedBadgeText: {
+      fontSize:
+        10,
+
+      color:
+        Colors.success,
     },
 
     /* ========================================================
@@ -380,31 +524,40 @@ const styles =
     ======================================================== */
 
     actions: {
+      width:
+        "100%",
+
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       gap:
         FixxamTokens.spacing.sm,
     },
 
     confirmButton: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       minHeight:
-        FixxamTokens.size.buttonSmallHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -413,14 +566,18 @@ const styles =
         FixxamTokens.spacing.xs,
 
       borderRadius:
-        FixxamTokens.radius.button,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.success,
     },
 
     confirmButtonText: {
-      textAlign: "center",
+      flexShrink:
+        1,
+
+      textAlign:
+        "center",
 
       color:
         Colors.textInverse,
@@ -431,17 +588,20 @@ const styles =
     ======================================================== */
 
     helpButton: {
-      minWidth: 82,
+      minWidth:
+        78,
 
       minHeight:
-        FixxamTokens.size.buttonSmallHeight,
+        FixxamTokens.size.minimumTouchTarget,
 
       paddingHorizontal:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -449,23 +609,17 @@ const styles =
       gap:
         FixxamTokens.spacing.xs,
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         CustomerColors.primary,
 
       borderRadius:
-        FixxamTokens.radius.button,
+        FixxamTokens.radius.md,
 
       backgroundColor:
         Colors.surface,
-    },
-
-    helpButtonCompact: {
-      minHeight:
-        FixxamTokens.size.minimumTouchTarget,
-
-      minWidth: 76,
     },
 
     helpButtonText: {
@@ -473,50 +627,61 @@ const styles =
         CustomerColors.primary,
     },
 
-    confirmedHelpWrapper: {
+    confirmedHelp: {
       alignSelf:
         "flex-start",
 
+      minHeight:
+        FixxamTokens.size.minimumTouchTarget,
+
       marginTop:
-        FixxamTokens.spacing.sm,
-    },
+        4,
 
-    /* ========================================================
-       CONFIRMED
-    ======================================================== */
+      paddingHorizontal:
+        2,
 
-    confirmedRow: {
-      marginTop:
-        FixxamTokens.spacing.sm,
+      flexDirection:
+        "row",
 
-      flexDirection: "row",
-
-      alignItems: "center",
+      alignItems:
+        "center",
 
       gap:
-        FixxamTokens.spacing.xs,
+        5,
     },
 
-    confirmedText: {
+    confirmedHelpText: {
       color:
-        Colors.success,
+        CustomerColors.primary,
     },
 
     /* ========================================================
-       PRESS STATE
+       PRESS
     ======================================================== */
 
     buttonPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
   });
+
+/* ============================================================
+   MEMO / EXPORT
+============================================================ */
+
+const ServiceConfirmationCard =
+  memo(
+    ServiceConfirmationCardComponent,
+  );
+
+ServiceConfirmationCard.displayName =
+  "ServiceConfirmationCard";
+
+export default ServiceConfirmationCard;

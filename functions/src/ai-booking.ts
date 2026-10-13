@@ -9,6 +9,7 @@ import {
 
 import {
   GoogleGenAI,
+  Type,
 } from "@google/genai";
 
 import {
@@ -23,64 +24,234 @@ const GEMINI_API_KEY =
   defineSecret("GEMINI_API_KEY");
 
 /* ==============================================================
+   SERVICE FULFILLMENT
+============================================================== */
+
+type ServiceFulfillmentMode =
+  | "worker_visits_customer"
+  | "customer_visits_worker"
+  | "flexible"
+  | "remote"
+  | "needs_review";
+
+const SERVICE_FULFILLMENT_MODES =
+  [
+    "worker_visits_customer",
+    "customer_visits_worker",
+    "flexible",
+    "remote",
+    "needs_review",
+  ] as const satisfies readonly ServiceFulfillmentMode[];
+
+function isServiceFulfillmentMode(
+  value: unknown,
+): value is ServiceFulfillmentMode {
+  return (
+    typeof value === "string" &&
+    SERVICE_FULFILLMENT_MODES.some(
+      (mode) =>
+        mode === value,
+    )
+  );
+}
+
+/* ==============================================================
    TYPES
 ============================================================== */
 
 type ServiceRecord = {
   id: string;
+
   name: string;
+
+  fulfillmentMode:
+    ServiceFulfillmentMode;
 };
 
 type AiBookingRequest = {
   description?: unknown;
+
   imageBase64?: unknown;
+
   mimeType?: unknown;
+
   latitude?: unknown;
+
   longitude?: unknown;
+
   address?: unknown;
 };
 
-type AiBookingRejectionReason =
-  | ""
+type AiBookingReason =
   | "unclear_request"
   | "unsupported_service"
   | "unclear_image"
-  | "no_worker";
+  | "no_worker"
+  | null;
+
+type GeminiReason =
+  | "success"
+  | "unclear_request"
+  | "unsupported_service"
+  | "unclear_image";
 
 type GeminiResult = {
   completed?: unknown;
+
   rejected?: unknown;
+
   message?: unknown;
+
   reason?: unknown;
+
   serviceId?: unknown;
+
   serviceName?: unknown;
+
   confidence?: unknown;
+
+  customerDescription?: unknown;
 };
 
 type WorkerRecord = {
   id: string;
 
   firstName: string;
+
   surname: string;
 
   photoUrl: string;
 
   rating: number;
+
   completedJobs: number;
 
   verified: boolean;
+
   available: boolean;
+
   online: boolean;
 
-  latitude: number | null;
-  longitude: number | null;
+  latitude:
+    | number
+    | null;
+
+  longitude:
+    | number
+    | null;
 
   address: string;
 };
 
 type WorkerWithDistance = {
-  worker: WorkerRecord;
-  distanceKm: number | null;
+  worker:
+    WorkerRecord;
+
+  distanceKm:
+    | number
+    | null;
+};
+
+type AiBookingServiceResponse = {
+  id: string;
+
+  name: string;
+
+  fulfillmentMode:
+    ServiceFulfillmentMode;
+
+  confidence: number;
+};
+
+type AiBookingWorkerResponse = {
+  id: string;
+
+  name: string;
+
+  photoUrl: string;
+
+  rating: number;
+
+  completedJobs: number;
+
+  verified: boolean;
+
+  distanceKm:
+    | number
+    | null;
+};
+
+type AiBookingPreview = {
+  serviceId: string;
+
+  serviceName: string;
+
+  fulfillmentMode:
+    ServiceFulfillmentMode;
+
+  workerId: string;
+
+  workerName: string;
+
+  workerPhoto: string;
+
+  description: string;
+
+  photos: string[];
+
+  address: string;
+
+  latitude:
+    | number
+    | null;
+
+  longitude:
+    | number
+    | null;
+
+  bookingDate: string;
+
+  bookingTime: string;
+
+  amount: number;
+
+  urgent: boolean;
+
+  urgentFee: number;
+
+  estimatePending: boolean;
+
+  aiGenerated: boolean;
+
+  aiConfidence: number;
+};
+
+type AiBookingResponse = {
+  success: boolean;
+
+  completed: boolean;
+
+  rejected: boolean;
+
+  message: string;
+
+  reason:
+    AiBookingReason;
+
+  customerDescription:
+    string;
+
+  service:
+    | AiBookingServiceResponse
+    | null;
+
+  worker:
+    | AiBookingWorkerResponse
+    | null;
+
+  booking:
+    | AiBookingPreview
+    | null;
 };
 
 /* ==============================================================
@@ -89,10 +260,13 @@ type WorkerWithDistance = {
 
 const MODEL =
   process.env.GEMINI_MODEL?.trim() ||
-  "gemini-3.6-flash";
+  "gemini-3.8-flash";
 
 const MAX_DESCRIPTION_LENGTH =
   4000;
+
+const MAX_CUSTOMER_DESCRIPTION_LENGTH =
+  700;
 
 const MAX_IMAGE_BASE64_LENGTH =
   8_000_000;
@@ -112,11 +286,98 @@ const GEMINI_TIMEOUT_MS =
 const FIRESTORE_TIMEOUT_MS =
   15_000;
 
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-] as const;
+const ALLOWED_IMAGE_TYPES =
+  [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ] as const;
+
+/* ==============================================================
+   GEMINI RESPONSE SCHEMA
+============================================================== */
+
+const GEMINI_RESPONSE_SCHEMA = {
+  type:
+    Type.OBJECT,
+
+  properties: {
+    completed: {
+      type:
+        Type.BOOLEAN,
+    },
+
+    rejected: {
+      type:
+        Type.BOOLEAN,
+    },
+
+    reason: {
+      type:
+        Type.STRING,
+    },
+
+    message: {
+      type:
+        Type.STRING,
+    },
+
+    serviceId: {
+      type:
+        Type.STRING,
+    },
+
+    serviceName: {
+      type:
+        Type.STRING,
+    },
+
+    confidence: {
+      type:
+        Type.NUMBER,
+    },
+
+    customerDescription: {
+      type:
+        Type.STRING,
+    },
+  },
+
+  required: [
+    "completed",
+    "rejected",
+    "reason",
+    "message",
+    "serviceId",
+    "serviceName",
+    "confidence",
+    "customerDescription",
+  ],
+};
+
+/* ==============================================================
+   TIMEOUT ERROR
+============================================================== */
+
+class OperationTimeoutError extends Error {
+  readonly operation:
+    string;
+
+  constructor(
+    operation: string,
+    timeoutMs: number,
+  ) {
+    super(
+      `${operation} timed out after ${timeoutMs}ms.`,
+    );
+
+    this.name =
+      "OperationTimeoutError";
+
+    this.operation =
+      operation;
+  }
+}
 
 /* ==============================================================
    LOGGING
@@ -142,33 +403,44 @@ async function withTimeout<T>(
   label: string,
 ): Promise<T> {
   let timer:
-    | ReturnType<typeof setTimeout>
+    | ReturnType<
+        typeof setTimeout
+      >
     | undefined;
 
   const timeoutPromise =
     new Promise<never>(
-      (_, reject) => {
-        timer = setTimeout(
-          () => {
-            reject(
-              new Error(
-                `${label} timed out after ${timeoutMs}ms.`,
-              ),
-            );
-          },
-          timeoutMs,
-        );
+      (
+        _,
+        reject,
+      ) => {
+        timer =
+          setTimeout(
+            () => {
+              reject(
+                new OperationTimeoutError(
+                  label,
+                  timeoutMs,
+                ),
+              );
+            },
+            timeoutMs,
+          );
       },
     );
 
   try {
-    return await Promise.race([
-      promise,
-      timeoutPromise,
-    ]);
+    return await Promise.race(
+      [
+        promise,
+        timeoutPromise,
+      ],
+    );
   } finally {
     if (timer) {
-      clearTimeout(timer);
+      clearTimeout(
+        timer,
+      );
     }
   }
 }
@@ -179,17 +451,22 @@ async function withTimeout<T>(
 
 function cleanText(
   value: unknown,
-  maxLength = MAX_DESCRIPTION_LENGTH,
+  maxLength =
+    MAX_DESCRIPTION_LENGTH,
 ): string {
   if (
-    typeof value !== "string"
+    typeof value !==
+    "string"
   ) {
     return "";
   }
 
   return value
     .trim()
-    .slice(0, maxLength);
+    .slice(
+      0,
+      maxLength,
+    );
 }
 
 function normalize(
@@ -217,8 +494,11 @@ function toNumberOrNull(
   value: unknown,
 ): number | null {
   if (
-    typeof value === "number" &&
-    Number.isFinite(value)
+    typeof value ===
+      "number" &&
+    Number.isFinite(
+      value,
+    )
   ) {
     return value;
   }
@@ -227,38 +507,54 @@ function toNumberOrNull(
 }
 
 /* ==============================================================
-   COORDINATE VALIDATION
+   COORDINATES
 ============================================================== */
 
 function isValidLatitude(
-  value: number | null,
+  value:
+    | number
+    | null,
 ): value is number {
   return (
     value !== null &&
-    Number.isFinite(value) &&
+    Number.isFinite(
+      value,
+    ) &&
     value >= -90 &&
     value <= 90
   );
 }
 
 function isValidLongitude(
-  value: number | null,
+  value:
+    | number
+    | null,
 ): value is number {
   return (
     value !== null &&
-    Number.isFinite(value) &&
+    Number.isFinite(
+      value,
+    ) &&
     value >= -180 &&
     value <= 180
   );
 }
 
 function hasValidCoordinates(
-  latitude: number | null,
-  longitude: number | null,
+  latitude:
+    | number
+    | null,
+  longitude:
+    | number
+    | null,
 ): boolean {
   return (
-    isValidLatitude(latitude) &&
-    isValidLongitude(longitude)
+    isValidLatitude(
+      latitude,
+    ) &&
+    isValidLongitude(
+      longitude,
+    )
   );
 }
 
@@ -276,40 +572,53 @@ function calculateDistanceKm(
     6371;
 
   const latitudeDifference =
-    ((latitude2 - latitude1) *
+    ((latitude2 -
+      latitude1) *
       Math.PI) /
     180;
 
   const longitudeDifference =
-    ((longitude2 - longitude1) *
+    ((longitude2 -
+      longitude1) *
       Math.PI) /
     180;
 
   const a =
     Math.sin(
-      latitudeDifference / 2,
-    ) ** 2 +
+      latitudeDifference /
+        2,
+    ) **
+      2 +
     Math.cos(
-      (latitude1 * Math.PI) /
+      (latitude1 *
+        Math.PI) /
         180,
     ) *
       Math.cos(
-        (latitude2 * Math.PI) /
+        (latitude2 *
+          Math.PI) /
           180,
       ) *
       Math.sin(
-        longitudeDifference / 2,
-      ) ** 2;
+        longitudeDifference /
+          2,
+      ) **
+        2;
 
   const c =
     2 *
     Math.atan2(
-      Math.sqrt(a),
-      Math.sqrt(1 - a),
+      Math.sqrt(
+        a,
+      ),
+      Math.sqrt(
+        1 - a,
+      ),
     );
 
   return (
-    earthRadiusKm * c
+    earthRadiusKm *
+    c
   );
 }
 
@@ -330,37 +639,66 @@ async function getActiveServices(): Promise<
   const snapshot =
     await withTimeout(
       firestore
-        .collection("services")
+        .collection(
+          "services",
+        )
         .where(
           "active",
           "==",
           true,
         )
         .get(),
+
       FIRESTORE_TIMEOUT_MS,
+
       "Services Firestore query",
     );
 
   const services =
     snapshot.docs
-      .map((doc) => {
-        const data =
-          doc.data();
+      .map(
+        (
+          doc,
+        ): ServiceRecord | null => {
+          const data =
+            doc.data();
 
-        return {
-          id: doc.id,
-
-          name:
+          const name =
             typeof data.name ===
             "string"
               ? data.name.trim()
-              : "",
-        };
-      })
+              : "";
+
+          if (
+            !doc.id ||
+            !name
+          ) {
+            return null;
+          }
+
+          const fulfillmentMode =
+            isServiceFulfillmentMode(
+              data.fulfillmentMode,
+            )
+              ? data.fulfillmentMode
+              : "needs_review";
+
+          return {
+            id:
+              doc.id,
+
+            name,
+
+            fulfillmentMode,
+          };
+        },
+      )
       .filter(
-        (service) =>
-          service.id.length > 0 &&
-          service.name.length > 0,
+        (
+          service,
+        ): service is ServiceRecord =>
+          service !==
+          null,
       );
 
   logStep(
@@ -368,6 +706,13 @@ async function getActiveServices(): Promise<
     {
       count:
         services.length,
+
+      needsReview:
+        services.filter(
+          (service) =>
+            service.fulfillmentMode ===
+            "needs_review",
+        ).length,
     },
   );
 
@@ -379,18 +724,23 @@ async function getActiveServices(): Promise<
 ============================================================== */
 
 function findService(
-  services: ServiceRecord[],
+  services:
+    ServiceRecord[],
   aiId: string,
   aiName: string,
 ): ServiceRecord | null {
-  /*
-   * First: exact service ID.
-   */
+  /* ============================================================
+     EXACT ID
+  ============================================================ */
+
   if (aiId) {
     const exactId =
       services.find(
-        (service) =>
-          service.id === aiId,
+        (
+          service,
+        ) =>
+          service.id ===
+          aiId,
       );
 
     if (exactId) {
@@ -398,34 +748,45 @@ function findService(
     }
   }
 
-  /*
-   * Second: exact normalized name.
-   */
-  const normalizedName =
-    normalize(aiName);
+  /* ============================================================
+     EXACT NAME
+  ============================================================ */
 
-  if (!normalizedName) {
+  const normalizedName =
+    normalize(
+      aiName,
+    );
+
+  if (
+    !normalizedName
+  ) {
     return null;
   }
 
   const exactName =
     services.find(
-      (service) =>
+      (
+        service,
+      ) =>
         normalize(
           service.name,
-        ) === normalizedName,
+        ) ===
+        normalizedName,
     );
 
   if (exactName) {
     return exactName;
   }
 
-  /*
-   * Third: controlled partial match.
-   */
+  /* ============================================================
+     CONTROLLED PARTIAL MATCH
+  ============================================================ */
+
   const partial =
     services.find(
-      (service) => {
+      (
+        service,
+      ) => {
         const name =
           normalize(
             service.name,
@@ -442,7 +803,10 @@ function findService(
       },
     );
 
-  return partial ?? null;
+  return (
+    partial ??
+    null
+  );
 }
 
 /* ==============================================================
@@ -451,7 +815,9 @@ function findService(
 
 async function getAvailableWorkersByService(
   serviceId: string,
-): Promise<WorkerRecord[]> {
+): Promise<
+  WorkerRecord[]
+> {
   logStep(
     "WORKER QUERY START",
     {
@@ -465,7 +831,9 @@ async function getAvailableWorkersByService(
   const snapshot =
     await withTimeout(
       firestore
-        .collection("users")
+        .collection(
+          "users",
+        )
         .where(
           "workerProfile.selectedServices",
           "array-contains",
@@ -475,7 +843,9 @@ async function getAvailableWorkersByService(
           MAX_WORKERS_TO_CHECK,
         )
         .get(),
+
       FIRESTORE_TIMEOUT_MS,
+
       "Worker Firestore query",
     );
 
@@ -489,119 +859,128 @@ async function getAvailableWorkersByService(
 
   const workers =
     snapshot.docs
-      .map((doc) => {
-        const data =
-          doc.data();
+      .map(
+        (
+          doc,
+        ) => {
+          const data =
+            doc.data();
 
-        const roles =
-          Array.isArray(
-            data.roles,
-          )
-            ? data.roles
-            : [];
-
-        if (
-          !roles.includes(
-            "worker",
-          )
-        ) {
-          return null;
-        }
-
-        if (
-          data.available !==
-          true
-        ) {
-          return null;
-        }
-
-        const workerProfile =
-          data.workerProfile;
-
-        if (
-          !workerProfile ||
-          typeof workerProfile !==
-            "object"
-        ) {
-          return null;
-        }
-
-        const profile =
-          workerProfile as Record<
-            string,
-            unknown
-          >;
-
-        return {
-          id: doc.id,
-
-          firstName:
-            typeof data.firstName ===
-            "string"
-              ? data.firstName.trim()
-              : "",
-
-          surname:
-            typeof data.surname ===
-            "string"
-              ? data.surname.trim()
-              : "",
-
-          photoUrl:
-            typeof profile.photoUrl ===
-            "string"
-              ? profile.photoUrl.trim()
-              : "",
-
-          rating:
-            typeof data.rating ===
-              "number" &&
-            Number.isFinite(
-              data.rating,
+          const roles =
+            Array.isArray(
+              data.roles,
             )
-              ? data.rating
-              : 0,
+              ? data.roles
+              : [];
 
-          completedJobs:
-            typeof data.completedJobs ===
-              "number" &&
-            Number.isFinite(
-              data.completedJobs,
+          if (
+            !roles.includes(
+              "worker",
             )
-              ? data.completedJobs
-              : 0,
+          ) {
+            return null;
+          }
 
-          verified:
-            data.verified === true,
+          if (
+            data.available !==
+            true
+          ) {
+            return null;
+          }
 
-          available:
-            data.available === true,
+          const workerProfile =
+            data.workerProfile;
 
-          online:
-            data.online === true,
+          if (
+            !workerProfile ||
+            typeof workerProfile !==
+              "object"
+          ) {
+            return null;
+          }
 
-          latitude:
-            toNumberOrNull(
-              profile.latitude,
-            ),
+          const profile =
+            workerProfile as Record<
+              string,
+              unknown
+            >;
 
-          longitude:
-            toNumberOrNull(
-              profile.longitude,
-            ),
+          return {
+            id:
+              doc.id,
 
-          address:
-            typeof profile.address ===
-            "string"
-              ? profile.address.trim()
-              : "",
-        };
-      })
+            firstName:
+              typeof data.firstName ===
+              "string"
+                ? data.firstName.trim()
+                : "",
+
+            surname:
+              typeof data.surname ===
+              "string"
+                ? data.surname.trim()
+                : "",
+
+            photoUrl:
+              typeof profile.photoUrl ===
+              "string"
+                ? profile.photoUrl.trim()
+                : "",
+
+            rating:
+              typeof data.rating ===
+                "number" &&
+              Number.isFinite(
+                data.rating,
+              )
+                ? data.rating
+                : 0,
+
+            completedJobs:
+              typeof data.completedJobs ===
+                "number" &&
+              Number.isFinite(
+                data.completedJobs,
+              )
+                ? data.completedJobs
+                : 0,
+
+            verified:
+              data.verified ===
+              true,
+
+            available:
+              data.available ===
+              true,
+
+            online:
+              data.online ===
+              true,
+
+            latitude:
+              toNumberOrNull(
+                profile.latitude,
+              ),
+
+            longitude:
+              toNumberOrNull(
+                profile.longitude,
+              ),
+
+            address:
+              typeof profile.address ===
+              "string"
+                ? profile.address.trim()
+                : "",
+          } satisfies WorkerRecord;
+        },
+      )
       .filter(
         (
           worker,
         ): worker is WorkerRecord =>
-          worker !== null,
+          worker !==
+          null,
       );
 
   logStep(
@@ -620,9 +999,14 @@ async function getAvailableWorkersByService(
 ============================================================== */
 
 function selectBestWorker(
-  workers: WorkerRecord[],
-  customerLatitude: number | null,
-  customerLongitude: number | null,
+  workers:
+    WorkerRecord[],
+  customerLatitude:
+    | number
+    | null,
+  customerLongitude:
+    | number
+    | null,
 ): WorkerWithDistance | null {
   logStep(
     "WORKER SELECTION START",
@@ -633,7 +1017,8 @@ function selectBestWorker(
   );
 
   if (
-    workers.length === 0
+    workers.length ===
+    0
   ) {
     return null;
   }
@@ -646,10 +1031,13 @@ function selectBestWorker(
 
   const results =
     workers.map(
-      (worker) => {
+      (
+        worker,
+      ) => {
         let distanceKm:
           | number
-          | null = null;
+          | null =
+          null;
 
         const workerHasLocation =
           hasValidCoordinates(
@@ -657,32 +1045,24 @@ function selectBestWorker(
             worker.longitude,
           );
 
-        /*
-         * TypeScript-safe coordinate handling.
-         *
-         * We copy the values into local constants after
-         * validation so there is no "number | null" error.
-         */
-        const workerLatitude =
-          worker.latitude;
-
-        const workerLongitude =
-          worker.longitude;
-
         if (
           customerHasLocation &&
           workerHasLocation &&
-          workerLatitude !== null &&
-          workerLongitude !== null &&
-          customerLatitude !== null &&
-          customerLongitude !== null
+          customerLatitude !==
+            null &&
+          customerLongitude !==
+            null &&
+          worker.latitude !==
+            null &&
+          worker.longitude !==
+            null
         ) {
           distanceKm =
             calculateDistanceKm(
               customerLatitude,
               customerLongitude,
-              workerLatitude,
-              workerLongitude,
+              worker.latitude,
+              worker.longitude,
             );
         }
 
@@ -694,42 +1074,60 @@ function selectBestWorker(
     );
 
   /*
-   * Sort priority:
+   * Priority:
    *
-   * 1. Closest worker when location exists
-   * 2. Verified worker
-   * 3. Higher rating
-   * 4. More completed jobs
+   * 1. nearest
+   * 2. online
+   * 3. verified
+   * 4. rating
+   * 5. completed jobs
    */
+
   results.sort(
-    (a, b) => {
+    (
+      a,
+      b,
+    ) => {
       if (
-        a.distanceKm !== null &&
-        b.distanceKm !== null
-      ) {
-        if (
-          a.distanceKm !==
+        a.distanceKm !==
+          null &&
+        b.distanceKm !==
+          null &&
+        a.distanceKm !==
           b.distanceKm
-        ) {
-          return (
-            a.distanceKm -
-            b.distanceKm
-          );
-        }
+      ) {
+        return (
+          a.distanceKm -
+          b.distanceKm
+        );
       }
 
       if (
-        a.distanceKm !== null &&
-        b.distanceKm === null
+        a.distanceKm !==
+          null &&
+        b.distanceKm ===
+          null
       ) {
         return -1;
       }
 
       if (
-        a.distanceKm === null &&
-        b.distanceKm !== null
+        a.distanceKm ===
+          null &&
+        b.distanceKm !==
+          null
       ) {
         return 1;
+      }
+
+      if (
+        a.worker.online !==
+        b.worker.online
+      ) {
+        return a.worker
+          .online
+          ? -1
+          : 1;
       }
 
       if (
@@ -753,14 +1151,17 @@ function selectBestWorker(
       }
 
       return (
-        b.worker.completedJobs -
-        a.worker.completedJobs
+        b.worker
+          .completedJobs -
+        a.worker
+          .completedJobs
       );
     },
   );
 
   const selected =
-    results[0] ?? null;
+    results[0] ??
+    null;
 
   logStep(
     "WORKER SELECTION COMPLETE",
@@ -771,6 +1172,9 @@ function selectBestWorker(
 
           distanceKm:
             selected.distanceKm,
+
+          online:
+            selected.worker.online,
 
           verified:
             selected.worker
@@ -820,14 +1224,18 @@ function parseGeminiJson(
       !parsed ||
       typeof parsed !==
         "object" ||
-      Array.isArray(parsed)
+      Array.isArray(
+        parsed,
+      )
     ) {
       throw new Error(
         "Gemini returned invalid JSON object.",
       );
     }
 
-    return parsed as GeminiResult;
+    return (
+      parsed as GeminiResult
+    );
   } catch {
     throw new Error(
       "AI returned invalid JSON.",
@@ -857,7 +1265,7 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 /* ==============================================================
-   ERROR MESSAGE
+   ERROR HELPERS
 ============================================================== */
 
 function getErrorMessage(
@@ -878,7 +1286,122 @@ function getErrorMessage(
     return error.trim();
   }
 
+  if (
+    error &&
+    typeof error ===
+      "object"
+  ) {
+    const message =
+      (
+        error as {
+          message?: unknown;
+        }
+      ).message;
+
+    if (
+      typeof message ===
+        "string" &&
+      message.trim()
+    ) {
+      return message.trim();
+    }
+  }
+
   return "Unknown server error.";
+}
+
+function getErrorStatus(
+  error: unknown,
+): number | null {
+  if (
+    !error ||
+    typeof error !==
+      "object"
+  ) {
+    return null;
+  }
+
+  const status =
+    (
+      error as {
+        status?: unknown;
+      }
+    ).status;
+
+  if (
+    typeof status ===
+      "number" &&
+    Number.isFinite(
+      status,
+    )
+  ) {
+    return status;
+  }
+
+  const code =
+    (
+      error as {
+        code?: unknown;
+      }
+    ).code;
+
+  if (
+    typeof code ===
+      "number" &&
+    Number.isFinite(
+      code,
+    )
+  ) {
+    return code;
+  }
+
+  return null;
+}
+
+/* ==============================================================
+   REJECTION RESPONSE
+============================================================== */
+
+function createRejectedResponse({
+  message,
+  reason,
+  customerDescription,
+  service = null,
+}: {
+  message: string;
+
+  reason:
+    Exclude<
+      AiBookingReason,
+      null
+    >;
+
+  customerDescription:
+    string;
+
+  service?:
+    | AiBookingServiceResponse
+    | null;
+}): AiBookingResponse {
+  return {
+    success: true,
+
+    completed: false,
+
+    rejected: true,
+
+    message,
+
+    reason,
+
+    customerDescription,
+
+    service,
+
+    worker: null,
+
+    booking: null,
+  };
 }
 
 /* ==============================================================
@@ -907,7 +1430,7 @@ export const aiBookingResolve =
 
     async (
       request,
-    ) => {
+    ): Promise<AiBookingResponse> => {
       const startedAt =
         Date.now();
 
@@ -929,14 +1452,8 @@ export const aiBookingResolve =
           );
         }
 
-        const uid =
-          request.auth.uid;
-
         logStep(
           "AUTHENTICATED",
-          {
-            uid,
-          },
         );
 
         /* ======================================================
@@ -954,13 +1471,15 @@ export const aiBookingResolve =
           );
 
         const imageBase64 =
-          typeof data?.imageBase64 ===
+          typeof data
+            ?.imageBase64 ===
           "string"
             ? data.imageBase64.trim()
             : "";
 
         const mimeType =
-          typeof data?.mimeType ===
+          typeof data
+            ?.mimeType ===
           "string"
             ? data.mimeType
                 .trim()
@@ -1003,7 +1522,17 @@ export const aiBookingResolve =
         ) {
           throw new HttpsError(
             "invalid-argument",
-            "The image is too large.",
+            "The selected image is too large.",
+          );
+        }
+
+        if (
+          imageBase64 &&
+          !mimeType
+        ) {
+          throw new HttpsError(
+            "invalid-argument",
+            "The image type is missing.",
           );
         }
 
@@ -1065,6 +1594,10 @@ export const aiBookingResolve =
                 imageBase64,
               ),
 
+            mimeType:
+              mimeType ||
+              null,
+
             hasLocation:
               hasValidCoordinates(
                 customerLatitude,
@@ -1079,14 +1612,15 @@ export const aiBookingResolve =
         );
 
         /* ======================================================
-           GET ACTIVE SERVICES
+           SERVICES
         ====================================================== */
 
         const services =
           await getActiveServices();
 
         if (
-          services.length === 0
+          services.length ===
+          0
         ) {
           throw new HttpsError(
             "failed-precondition",
@@ -1094,13 +1628,22 @@ export const aiBookingResolve =
           );
         }
 
+        /*
+         * Gemini only needs ID and name.
+         *
+         * fulfillmentMode remains trusted server-side data.
+         */
         const serviceCatalog =
           services
             .map(
-              (service) =>
+              (
+                service,
+              ) =>
                 `ID: ${service.id} | NAME: ${service.name}`,
             )
-            .join("\n");
+            .join(
+              "\n",
+            );
 
         /* ======================================================
            GEMINI
@@ -1109,10 +1652,17 @@ export const aiBookingResolve =
         logStep(
           "GEMINI START",
           {
-            model: MODEL,
+            model:
+              MODEL,
 
             serviceCount:
               services.length,
+
+            imageOnly:
+              Boolean(
+                imageBase64 &&
+                !description,
+              ),
           },
         );
 
@@ -1131,6 +1681,10 @@ export const aiBookingResolve =
             }
         > = [];
 
+        /* ======================================================
+           CUSTOMER TEXT
+        ====================================================== */
+
         if (
           description
         ) {
@@ -1140,111 +1694,133 @@ export const aiBookingResolve =
           });
         }
 
+        /* ======================================================
+           CUSTOMER IMAGE
+        ====================================================== */
+
         if (
           imageBase64
         ) {
           parts.push({
             inlineData: {
               mimeType,
+
               data:
                 imageBase64,
             },
           });
         }
 
+        /* ======================================================
+           INSTRUCTIONS
+        ====================================================== */
+
         parts.push({
           text: `
-You are Fixxam's service classification assistant.
+You are Fixxam's automatic booking assistant.
 
-Your ONLY task is to identify the correct Fixxam service.
+Your job is to understand a customer's repair problem from their written description, photo, or both.
 
-RULES:
+You must then:
+1. Identify exactly one Fixxam service from the supplied service catalog.
+2. Create a short, natural, booking-ready customer description.
+3. Return only structured data matching the required schema.
 
-1. Select ONLY a service from the service catalog.
-2. Never invent a service.
-3. Never invent a service ID.
-4. Never select a worker.
-5. Never create a booking.
-6. Never provide a price.
-7. If the request is vague, reject it.
-8. If the image is unclear, reject it.
-9. If the requested service is not in the catalog, reject it.
-10. Return JSON only.
-11. Return the exact service ID and service name.
-12. Confidence must be between 0 and 1.
-13. Always return the reason field.
-14. Keep the customer message short and friendly.
-15. Never mention Gemini, AI, Firebase, backend, API, JSON, or technical details.
+IMPORTANT SAFETY AND ACCURACY RULES:
+
+- Never invent damage that is not visible or described.
+- Never invent urgency.
+- Never add words such as "urgent", "immediately", "now", or "emergency" unless the customer explicitly requested urgency.
+- Never invent a price.
+- Never invent a worker.
+- Never invent a location.
+- Never invent a service.
+- Never invent a service ID.
+- Never choose or invent a fulfillment mode.
+- Never decide whether the worker visits the customer or the customer visits the provider.
+- Never claim an exact technical diagnosis unless the evidence clearly supports it.
+- If uncertain, use cautious language such as "appears damaged", "appears loose", or "may need repair".
+- Never mention Gemini, AI, Firebase, API, backend, JSON, prompts, or technical implementation details to the customer.
+
+IMAGE RULES:
+
+- Carefully inspect the supplied image when one is provided.
+- If the photo clearly shows a repair or maintenance problem, use the visible evidence.
+- If the photo does not clearly show what needs repair, reject with reason "unclear_image".
+- If the image is unrelated to repair or maintenance, reject with reason "unclear_image".
+- Do not guess a hidden fault that cannot be seen.
+
+CUSTOMER DESCRIPTION RULES:
+
+- Produce one concise first-person booking description.
+- The description must sound like something the customer could naturally send to a professional.
+- If the customer supplied text, preserve the meaning and use the same language where possible.
+- If only a photo was provided, write a clear simple English description of the visible problem.
+- The description should explain what appears wrong and that the customer wants a professional to inspect or repair it.
+- Keep it concise.
+- Do not mention that the description came from a photo.
+
+Example for a visibly damaged car tyre:
+
+"My car tyre appears damaged and I need a professional to inspect and repair it."
+
+SERVICE RULES:
+
+- Select ONLY from SERVICE CATALOG.
+- Return the exact service ID.
+- Return the exact service name.
+- Never create a service that is not in the catalog.
+- Confidence must be between 0 and 1.
+- Do not infer booking fulfillment rules from the service name.
+- Fixxam will apply the authoritative booking rules after service selection.
 
 REASON VALUES:
 
-"" = successful service identification
+"success"
+= The problem is clear and a supported service has been identified.
 
-"unclear_request" = description is too vague
+"unclear_request"
+= The written request is too vague and no image resolves it.
 
-"unclear_image" = image does not clearly show the problem
+"unclear_image"
+= The supplied photo does not clearly show a repair problem.
 
-"unsupported_service" = requested service is not available
+"unsupported_service"
+= The requested or visible problem requires a service Fixxam does not currently offer.
 
 SERVICE CATALOG:
 
 ${serviceCatalog}
 
-SUCCESS RESPONSE:
+For success:
+- completed = true
+- rejected = false
+- reason = "success"
+- serviceId = exact catalog ID
+- serviceName = exact catalog name
+- confidence = value from 0 to 1
+- customerDescription = useful booking-ready description
 
-{
-  "completed": true,
-  "rejected": false,
-  "reason": "",
-  "message": "We understand what you need.",
-  "serviceId": "EXACT SERVICE ID",
-  "serviceName": "EXACT SERVICE NAME",
-  "confidence": 0.95
-}
-
-UNCLEAR REQUEST:
-
-{
-  "completed": false,
-  "rejected": true,
-  "reason": "unclear_request",
-  "message": "We couldn't understand the service you need. Please describe the problem a little more clearly.",
-  "serviceId": "",
-  "serviceName": "",
-  "confidence": 0
-}
-
-UNCLEAR IMAGE:
-
-{
-  "completed": false,
-  "rejected": true,
-  "reason": "unclear_image",
-  "message": "We couldn't clearly see the problem in the photo. Please take a clearer photo and try again.",
-  "serviceId": "",
-  "serviceName": "",
-  "confidence": 0
-}
-
-UNSUPPORTED SERVICE:
-
-{
-  "completed": false,
-  "rejected": true,
-  "reason": "unsupported_service",
-  "message": "Sorry, Fixxam does not currently offer this service. You can choose a service manually from our available services.",
-  "serviceId": "",
-  "serviceName": "",
-  "confidence": 0
-}
+For rejection:
+- completed = false
+- rejected = true
+- serviceId = ""
+- serviceName = ""
+- confidence = 0
+- customerDescription may be empty
 `,
         });
+
+        /* ======================================================
+           GENERATE
+        ====================================================== */
 
         const geminiResponse =
           await withTimeout(
             ai.models.generateContent(
               {
-                model: MODEL,
+                model:
+                  MODEL,
 
                 contents: [
                   {
@@ -1259,8 +1835,14 @@ UNSUPPORTED SERVICE:
                   responseMimeType:
                     "application/json",
 
+                  responseSchema:
+                    GEMINI_RESPONSE_SCHEMA,
+
+                  temperature:
+                    0.2,
+
                   maxOutputTokens:
-                    512,
+                    700,
                 },
               },
             ),
@@ -1274,6 +1856,10 @@ UNSUPPORTED SERVICE:
           "GEMINI COMPLETE",
         );
 
+        /* ======================================================
+           RESPONSE TEXT
+        ====================================================== */
+
         const responseText =
           geminiResponse.text
             ?.trim();
@@ -1285,6 +1871,10 @@ UNSUPPORTED SERVICE:
             "AI returned an empty response.",
           );
         }
+
+        /* ======================================================
+           PARSE
+        ====================================================== */
 
         const parsed =
           parseGeminiJson(
@@ -1332,9 +1922,16 @@ UNSUPPORTED SERVICE:
             500,
           );
 
-        const reason: AiBookingRejectionReason =
+        const generatedCustomerDescription =
+          cleanText(
+            parsed.customerDescription,
+            MAX_CUSTOMER_DESCRIPTION_LENGTH,
+          );
+
+        const geminiReason:
+          GeminiReason =
           parsed.reason ===
-            "" ||
+            "success" ||
           parsed.reason ===
             "unclear_image" ||
           parsed.reason ===
@@ -1343,6 +1940,13 @@ UNSUPPORTED SERVICE:
             "unclear_request"
             ? parsed.reason
             : "unclear_request";
+
+        const reason:
+          AiBookingReason =
+          geminiReason ===
+          "success"
+            ? null
+            : geminiReason;
 
         logStep(
           "GEMINI RESULT",
@@ -1358,6 +1962,11 @@ UNSUPPORTED SERVICE:
             serviceName,
 
             confidence,
+
+            hasGeneratedDescription:
+              Boolean(
+                generatedCustomerDescription,
+              ),
           },
         );
 
@@ -1371,28 +1980,59 @@ UNSUPPORTED SERVICE:
           confidence <
             MIN_CONFIDENCE
         ) {
-          return {
-            success: true,
+          const fallbackReason:
+            Exclude<
+              AiBookingReason,
+              "no_worker" | null
+            > =
+            imageBase64 &&
+            !description
+              ? "unclear_image"
+              : "unclear_request";
 
-            completed: false,
+          return createRejectedResponse(
+            {
+              message:
+                message ||
+                (
+                  fallbackReason ===
+                  "unclear_image"
+                    ? "We couldn't clearly see the problem in the photo. Please take a clearer photo and try again."
+                    : "We couldn't clearly understand what needs fixing. Please provide a little more detail."
+                ),
 
-            rejected: true,
+              reason:
+                reason ??
+                fallbackReason,
 
-            message:
-              message ||
-              "We couldn't understand the service you need. Please try again.",
+              customerDescription:
+                generatedCustomerDescription ||
+                description,
+            },
+          );
+        }
 
-            reason,
+        /* ======================================================
+           PHOTO-ONLY DESCRIPTION VALIDATION
+        ====================================================== */
 
-            customerDescription:
-              description,
+        if (
+          imageBase64 &&
+          !description &&
+          !generatedCustomerDescription
+        ) {
+          return createRejectedResponse(
+            {
+              message:
+                "We could see the photo, but couldn't clearly describe the repair problem. Please take a clearer photo and try again.",
 
-            service: null,
+              reason:
+                "unclear_image",
 
-            worker: null,
-
-            booking: null,
-          };
+              customerDescription:
+                "",
+            },
+          );
         }
 
         /* ======================================================
@@ -1412,38 +2052,99 @@ UNSUPPORTED SERVICE:
 
         logStep(
           "SERVICE MATCH COMPLETE",
-          matchedService,
+          matchedService
+            ? {
+                id:
+                  matchedService.id,
+
+                name:
+                  matchedService.name,
+
+                fulfillmentMode:
+                  matchedService.fulfillmentMode,
+              }
+            : null,
         );
 
         if (
           !matchedService
         ) {
-          return {
-            success: true,
+          return createRejectedResponse(
+            {
+              message:
+                "Sorry, Fixxam does not currently offer this service. You can choose a service manually from our available services.",
 
-            completed: false,
+              reason:
+                "unsupported_service",
 
-            rejected: true,
-
-            message:
-              "Sorry, Fixxam does not currently offer this service. You can choose a service manually from our available services.",
-
-            reason:
-              "unsupported_service",
-
-            customerDescription:
-              description,
-
-            service: null,
-
-            worker: null,
-
-            booking: null,
-          };
+              customerDescription:
+                generatedCustomerDescription ||
+                description,
+            },
+          );
         }
 
         /* ======================================================
-           GET WORKERS
+           FULFILLMENT SAFETY
+
+           A service that still needs review must not silently
+           become a concrete booking.
+        ====================================================== */
+
+        if (
+          matchedService.fulfillmentMode ===
+          "needs_review"
+        ) {
+          logStep(
+            "SERVICE REQUIRES FULFILLMENT REVIEW",
+            {
+              serviceId:
+                matchedService.id,
+
+              serviceName:
+                matchedService.name,
+            },
+          );
+
+          return createRejectedResponse(
+            {
+              message:
+                "This service is still being configured for automatic booking. Please choose another service or book manually.",
+
+              reason:
+                "unsupported_service",
+
+              customerDescription:
+                generatedCustomerDescription ||
+                description,
+
+              service: {
+                id:
+                  matchedService.id,
+
+                name:
+                  matchedService.name,
+
+                fulfillmentMode:
+                  matchedService.fulfillmentMode,
+
+                confidence,
+              },
+            },
+          );
+        }
+
+        /* ======================================================
+           FINAL CUSTOMER DESCRIPTION
+        ====================================================== */
+
+        const customerDescription =
+          generatedCustomerDescription ||
+          description ||
+          `I need a professional to help with ${matchedService.name}.`;
+
+        /* ======================================================
+           WORKERS
         ====================================================== */
 
         const workers =
@@ -1452,7 +2153,8 @@ UNSUPPORTED SERVICE:
           );
 
         if (
-          workers.length === 0
+          workers.length ===
+          0
         ) {
           logStep(
             "NO WORKER FOUND",
@@ -1462,36 +2164,30 @@ UNSUPPORTED SERVICE:
             },
           );
 
-          return {
-            success: true,
+          return createRejectedResponse(
+            {
+              message:
+                `We found the ${matchedService.name} service, but no professional is available right now. Please try again later.`,
 
-            completed: false,
+              reason:
+                "no_worker",
 
-            rejected: true,
+              customerDescription,
 
-            message:
-              `We found the ${matchedService.name} service, but no professional is available right now. You can try again later.`,
+              service: {
+                id:
+                  matchedService.id,
 
-            reason:
-              "no_worker",
+                name:
+                  matchedService.name,
 
-            customerDescription:
-              description,
+                fulfillmentMode:
+                  matchedService.fulfillmentMode,
 
-            service: {
-              id:
-                matchedService.id,
-
-              name:
-                matchedService.name,
-
-              confidence,
+                confidence,
+              },
             },
-
-            worker: null,
-
-            booking: null,
-          };
+          );
         }
 
         /* ======================================================
@@ -1521,72 +2217,122 @@ UNSUPPORTED SERVICE:
             worker.firstName,
             worker.surname,
           ]
-            .filter(Boolean)
-            .join(" ")
+            .filter(
+              Boolean,
+            )
+            .join(
+              " ",
+            )
             .trim() ||
           "Fixxam professional";
 
         /* ======================================================
-           BOOKING PREVIEW
+           BOOKING PREVIEW LOCATION
+
+           This remains a draft only.
+
+           BookingScreen applies the final fulfillment-specific
+           location rules before the customer submits.
         ====================================================== */
 
-        const customerDescription =
-          description ||
-          `I need help with ${matchedService.name}.`;
+        const bookingAddress =
+          matchedService.fulfillmentMode ===
+          "remote"
+            ? ""
+            : customerAddress;
+
+        const bookingLatitude =
+          matchedService.fulfillmentMode ===
+          "remote"
+            ? null
+            : customerLatitude;
+
+        const bookingLongitude =
+          matchedService.fulfillmentMode ===
+          "remote"
+            ? null
+            : customerLongitude;
+
+        /* ======================================================
+           BOOKING DATE
+
+           This is preview metadata only.
+           The customer still chooses service priority/timing
+           in the booking flow.
+        ====================================================== */
 
         const bookingDate =
           new Date()
             .toISOString();
 
-        const booking = {
-          serviceId:
-            matchedService.id,
+        /* ======================================================
+           BOOKING PREVIEW
 
-          serviceName:
-            matchedService.name,
+           IMPORTANT:
+           Do NOT send imageBase64 back.
 
-          workerId:
-            worker.id,
+           The app already has photoUri and attaches the local
+           URI to the preview.
+        ====================================================== */
 
-          workerName,
+        const booking:
+          AiBookingPreview =
+          {
+            serviceId:
+              matchedService.id,
 
-          workerPhoto:
-            worker.photoUrl,
+            serviceName:
+              matchedService.name,
 
-          description:
-            customerDescription,
+            fulfillmentMode:
+              matchedService.fulfillmentMode,
 
-          photos: [],
+            workerId:
+              worker.id,
 
-          address:
-            customerAddress,
+            workerName,
 
-          latitude:
-            customerLatitude,
+            workerPhoto:
+              worker.photoUrl,
 
-          longitude:
-            customerLongitude,
+            description:
+              customerDescription,
 
-          bookingDate,
+            photos: [],
 
-          bookingTime:
+            address:
+              bookingAddress,
+
+            latitude:
+              bookingLatitude,
+
+            longitude:
+              bookingLongitude,
+
             bookingDate,
 
-          amount: 0,
+            bookingTime:
+              bookingDate,
 
-          urgent: false,
+            amount: 0,
 
-          urgentFee: 0,
+            /*
+             * Gemini does not choose urgency.
+             * Customer chooses it in BookingScreen.
+             */
+            urgent: false,
 
-          estimatePending:
-            true,
+            urgentFee: 0,
 
-          aiGenerated:
-            true,
+            estimatePending:
+              true,
 
-          aiConfidence:
-            confidence,
-        };
+            aiGenerated:
+              true,
+
+            aiConfidence:
+              confidence,
+          };
 
         /* ======================================================
            COMPLETE
@@ -1595,8 +2341,6 @@ UNSUPPORTED SERVICE:
         logStep(
           "================ COMPLETE ================",
           {
-            uid,
-
             totalMs:
               Date.now() -
               startedAt,
@@ -1604,13 +2348,16 @@ UNSUPPORTED SERVICE:
             serviceId:
               matchedService.id,
 
-            serviceName:
-              matchedService.name,
+            fulfillmentMode:
+              matchedService.fulfillmentMode,
 
             workerId:
               worker.id,
 
-            workerName,
+            hasCustomerDescription:
+              Boolean(
+                customerDescription,
+              ),
 
             distanceKm:
               selected.distanceKm,
@@ -1627,7 +2374,10 @@ UNSUPPORTED SERVICE:
           message:
             `We found ${workerName} for ${matchedService.name}.`,
 
-          reason: "",
+          /*
+           * Client expects null on success.
+           */
+          reason: null,
 
           customerDescription,
 
@@ -1637,6 +2387,9 @@ UNSUPPORTED SERVICE:
 
             name:
               matchedService.name,
+
+            fulfillmentMode:
+              matchedService.fulfillmentMode,
 
             confidence,
           },
@@ -1674,11 +2427,18 @@ UNSUPPORTED SERVICE:
             error,
           );
 
+        const status =
+          getErrorStatus(
+            error,
+          );
+
         logStep(
           "FATAL ERROR",
           {
             message:
               errorMessage,
+
+            status,
 
             elapsedMs:
               Date.now() -
@@ -1686,14 +2446,10 @@ UNSUPPORTED SERVICE:
           },
         );
 
-        console.error(
-          "[AI_BOOKING] FULL ERROR",
-          error,
-        );
+        /* ======================================================
+           PRESERVE FIREBASE ERRORS
+        ====================================================== */
 
-        /*
-         * Preserve intentional Firebase errors.
-         */
         if (
           error instanceof
           HttpsError
@@ -1701,11 +2457,98 @@ UNSUPPORTED SERVICE:
           throw error;
         }
 
+        /* ======================================================
+           TIMEOUT
+        ====================================================== */
+
+        if (
+          error instanceof
+          OperationTimeoutError
+        ) {
+          throw new HttpsError(
+            "deadline-exceeded",
+            "Automatic booking took too long. Please try again.",
+          );
+        }
+
+        const normalizedError =
+          errorMessage.toLowerCase();
+
+        /* ======================================================
+           RATE LIMIT / GEMINI CREDIT / QUOTA
+        ====================================================== */
+
+        if (
+          status === 429 ||
+          normalizedError.includes(
+            "429",
+          ) ||
+          normalizedError.includes(
+            "resource exhausted",
+          ) ||
+          normalizedError.includes(
+            "resource_exhausted",
+          ) ||
+          normalizedError.includes(
+            "prepay credits",
+          ) ||
+          normalizedError.includes(
+            "quota",
+          )
+        ) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Automatic booking AI is temporarily unavailable. Please try again shortly.",
+          );
+        }
+
+        /* ======================================================
+           EXTERNAL SERVICE UNAVAILABLE
+        ====================================================== */
+
+        if (
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          normalizedError.includes(
+            "service unavailable",
+          )
+        ) {
+          throw new HttpsError(
+            "unavailable",
+            "Automatic booking is temporarily unavailable. Please try again.",
+          );
+        }
+
+        /* ======================================================
+           CONFIGURATION
+        ====================================================== */
+
+        if (
+          normalizedError.includes(
+            "gemini_api_key",
+          )
+        ) {
+          throw new HttpsError(
+            "internal",
+            "Automatic booking is temporarily unavailable.",
+          );
+        }
+
         /*
-         * Never expose internal
-         * implementation details
-         * to customers.
+         * Internal details remain in
+         * server logs only.
          */
+        console.error(
+          "[AI_BOOKING] INTERNAL ERROR",
+          {
+            message:
+              errorMessage,
+
+            status,
+          },
+        );
+
         throw new HttpsError(
           "internal",
           "Unable to process automatic booking.",

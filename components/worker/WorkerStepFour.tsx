@@ -1,6 +1,6 @@
 import React, {
   memo,
-  useCallback,
+  useState,
 } from "react";
 
 import {
@@ -8,251 +8,182 @@ import {
   View,
 } from "react-native";
 
-import {
-  AppInput,
-  AppText,
-} from "@/components/ui";
+import AppInput from "@/components/ui/AppInput";
+import { AppText } from "@/components/ui";
 
-import ProfilePhotoPreview from "@/components/worker/ProfilePhotoPreview";
-import WorkerWorkGallery from "@/components/customer/WorkerWorkGallery";
+import WorkerWorkGallery from "@/components/customer/worker/WorkerWorkGallery";
+import WorkerPhotoSourceModal from "@/components/worker/WorkerPhotoSourceModal";
 
-import {
-  Colors,
-  FixxamTokens,
-} from "@/theme";
-
-/* ============================================================
-   TYPES
-============================================================ */
+import { FixxamTokens } from "@/theme";
 
 type Props = {
-  photo: string | null;
-
-  onUploadPhoto: () => void;
-
-  onCapturePhoto: () => void;
-
   about: string;
-
-  setAbout: (
-    value: string,
-  ) => void;
+  setAbout: (value: string) => void;
 
   workGallery: string[];
 
   onAddWorkPhoto: () => void;
+  onTakeWorkPhoto: () => void;
+  onPickWorkPhotos: () => void;
 
   onRemoveWorkPhoto: (
     index: number,
   ) => void;
+
+  loading?: boolean;
 };
 
-/* ============================================================
-   CONSTANTS
-============================================================ */
-
 const MAX_ABOUT_LENGTH = 500;
-const MAX_WORK_IMAGES = 6;
-
-/* ============================================================
-   COMPONENT
-============================================================ */
+const MAX_GALLERY_ITEMS = 6;
 
 function WorkerStepFour({
-  photo,
-
-  onUploadPhoto,
-  onCapturePhoto,
-
   about,
   setAbout,
-
   workGallery,
-
   onAddWorkPhoto,
+  onTakeWorkPhoto,
+  onPickWorkPhotos,
   onRemoveWorkPhoto,
+  loading = false,
 }: Props) {
-  const handleAboutChange =
-    useCallback(
-      (
-        value: string,
-      ) => {
-        setAbout(
-          value.slice(
-            0,
-            MAX_ABOUT_LENGTH,
-          ),
-        );
-      },
-      [setAbout],
-    );
+  const [photoModalVisible, setPhotoModalVisible] =
+    useState(false);
+
+  const openPhotoModal = () => {
+    setPhotoModalVisible(true);
+  };
+
+  const closePhotoModal = () => {
+    if (!loading) {
+      setPhotoModalVisible(false);
+    }
+  };
+
+  const handleCamera = () => {
+    setPhotoModalVisible(false);
+    onTakeWorkPhoto();
+  };
+
+  const handleGallery = () => {
+    setPhotoModalVisible(false);
+    onPickWorkPhotos();
+  };
 
   return (
-    <View
-      style={
-        styles.container
-      }
-    >
-      {/* =====================================================
-          PROFILE PHOTO
-      ===================================================== */}
+    <>
+      <View style={styles.container}>
+        <View style={styles.aboutSection}>
+          <AppInput
+            label="About you (Optional)"
+            value={about}
+            onChangeText={setAbout}
+            placeholder="Tell customers about your experience and skills..."
+            multiline
+            maxLength={MAX_ABOUT_LENGTH}
+            textAlignVertical="top"
+            style={styles.aboutInput}
+          />
 
-      <ProfilePhotoPreview
-        photo={
-          photo
-        }
-        onUpload={
-          onUploadPhoto
-        }
-        onCapture={
-          onCapturePhoto
-        }
-        variant="worker"
-      />
+          <AppText
+            variant="caption"
+            color="secondary"
+            style={styles.aboutCounter}
+          >
+            {about.length}/{MAX_ABOUT_LENGTH}
+          </AppText>
+        </View>
 
-      {/* =====================================================
-          ABOUT
-      ===================================================== */}
+        <View style={styles.gallerySection}>
+          <View style={styles.galleryHeader}>
+            <AppText
+              variant="heading2"
+              style={styles.galleryTitle}
+            >
+              Your Work Gallery
+            </AppText>
 
-      <View
-        style={
-          styles.aboutSection
-        }
-      >
-        <AppText
-          variant="heading3"
-          weight="bold"
-          style={
-            styles.title
-          }
-        >
-          About you and your skills
-        </AppText>
+            <AppText
+              variant="caption"
+              color="secondary"
+            >
+              {workGallery.length}/{MAX_GALLERY_ITEMS}
+            </AppText>
+          </View>
 
-        <AppText
-          variant="body"
-          tone="secondary"
-          style={
-            styles.subtitle
-          }
-        >
-          Tell customers a little about your experience and skills.
-        </AppText>
+          <AppText
+            variant="body"
+            color="secondary"
+            style={styles.gallerySubtitle}
+          >
+            Show customers examples of your work.
+          </AppText>
 
-        <AppInput
-          label="About you (Optional)"
-          placeholder="Describe your skills and experience..."
-          value={
-            about
-          }
-          onChangeText={
-            handleAboutChange
-          }
-          variant="worker"
-          multiline
-          numberOfLines={4}
-          maxLength={
-            MAX_ABOUT_LENGTH
-          }
-          textAlignVertical="top"
-        />
-
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.counter
-          }
-        >
-          {about.length}/{MAX_ABOUT_LENGTH}
-        </AppText>
+          <WorkerWorkGallery
+            workGallery={workGallery}
+            onAddWorkPhoto={openPhotoModal}
+            onRemoveWorkPhoto={
+              onRemoveWorkPhoto
+            }
+          />
+        </View>
       </View>
 
-      {/* =====================================================
-          WORK GALLERY
-      ===================================================== */}
-
-      <WorkerWorkGallery
-        images={
-          workGallery
-        }
-        onAdd={
-          onAddWorkPhoto
-        }
-        onRemove={
-          onRemoveWorkPhoto
-        }
-        maxImages={
-          MAX_WORK_IMAGES
-        }
+      <WorkerPhotoSourceModal
+        visible={photoModalVisible}
+        loading={loading}
+        onClose={closePhotoModal}
+        onCamera={handleCamera}
+        onGallery={handleGallery}
       />
-    </View>
+    </>
   );
 }
 
-export default memo(
-  WorkerStepFour,
-);
+export default memo(WorkerStepFour);
 
-/* ============================================================
-   STYLES
-============================================================ */
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal:
+      FixxamTokens.spacing.lg,
+    paddingBottom:
+      FixxamTokens.spacing.md,
+  },
 
-const styles =
-  StyleSheet.create({
-    container: {
-      width:
-        "100%",
-    },
+  aboutSection: {
+    marginTop:
+      FixxamTokens.spacing.sm,
+  },
 
-    aboutSection: {
-      marginTop:
-        FixxamTokens.spacing.sm,
+  aboutInput: {
+    minHeight: 104,
+  },
 
-      marginHorizontal:
-        FixxamTokens.spacing.md,
+  aboutCounter: {
+    alignSelf: "flex-end",
+    marginTop:
+      -FixxamTokens.spacing.xs,
+  },
 
-      padding:
-        FixxamTokens.spacing.md,
+  gallerySection: {
+    marginTop:
+      FixxamTokens.spacing.md,
+  },
 
-      backgroundColor:
-        Colors.surface,
+  galleryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 
-      borderRadius:
-        FixxamTokens.radius.lg,
+  galleryTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
 
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    title: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    counter: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-
-      textAlign:
-        "right",
-
-      color:
-        Colors.textMuted,
-    },
-  });
+  gallerySubtitle: {
+    marginTop:
+      FixxamTokens.spacing.xs,
+    marginBottom:
+      FixxamTokens.spacing.sm,
+  },
+});

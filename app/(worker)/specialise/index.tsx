@@ -37,6 +37,8 @@ import {
   httpsCallable,
 } from "firebase/functions";
 
+import CategoryCard from "@/components/categories/CategoryCard";
+
 import {
   AppButton,
   AppIcon,
@@ -44,9 +46,11 @@ import {
   AppText,
 } from "@/components/ui";
 
-import {
-  AppLoader,
-} from "@/components/common";
+import ServiceSelectModal, {
+  type ServiceOption,
+} from "@/components/worker/specialise/ServiceSelectModal";
+
+import RequestConfirmationModal from "@/components/worker/specialise/RequestConfirmationModal";
 
 import {
   auth,
@@ -58,11 +62,13 @@ import {
   getUser,
 } from "@/firebase/queries/users";
 
-import ServiceSelectModal, {
-  ServiceOption,
-} from "@/components/worker/specialise/ServiceSelectModal";
+import {
+  searchServices,
+} from "@/firebase/queries/search";
 
-import RequestConfirmationModal from "@/components/worker/specialise/RequestConfirmationModal";
+import {
+  serviceMapper,
+} from "@/firebase/mappers/serviceMapper";
 
 import {
   Colors,
@@ -77,7 +83,6 @@ import {
 
 type Coordinates = {
   latitude: number;
-
   longitude: number;
 };
 
@@ -112,45 +117,6 @@ type SendServiceRequestResponse = {
 
   message: string;
 };
-
-/* ==============================================================
-   SERVICES
-============================================================== */
-
-const SERVICES: ServiceOption[] = [
-  {
-    id: "electrical",
-    name: "Electrical",
-  },
-  {
-    id: "plumbing",
-    name: "Plumbing",
-  },
-  {
-    id: "painting",
-    name: "Painting",
-  },
-  {
-    id: "carpentry",
-    name: "Carpentry",
-  },
-  {
-    id: "building",
-    name: "Building",
-  },
-  {
-    id: "welding",
-    name: "Welding",
-  },
-  {
-    id: "tiling",
-    name: "Tiling",
-  },
-  {
-    id: "cleaning",
-    name: "Cleaning",
-  },
-];
 
 /* ==============================================================
    HELPERS
@@ -206,10 +172,18 @@ function normalizePhone(
 
   const digits =
     trimmed
-      .replace(/\D/g, "")
-      .slice(0, 15);
+      .replace(
+        /\D/g,
+        "",
+      )
+      .slice(
+        0,
+        15,
+      );
 
-  if (!digits) {
+  if (
+    !digits
+  ) {
     return hasLeadingPlus
       ? "+"
       : "";
@@ -249,7 +223,9 @@ function buildWorkerName(
       data.fullName,
     );
 
-  if (fullName) {
+  if (
+    fullName
+  ) {
     return fullName;
   }
 
@@ -273,11 +249,17 @@ function buildWorkerName(
     otherName,
     surname,
   ]
-    .filter(Boolean)
-    .join(" ")
+    .filter(
+      Boolean,
+    )
+    .join(
+      " ",
+    )
     .trim();
 
-  if (combinedName) {
+  if (
+    combinedName
+  ) {
     return combinedName;
   }
 
@@ -307,7 +289,9 @@ function isValidCoordinates(
     | Coordinates
     | null,
 ): coordinates is Coordinates {
-  if (!coordinates) {
+  if (
+    !coordinates
+  ) {
     return false;
   }
 
@@ -334,11 +318,14 @@ function showInfo(
   message?: string,
 ) {
   Toast.show({
-    type: "info",
+    type:
+      "info",
 
-    text1: title,
+    text1:
+      title,
 
-    text2: message,
+    text2:
+      message,
   });
 }
 
@@ -347,11 +334,14 @@ function showError(
   message?: string,
 ) {
   Toast.show({
-    type: "error",
+    type:
+      "error",
 
-    text1: title,
+    text1:
+      title,
 
-    text2: message,
+    text2:
+      message,
   });
 }
 
@@ -360,11 +350,14 @@ function showSuccess(
   message?: string,
 ) {
   Toast.show({
-    type: "success",
+    type:
+      "success",
 
-    text1: title,
+    text1:
+      title,
 
-    text2: message,
+    text2:
+      message,
   });
 }
 
@@ -389,7 +382,9 @@ function getCallableErrorMessage(
       callableError.code,
     ).toLowerCase();
 
-  switch (code) {
+  switch (
+    code
+  ) {
     case "functions/unauthenticated":
     case "unauthenticated":
       return "Please sign in again before sending your request.";
@@ -425,12 +420,38 @@ function getCallableErrorMessage(
 
 export default function SpecialiseYourMarketScreen() {
   /* ============================================================
+     SERVICE CATALOG
+  ============================================================ */
+
+  const [
+    services,
+    setServices,
+  ] =
+    useState<ServiceOption[]>(
+      [],
+    );
+
+  const [
+    servicesLoading,
+    setServicesLoading,
+  ] =
+    useState(
+      true,
+    );
+
+  /* ============================================================
      FORM
   ============================================================ */
 
   const [
     service,
     setService,
+  ] =
+    useState("");
+
+  const [
+    selectedServiceId,
+    setSelectedServiceId,
   ] =
     useState("");
 
@@ -452,10 +473,12 @@ export default function SpecialiseYourMarketScreen() {
   ] =
     useState<
       Coordinates | null
-    >(null);
+    >(
+      null,
+    );
 
   /* ============================================================
-     WORKER PROFILE
+     WORKER
   ============================================================ */
 
   const [
@@ -468,35 +491,45 @@ export default function SpecialiseYourMarketScreen() {
     workerLoading,
     setWorkerLoading,
   ] =
-    useState(true);
+    useState(
+      true,
+    );
 
   /* ============================================================
-     UI STATE
+     UI
   ============================================================ */
 
   const [
     showServices,
     setShowServices,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
 
   const [
     showConfirmation,
     setShowConfirmation,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
 
   const [
     locationLoading,
     setLocationLoading,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
 
   const [
     sending,
     setSending,
   ] =
-    useState(false);
+    useState(
+      false,
+    );
 
   const [
     focusedField,
@@ -511,10 +544,14 @@ export default function SpecialiseYourMarketScreen() {
   ============================================================ */
 
   const locationLoadingRef =
-    useRef(false);
+    useRef(
+      false,
+    );
 
   const sendingRef =
-    useRef(false);
+    useRef(
+      false,
+    );
 
   /* ============================================================
      SELECTED SERVICE
@@ -523,24 +560,142 @@ export default function SpecialiseYourMarketScreen() {
   const selectedService =
     useMemo(
       () =>
-        SERVICES.find(
+        services.find(
           item =>
             item.id ===
-            service,
+            selectedServiceId,
         ),
       [
-        service,
+        selectedServiceId,
+        services,
       ],
     );
 
   /* ============================================================
-     LOAD + LISTEN TO WORKER PROFILE
+     LOAD ACTIVE SERVICES
   ============================================================ */
 
   useEffect(() => {
-    let active = true;
+    let active =
+      true;
 
-    let profileVersion = 0;
+    const loadServices =
+      async () => {
+        setServicesLoading(
+          true,
+        );
+
+        try {
+          const snapshot =
+            await searchServices();
+
+          if (
+            !active
+          ) {
+            return;
+          }
+
+          const mappedServices:
+            ServiceOption[] =
+              snapshot.docs
+                .map(
+                  serviceMapper,
+                )
+                .filter(
+                  item =>
+                    Boolean(
+                      item.id.trim(),
+                    ) &&
+                    Boolean(
+                      item.name.trim(),
+                    ),
+                )
+                .map(
+                  item => ({
+                    id:
+                      item.id,
+
+                    name:
+                      item.name,
+
+                    icon:
+                      item.icon,
+
+                    iconColor:
+                      item.color,
+
+                    backgroundColor:
+                      item.backgroundColor,
+                  }),
+                )
+                .sort(
+                  (
+                    first,
+                    second,
+                  ) =>
+                    first.name.localeCompare(
+                      second.name,
+                    ),
+                );
+
+          setServices(
+            mappedServices,
+          );
+        } catch (
+          servicesError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_LOAD_SERVICES_ERROR:",
+              servicesError,
+            );
+          }
+
+          if (
+            !active
+          ) {
+            return;
+          }
+
+          setServices(
+            [],
+          );
+
+          showError(
+            "Services unavailable",
+            "Unable to load the service catalogue. You can still enter your service manually.",
+          );
+        } finally {
+          if (
+            active
+          ) {
+            setServicesLoading(
+              false,
+            );
+          }
+        }
+      };
+
+    void loadServices();
+
+    return () => {
+      active =
+        false;
+    };
+  }, []);
+
+  /* ============================================================
+     PROFILE
+  ============================================================ */
+
+  useEffect(() => {
+    let active =
+      true;
+
+    let profileVersion =
+      0;
 
     let unsubscribePublicProfile:
       | (() => void)
@@ -561,11 +716,15 @@ export default function SpecialiseYourMarketScreen() {
           unsubscribePublicProfile =
             undefined;
 
-          if (!active) {
+          if (
+            !active
+          ) {
             return;
           }
 
-          if (!currentUser) {
+          if (
+            !currentUser
+          ) {
             setWorkerName(
               "",
             );
@@ -592,10 +751,6 @@ export default function SpecialiseYourMarketScreen() {
 
           void (async () => {
             try {
-              /* ==============================================
-                 MAIN USER PROFILE
-              ============================================== */
-
               const userSnapshot =
                 await getUser(
                   currentUser.uid,
@@ -652,10 +807,6 @@ export default function SpecialiseYourMarketScreen() {
                 );
               }
 
-              /* ==============================================
-                 PUBLIC PROFILE LISTENER
-              ============================================== */
-
               const publicProfileRef =
                 doc(
                   db,
@@ -666,6 +817,7 @@ export default function SpecialiseYourMarketScreen() {
               unsubscribePublicProfile =
                 onSnapshot(
                   publicProfileRef,
+
                   snapshot => {
                     if (
                       !active ||
@@ -710,32 +862,30 @@ export default function SpecialiseYourMarketScreen() {
                         ),
                       );
                     }
+                  },
 
-                    if (__DEV__) {
-                      console.log(
-                        "FIXXAM_SPECIALISE_PROFILE_UPDATE:",
-                        {
-                          workerName:
-                            updatedWorkerName,
-
-                          phone:
-                            updatedPhone,
-                        },
+                  listenerError => {
+                    if (
+                      __DEV__
+                    ) {
+                      console.error(
+                        "FIXXAM_PUBLIC_PROFILE_LISTENER_ERROR:",
+                        listenerError,
                       );
                     }
                   },
-                  listenerError => {
-                    console.error(
-                      "FIXXAM_PUBLIC_PROFILE_LISTENER_ERROR:",
-                      listenerError,
-                    );
-                  },
                 );
-            } catch (profileError) {
-              console.error(
-                "FIXXAM_LOAD_WORKER_PROFILE_ERROR:",
-                profileError,
-              );
+            } catch (
+              profileError
+            ) {
+              if (
+                __DEV__
+              ) {
+                console.error(
+                  "FIXXAM_LOAD_WORKER_PROFILE_ERROR:",
+                  profileError,
+                );
+              }
 
               if (
                 !active ||
@@ -769,7 +919,8 @@ export default function SpecialiseYourMarketScreen() {
       );
 
     return () => {
-      active = false;
+      active =
+        false;
 
       profileVersion +=
         1;
@@ -781,7 +932,7 @@ export default function SpecialiseYourMarketScreen() {
   }, []);
 
   /* ============================================================
-     CURRENT LOCATION
+     LOCATION
   ============================================================ */
 
   const handleCurrentLocation =
@@ -843,12 +994,10 @@ export default function SpecialiseYourMarketScreen() {
           }
 
           const position =
-            await Location.getCurrentPositionAsync(
-              {
-                accuracy:
-                  Location.Accuracy.Balanced,
-              },
-            );
+            await Location.getCurrentPositionAsync({
+              accuracy:
+                Location.Accuracy.Balanced,
+            });
 
           const {
             latitude,
@@ -856,8 +1005,8 @@ export default function SpecialiseYourMarketScreen() {
           } =
             position.coords;
 
-          const nextCoordinates: Coordinates =
-            {
+          const nextCoordinates:
+            Coordinates = {
               latitude,
 
               longitude,
@@ -886,7 +1035,9 @@ export default function SpecialiseYourMarketScreen() {
             const address =
               addresses[0];
 
-            if (!address) {
+            if (
+              !address
+            ) {
               showInfo(
                 "GPS detected",
                 "Your location was detected, but the address could not be determined. Enter your service area manually.",
@@ -900,7 +1051,9 @@ export default function SpecialiseYourMarketScreen() {
                 address,
               );
 
-            if (!formatted) {
+            if (
+              !formatted
+            ) {
               showInfo(
                 "GPS detected",
                 "Your location was detected, but the address could not be determined. Enter your service area manually.",
@@ -912,22 +1065,34 @@ export default function SpecialiseYourMarketScreen() {
             setLocation(
               formatted,
             );
-          } catch (geocodeError) {
-            console.warn(
-              "FIXXAM_REVERSE_GEOCODE_ERROR:",
-              geocodeError,
-            );
+          } catch (
+            geocodeError
+          ) {
+            if (
+              __DEV__
+            ) {
+              console.warn(
+                "FIXXAM_REVERSE_GEOCODE_ERROR:",
+                geocodeError,
+              );
+            }
 
             showInfo(
               "GPS detected",
               "Your coordinates are ready. Enter your service area manually.",
             );
           }
-        } catch (locationError) {
-          console.error(
-            "FIXXAM_CURRENT_LOCATION_ERROR:",
-            locationError,
-          );
+        } catch (
+          locationError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_CURRENT_LOCATION_ERROR:",
+              locationError,
+            );
+          }
 
           setCoordinates(
             null,
@@ -950,14 +1115,19 @@ export default function SpecialiseYourMarketScreen() {
     );
 
   /* ============================================================
-     FORM HANDLERS
+     FORM
   ============================================================ */
 
   const handleServiceChange =
     useCallback(
       (
-        value: string,
+        value:
+          string,
       ) => {
+        setSelectedServiceId(
+          "",
+        );
+
         setService(
           value,
         );
@@ -968,16 +1138,13 @@ export default function SpecialiseYourMarketScreen() {
   const handleLocationChange =
     useCallback(
       (
-        value: string,
+        value:
+          string,
       ) => {
         setLocation(
           value,
         );
 
-        /*
-         * Prevent stale GPS coordinates from
-         * being paired with a manually changed address.
-         */
         setCoordinates(
           null,
         );
@@ -988,7 +1155,8 @@ export default function SpecialiseYourMarketScreen() {
   const handlePhoneChange =
     useCallback(
       (
-        value: string,
+        value:
+          string,
       ) => {
         setPhone(
           normalizePhone(
@@ -1002,10 +1170,15 @@ export default function SpecialiseYourMarketScreen() {
   const handleSelectService =
     useCallback(
       (
-        item: ServiceOption,
+        item:
+          ServiceOption,
       ) => {
-        setService(
+        setSelectedServiceId(
           item.id,
+        );
+
+        setService(
+          item.name,
         );
 
         setShowServices(
@@ -1014,6 +1187,39 @@ export default function SpecialiseYourMarketScreen() {
       },
       [],
     );
+
+  const handleOpenServices =
+    useCallback(() => {
+      if (
+        servicesLoading
+      ) {
+        showInfo(
+          "Loading services",
+          "The service catalogue is still loading.",
+        );
+
+        return;
+      }
+
+      if (
+        services.length ===
+        0
+      ) {
+        showError(
+          "Services unavailable",
+          "No active services are available right now. You can enter your service manually.",
+        );
+
+        return;
+      }
+
+      setShowServices(
+        true,
+      );
+    }, [
+      services.length,
+      servicesLoading,
+    ]);
 
   /* ============================================================
      CONTINUE
@@ -1030,7 +1236,9 @@ export default function SpecialiseYourMarketScreen() {
       const cleanPhone =
         phone.trim();
 
-      if (!cleanService) {
+      if (
+        !cleanService
+      ) {
         showInfo(
           "Service required",
           "Enter or select the service you provide.",
@@ -1039,7 +1247,9 @@ export default function SpecialiseYourMarketScreen() {
         return;
       }
 
-      if (!cleanLocation) {
+      if (
+        !cleanLocation
+      ) {
         showInfo(
           "Location required",
           "Enter your service area and use your current GPS location.",
@@ -1097,7 +1307,7 @@ export default function SpecialiseYourMarketScreen() {
     ]);
 
   /* ============================================================
-     SEND REQUEST
+     SEND
   ============================================================ */
 
   const handleSendRequest =
@@ -1110,7 +1320,6 @@ export default function SpecialiseYourMarketScreen() {
         }
 
         const cleanService =
-          selectedService?.name ??
           service.trim();
 
         const cleanLocation =
@@ -1170,7 +1379,9 @@ export default function SpecialiseYourMarketScreen() {
           const currentUser =
             auth.currentUser;
 
-          if (!currentUser) {
+          if (
+            !currentUser
+          ) {
             throw {
               code:
                 "functions/unauthenticated",
@@ -1186,8 +1397,8 @@ export default function SpecialiseYourMarketScreen() {
               "sendServiceRequest",
             );
 
-          const payload: SendServiceRequestPayload =
-            {
+          const payload:
+            SendServiceRequestPayload = {
               service:
                 cleanService,
 
@@ -1203,18 +1414,6 @@ export default function SpecialiseYourMarketScreen() {
               longitude:
                 coordinates.longitude,
             };
-
-          if (__DEV__) {
-            console.log(
-              "FIXXAM_SEND_SERVICE_REQUEST:",
-              {
-                ...payload,
-
-                workerId:
-                  currentUser.uid,
-              },
-            );
-          }
 
           const result =
             await sendRequest(
@@ -1257,43 +1456,18 @@ export default function SpecialiseYourMarketScreen() {
             }.`,
           );
 
-          if (__DEV__) {
-            console.log(
-              "FIXXAM_SERVICE_REQUEST_SENT:",
-              {
-                workerId:
-                  currentUser.uid,
-
-                workerName:
-                  cleanWorkerName,
-
-                service:
-                  cleanService,
-
-                location:
-                  cleanLocation,
-
-                latitude:
-                  coordinates.latitude,
-
-                longitude:
-                  coordinates.longitude,
-
-                sentCount:
-                  response.sentCount,
-
-                customers:
-                  response.customers,
-              },
+          router.back();
+        } catch (
+          sendError
+        ) {
+          if (
+            __DEV__
+          ) {
+            console.error(
+              "FIXXAM_SEND_REQUEST_ERROR:",
+              sendError,
             );
           }
-
-          router.back();
-        } catch (sendError) {
-          console.error(
-            "FIXXAM_SEND_REQUEST_ERROR:",
-            sendError,
-          );
 
           setShowConfirmation(
             false,
@@ -1318,7 +1492,6 @@ export default function SpecialiseYourMarketScreen() {
         coordinates,
         location,
         phone,
-        selectedService,
         service,
         workerName,
       ],
@@ -1378,7 +1551,9 @@ export default function SpecialiseYourMarketScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Go back"
-              hitSlop={8}
+              hitSlop={
+                8
+              }
               onPress={() =>
                 router.back()
               }
@@ -1409,7 +1584,9 @@ export default function SpecialiseYourMarketScreen() {
               <AppText
                 variant="heading2"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.title
                 }
@@ -1420,7 +1597,9 @@ export default function SpecialiseYourMarketScreen() {
               <AppText
                 variant="caption"
                 tone="secondary"
-                numberOfLines={2}
+                numberOfLines={
+                  2
+                }
                 style={
                   styles.subtitle
                 }
@@ -1449,93 +1628,146 @@ export default function SpecialiseYourMarketScreen() {
               Service
             </AppText>
 
-            <View
-              style={[
-                styles.inputContainer,
-
-                focusedField ===
-                "service"
-                  ? styles.inputContainerFocused
-                  : null,
-              ]}
-            >
-              <AppIcon
-                name="professional"
-                size="sm"
-                color={
-                  Colors.textSecondary
-                }
-              />
-
-              <TextInput
-                accessibilityLabel="Service"
-                value={
-                  selectedService?.name ??
-                  service
-                }
-                onChangeText={
-                  handleServiceChange
-                }
-                onFocus={() =>
-                  setFocusedField(
-                    "service",
-                  )
-                }
-                onBlur={() =>
-                  setFocusedField(
-                    null,
-                  )
-                }
-                placeholder="Enter service"
-                placeholderTextColor={
-                  Colors.textMuted
-                }
-                autoCapitalize="words"
-                maxLength={80}
+            {selectedService ? (
+              <View
                 style={
-                  styles.input
+                  styles.selectedServiceCard
                 }
-              />
+              >
+                <CategoryCard
+                  icon={
+                    selectedService.icon
+                  }
+                  iconColor={
+                    selectedService.iconColor
+                  }
+                  backgroundColor={
+                    selectedService.backgroundColor
+                  }
+                  title={
+                    selectedService.name
+                  }
+                  onPress={
+                    handleOpenServices
+                  }
+                />
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.inputContainer,
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Select service"
-                hitSlop={4}
-                onPress={() =>
-                  setShowServices(
-                    true,
-                  )
-                }
-                style={({
-                  pressed,
-                }) => [
-                  styles.selectButton,
-
-                  pressed
-                    ? styles.pressed
+                  focusedField ===
+                  "service"
+                    ? styles.inputContainerFocused
                     : null,
                 ]}
               >
-                <AppText
-                  variant="caption"
-                  weight="medium"
+                <View
                   style={
-                    styles.selectText
+                    styles.defaultServiceIcon
                   }
                 >
-                  Select
-                </AppText>
+                  <AppIcon
+                    name="professional"
+                    role="worker"
+                    size="sm"
+                    color={
+                      Colors.textSecondary
+                    }
+                  />
+                </View>
 
-                <AppIcon
-                  name="down"
-                  role="worker"
-                  size="xs"
-                  color={
-                    WorkerColors.primary
+                <TextInput
+                  accessibilityLabel="Service"
+                  value={
+                    service
+                  }
+                  onChangeText={
+                    handleServiceChange
+                  }
+                  onFocus={() =>
+                    setFocusedField(
+                      "service",
+                    )
+                  }
+                  onBlur={() =>
+                    setFocusedField(
+                      null,
+                    )
+                  }
+                  placeholder="Enter service"
+                  placeholderTextColor={
+                    Colors.textMuted
+                  }
+                  autoCapitalize="words"
+                  autoCorrect
+                  maxLength={
+                    80
+                  }
+                  style={
+                    styles.input
                   }
                 />
-              </Pressable>
-            </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Select service"
+                  accessibilityState={{
+                    disabled:
+                      servicesLoading,
+                  }}
+                  disabled={
+                    servicesLoading
+                  }
+                  hitSlop={
+                    4
+                  }
+                  onPress={
+                    handleOpenServices
+                  }
+                  style={({
+                    pressed,
+                  }) => [
+                    styles.selectButton,
+
+                    servicesLoading
+                      ? styles.selectButtonDisabled
+                      : null,
+
+                    pressed &&
+                    !servicesLoading
+                      ? styles.pressed
+                      : null,
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    weight="medium"
+                    style={
+                      servicesLoading
+                        ? styles.selectTextDisabled
+                        : styles.selectText
+                    }
+                  >
+                    {servicesLoading
+                      ? "Loading"
+                      : "Select"}
+                  </AppText>
+
+                  {!servicesLoading ? (
+                    <AppIcon
+                      name="down"
+                      role="worker"
+                      size="xs"
+                      color={
+                        WorkerColors.primary
+                      }
+                    />
+                  ) : null}
+                </Pressable>
+              </View>
+            )}
           </View>
 
           {/* ==================================================
@@ -1598,7 +1830,10 @@ export default function SpecialiseYourMarketScreen() {
                   Colors.textMuted
                 }
                 autoCapitalize="words"
-                maxLength={120}
+                autoCorrect={false}
+                maxLength={
+                  120
+                }
                 style={
                   styles.input
                 }
@@ -1728,7 +1963,9 @@ export default function SpecialiseYourMarketScreen() {
                 keyboardType="phone-pad"
                 autoComplete="tel"
                 textContentType="telephoneNumber"
-                maxLength={16}
+                maxLength={
+                  16
+                }
                 style={
                   styles.input
                 }
@@ -1771,7 +2008,7 @@ export default function SpecialiseYourMarketScreen() {
       </KeyboardAvoidingView>
 
       {/* ========================================================
-          SERVICE SELECT MODAL
+          SERVICE MODAL
       ======================================================== */}
 
       <ServiceSelectModal
@@ -1779,11 +2016,10 @@ export default function SpecialiseYourMarketScreen() {
           showServices
         }
         services={
-          SERVICES
+          services
         }
         selectedId={
-          selectedService?.id ??
-          ""
+          selectedServiceId
         }
         onSelect={
           handleSelectService
@@ -1796,7 +2032,7 @@ export default function SpecialiseYourMarketScreen() {
       />
 
       {/* ========================================================
-          REQUEST CONFIRMATION MODAL
+          CONFIRMATION
       ======================================================== */}
 
       <RequestConfirmationModal
@@ -1807,8 +2043,16 @@ export default function SpecialiseYourMarketScreen() {
           workerName
         }
         service={
-          selectedService?.name ??
           service.trim()
+        }
+        serviceIcon={
+          selectedService?.icon
+        }
+        serviceIconColor={
+          selectedService?.iconColor
+        }
+        serviceBackgroundColor={
+          selectedService?.backgroundColor
         }
         location={
           location.trim()
@@ -1845,11 +2089,13 @@ export default function SpecialiseYourMarketScreen() {
 const styles =
   StyleSheet.create({
     flex: {
-      flex: 1,
+      flex:
+        1,
     },
 
     container: {
-      flexGrow: 1,
+      flexGrow:
+        1,
 
       paddingHorizontal:
         FixxamTokens.spacing.lg,
@@ -1886,7 +2132,8 @@ const styles =
       height:
         FixxamTokens.size.minimumTouchTarget,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -1894,7 +2141,8 @@ const styles =
       justifyContent:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1909,9 +2157,11 @@ const styles =
     },
 
     headerText: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.md,
@@ -1960,7 +2210,8 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -1978,9 +2229,11 @@ const styles =
     },
 
     input: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       minHeight:
         FixxamTokens.size.inputHeight,
@@ -1988,18 +2241,50 @@ const styles =
       marginLeft:
         FixxamTokens.spacing.sm,
 
-      paddingVertical: 0,
+      paddingVertical:
+        0,
 
       color:
         Colors.textPrimary,
 
       fontSize:
         Typography.fontSize.md,
+
+      includeFontPadding:
+        false,
     },
 
     /* ==========================================================
        SERVICE
     ========================================================== */
+
+    selectedServiceCard: {
+      width:
+        "100%",
+    },
+
+    defaultServiceIcon: {
+      width:
+        36,
+
+      height:
+        36,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.disabledBackground,
+    },
 
     selectButton: {
       minHeight:
@@ -2030,9 +2315,22 @@ const styles =
         WorkerColors.primarySoft,
     },
 
+    selectButtonDisabled: {
+      backgroundColor:
+        Colors.disabledBackground,
+
+      opacity:
+        0.75,
+    },
+
     selectText: {
       color:
         WorkerColors.primary,
+    },
+
+    selectTextDisabled: {
+      color:
+        Colors.textMuted,
     },
 
     /* ==========================================================
@@ -2051,7 +2349,8 @@ const styles =
       marginTop:
         FixxamTokens.spacing.xs,
 
-      lineHeight: 18,
+      lineHeight:
+        18,
 
       color:
         Colors.textSecondary,
@@ -2077,18 +2376,19 @@ const styles =
     },
 
     /* ==========================================================
-       CONTINUE
+       ACTION
     ========================================================== */
 
     continueButton: {
-      width: "100%",
+      width:
+        "100%",
 
       marginTop:
         FixxamTokens.spacing.sm,
     },
 
     /* ==========================================================
-       GENERAL
+       INTERACTION
     ========================================================== */
 
     pressed: {

@@ -18,7 +18,7 @@ type Props = {
 
   onOnlineStatus?: () => void;
 
-  onBusinessAddress?: () => void;
+  onLocation?: () => void;
 
   onNotifications?: () => void;
 
@@ -39,7 +39,7 @@ export default function WorkerMenu({
   onOrders,
   onEarnings,
   onOnlineStatus,
-  onBusinessAddress,
+  onLocation,
   onNotifications,
   onReviews,
   onSupport,
@@ -84,9 +84,9 @@ export default function WorkerMenu({
 
       <ProfileMenuItem
         role="worker"
-        title="Business Address"
+        title="Location"
         icon="location-outline"
-        onPress={onBusinessAddress}
+        onPress={onLocation}
       />
 
       <ProfileMenuItem

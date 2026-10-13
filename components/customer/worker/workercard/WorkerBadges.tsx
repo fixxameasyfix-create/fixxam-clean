@@ -42,6 +42,28 @@ function normalizeCount(
   );
 }
 
+function normalizeRating(
+  value: unknown,
+): number | null {
+  const parsed =
+    Number(value);
+
+  if (
+    !Number.isFinite(parsed) ||
+    parsed <= 0
+  ) {
+    return null;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      parsed,
+    ),
+  );
+}
+
 function WorkerBadges({
   worker,
 }: Props) {
@@ -50,9 +72,9 @@ function WorkerBadges({
       worker.completedJobs,
     );
 
-  const totalReviews =
-    normalizeCount(
-      worker.totalReviews,
+  const workerRating =
+    normalizeRating(
+      worker.rating,
     );
 
   return (
@@ -120,12 +142,12 @@ function WorkerBadges({
         </AppText>
       </View>
 
-      {/* REVIEWS */}
+      {/* WORKER RATING */}
 
       <View
         style={[
           styles.badge,
-          styles.reviewsBadge,
+          styles.ratingBadge,
         ]}
       >
         <AppIcon
@@ -139,12 +161,11 @@ function WorkerBadges({
           variant="caption"
           weight="semibold"
           numberOfLines={1}
-          style={styles.reviewsText}
+          style={styles.ratingText}
         >
-          {totalReviews}{" "}
-          {totalReviews === 1
-            ? "Review"
-            : "Reviews"}
+          {workerRating !== null
+            ? workerRating.toFixed(1)
+            : "New"}
         </AppText>
       </View>
     </View>
@@ -180,6 +201,7 @@ const styles = StyleSheet.create({
       FixxamTokens.spacing.xs,
 
     borderWidth: 1,
+
     borderRadius:
       FixxamTokens.radius.chip,
   },
@@ -256,9 +278,9 @@ const styles = StyleSheet.create({
       FixxamTokens.radius.full,
   },
 
-  /* REVIEWS */
+  /* RATING */
 
-  reviewsBadge: {
+  ratingBadge: {
     borderColor:
       Colors.border,
 
@@ -266,7 +288,7 @@ const styles = StyleSheet.create({
       Colors.warningSoft,
   },
 
-  reviewsText: {
+  ratingText: {
     marginLeft:
       FixxamTokens.spacing.xs,
 

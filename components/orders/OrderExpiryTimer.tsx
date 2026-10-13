@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -27,8 +28,22 @@ import {
 ============================================================ */
 
 type Props = {
-  expiresAt: number;
+  /**
+   * Server-authoritative expiry timestamp
+   * converted to milliseconds.
+   */
+  expiresAt: number | null;
 
+  /**
+   * UI callback only.
+   *
+   * IMPORTANT:
+   * This callback must NOT be treated as the
+   * authoritative cancellation mechanism.
+   *
+   * Backend expiry is responsible for cancelling
+   * the booking after the response window ends.
+   */
   onExpired: () =>
     void | Promise<void>;
 };
@@ -38,25 +53,54 @@ type Props = {
 ============================================================ */
 
 function getRemainingSeconds(
-  expiresAt: number,
+  expiresAt: number | null,
 ): number {
-  const remaining =
-    expiresAt - Date.now();
+  if (
+    expiresAt === null ||
+    !Number.isFinite(
+      expiresAt,
+    ) ||
+    expiresAt <= 0
+  ) {
+    return 0;
+  }
+
+  const remainingMilliseconds =
+    expiresAt -
+    Date.now();
 
   if (
     !Number.isFinite(
-      remaining,
+      remainingMilliseconds,
     ) ||
-    remaining <= 0
+    remainingMilliseconds <= 0
   ) {
     return 0;
   }
 
   return Math.ceil(
-    remaining / 1000,
+    remainingMilliseconds /
+      1000,
   );
 }
 
+/* ============================================================
+   TIME FORMAT
+============================================================ */
+
+/**
+ * Formats the countdown as:
+ *
+ * < 1 hour:
+ *   MM:SS
+ *
+ * >= 1 hour:
+ *   HH:MM:SS
+ *
+ * A 24-hour offer therefore starts around:
+ *
+ * 24:00:00
+ */
 function formatTime(
   totalSeconds: number,
 ): string {
@@ -68,25 +112,63 @@ function formatTime(
       ),
     );
 
+  const hours =
+    Math.floor(
+      safeSeconds /
+        3600,
+    );
+
   const minutes =
     Math.floor(
-      safeSeconds / 60,
+      (safeSeconds %
+        3600) /
+        60,
     );
 
   const seconds =
-    safeSeconds % 60;
+    safeSeconds %
+    60;
 
-  return `${String(
-    minutes,
-  ).padStart(
-    2,
-    "0",
-  )}:${String(
-    seconds,
-  ).padStart(
-    2,
-    "0",
-  )}`;
+  const paddedMinutes =
+    String(
+      minutes,
+    ).padStart(
+      2,
+      "0",
+    );
+
+  const paddedSeconds =
+    String(
+      seconds,
+    ).padStart(
+      2,
+      "0",
+    );
+
+  /*
+   * For a 24-hour offer we want:
+   *
+   * 23:59:59
+   * 12:08:31
+   * 01:04:09
+   *
+   * For shorter durations:
+   *
+   * 59:59
+   * 08:31
+   */
+  if (
+    hours > 0
+  ) {
+    return `${String(
+      hours,
+    ).padStart(
+      2,
+      "0",
+    )}:${paddedMinutes}:${paddedSeconds}`;
+  }
+
+  return `${paddedMinutes}:${paddedSeconds}`;
 }
 
 /* ============================================================
@@ -97,13 +179,19 @@ function OrderExpiryTimer({
   expiresAt,
   onExpired,
 }: Props) {
+  /* ==========================================================
+     INITIAL STATE
+  ========================================================== */
+
   const initialSeconds =
     useMemo(
       () =>
         getRemainingSeconds(
           expiresAt,
         ),
-      [expiresAt],
+      [
+        expiresAt,
+      ],
     );
 
   const [
@@ -117,59 +205,81 @@ function OrderExpiryTimer({
   const [
     expiring,
     setExpiring,
-  ] = useState(false);
+  ] =
+    useState(false);
 
-  /*
+  /**
    * Prevent duplicate expiry callbacks
-   * if the effect restarts because the
-   * callback identity changes.
+   * for the same timestamp.
    */
   const handledExpiryRef =
     useRef<number | null>(
       null,
     );
 
+  /**
+   * Keep the latest callback without forcing
+   * the countdown interval to restart every
+   * time the parent creates a new callback.
+   */
+  const onExpiredRef =
+    useRef(onExpired);
+
+  useEffect(() => {
+    onExpiredRef.current =
+      onExpired;
+  }, [
+    onExpired,
+  ]);
+
   /* ==========================================================
      RESET WHEN EXPIRY CHANGES
   ========================================================== */
 
   useEffect(() => {
-    setRemainingSeconds(
+    const nextSeconds =
       getRemainingSeconds(
         expiresAt,
-      ),
+      );
+
+    setRemainingSeconds(
+      nextSeconds,
     );
 
-    setExpiring(false);
+    setExpiring(
+      false,
+    );
 
     handledExpiryRef.current =
       null;
-  }, [expiresAt]);
+  }, [
+    expiresAt,
+  ]);
 
   /* ==========================================================
-     COUNTDOWN
+     EXPIRY HANDLER
   ========================================================== */
 
-  useEffect(() => {
-    if (
-      !Number.isFinite(
-        expiresAt,
-      ) ||
-      expiresAt <= 0
-    ) {
-      return;
-    }
-
-    let mounted = true;
-
-    let interval:
-      | ReturnType<
-          typeof setInterval
-        >
-      | null = null;
-
-    const handleExpired =
+  const handleExpired =
+    useCallback(
       async () => {
+        /*
+         * No expiry timestamp.
+         */
+        if (
+          expiresAt === null ||
+          !Number.isFinite(
+            expiresAt,
+          ) ||
+          expiresAt <= 0
+        ) {
+          return;
+        }
+
+        /*
+         * Prevent duplicate callbacks for
+         * the same expiry timestamp.
+         */
         if (
           handledExpiryRef.current ===
           expiresAt
@@ -180,23 +290,66 @@ function OrderExpiryTimer({
         handledExpiryRef.current =
           expiresAt;
 
-        if (mounted) {
-          setExpiring(true);
-        }
+        setExpiring(
+          true,
+        );
 
         try {
-          await onExpired();
+          /*
+           * IMPORTANT:
+           *
+           * This is only a UI notification.
+           *
+           * The callback may update local UI,
+           * but backend cancellation remains
+           * authoritative.
+           */
+          await onExpiredRef.current();
         } catch (error) {
-          console.error(
-            "ORDER_EXPIRY_HANDLER_ERROR",
-            error,
-          );
-        } finally {
-          if (mounted) {
-            setExpiring(false);
+          if (__DEV__) {
+            console.warn(
+              "ORDER_EXPIRY_HANDLER_ERROR",
+              error,
+            );
           }
+        } finally {
+          setExpiring(
+            false,
+          );
         }
-      };
+      },
+      [
+        expiresAt,
+      ],
+    );
+
+  /* ==========================================================
+     COUNTDOWN
+  ========================================================== */
+
+  useEffect(() => {
+    /*
+     * Nothing to count down.
+     */
+    if (
+      expiresAt === null ||
+      !Number.isFinite(
+        expiresAt,
+      ) ||
+      expiresAt <= 0
+    ) {
+      return;
+    }
+
+    let mounted =
+      true;
+
+    let interval:
+      | ReturnType<
+          typeof setInterval
+        >
+      | null =
+      null;
 
     const checkExpiry =
       () => {
@@ -213,21 +366,33 @@ function OrderExpiryTimer({
           seconds,
         );
 
-        if (seconds <= 0) {
+        if (
+          seconds <= 0
+        ) {
           if (interval) {
             clearInterval(
               interval,
             );
 
-            interval = null;
+            interval =
+              null;
           }
 
           void handleExpired();
         }
       };
 
+    /*
+     * Immediately calculate the current value.
+     *
+     * This prevents a 1-second delay on mount.
+     */
     checkExpiry();
 
+    /*
+     * Only run the interval while there
+     * is still time remaining.
+     */
     if (
       getRemainingSeconds(
         expiresAt,
@@ -241,7 +406,8 @@ function OrderExpiryTimer({
     }
 
     return () => {
-      mounted = false;
+      mounted =
+        false;
 
       if (interval) {
         clearInterval(
@@ -251,14 +417,15 @@ function OrderExpiryTimer({
     };
   }, [
     expiresAt,
-    onExpired,
+    handleExpired,
   ]);
 
   /* ==========================================================
-     INVALID EXPIRY
+     NO EXPIRY
   ========================================================== */
 
   if (
+    expiresAt === null ||
     !Number.isFinite(
       expiresAt,
     ) ||
@@ -278,17 +445,16 @@ function OrderExpiryTimer({
       <View
         accessible
         accessibilityRole="summary"
-        accessibilityLabel="Order expired. The 10-minute call window has ended."
+        accessibilityLabel="Offer expired. The response window has ended."
         style={[
           styles.container,
           styles.expiredContainer,
         ]}
       >
         <View
-          style={[
-            styles.iconContainer,
-            styles.expiredIconContainer,
-          ]}
+          style={
+            styles.iconContainer
+          }
         >
           {expiring ? (
             <ActivityIndicator
@@ -300,7 +466,7 @@ function OrderExpiryTimer({
           ) : (
             <AppIcon
               name="clock"
-              size="sm"
+              size="xs"
               color={
                 Colors.error
               }
@@ -314,22 +480,25 @@ function OrderExpiryTimer({
           }
         >
           <AppText
-            variant="caption"
-            weight="bold"
+            variant="bodyMedium"
+            weight="semibold"
+            numberOfLines={1}
             style={
               styles.expiredTitle
             }
           >
-            ORDER EXPIRED
+            Offer expired
           </AppText>
 
           <AppText
             variant="caption"
+            tone="secondary"
+            numberOfLines={1}
             style={
-              styles.expiredSubtitle
+              styles.subtitle
             }
           >
-            The 10-minute call window has ended.
+            The response window has ended.
           </AppText>
         </View>
       </View>
@@ -337,19 +506,30 @@ function OrderExpiryTimer({
   }
 
   /* ==========================================================
-     ACTIVE / WARNING
+     WARNING
   ========================================================== */
 
+  /*
+   * Final 60 seconds.
+   */
   const warning =
-    remainingSeconds <= 60;
+    remainingSeconds <=
+    60;
+
+  const formattedRemainingTime =
+    formatTime(
+      remainingSeconds,
+    );
+
+  /* ==========================================================
+     ACTIVE TIMER
+  ========================================================== */
 
   return (
     <View
       accessible
       accessibilityRole="summary"
-      accessibilityLabel={`Call window open. ${formatTime(
-        remainingSeconds,
-      )} remaining.`}
+      accessibilityLabel={`Offer response window. ${formattedRemainingTime} remaining.`}
       style={[
         styles.container,
 
@@ -359,21 +539,21 @@ function OrderExpiryTimer({
       ]}
     >
       {/* ======================================================
-          CALL ICON
+          ICON
       ====================================================== */}
 
       <View
-        style={[
-          styles.iconContainer,
-
-          warning
-            ? styles.warningIconContainer
-            : null,
-        ]}
+        style={
+          styles.iconContainer
+        }
       >
         <AppIcon
-          name="phone"
-          size="sm"
+          name={
+            warning
+              ? "clock"
+              : "phone"
+          }
+          size="xs"
           color={
             warning
               ? Colors.warning
@@ -392,8 +572,9 @@ function OrderExpiryTimer({
         }
       >
         <AppText
-          variant="caption"
-          weight="bold"
+          variant="bodyMedium"
+          weight="semibold"
+          numberOfLines={1}
           style={[
             styles.title,
 
@@ -402,20 +583,22 @@ function OrderExpiryTimer({
               : null,
           ]}
         >
-          CALL WINDOW OPEN
+          {warning
+            ? "Offer expires soon"
+            : "Offer response window"}
         </AppText>
 
         <AppText
           variant="caption"
-          style={[
-            styles.subtitle,
-
-            warning
-              ? styles.warningSubtitle
-              : null,
-          ]}
+          tone="secondary"
+          numberOfLines={1}
+          style={
+            styles.subtitle
+          }
         >
-          Call worker before this order expires.
+          {warning
+            ? "Respond before the timer ends."
+            : "Accept or decline before expiry."}
         </AppText>
       </View>
 
@@ -424,6 +607,9 @@ function OrderExpiryTimer({
       ====================================================== */}
 
       <View
+        accessible
+        accessibilityRole="timer"
+        accessibilityLabel={`${formattedRemainingTime} remaining`}
         style={[
           styles.timerBadge,
 
@@ -432,19 +618,10 @@ function OrderExpiryTimer({
             : null,
         ]}
       >
-        <AppIcon
-          name="clock"
-          size="xs"
-          color={
-            warning
-              ? Colors.warning
-              : Colors.success
-          }
-        />
-
         <AppText
           variant="caption"
           weight="bold"
+          numberOfLines={1}
           style={[
             styles.timerText,
 
@@ -453,18 +630,12 @@ function OrderExpiryTimer({
               : null,
           ]}
         >
-          {formatTime(
-            remainingSeconds,
-          )}
+          {formattedRemainingTime}
         </AppText>
       </View>
     </View>
   );
 }
-
-export default memo(
-  OrderExpiryTimer,
-);
 
 /* ============================================================
    STYLES
@@ -477,7 +648,11 @@ const styles =
     ======================================================== */
 
     container: {
-      minHeight: 62,
+      width:
+        "100%",
+
+      minHeight:
+        56,
 
       marginTop:
         FixxamTokens.spacing.sm,
@@ -486,13 +661,16 @@ const styles =
         FixxamTokens.spacing.sm,
 
       paddingVertical:
-        FixxamTokens.spacing.sm,
+        7,
 
-      flexDirection: "row",
+      flexDirection:
+        "row",
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.success,
@@ -525,13 +703,17 @@ const styles =
     ======================================================== */
 
     iconContainer: {
-      width: 40,
+      width:
+        34,
 
-      height: 40,
+      height:
+        34,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
@@ -543,24 +725,16 @@ const styles =
         Colors.surface,
     },
 
-    warningIconContainer: {
-      backgroundColor:
-        Colors.surface,
-    },
-
-    expiredIconContainer: {
-      backgroundColor:
-        Colors.surface,
-    },
-
     /* ========================================================
        CONTENT
     ======================================================== */
 
     content: {
-      flex: 1,
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
         FixxamTokens.spacing.sm,
@@ -570,8 +744,6 @@ const styles =
     },
 
     title: {
-      letterSpacing: 0.3,
-
       color:
         Colors.success,
     },
@@ -582,60 +754,43 @@ const styles =
     },
 
     expiredTitle: {
-      letterSpacing: 0.3,
-
       color:
         Colors.error,
     },
 
     subtitle: {
       marginTop:
-        FixxamTokens.spacing.xxs,
+        1,
 
-      lineHeight: 15,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    warningSubtitle: {
-      color:
-        Colors.textSecondary,
-    },
-
-    expiredSubtitle: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 15,
+      lineHeight:
+        15,
 
       color:
         Colors.textSecondary,
     },
 
     /* ========================================================
-       TIMER BADGE
+       TIMER
     ======================================================== */
 
     timerBadge: {
-      minWidth: 72,
+      minWidth:
+        62,
 
-      minHeight: 36,
+      minHeight:
+        28,
 
       paddingHorizontal:
-        FixxamTokens.spacing.sm,
+        8,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
-      flexDirection: "row",
-
-      alignItems: "center",
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
-
-      gap:
-        FixxamTokens.spacing.xxs,
 
       borderRadius:
         FixxamTokens.radius.md,
@@ -645,12 +800,16 @@ const styles =
     },
 
     warningTimerBadge: {
-      backgroundColor:
-        Colors.surface,
+      borderWidth:
+        StyleSheet.hairlineWidth,
+
+      borderColor:
+        Colors.warning,
     },
 
     timerText: {
-      letterSpacing: 0.3,
+      letterSpacing:
+        0.2,
 
       color:
         Colors.success,
@@ -661,3 +820,14 @@ const styles =
         Colors.warning,
     },
   });
+
+/* ============================================================
+   EXPORT
+============================================================ */
+
+OrderExpiryTimer.displayName =
+  "OrderExpiryTimer";
+
+export default memo(
+  OrderExpiryTimer,
+);

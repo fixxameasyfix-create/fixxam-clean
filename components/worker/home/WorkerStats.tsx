@@ -1,6 +1,5 @@
 import React, {
   memo,
-  useMemo,
 } from "react";
 
 import {
@@ -24,6 +23,7 @@ import {
 } from "@/theme";
 
 import useWorkerDashboard from "@/hooks/worker/useWorkerDashboard";
+import useWorkerOrderCounts from "@/hooks/worker/useWorkerOrderCounts";
 
 import {
   StatCardSkeleton,
@@ -140,11 +140,27 @@ JobItem.displayName =
 ============================================================== */
 
 function WorkerStats() {
+  /* ============================================================
+     DASHBOARD
+
+     Rating, reviews and online status continue to use the
+     existing worker dashboard source.
+  ============================================================ */
+
   const dashboard =
     useWorkerDashboard();
 
+  /* ============================================================
+     ORDER COUNTS
+
+     This is the same source used by Orders / Profile so that
+     all three screens always display the same job counts.
+  ============================================================ */
+
+  const orderStats =
+    useWorkerOrderCounts();
+
   const {
-    loading,
     rating,
     reviewCount,
     online,
@@ -152,52 +168,44 @@ function WorkerStats() {
   } = dashboard;
 
   /* ============================================================
+     LOADING
+  ============================================================ */
+
+  const loading =
+    dashboard.loading ||
+    orderStats.loading;
+
+  /* ============================================================
      COUNTS
   ============================================================ */
 
   const pending =
     getSafeCount(
-      dashboard.pending,
+      orderStats.counts.pending,
     );
 
   const active =
     getSafeCount(
-      dashboard.active,
+      orderStats.counts.active,
     );
 
   const completed =
     getSafeCount(
-      dashboard.completed,
+      orderStats.counts.completed,
     );
 
-  /*
-   * Some versions of useWorkerDashboard
-   * may not expose cancelled yet.
-   */
   const cancelled =
     getSafeCount(
-      "cancelled" in dashboard
-        ? dashboard.cancelled
-        : 0,
+      orderStats.counts.cancelled,
     );
 
   const totalJobs =
-    useMemo(
-      () =>
-        pending +
-        active +
-        cancelled +
-        completed,
-      [
-        active,
-        cancelled,
-        completed,
-        pending,
-      ],
+    getSafeCount(
+      orderStats.counts.all,
     );
 
   /* ============================================================
-     LOADING
+     LOADING UI
   ============================================================ */
 
   if (loading) {

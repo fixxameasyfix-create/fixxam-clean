@@ -45,18 +45,9 @@ export default function CustomerTabsLayout() {
         name="home"
         options={{
           title: "Home",
-
-          tabBarIcon: ({
-            focused,
-            color,
-            size,
-          }) => (
+          tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
-              name={
-                focused
-                  ? "grid"
-                  : "grid-outline"
-              }
+              name={focused ? "grid" : "grid-outline"}
               size={size}
               color={color}
             />
@@ -69,12 +60,7 @@ export default function CustomerTabsLayout() {
         name="book"
         options={{
           title: "Book",
-
-          tabBarIcon: ({
-            focused,
-            color,
-            size,
-          }) => (
+          tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
               name={
                 focused
@@ -89,40 +75,33 @@ export default function CustomerTabsLayout() {
       />
 
       {/* ORDERS */}
-      <Tabs.Screen
-        name="orders"
-        options={{
-          title: "Orders",
 
-          tabBarIcon: ({
-            focused,
-            color,
-            size,
-          }) => (
-            <Ionicons
-              name={
-                focused
-                  ? "document-text"
-                  : "document-text-outline"
-              }
-              size={size}
-              color={color}
-            />
-          ),
-        }}
+
+          <Tabs.Screen
+  name="orders"
+  options={{
+    title: "Orders",
+    tabBarIcon: ({ focused, color, size }) => (
+      <Ionicons
+        name={
+          focused
+            ? "document-text"
+            : "document-text-outline"
+        }
+        size={size}
+        color={color}
       />
+    ),
+  }}
+/>
+
 
       {/* MARKET */}
       <Tabs.Screen
         name="market"
         options={{
           title: "Market",
-
-          tabBarIcon: ({
-            focused,
-            color,
-            size,
-          }) => (
+          tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
               name={
                 focused
@@ -141,12 +120,7 @@ export default function CustomerTabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-
-          tabBarIcon: ({
-            focused,
-            color,
-            size,
-          }) => (
+          tabBarIcon: ({ focused, color, size }) => (
             <Ionicons
               name={
                 focused
@@ -157,15 +131,6 @@ export default function CustomerTabsLayout() {
               color={color}
             />
           ),
-        }}
-      />
-
-      {/* HIDDEN ROUTE
-          order-details ba tab bane ba */}
-      <Tabs.Screen
-        name="order-details"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

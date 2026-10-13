@@ -10,9 +10,7 @@ import {
   View,
 } from "react-native";
 
-import {
-  router,
-} from "expo-router";
+import { router } from "expo-router";
 
 import Toast from "react-native-toast-message";
 
@@ -44,6 +42,7 @@ import {
 
 import useUserProfile from "@/hooks/auth/useUserProfile";
 import useSwitchRole from "@/hooks/auth/useSwitchRole";
+import useWorkerOrderCounts from "@/hooks/worker/useWorkerOrderCounts";
 
 import WorkerProfileHeader from "@/components/profile/worker/WorkerProfileHeader";
 import WorkerStats from "@/components/profile/worker/WorkerStats";
@@ -55,18 +54,18 @@ import WorkerProfile from "@/components/profile/WorkerProfile";
 
 type PublicWorkerProfile = {
   fullName?: string;
-
   name?: string;
 
   phoneNumber?: string;
 
   photoURL?: string;
-
   photoUrl?: string;
+
+  rating?: number;
+  totalReviews?: number;
 
   workerProfile?: {
     photoUrl?: string;
-
     phoneNumber?: string;
   };
 };
@@ -92,6 +91,25 @@ function isHttpUrl(
   );
 }
 
+function normalizeRating(
+  value: unknown,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return 0;
+  }
+
+  return Math.min(
+    5,
+    Math.max(
+      0,
+      value,
+    ),
+  );
+}
+
 /* ============================================================
    SCREEN
 ============================================================ */
@@ -100,25 +118,26 @@ export default function WorkerProfileScreen() {
   const {
     profile,
     loading,
-  } =
-    useUserProfile();
+  } = useUserProfile();
 
   const {
     switchRole,
-  } =
-    useSwitchRole();
+  } = useSwitchRole();
+
+  const {
+    counts: orderCounts,
+  } = useWorkerOrderCounts();
 
   /* ==========================================================
-     PUBLIC PROFILE
+     PUBLIC PROFILE STATE
   ========================================================== */
 
   const [
     publicProfile,
     setPublicProfile,
-  ] =
-    useState<PublicWorkerProfile | null>(
-      null,
-    );
+  ] = useState<PublicWorkerProfile | null>(
+    null,
+  );
 
   /* ==========================================================
      PUBLIC PROFILE LISTENER
@@ -177,10 +196,6 @@ export default function WorkerProfileScreen() {
                   error,
                 );
 
-                /*
-                 * Keep main user profile
-                 * available as fallback.
-                 */
                 setPublicProfile(
                   null,
                 );
@@ -191,7 +206,6 @@ export default function WorkerProfileScreen() {
 
     return () => {
       unsubscribeProfile?.();
-
       unsubscribeAuth();
     };
   }, []);
@@ -207,6 +221,7 @@ export default function WorkerProfileScreen() {
     return (
       <AppScreen
         role="worker"
+        padded={false}
       >
         <View
           style={
@@ -245,6 +260,20 @@ export default function WorkerProfileScreen() {
      FULL NAME
   ========================================================== */
 
+  const profileFullName = [
+    profile.firstName,
+    profile.otherName,
+    profile.surname,
+  ]
+    .map(
+      cleanString,
+    )
+    .filter(
+      Boolean,
+    )
+    .join(" ")
+    .trim();
+
   const publicFullName =
     cleanString(
       publicProfile?.fullName,
@@ -253,31 +282,28 @@ export default function WorkerProfileScreen() {
       publicProfile?.name,
     );
 
-  const profileFullName =
-    [
-      profile.firstName,
-      profile.otherName,
-      profile.surname,
-    ]
-      .map(
-        cleanString,
-      )
-      .filter(
-        Boolean,
-      )
-      .join(" ")
-      .trim();
+  /*
+   * Logged-in worker profile is the
+   * primary source of truth.
+   *
+   * Public profile is only a fallback.
+   */
 
   const fullName =
-    publicFullName ||
     profileFullName ||
+    publicFullName ||
     "Worker";
 
   /* ==========================================================
      PHONE
   ========================================================== */
 
-  const phone =
+  const profilePhone =
+    cleanString(
+      profile.phone,
+    );
+
+  const publicPhone =
     cleanString(
       publicProfile?.phoneNumber,
     ) ||
@@ -285,14 +311,24 @@ export default function WorkerProfileScreen() {
       publicProfile
         ?.workerProfile
         ?.phoneNumber,
-    ) ||
-    cleanString(
-      profile.phone,
     );
+
+  const phone =
+    profilePhone ||
+    publicPhone;
 
   /* ==========================================================
      PHOTO
   ========================================================== */
+
+  const profilePhoto =
+    cleanString(
+      profile.workerProfile
+        ?.photoUrl,
+    ) ||
+    cleanString(
+      profile.photoUrl,
+    );
 
   const publicPhoto =
     cleanString(
@@ -307,27 +343,30 @@ export default function WorkerProfileScreen() {
       publicProfile?.photoURL,
     );
 
-  const profilePhoto =
-    cleanString(
-      profile.workerProfile
-        ?.photoUrl,
-    ) ||
-    cleanString(
-      profile.photoUrl,
-    );
+  /*
+   * Prefer the authenticated worker profile
+   * photo. Public profile remains fallback.
+   */
 
   const photoUrl =
-    publicPhoto &&
     isHttpUrl(
-      publicPhoto,
+      profilePhoto,
     )
-      ? publicPhoto
-      : profilePhoto &&
-          isHttpUrl(
-            profilePhoto,
-          )
-        ? profilePhoto
+      ? profilePhoto
+      : isHttpUrl(
+          publicPhoto,
+        )
+        ? publicPhoto
         : "";
+
+  /* ==========================================================
+     REAL PUBLIC RATING
+  ========================================================== */
+
+  const workerRating =
+    normalizeRating(
+      publicProfile?.rating,
+    );
 
   /* ==========================================================
      CUSTOMER ROLE
@@ -353,6 +392,31 @@ export default function WorkerProfileScreen() {
         return false;
       }
 
+      /*
+       * If the user has both Worker and Customer roles,
+       * open Select Account instead of automatically
+       * switching to Customer.
+       */
+
+      const hasWorkerAccount =
+        Array.isArray(
+          profile.roles,
+        ) &&
+        profile.roles.includes(
+          "worker",
+        );
+
+      if (
+        hasWorkerAccount &&
+        hasCustomerAccount
+      ) {
+        router.push(
+          "/(auth)/select-account" as never,
+        );
+
+        return true;
+      }
+
       try {
         const success =
           await switchRole(
@@ -376,10 +440,8 @@ export default function WorkerProfileScreen() {
 
         Toast.show({
           type: "error",
-
           text1:
             "Unable to switch account",
-
           text2:
             "Please try again.",
         });
@@ -395,7 +457,106 @@ export default function WorkerProfileScreen() {
   const handleCreateCustomer =
     () => {
       router.push(
-        "/(auth)/customer-signup",
+        "/(auth)/customer-registration-choice" as never,
+      );
+    };
+
+  /* ==========================================================
+     HELP & SUPPORT
+  ========================================================== */
+
+  const handleOpenSupport =
+    () => {
+      router.push(
+        "/(worker)/profile/help-support",
+      );
+    };
+
+  /* ==========================================================
+     SETTINGS
+  ========================================================== */
+
+  const handleOpenSettings =
+    () => {
+      router.push(
+        "/(worker)/profile/settings",
+      );
+    };
+
+  /* ==========================================================
+     NOTIFICATIONS
+  ========================================================== */
+
+  const handleOpenNotifications =
+    () => {
+      router.push(
+        "/(worker)/notifications" as never,
+      );
+    };
+
+  /* ==========================================================
+     LOCATION
+  ========================================================== */
+
+  const handleOpenLocation =
+    () => {
+      router.push(
+        "/(worker)/profile/location" as never,
+      );
+    };
+
+  /* ==========================================================
+     PROMOTIONS
+  ========================================================== */
+
+  const handleOpenPromotions =
+    () => {
+      router.push(
+        "/(worker)/profile/promotions" as never,
+      );
+    };
+
+  /* ==========================================================
+     ONLINE STATUS
+  ========================================================== */
+
+  const handleOpenOnlineStatus =
+    () => {
+      router.push(
+        "/(worker)/profile/online-status" as never,
+      );
+    };
+
+  /* ==========================================================
+     MY JOBS
+  ========================================================== */
+
+  const handleOpenJobs =
+    () => {
+      router.push(
+        "/(worker)/profile/my-jobs" as never,
+      );
+    };
+
+  /* ==========================================================
+     WALLET
+  ========================================================== */
+
+  const handleOpenWallet =
+    () => {
+      router.push(
+        "/(worker)/profile/wallet" as never,
+      );
+    };
+
+  /* ==========================================================
+     SAVED
+  ========================================================== */
+
+  const handleOpenSaved =
+    () => {
+      router.push(
+        "/(worker)/profile/saved" as never,
       );
     };
 
@@ -421,10 +582,8 @@ export default function WorkerProfileScreen() {
 
         Toast.show({
           type: "error",
-
           text1:
             "Unable to sign out",
-
           text2:
             "Please try again.",
         });
@@ -439,23 +598,56 @@ export default function WorkerProfileScreen() {
     () => {
       Toast.show({
         type: "info",
-
         text1:
           "Not available yet",
-
         text2:
           "This profile action is not connected yet.",
       });
     };
 
-  /*
-   * No verified Build Your Profile
-   * route is available here.
-   *
-   * Do not invent a route.
-   */
+  /* ==========================================================
+     EDIT PHOTO
+  ========================================================== */
+
   const handleEditPhoto =
-    handleUnavailableAction;
+    () => {
+      router.push(
+        "/(worker)/jobs/build-profile" as never,
+      );
+    };
+
+  /* ==========================================================
+     REVIEWS
+  ========================================================== */
+
+  const handleOpenReviews =
+    () => {
+      router.push(
+        "/(worker)/reviews" as never,
+      );
+    };
+
+  /* ==========================================================
+     MY PRODUCTS
+  ========================================================== */
+
+  const handleOpenProducts =
+    () => {
+      router.push(
+        "/(worker)/profile/my-products" as never,
+      );
+    };
+
+  /* ==========================================================
+     ORDERS
+  ========================================================== */
+
+  const handleOpenOrders =
+    () => {
+      router.push(
+        "/(worker)/profile/orders" as never,
+      );
+    };
 
   /* ==========================================================
      RENDER
@@ -464,6 +656,7 @@ export default function WorkerProfileScreen() {
   return (
     <AppScreen
       role="worker"
+      padded={false}
     >
       <ScrollView
         showsVerticalScrollIndicator={
@@ -484,6 +677,12 @@ export default function WorkerProfileScreen() {
           }
         >
           <WorkerProfileHeader
+            /*
+             * Force the header to receive a
+             * fresh identity whenever the
+             * worker name or photo changes.
+             */
+            key={`${fullName}-${photoUrl}`}
             name={
               fullName
             }
@@ -498,18 +697,8 @@ export default function WorkerProfileScreen() {
             photoUrl={
               photoUrl
             }
-            verified={
-              profile.verified ??
-              false
-            }
             onEditPhoto={
               handleEditPhoto
-            }
-            onNotifications={
-              handleUnavailableAction
-            }
-            onSettings={
-              handleUnavailableAction
             }
           />
         </View>
@@ -525,20 +714,22 @@ export default function WorkerProfileScreen() {
         >
           <WorkerStats
             jobs={
-              profile.completedJobs ??
-              0
+              orderCounts.pending
             }
             completed={
-              profile.completedJobs ??
+              orderCounts.completed
+            }
+            rating={
+              workerRating
+            }
+            earnings={
               0
             }
-            rating={0}
-            earnings={0}
           />
         </View>
 
         {/* ==================================================
-            WORKER MENU
+            MY ACCOUNT
         ================================================== */}
 
         <View
@@ -546,6 +737,16 @@ export default function WorkerProfileScreen() {
             styles.menuSection
           }
         >
+          <AppText
+            variant="bodyMedium"
+            weight="bold"
+            style={
+              styles.menuTitle
+            }
+          >
+            My Account
+          </AppText>
+
           <WorkerProfile
             hasCustomerAccount={
               hasCustomerAccount
@@ -557,34 +758,40 @@ export default function WorkerProfileScreen() {
               handleCreateCustomer
             }
             onJobs={
-              handleUnavailableAction
+              handleOpenJobs
             }
             onProducts={
-              handleUnavailableAction
+              handleOpenProducts
             }
             onOrders={
-              handleUnavailableAction
+              handleOpenOrders
+            }
+            onSaved={
+              handleOpenSaved
+            }
+            onPromotions={
+              handleOpenPromotions
             }
             onEarnings={
-              handleUnavailableAction
+              handleOpenWallet
             }
             onOnlineStatus={
-              handleUnavailableAction
+              handleOpenOnlineStatus
             }
-            onBusinessAddress={
-              handleUnavailableAction
+            onLocation={
+              handleOpenLocation
             }
             onNotifications={
-              handleUnavailableAction
+              handleOpenNotifications
             }
             onReviews={
-              handleUnavailableAction
+              handleOpenReviews
             }
             onSupport={
-              handleUnavailableAction
+              handleOpenSupport
             }
             onSettings={
-              handleUnavailableAction
+              handleOpenSettings
             }
             onLogout={
               handleLogout
@@ -602,12 +809,16 @@ export default function WorkerProfileScreen() {
 
 const styles =
   StyleSheet.create({
+    /* ========================================================
+       CONTENT
+    ======================================================== */
+
     content: {
       paddingHorizontal:
-        FixxamTokens.spacing.lg,
+        FixxamTokens.spacing.md,
 
       paddingTop:
-        FixxamTokens.spacing.sm,
+        FixxamTokens.spacing.xs,
 
       paddingBottom:
         FixxamTokens.spacing.xxxl,
@@ -622,11 +833,9 @@ const styles =
 
       minHeight: 420,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
     },
 
     loadingIcon: {
@@ -636,11 +845,9 @@ const styles =
       height:
         FixxamTokens.size.avatarLg,
 
-      alignItems:
-        "center",
+      alignItems: "center",
 
-      justifyContent:
-        "center",
+      justifyContent: "center",
 
       borderRadius:
         FixxamTokens.radius.full,
@@ -662,8 +869,7 @@ const styles =
     ======================================================== */
 
     profileCard: {
-      overflow:
-        "hidden",
+      overflow: "hidden",
 
       borderWidth: 1,
 
@@ -675,8 +881,6 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -684,11 +888,10 @@ const styles =
     ======================================================== */
 
     statsCard: {
-      marginTop:
-        FixxamTokens.spacing.md,
+      overflow: "hidden",
 
-      overflow:
-        "hidden",
+      marginTop:
+        FixxamTokens.spacing.sm,
 
       borderWidth: 1,
 
@@ -700,8 +903,6 @@ const styles =
 
       backgroundColor:
         Colors.surface,
-
-      ...FixxamTokens.shadow.card,
     },
 
     /* ========================================================
@@ -710,6 +911,17 @@ const styles =
 
     menuSection: {
       marginTop:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
+    },
+
+    menuTitle: {
+      marginLeft:
+        FixxamTokens.spacing.xxs,
+
+      marginBottom:
+        FixxamTokens.spacing.xs,
+
+      color:
+        Colors.textPrimary,
     },
   });

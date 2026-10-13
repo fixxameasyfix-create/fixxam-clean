@@ -17,6 +17,10 @@ import {
   type FixxamRole,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
 export interface EmailOtpFieldProps {
   email: string;
 
@@ -48,6 +52,32 @@ export interface EmailOtpFieldProps {
   disabled?: boolean;
 }
 
+/* ==============================================================
+   CONSTANTS
+============================================================== */
+
+const MAX_EMAIL_LENGTH = 254;
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeEmail(
+  value: string,
+): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .slice(
+      0,
+      MAX_EMAIL_LENGTH,
+    );
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
+
 function EmailOtpField({
   email,
   otp,
@@ -68,23 +98,41 @@ function EmailOtpField({
   const resolvedRole: FixxamRole =
     variant ?? role;
 
+  /* ============================================================
+     EMAIL CHANGE
+  ============================================================ */
+
   const handleEmailChange =
     useCallback(
       (value: string) => {
-        if (value === email) {
+        const normalizedEmail =
+          normalizeEmail(
+            value,
+          );
+
+        if (
+          normalizedEmail ===
+          email
+        ) {
           return;
         }
 
-        onEmailChange(value);
+        onEmailChange(
+          normalizedEmail,
+        );
 
         /*
-         * Verification belongs to the
-         * exact email address that was
-         * verified. Editing it invalidates
-         * the previous verification.
+         * Verification belongs to
+         * the exact email address that
+         * was previously verified.
+         *
+         * Editing the email invalidates
+         * that verification state.
          */
         if (isVerified) {
-          onVerifiedChange?.(false);
+          onVerifiedChange?.(
+            false,
+          );
         }
       },
       [
@@ -95,47 +143,79 @@ function EmailOtpField({
       ],
     );
 
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       <AppInput
-        role={resolvedRole}
+        role={
+          resolvedRole
+        }
         label="Email Address"
         placeholder="Enter your email address"
         value={email}
         onChangeText={
           handleEmailChange
         }
-        editable={!disabled}
+        editable={
+          !disabled
+        }
         keyboardType="email-address"
         inputMode="email"
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="email"
         textContentType="emailAddress"
+        maxLength={
+          MAX_EMAIL_LENGTH
+        }
         leftIconName="mail"
-        helperText="Optional (Email or Phone required)"
         error={error}
         accessibilityLabel="Email address"
       />
 
-      <View style={styles.verification}>
-        <OtpVerification
-          type="email"
-          value={email}
-          otp={otp}
-          onOtpChange={onOtpChange}
-          role={resolvedRole}
-          verified={isVerified}
-          onVerified={(value) =>
-            onVerifiedChange?.(
-              value,
-            )
+      {!disabled ? (
+        <View
+          style={
+            styles.verification
           }
-        />
-      </View>
+        >
+          <OtpVerification
+            type="email"
+            value={email}
+            otp={otp}
+            onOtpChange={
+              onOtpChange
+            }
+            role={
+              resolvedRole
+            }
+            variant={
+              variant
+            }
+            verified={
+              isVerified
+            }
+            onVerified={
+              onVerifiedChange ??
+              (() => {})
+            }
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
@@ -144,6 +224,8 @@ const styles =
     },
 
     verification: {
+      width: "100%",
+
       marginTop:
         FixxamTokens.spacing.md,
     },

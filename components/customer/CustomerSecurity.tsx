@@ -8,7 +8,7 @@ import {
 } from "react-native";
 
 import {
-  AppCard,
+  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -23,6 +23,14 @@ import {
    TYPES
 ============================================================== */
 
+export type CustomerRegistrationSource =
+  | "new"
+  | "worker";
+
+export type CustomerPrefillMode =
+  | "worker"
+  | "blank";
+
 type Props = {
   password: string;
 
@@ -35,6 +43,10 @@ type Props = {
   setConfirmPassword: (
     value: string,
   ) => void;
+
+  registrationSource?: CustomerRegistrationSource;
+
+  prefillMode?: CustomerPrefillMode;
 };
 
 /* ==============================================================
@@ -46,39 +58,22 @@ function CustomerSecurity({
   confirmPassword,
   setPassword,
   setConfirmPassword,
+  registrationSource = "new",
+  prefillMode = "blank",
 }: Props) {
+  const isWorkerRegistration =
+    registrationSource === "worker";
+
+  const isWorkerPrefill =
+    isWorkerRegistration &&
+    prefillMode === "worker";
+
   return (
-    <AppCard
-      role="customer"
-      variant="outlined"
+    <View
       style={
-        styles.card
+        styles.container
       }
     >
-      {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <AppText
-        variant="heading2"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        Create your password
-      </AppText>
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        style={
-          styles.subtitle
-        }
-      >
-        Choose a password to keep your Fixxam account secure.
-      </AppText>
-
       {/* ========================================================
           PASSWORD
       ======================================================== */}
@@ -98,20 +93,50 @@ function CustomerSecurity({
           Password
         </AppText>
 
-        <PasswordField
-          placeholder="Enter your password"
-          value={
-            password
-          }
-          onChangeText={
-            setPassword
-          }
-          variant="customer"
-        />
+        {isWorkerPrefill ? (
+          <View
+            style={
+              styles.lockedPassword
+            }
+          >
+            <View
+              style={
+                styles.lockedPasswordContent
+              }
+            >
+              <AppText
+                variant="body"
+                style={
+                  styles.lockedPasswordText
+                }
+              >
+                ••••••••••••
+              </AppText>
+            </View>
+
+            <AppIcon
+              name="lock"
+              role="customer"
+              size="sm"
+              state="muted"
+            />
+          </View>
+        ) : (
+          <PasswordField
+            placeholder="Enter your password"
+            value={
+              password
+            }
+            onChangeText={
+              setPassword
+            }
+            variant="customer"
+          />
+        )}
       </View>
 
       {/* ========================================================
-          CONFIRM PASSWORD
+          CONFIRM / RE-ENTER PASSWORD
       ======================================================== */}
 
       <View
@@ -126,11 +151,17 @@ function CustomerSecurity({
             styles.label
           }
         >
-          Confirm password
+          {isWorkerPrefill
+            ? "Re-enter password"
+            : "Confirm password"}
         </AppText>
 
         <PasswordField
-          placeholder="Re-enter your password"
+          placeholder={
+            isWorkerPrefill
+              ? "Enter your existing password"
+              : "Re-enter your password"
+          }
           value={
             confirmPassword
           }
@@ -142,37 +173,117 @@ function CustomerSecurity({
       </View>
 
       {/* ========================================================
-          PASSWORD HINT
+          WORKER → CUSTOMER SECURITY NOTICE
       ======================================================== */}
 
-      <View
-        style={
-          styles.hint
-        }
-      >
-        <AppText
-          variant="caption"
-          tone="secondary"
+      {isWorkerPrefill ? (
+        <View
           style={
-            styles.hintText
+            styles.workerNotice
           }
         >
-          Password must be 6–20 characters.
-        </AppText>
+          <AppIcon
+            name="lock"
+            role="customer"
+            size="sm"
+            state="muted"
+          />
+
+          <View
+            style={
+              styles.workerNoticeContent
+            }
+          >
+            <AppText
+              variant="caption"
+              weight="semibold"
+              style={
+                styles.workerNoticeTitle
+              }
+            >
+              Existing account password
+            </AppText>
+
+            <AppText
+              variant="caption"
+              tone="secondary"
+              style={
+                styles.workerNoticeText
+              }
+            >
+              Your worker password stays unchanged.
+              Re-enter it to securely verify your
+              existing Fixxam account.
+            </AppText>
+          </View>
+        </View>
+      ) : null}
+
+      {/* ========================================================
+          PASSWORD REQUIREMENTS
+      ======================================================== */}
+
+      {!isWorkerPrefill ? (
+        <View
+          style={
+            styles.requirements
+          }
+        >
+          <PasswordRequirement
+            text="6–20 characters"
+          />
+
+          <PasswordRequirement
+            text="Use a mix of letters and numbers"
+          />
+
+          <PasswordRequirement
+            text="Use a password you can remember"
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/* ==============================================================
+   PASSWORD REQUIREMENT
+============================================================== */
+
+type PasswordRequirementProps = {
+  text: string;
+};
+
+const PasswordRequirement = memo(
+  function PasswordRequirement({
+    text,
+  }: PasswordRequirementProps) {
+    return (
+      <View
+        style={
+          styles.requirementRow
+        }
+      >
+        <AppIcon
+          name="success"
+          role="customer"
+          state="active"
+          size="sm"
+        />
 
         <AppText
           variant="caption"
           tone="secondary"
           style={
-            styles.hintText
+            styles.requirementText
           }
         >
-          Use a password you can remember.
+          {text}
         </AppText>
       </View>
-    </AppCard>
-  );
-}
+    );
+  },
+);
 
 export default memo(
   CustomerSecurity,
@@ -184,36 +295,11 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    card: {
+    container: {
       width: "100%",
 
       marginTop:
-        FixxamTokens.spacing.xxxl,
-
-      marginBottom:
-        FixxamTokens.spacing.sm,
-
-      paddingHorizontal:
         FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.md,
-    },
-
-    title: {
-      marginBottom:
-        FixxamTokens.spacing.xs,
-
-      color:
-        Colors.textPrimary,
-    },
-
-    subtitle: {
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      color:
-        Colors.textSecondary,
     },
 
     field: {
@@ -235,20 +321,127 @@ const styles =
         Colors.textPrimary,
     },
 
-    hint: {
+    /* ========================================================
+       LOCKED PASSWORD
+    ======================================================== */
+
+    lockedPassword: {
+      width: "100%",
+
+      minHeight: 52,
+
+      paddingHorizontal:
+        FixxamTokens.spacing.md,
+
+      flexDirection: "row",
+
+      alignItems: "center",
+
+      justifyContent: "space-between",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.background,
+    },
+
+    lockedPasswordContent: {
+      flex: 1,
+
+      minWidth: 0,
+    },
+
+    lockedPasswordText: {
+      letterSpacing: 3,
+
+      color:
+        Colors.textSecondary,
+    },
+
+    /* ========================================================
+       WORKER NOTICE
+    ======================================================== */
+
+    workerNotice: {
+      width: "100%",
+
       marginTop:
         FixxamTokens.spacing.md,
 
-      paddingTop:
+      padding:
         FixxamTokens.spacing.md,
 
-      borderTopWidth: 1,
+      flexDirection: "row",
 
-      borderTopColor:
-        Colors.divider,
+      alignItems: "flex-start",
+
+      borderWidth: 1,
+
+      borderColor:
+        Colors.border,
+
+      borderRadius:
+        FixxamTokens.radius.md,
+
+      backgroundColor:
+        Colors.surface,
     },
 
-    hintText: {
+    workerNoticeContent: {
+      flex: 1,
+
+      minWidth: 0,
+
+      marginLeft:
+        FixxamTokens.spacing.sm,
+    },
+
+    workerNoticeTitle: {
+      color:
+        Colors.textPrimary,
+    },
+
+    workerNoticeText: {
+      marginTop:
+        FixxamTokens.spacing.xxs,
+
+      lineHeight: 18,
+    },
+
+    /* ========================================================
+       REQUIREMENTS
+    ======================================================== */
+
+    requirements: {
+      width: "100%",
+
+      marginTop:
+        FixxamTokens.spacing.md,
+
+      gap:
+        FixxamTokens.spacing.xs,
+    },
+
+    requirementRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      minHeight: 22,
+    },
+
+    requirementText: {
+      marginLeft:
+        FixxamTokens.spacing.xs,
+
       color:
         Colors.textSecondary,
     },

@@ -1,19 +1,18 @@
 import React, {
   memo,
+  useCallback,
 } from "react";
 
 import {
+  Alert,
+  Pressable,
   StyleSheet,
   View,
 } from "react-native";
 
-import {
-  Image,
-} from "expo-image";
+import { Image } from "expo-image";
 
 import {
-  AppButton,
-  AppCard,
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -34,8 +33,6 @@ type Props = {
   onTakePhoto: () => void;
 
   onChoosePhoto: () => void;
-
-  onSkip: () => void;
 };
 
 /* ==============================================================
@@ -46,178 +43,178 @@ function CustomerPhoto({
   photo,
   onTakePhoto,
   onChoosePhoto,
-  onSkip,
 }: Props) {
   const hasPhoto =
     typeof photo === "string" &&
     photo.trim().length > 0;
 
+  /* ============================================================
+     PHOTO ACTIONS
+
+     The reference design only shows the
+     avatar + camera badge.
+
+     Tapping either opens the two choices.
+  ============================================================ */
+
+  const handlePhotoPress =
+    useCallback(() => {
+      Alert.alert(
+        "Profile photo",
+        "Choose how you'd like to add your photo.",
+        [
+          {
+            text: "Upload photo",
+            onPress:
+              onChoosePhoto,
+          },
+          {
+            text: "Capture photo",
+            onPress:
+              onTakePhoto,
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ],
+        {
+          cancelable: true,
+        },
+      );
+    }, [
+      onChoosePhoto,
+      onTakePhoto,
+    ]);
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
+
   return (
-    <AppCard
-      role="customer"
-      variant="outlined"
+    <View
       style={
-        styles.card
+        styles.container
       }
     >
       {/* ========================================================
-          HEADER
-      ======================================================== */}
-
-      <AppText
-        variant="heading2"
-        weight="bold"
-        style={
-          styles.title
-        }
-      >
-        Add your profile photo
-      </AppText>
-
-      <AppText
-        variant="body"
-        tone="secondary"
-        style={
-          styles.subtitle
-        }
-      >
-        Add a clear photo of yourself so workers and Fixxam can easily recognize your profile.
-      </AppText>
-
-      {/* ========================================================
-          QUALITY NOTICE
+          PROFILE PHOTO
       ======================================================== */}
 
       <View
         style={
-          styles.qualityNotice
+          styles.photoSection
         }
       >
         <View
           style={
-            styles.noticeIcon
+            styles.avatarWrapper
           }
         >
-          <AppIcon
-            name="success"
-            role="customer"
-            size="sm"
-            state="active"
-          />
+          <Pressable
+            onPress={
+              handlePhotoPress
+            }
+            accessibilityRole="button"
+            accessibilityLabel={
+              hasPhoto
+                ? "Change profile photo"
+                : "Add profile photo"
+            }
+            style={({ pressed }) => [
+              styles.avatar,
+              pressed &&
+                styles.avatarPressed,
+            ]}
+          >
+            {hasPhoto ? (
+              <Image
+                source={{
+                  uri: photo,
+                }}
+                contentFit="cover"
+                transition={150}
+                accessibilityLabel="Selected profile photo"
+                style={
+                  styles.photo
+                }
+              />
+            ) : (
+              <View
+                style={
+                  styles.placeholder
+                }
+              >
+                <AppIcon
+                  name="profile"
+                  role="customer"
+                  state="muted"
+                  size="xl"
+                />
+              </View>
+            )}
+          </Pressable>
+
+          {/* ====================================================
+              CAMERA BADGE
+          ==================================================== */}
+
+          <Pressable
+            onPress={
+              handlePhotoPress
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Add profile photo"
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.cameraBadge,
+              pressed &&
+                styles.cameraBadgePressed,
+            ]}
+          >
+            <AppIcon
+              name="camera"
+              role="customer"
+              state="active"
+              size="sm"
+              color={
+                Colors.background
+              }
+            />
+          </Pressable>
         </View>
+
+        {/* ======================================================
+            TITLE
+        ====================================================== */}
+
+        <AppText
+          variant="bodyMedium"
+          weight="semibold"
+          center
+          style={
+            styles.title
+          }
+        >
+          Add profile photo
+        </AppText>
+
+        {/* ======================================================
+            SUBTITLE
+        ====================================================== */}
 
         <AppText
           variant="caption"
+          tone="secondary"
+          center
           style={
-            styles.qualityText
+            styles.subtitle
           }
         >
-          Please use a clear, well-lit photo where your face is easy to see.
+          This is optional. You can change it later.
         </AppText>
       </View>
-
-      {/* ========================================================
-          PHOTO PREVIEW
-      ======================================================== */}
-
-      <View
-        style={
-          styles.previewContainer
-        }
-      >
-        {hasPhoto ? (
-          <Image
-            source={{
-              uri: photo,
-            }}
-            contentFit="cover"
-            transition={150}
-            accessibilityLabel="Selected profile photo"
-            style={
-              styles.photo
-            }
-          />
-        ) : (
-          <View
-            accessibilityLabel="No profile photo selected"
-            style={
-              styles.placeholder
-            }
-          >
-            <AppIcon
-              name="profile"
-              role="customer"
-              size="xl"
-              state="muted"
-            />
-          </View>
-        )}
-      </View>
-
-      {/* ========================================================
-          ACTIONS
-      ======================================================== */}
-
-      <AppButton
-        title="Take Photo"
-        role="customer"
-        variant="primary"
-        size="md"
-        leftIconName="camera"
-        onPress={
-          onTakePhoto
-        }
-      />
-
-      <View
-        style={
-          styles.secondaryAction
-        }
-      >
-        <AppButton
-          title="Choose from Gallery"
-          role="customer"
-          variant="outline"
-          size="md"
-          leftIconName="image"
-          onPress={
-            onChoosePhoto
-          }
-        />
-      </View>
-
-      <View
-        style={
-          styles.skipAction
-        }
-      >
-        <AppButton
-          title="Skip for now"
-          role="customer"
-          variant="ghost"
-          size="sm"
-          onPress={
-            onSkip
-          }
-        />
-      </View>
-
-      {/* ========================================================
-          HINT
-      ======================================================== */}
-
-      <AppText
-        accessibilityRole="text"
-        variant="caption"
-        tone="secondary"
-        center
-        style={
-          styles.hint
-        }
-      >
-        You can add or change your photo later from your profile.
-      </AppText>
-    </AppCard>
+    </View>
   );
 }
 
@@ -231,21 +228,137 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    card: {
+    container: {
+      width: "100%",
+    },
+
+    /* ==========================================================
+       PHOTO SECTION
+    ========================================================== */
+
+    photoSection: {
       width: "100%",
 
-      marginTop:
-        FixxamTokens.spacing.lg,
+      alignItems:
+        "center",
 
-      marginBottom:
+      paddingTop:
         FixxamTokens.spacing.sm,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
+      paddingBottom:
         FixxamTokens.spacing.lg,
     },
+
+    /* ==========================================================
+       AVATAR
+    ========================================================== */
+
+    avatarWrapper: {
+      position: "relative",
+
+      width: 132,
+
+      height: 132,
+
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+
+    avatar: {
+      width: 132,
+
+      height: 132,
+
+      overflow: "hidden",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    avatarPressed: {
+      opacity: 0.86,
+    },
+
+    photo: {
+      width: "100%",
+
+      height: "100%",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+    },
+
+    placeholder: {
+      width: "100%",
+
+      height: "100%",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      backgroundColor:
+        CustomerColors.primarySoft,
+    },
+
+    /* ==========================================================
+       CAMERA BADGE
+
+       Matches the reference:
+       blue circular badge positioned
+       at the lower-right of the avatar.
+    ========================================================== */
+
+    cameraBadge: {
+      position: "absolute",
+
+      right: -3,
+
+      bottom: 2,
+
+      width: 48,
+
+      height: 48,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderRadius:
+        FixxamTokens.radius.full,
+
+      borderWidth: 3,
+
+      borderColor:
+        Colors.background,
+
+      backgroundColor:
+        CustomerColors.primary,
+    },
+
+    cameraBadgePressed: {
+      opacity: 0.8,
+    },
+
+    /* ==========================================================
+       TEXT
+    ========================================================== */
 
     title: {
       marginBottom:
@@ -256,116 +369,7 @@ const styles =
     },
 
     subtitle: {
-      marginBottom:
-        FixxamTokens.spacing.md,
-
-      color:
-        Colors.textSecondary,
-    },
-
-    qualityNotice: {
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      paddingHorizontal:
-        FixxamTokens.spacing.md,
-
-      paddingVertical:
-        FixxamTokens.spacing.sm,
-
-      flexDirection:
-        "row",
-
-      alignItems:
-        "flex-start",
-
-      borderRadius:
-        FixxamTokens.radius.md,
-
-      backgroundColor:
-        CustomerColors.primarySoft,
-    },
-
-    noticeIcon: {
-      width:
-        FixxamTokens.size.iconBox,
-
-      flexShrink: 0,
-
-      alignItems:
-        "flex-start",
-
-      paddingTop:
-        FixxamTokens.spacing.xxs,
-    },
-
-    qualityText: {
-      flex: 1,
-
-      color:
-        CustomerColors.primary,
-    },
-
-    previewContainer: {
-      marginBottom:
-        FixxamTokens.spacing.lg,
-
-      alignItems:
-        "center",
-    },
-
-    photo: {
-      width:
-        FixxamTokens.size.avatarXl,
-
-      height:
-        FixxamTokens.size.avatarXl,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    placeholder: {
-      width:
-        FixxamTokens.size.avatarXl,
-
-      height:
-        FixxamTokens.size.avatarXl,
-
-      alignItems:
-        "center",
-
-      justifyContent:
-        "center",
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.full,
-
-      backgroundColor:
-        Colors.disabledBackground,
-    },
-
-    secondaryAction: {
-      marginTop:
-        FixxamTokens.spacing.sm,
-    },
-
-    skipAction: {
-      marginTop:
-        FixxamTokens.spacing.xs,
-    },
-
-    hint: {
-      marginTop:
-        FixxamTokens.spacing.xs,
+      maxWidth: 320,
 
       color:
         Colors.textSecondary,

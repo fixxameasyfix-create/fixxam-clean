@@ -1,5 +1,6 @@
 import React, {
   memo,
+  useMemo,
 } from "react";
 
 import {
@@ -7,8 +8,9 @@ import {
   View,
 } from "react-native";
 
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+
 import {
-  AppIcon,
   AppText,
 } from "@/components/ui";
 
@@ -18,55 +20,158 @@ import {
   WorkerColors,
 } from "@/theme";
 
+/* ==============================================================
+   TYPES
+============================================================== */
+
+type MaterialIconName =
+  React.ComponentProps<
+    typeof MaterialCommunityIcons
+  >["name"];
+
 type Props = {
   orderId: string;
 
   serviceName: string;
 
   customerName: string;
+
+  icon?:
+    | string
+    | null;
+
+  iconColor?:
+    | string
+    | null;
+
+  backgroundColor?:
+    | string
+    | null;
 };
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function cleanText(
+  value: unknown,
+  fallback: string,
+): string {
+  if (
+    typeof value !==
+    "string"
+  ) {
+    return fallback;
+  }
+
+  const cleaned =
+    value.trim();
+
+  return cleaned ||
+    fallback;
+}
+
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
 function MakeOfferOrderCard({
   orderId,
   serviceName,
   customerName,
+  icon,
+  iconColor,
+  backgroundColor,
 }: Props) {
+  const safeServiceName =
+    useMemo(
+      () =>
+        cleanText(
+          serviceName,
+          "Service request",
+        ),
+      [serviceName],
+    );
+
+  const safeCustomerName =
+    useMemo(
+      () =>
+        cleanText(
+          customerName,
+          "Customer",
+        ),
+      [customerName],
+    );
+
+  const safeOrderId =
+    useMemo(
+      () =>
+        cleanText(
+          orderId,
+          "",
+        ),
+      [orderId],
+    );
+
+  const materialIcon =
+    useMemo<MaterialIconName>(
+      () =>
+        icon &&
+        icon in
+          MaterialCommunityIcons.glyphMap
+          ? (icon as MaterialIconName)
+          : "tools",
+      [icon],
+    );
+
   return (
     <View
+      accessible
+      accessibilityLabel={`${safeServiceName}. Customer ${safeCustomerName}${
+        safeOrderId
+          ? `. Order ${safeOrderId}`
+          : ""
+      }`}
       style={
-        styles.orderCard
+        styles.container
       }
     >
+      {/* ========================================================
+          SERVICE ICON
+      ======================================================== */}
+
       <View
-        style={
-          styles.serviceIcon
-        }
+        style={[
+          styles.iconContainer,
+
+          {
+            backgroundColor:
+              backgroundColor ||
+              WorkerColors.primarySoft,
+          },
+        ]}
       >
-        <AppIcon
-          name="professional"
-          role="worker"
-          size="md"
+        <MaterialCommunityIcons
+          name={
+            materialIcon
+          }
+          size={22}
           color={
+            iconColor ||
             WorkerColors.primary
           }
         />
       </View>
 
+      {/* ========================================================
+          ORDER INFO
+      ======================================================== */}
+
       <View
         style={
-          styles.orderInfo
+          styles.content
         }
       >
-        <AppText
-          variant="caption"
-          tone="secondary"
-          style={
-            styles.orderLabel
-          }
-        >
-          SERVICE
-        </AppText>
-
         <AppText
           variant="bodyMedium"
           weight="bold"
@@ -75,58 +180,78 @@ function MakeOfferOrderCard({
             styles.serviceName
           }
         >
-          {serviceName}
+          {safeServiceName}
         </AppText>
 
-        <AppText
-          variant="caption"
-          tone="secondary"
-          numberOfLines={1}
+        <View
           style={
-            styles.customerText
+            styles.metaRow
           }
         >
-          Customer:{" "}
-          {customerName}
-        </AppText>
-      </View>
+          <AppText
+            variant="caption"
+            tone="secondary"
+            numberOfLines={1}
+            style={
+              styles.customerName
+            }
+          >
+            {safeCustomerName}
+          </AppText>
 
-      <View
-        style={
-          styles.orderBadge
-        }
-      >
-        <AppText
-          variant="caption"
-          weight="bold"
-          numberOfLines={1}
-          style={
-            styles.orderBadgeText
-          }
-        >
-          #{orderId}
-        </AppText>
+          {safeOrderId ? (
+            <>
+              <View
+                style={
+                  styles.dot
+                }
+              />
+
+              <AppText
+                variant="caption"
+                tone="secondary"
+                numberOfLines={1}
+                ellipsizeMode="middle"
+                style={
+                  styles.orderId
+                }
+              >
+                #{safeOrderId}
+              </AppText>
+            </>
+          ) : null}
+        </View>
       </View>
     </View>
   );
 }
 
+/* ==============================================================
+   MEMO
+============================================================== */
+
+MakeOfferOrderCard.displayName =
+  "MakeOfferOrderCard";
+
 export default memo(
   MakeOfferOrderCard,
 );
 
+/* ==============================================================
+   STYLES
+============================================================== */
+
 const styles =
   StyleSheet.create({
-    orderCard: {
-      width: "100%",
+    container: {
+      width:
+        "100%",
 
-      minHeight: 78,
+      minHeight:
+        58,
 
-      marginTop:
+      paddingVertical:
         FixxamTokens.spacing.sm,
-
-      padding:
-        FixxamTokens.spacing.md,
 
       flexDirection:
         "row",
@@ -134,28 +259,29 @@ const styles =
       alignItems:
         "center",
 
-      borderWidth: 1,
+      borderBottomWidth:
+        StyleSheet.hairlineWidth,
 
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
+      borderBottomColor:
+        Colors.divider,
 
       backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
+        Colors.background,
     },
 
-    serviceIcon: {
+    /* ==========================================================
+       ICON
+    ========================================================== */
+
+    iconContainer: {
       width:
-        FixxamTokens.size.iconBox,
+        42,
 
       height:
-        FixxamTokens.size.iconBox,
+        42,
 
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignItems:
         "center",
@@ -164,65 +290,89 @@ const styles =
         "center",
 
       borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        WorkerColors.primarySoft,
+        FixxamTokens.radius.md,
     },
 
-    orderInfo: {
-      flex: 1,
+    /* ==========================================================
+       CONTENT
+    ========================================================== */
 
-      minWidth: 0,
+    content: {
+      flex:
+        1,
+
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.md,
-
-      marginRight:
         FixxamTokens.spacing.sm,
     },
 
-    orderLabel: {
-      letterSpacing: 0.8,
-
-      color:
-        Colors.textMuted,
-    },
-
     serviceName: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
       color:
         Colors.textPrimary,
     },
 
-    customerText: {
+    /* ==========================================================
+       META
+    ========================================================== */
+
+    metaRow: {
+      width:
+        "100%",
+
+      minWidth:
+        0,
+
       marginTop:
-        FixxamTokens.spacing.xxs,
+        2,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    customerName: {
+      maxWidth:
+        "45%",
+
+      flexShrink:
+        1,
 
       color:
         Colors.textSecondary,
     },
 
-    orderBadge: {
-      maxWidth: 100,
+    dot: {
+      width:
+        3,
 
-      paddingHorizontal:
-        FixxamTokens.spacing.sm,
+      height:
+        3,
 
-      paddingVertical:
+      flexShrink:
+        0,
+
+      marginHorizontal:
         FixxamTokens.spacing.xs,
 
       borderRadius:
-        FixxamTokens.radius.sm,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.disabledBackground,
+        Colors.textMuted,
     },
 
-    orderBadgeText: {
+    orderId: {
+      flex:
+        1,
+
+      minWidth:
+        0,
+
       color:
-        Colors.textSecondary,
+        Colors.textMuted,
     },
   });

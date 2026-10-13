@@ -1,11 +1,14 @@
-import React, { memo, useCallback } from "react";
+import React, {
+  memo,
+  useCallback,
+} from "react";
+
 import {
   StyleSheet,
   View,
 } from "react-native";
 
 import {
-  AppButton,
   AppText,
 } from "@/components/ui";
 
@@ -23,15 +26,16 @@ export interface OtpVerificationCardProps {
 
   verified: boolean;
 
-  onChangeOtp: (value: string) => void;
+  onChangeOtp: (
+    value: string,
+  ) => void;
 
-  onVerify: () => void;
+  onVerify: (
+    otp?: string,
+  ) => void;
 
   role?: FixxamRole;
 
-  /*
-   * Legacy support.
-   */
   variant?: "customer" | "worker";
 
   error?: string;
@@ -41,99 +45,127 @@ function OtpVerificationCard({
   otp,
   loading,
   verified,
-
   onChangeOtp,
   onVerify,
-
-  role = "customer",
+  role,
   variant,
-
   error,
 }: OtpVerificationCardProps) {
-  const resolvedRole: FixxamRole =
+  const resolvedRole =
     variant ?? role;
 
-  const complete =
-    otp.replace(/\D/g, "").length === 6;
+  /* ============================================================
+     OTP COMPLETE
+     
+     IMPORTANT:
+     Pass the completed OTP directly.
+     
+     This prevents the common React state
+     problem where the 6th digit has not
+     reached parent state yet.
+  ============================================================ */
 
-  const handleComplete = useCallback(() => {
-    if (
-      !verified &&
-      !loading
-    ) {
-      onVerify();
-    }
-  }, [
-    loading,
-    onVerify,
-    verified,
-  ]);
+  const handleComplete =
+    useCallback(
+      (completeOtp: string) => {
+        if (
+          verified ||
+          loading
+        ) {
+          return;
+        }
+
+        const sanitizedOtp =
+          completeOtp
+            .replace(/\D/g, "")
+            .slice(0, 6);
+
+        if (
+          sanitizedOtp.length !==
+          6
+        ) {
+          return;
+        }
+
+        onVerify(
+          sanitizedOtp,
+        );
+      },
+      [
+        loading,
+        onVerify,
+        verified,
+      ],
+    );
+
+  /* ============================================================
+     UI
+  ============================================================ */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
+      <AppText
+        variant="bodyMedium"
+        weight="semibold"
+        style={
+          styles.title
+        }
+      >
+        Enter verification code
+      </AppText>
+
+      <AppText
+        variant="caption"
+        tone="secondary"
+        style={
+          styles.subtitle
+        }
+      >
+        Enter the 6-digit code sent to your email address.
+      </AppText>
+
       <OtpBoxes
         value={otp}
-        onChange={onChangeOtp}
-        onComplete={handleComplete}
-        role={resolvedRole}
+        onChange={
+          onChangeOtp
+        }
+        onComplete={
+          handleComplete
+        }
+        role={
+          resolvedRole
+        }
         editable={
           !loading &&
           !verified
         }
         error={error}
       />
-
-      {verified ? (
-        <AppText
-          variant="bodyMedium"
-          tone="success"
-          center
-          style={styles.verifiedText}
-        >
-          Code verified successfully
-        </AppText>
-      ) : null}
-
-      <AppButton
-        title={
-          verified
-            ? "Verified"
-            : "Verify Code"
-        }
-        role={resolvedRole}
-        leftIconName={
-          verified
-            ? "success"
-            : "check"
-        }
-        loading={loading}
-        disabled={
-          verified ||
-          !complete
-        }
-        onPress={onVerify}
-        style={styles.button}
-      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-  },
+export default memo(
+  OtpVerificationCard,
+);
 
-  verifiedText: {
-    marginTop:
-      FixxamTokens.spacing.sm,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      width: "100%",
+    },
 
-  button: {
-    width: "100%",
+    title: {
+      marginBottom:
+        FixxamTokens.spacing.xs,
+    },
 
-    marginTop:
-      FixxamTokens.spacing.lg,
-  },
-});
-
-export default memo(OtpVerificationCard);
+    subtitle: {
+      marginBottom:
+        FixxamTokens.spacing.md,
+    },
+  });

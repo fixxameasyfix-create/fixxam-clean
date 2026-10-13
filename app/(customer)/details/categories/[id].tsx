@@ -26,6 +26,11 @@ import {
 import CategoryCard from "@/components/categories/CategoryCard";
 
 import {
+  subcategoryMapper,
+  type SubcategoryData,
+} from "@/firebase/mappers/subcategoryMapper";
+
+import {
   getSubcategories,
 } from "@/firebase/queries/subcategories";
 
@@ -34,22 +39,6 @@ import {
   CustomerColors,
   FixxamTokens,
 } from "@/theme";
-
-/* ==============================================================
-   TYPES
-============================================================== */
-
-type Subcategory = {
-  id: string;
-
-  name: string;
-
-  icon: string;
-
-  color: string;
-
-  backgroundColor: string;
-};
 
 /* ==============================================================
    HELPERS
@@ -105,7 +94,7 @@ export default function CategoryScreen() {
     setSubcategories,
   ] =
     useState<
-      Subcategory[]
+      SubcategoryData[]
     >([]);
 
   const [
@@ -155,56 +144,37 @@ export default function CategoryScreen() {
           );
 
         const data =
-          snapshot.docs.reduce<
-            Subcategory[]
-          >(
-            (
-              items,
-              document,
-            ) => {
-              const raw =
-                document.data();
-
-              const name =
-                cleanString(
-                  raw.name,
-                );
-
-              if (
-                !name
-              ) {
-                return items;
-              }
-
-              items.push({
-                id:
-                  document.id,
-
-                name,
+          snapshot.docs
+            .map(
+              subcategoryMapper,
+            )
+            .filter(
+              (
+                item,
+              ) =>
+                Boolean(
+                  item.name,
+                ),
+            )
+            .map(
+              (
+                item,
+              ): SubcategoryData => ({
+                ...item,
 
                 icon:
-                  cleanString(
-                    raw.icon,
-                  ) ||
+                  item.icon ||
                   "service",
 
                 color:
-                  cleanString(
-                    raw.color,
-                  ) ||
+                  item.color ||
                   CustomerColors.primary,
 
                 backgroundColor:
-                  cleanString(
-                    raw.backgroundColor,
-                  ) ||
+                  item.backgroundColor ||
                   CustomerColors.primarySoft,
-              });
-
-              return items;
-            },
-            [],
-          );
+              }),
+            );
 
         setSubcategories(
           data,

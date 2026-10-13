@@ -1,0 +1,183 @@
+/* ============================================================
+   SAVED WORKERS
+
+   Collection:
+   /savedWorkers/{savedWorkerId}
+
+   Document ID:
+   {workerId}_{customerId}
+
+   CUSTOMER:
+   - save worker
+   - read own saved state
+   - list own saved workers
+   - unsave worker
+
+   WORKER:
+   - list customers who saved them
+
+   SECURITY:
+   - customer cannot save themselves
+   - deterministic document ID prevents duplicates
+   - saved relationship cannot be updated
+   - only the customer who created it can delete it
+============================================================ */
+
+
+/* ============================================================
+   SAVED WORKERS
+============================================================ */
+
+match /savedWorkers/{savedWorkerId} {
+
+
+  /* ==========================================================
+     CREATE — CUSTOMER SAVES WORKER
+  ========================================================== */
+
+  allow create:
+    if signedIn()
+
+    && request.resource.data.customerId
+      == request.auth.uid
+
+    && request.resource.data.workerId
+      is string
+
+    && request.resource.data.workerId.size()
+      > 0
+
+    && request.resource.data.workerId.size()
+      <= 128
+
+    /* Customer cannot save themselves */
+    && request.resource.data.workerId
+      != request.auth.uid
+
+    /* Deterministic document ID */
+    && savedWorkerId
+      == request.resource.data.workerId
+        + "_"
+        + request.auth.uid
+
+    /* Customer name */
+    && request.resource.data.customerName
+      is string
+
+    && request.resource.data.customerName.size()
+      > 0
+
+    && request.resource.data.customerName.size()
+      <= 200
+
+    /* Customer photo */
+    && request.resource.data.customerPhotoUrl
+      is string
+
+    && request.resource.data.customerPhotoUrl.size()
+      <= 2048
+
+    /* Server timestamps */
+    && request.resource.data.createdAt
+      == request.time
+
+    && request.resource.data.updatedAt
+      == request.time
+
+    /* Exact document schema */
+    && request.resource.data.keys().hasOnly([
+      "workerId",
+      "customerId",
+      "customerName",
+      "customerPhotoUrl",
+      "createdAt",
+      "updatedAt"
+    ]);
+
+
+  /* ==========================================================
+     GET — CUSTOMER READS ONE SAVED STATE
+
+     Example document:
+
+     worker123_customer456
+                     ^^^^^^^^^
+                     current customer UID
+  ========================================================== */
+
+  allow get:
+    if signedIn()
+
+    && savedWorkerId.matches(
+      "^.+_"
+      + request.auth.uid
+      + "$"
+    );
+
+
+  /* ==========================================================
+     LIST — CUSTOMER OR WORKER
+
+     CUSTOMER QUERY:
+
+     where(
+       "customerId",
+       "==",
+       auth.currentUser.uid
+     )
+
+     WORKER QUERY:
+
+     where(
+       "workerId",
+       "==",
+       auth.currentUser.uid
+     )
+  ========================================================== */
+
+  allow list:
+    if signedIn()
+
+    && (
+      resource.data.customerId
+        == request.auth.uid
+
+      ||
+
+      resource.data.workerId
+        == request.auth.uid
+    );
+
+
+  /* ==========================================================
+     UPDATE
+
+     Saved relationship is immutable.
+  ========================================================== */
+
+  allow update:
+    if false;
+
+
+  /* ==========================================================
+     DELETE — CUSTOMER UNSAVES WORKER
+  ========================================================== */
+
+  allow delete:
+    if signedIn()
+
+    && resource.data.customerId
+      == request.auth.uid
+
+    && resource.data.workerId
+      is string
+
+    && resource.data.workerId.size()
+      > 0
+
+    /* Deterministic document ID */
+    && savedWorkerId
+      == resource.data.workerId
+        + "_"
+        + request.auth.uid;
+}

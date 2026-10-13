@@ -1,0 +1,208 @@
+/* ============================================================
+   13-BOOKINGS.ORDER.RULES
+
+   Partial Firestore rules source.
+   Booking creation remains in 04-bookings.rules.
+   Service lifecycle remains in 11-booking.service.rules.
+   Negotiation remains in 12-booking.counter.rules.
+
+   These uniquely named helpers avoid collisions while the
+   legacy 04-bookings.rules is being consolidated.
+============================================================ */
+
+match /bookings/{bookingId} {
+
+  /* ==========================================================
+     WORKER DECLINES A NEW REQUEST
+  ========================================================== */
+
+  function orderCanWorkerDeclineNewRequest() {
+    return isBookingWorker(bookingId)
+      && resource.data.status == "pending"
+      && resource.data.get("offerStatus", "none") != "sent"
+      && resource.data.get("offerStatus", "none") != "accepted"
+      && resource.data.get("counterOfferStatus", "none") != "sent"
+
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.offerStatus == "declined"
+      && request.resource.data.counterOfferStatus == "none"
+      && request.resource.data.counterOfferRespondedAt == null
+
+      && request.resource.data.cancelledBy == "worker"
+      && request.resource.data.cancellationReason == "worker_cancelled"
+
+      && request.resource.data.get("workerDeclineReason", null) is string
+      && request.resource.data.workerDeclineReason in [
+        "no_longer_available",
+        "outside_service_area",
+        "too_busy",
+        "scheduling_conflict",
+        "other"
+      ]
+
+      && (
+        request.resource.data.get("cancellationNote", null) == null
+        ||
+        (
+          request.resource.data.cancellationNote is string
+          && request.resource.data.cancellationNote.size() <= 500
+        )
+      )
+
+      && (
+        request.resource.data.workerDeclineReason != "other"
+        ||
+        (
+          request.resource.data.get("cancellationNote", null) is string
+          && request.resource.data.cancellationNote.size() > 0
+          && request.resource.data.cancellationNote.size() <= 500
+        )
+      )
+
+      && request.resource.data.cancelledAt == request.time
+      && bookingPartiesUnchanged()
+      && request.resource.data.updatedAt == request.time
+
+      && bookingChangedOnly([
+        "status",
+        "offerStatus",
+        "counterOfferStatus",
+        "counterOfferRespondedAt",
+        "cancellationReason",
+        "cancelledBy",
+        "workerDeclineReason",
+        "cancellationNote",
+        "cancelledAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER CANCELS BEFORE NEGOTIATION
+  ========================================================== */
+
+  function orderCanCustomerCancelPendingBooking() {
+    return isBookingCustomer(bookingId)
+      && resource.data.status == "pending"
+      && resource.data.get("offerStatus", "none") != "sent"
+      && resource.data.get("counterOfferStatus", "none") != "sent"
+
+      && request.resource.data.status == "cancelled"
+      && request.resource.data.cancelledBy == "customer"
+
+      && request.resource.data.cancellationReason is string
+      && request.resource.data.cancellationReason in [
+        "not_ready",
+        "accidental_request",
+        "request_later",
+        "personal_reason",
+        "other"
+      ]
+
+      && (
+        request.resource.data.get("cancellationNote", null) == null
+        ||
+        (
+          request.resource.data.cancellationNote is string
+          && request.resource.data.cancellationNote.size() <= 500
+        )
+      )
+
+      && (
+        request.resource.data.cancellationReason != "other"
+        ||
+        (
+          request.resource.data.get("cancellationNote", null) is string
+          && request.resource.data.cancellationNote.size() > 0
+          && request.resource.data.cancellationNote.size() <= 500
+        )
+      )
+
+      && request.resource.data.cancelledAt == request.time
+      && bookingPartiesUnchanged()
+      && request.resource.data.updatedAt == request.time
+
+      && bookingChangedOnly([
+        "status",
+        "cancellationReason",
+        "cancellationNote",
+        "cancelledBy",
+        "cancelledAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     CUSTOMER HIDES COMPLETED/CANCELLED HISTORY
+  ========================================================== */
+
+  function orderCanCustomerHideBookingHistory() {
+    return isBookingCustomer(bookingId)
+      && resource.data.customerId == request.auth.uid
+      && resource.data.status in [
+        "completed",
+        "cancelled",
+        "canceled",
+        "expired"
+      ]
+
+      && request.resource.data.customerId == resource.data.customerId
+      && request.resource.data.workerId == resource.data.workerId
+      && request.resource.data.status == resource.data.status
+
+      && request.resource.data.deletedByCustomer == true
+      && request.resource.data.deletedByCustomerAt == request.time
+      && request.resource.data.updatedAt == request.time
+
+      && bookingChangedOnly([
+        "deletedByCustomer",
+        "deletedByCustomerAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     WORKER HIDES COMPLETED/CANCELLED HISTORY
+  ========================================================== */
+
+  function orderCanWorkerHideBookingHistory() {
+    return isBookingWorker(bookingId)
+      && resource.data.workerId == request.auth.uid
+      && resource.data.status in [
+        "completed",
+        "cancelled",
+        "canceled",
+        "expired"
+      ]
+
+      && request.resource.data.customerId == resource.data.customerId
+      && request.resource.data.workerId == resource.data.workerId
+      && request.resource.data.status == resource.data.status
+
+      && request.resource.data.deletedByWorker == true
+      && request.resource.data.deletedByWorkerAt == request.time
+      && request.resource.data.updatedAt == request.time
+
+      && bookingChangedOnly([
+        "deletedByWorker",
+        "deletedByWorkerAt",
+        "updatedAt"
+      ]);
+  }
+
+
+  /* ==========================================================
+     ORDER UPDATE PERMISSIONS
+  ========================================================== */
+
+  allow update: if signedIn()
+    && (
+      orderCanWorkerDeclineNewRequest()
+      || orderCanCustomerCancelPendingBooking()
+      || orderCanCustomerHideBookingHistory()
+      || orderCanWorkerHideBookingHistory()
+    );
+}

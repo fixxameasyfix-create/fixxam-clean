@@ -13,11 +13,6 @@ import {
 } from "react-native";
 
 import {
-  type ConfirmationResult,
-  signInWithPhoneNumber,
-} from "@/firebase/firebaseAuth";
-
-import {
   AppIcon,
   AppText,
 } from "@/components/ui";
@@ -30,12 +25,14 @@ import {
   showSuccess,
 } from "@/utils/showToast";
 
-import { auth } from "@/firebase/config";
-
 import {
   FixxamTokens,
   type FixxamRole,
 } from "@/theme";
+
+/* ==============================================================
+   CONFIG
+============================================================== */
 
 const OTP_LENGTH = 6;
 
@@ -43,26 +40,37 @@ const OTP_EXPIRY_SECONDS =
   3 * 60;
 
 const RESEND_COOLDOWN_SECONDS =
-  30;
+  5;
 
 const MAX_OTP_REQUESTS = 10;
 
-const OTP_LOCK_SECONDS =
+const OTP_REQUEST_LOCK_SECONDS =
   60 * 60;
+
+/* ==============================================================
+   EXISTING EMAIL OTP CLOUD FUNCTIONS
+============================================================== */
 
 const EMAIL_OTP_SEND_URL =
   "https://sendsignupemailotp-yrig53veoq-uc.a.run.app";
 
 const EMAIL_OTP_VERIFY_URL =
-  "https://us-central1-fixxam-clean.cloudfunctions.net/verifySignupEmailOtp";
+  "https://verifysignupemailotp-yrig53veoq-uc.a.run.app"
+
+/* ==============================================================
+   TYPES
+============================================================== */
 
 interface OtpApiResponse {
   success?: boolean;
+
+  code?: string;
+
   message?: string;
 }
 
 export interface OtpVerificationProps {
-  type: "email" | "phone";
+  type: "email";
 
   value: string;
 
@@ -74,9 +82,6 @@ export interface OtpVerificationProps {
 
   role?: FixxamRole;
 
-  /*
-   * Legacy support.
-   */
   variant?: "customer" | "worker";
 
   verified?: boolean;
@@ -84,48 +89,84 @@ export interface OtpVerificationProps {
   onVerified: (
     value: boolean,
   ) => void;
+
+  mode?: "send" | "verify";
+
+  initialOtpSent?: boolean;
+
+  onOtpSent?: () => void;
+
+  onExistingAccount?: (
+    email: string,
+  ) => void;
 }
 
-function normalizeIdentifier(
-  type: "email" | "phone",
+/* ==============================================================
+   ERRORS
+============================================================== */
+
+class OtpRequestError extends Error {
+  code?: string;
+
+  constructor(
+    message: string,
+    code?: string,
+  ) {
+    super(message);
+
+    this.name =
+      "OtpRequestError";
+
+    this.code = code;
+  }
+}
+
+/* ==============================================================
+   HELPERS
+============================================================== */
+
+function normalizeEmail(
   value: string,
 ): string {
-  if (type === "email") {
-    return value
-      .trim()
-      .toLowerCase();
-  }
-
-  return value.replace(/\D/g, "");
+  return value
+    .trim()
+    .toLowerCase();
 }
 
-function formatPhone(
-  phone: string,
-): string | null {
-  const cleaned =
-    phone.replace(/\D/g, "");
-
-  if (
-    cleaned.length === 11 &&
-    cleaned.startsWith("0")
-  ) {
-    return `+234${cleaned.slice(1)}`;
-  }
-
-  return null;
+/**
+ * Accept supported/valid email domains.
+ *
+ * We intentionally do not whitelist providers such as:
+ * Gmail, Yahoo, Outlook, Hotmail, iCloud, Proton, etc.
+ *
+ * vmail.com is explicitly blocked.
+ */
+function isValidEmail(
+  email: string,
+): boolean {
+  return (
+    /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(
+      email,
+    ) &&
+    !/@vmail\.com$/i.test(
+      email,
+    )
+  );
 }
 
 function formatTime(
   seconds: number,
 ): string {
-  const safeSeconds = Math.max(
-    0,
-    Math.floor(seconds),
-  );
+  const safeSeconds =
+    Math.max(
+      0,
+      Math.floor(seconds),
+    );
 
-  const minutes = Math.floor(
-    safeSeconds / 60,
-  );
+  const minutes =
+    Math.floor(
+      safeSeconds / 60,
+    );
 
   const remainingSeconds =
     safeSeconds % 60;
@@ -139,22 +180,26 @@ async function postOtpRequest(
   url: string,
   body: Record<string, string>,
 ): Promise<OtpApiResponse> {
-  const response = await fetch(
-    url,
-    {
-      method: "POST",
+  const response =
+    await fetch(
+      url,
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+
+        body: JSON.stringify(
+          body,
+        ),
       },
+    );
 
-      body: JSON.stringify(body),
-    },
-  );
-
-  let data: OtpApiResponse | null =
-    null;
+  let data:
+    | OtpApiResponse
+    | null = null;
 
   try {
     data =
@@ -167,9 +212,10 @@ async function postOtpRequest(
     !response.ok ||
     !data?.success
   ) {
-    throw new Error(
+    throw new OtpRequestError(
       data?.message ||
         "Unable to process OTP request.",
+      data?.code,
     );
   }
 
@@ -190,41 +236,67 @@ function getErrorMessage(
   return fallback;
 }
 
-function OtpVerification({
-  type,
+/* ==============================================================
+   COMPONENT
+============================================================== */
 
+function OtpVerification({
   value,
   otp,
-
   onOtpChange,
-
   role = "customer",
   variant,
-
   verified = false,
-
   onVerified,
+  mode = "verify",
+  initialOtpSent = false,
+  onOtpSent,
+  onExistingAccount,
 }: OtpVerificationProps) {
   const resolvedRole: FixxamRole =
     variant ?? role;
 
-  const [otpSent, setOtpSent] =
-    useState(false);
+  /* ============================================================
+     SEND STATE
+  ============================================================ */
 
-  const [sending, setSending] =
-    useState(false);
+  const [
+    otpSent,
+    setOtpSent,
+  ] = useState(
+    initialOtpSent,
+  );
 
-  const [resending, setResending] =
-    useState(false);
+  const [
+    sending,
+    setSending,
+  ] = useState(false);
 
-  const [verifying, setVerifying] =
-    useState(false);
+  const [
+    resending,
+    setResending,
+  ] = useState(false);
+
+  /* ============================================================
+     VERIFY STATE
+  ============================================================ */
+
+  const [
+    verifying,
+    setVerifying,
+  ] = useState(false);
+
+  /* ============================================================
+     TIMER STATE
+  ============================================================ */
 
   const [
     expiresIn,
     setExpiresIn,
   ] = useState(
-    OTP_EXPIRY_SECONDS,
+    initialOtpSent
+      ? OTP_EXPIRY_SECONDS
+      : 0,
   );
 
   const [
@@ -235,39 +307,42 @@ function OtpVerification({
   const [
     resendCount,
     setResendCount,
-  ] = useState(0);
-
-  const [locked, setLocked] =
-    useState(false);
-
-  const [
-    lockTimeLeft,
-    setLockTimeLeft,
-  ] = useState(0);
+  ] = useState(
+    initialOtpSent
+      ? 1
+      : 0,
+  );
 
   const [
-    confirmation,
-    setConfirmation,
-  ] =
-    useState<ConfirmationResult | null>(
-      null,
-    );
+    requestLocked,
+    setRequestLocked,
+  ] = useState(false);
 
-  /*
-   * Identifier that actually received
-   * the current OTP.
-   *
-   * This prevents an OTP sent to one
-   * email/phone from verifying another
-   * value after the user edits the field.
-   */
+  const [
+    requestLockTimeLeft,
+    setRequestLockTimeLeft,
+  ] = useState(0);
+
+  /* ============================================================
+     SENT IDENTIFIER
+  ============================================================ */
+
   const [
     sentIdentifier,
     setSentIdentifier,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<
+    string | null
+  >(
+    initialOtpSent
+      ? `email:${normalizeEmail(
+          value,
+        )}`
+      : null,
+  );
+
+  /* ============================================================
+     REQUEST GUARDS
+  ============================================================ */
 
   const requestInFlightRef =
     useRef(false);
@@ -275,24 +350,24 @@ function OtpVerification({
   const verifyInFlightRef =
     useRef(false);
 
-  const normalizedIdentifier =
+  /* ============================================================
+     DERIVED VALUES
+  ============================================================ */
+
+  const normalizedEmail =
     useMemo(
       () =>
-        normalizeIdentifier(
-          type,
+        normalizeEmail(
           value,
         ),
-      [type, value],
+      [value],
     );
 
   const identifierKey =
     useMemo(
       () =>
-        `${type}:${normalizedIdentifier}`,
-      [
-        normalizedIdentifier,
-        type,
-      ],
+        `email:${normalizedEmail}`,
+      [normalizedEmail],
     );
 
   const sanitizedOtp =
@@ -300,7 +375,10 @@ function OtpVerification({
       () =>
         otp
           .replace(/\D/g, "")
-          .slice(0, OTP_LENGTH),
+          .slice(
+            0,
+            OTP_LENGTH,
+          ),
       [otp],
     );
 
@@ -308,9 +386,10 @@ function OtpVerification({
     otpSent &&
     expiresIn <= 0;
 
-  /*
-   * OTP expiry countdown.
-   */
+  /* ============================================================
+     EXPIRY TIMER
+  ============================================================ */
+
   useEffect(() => {
     if (
       !otpSent ||
@@ -320,14 +399,16 @@ function OtpVerification({
       return;
     }
 
-    const timer = setTimeout(() => {
-      setExpiresIn((current) =>
-        Math.max(
-          0,
-          current - 1,
-        ),
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setExpiresIn(
+          current =>
+            Math.max(
+              0,
+              current - 1,
+            ),
+        );
+      }, 1000);
 
     return () =>
       clearTimeout(timer);
@@ -337,9 +418,10 @@ function OtpVerification({
     verified,
   ]);
 
-  /*
-   * Resend cooldown countdown.
-   */
+  /* ============================================================
+     RESEND TIMER
+  ============================================================ */
+
   useEffect(() => {
     if (
       resendAvailableIn <= 0
@@ -347,64 +429,65 @@ function OtpVerification({
       return;
     }
 
-    const timer = setTimeout(() => {
-      setResendAvailableIn(
-        (current) =>
-          Math.max(
-            0,
-            current - 1,
-          ),
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setResendAvailableIn(
+          current =>
+            Math.max(
+              0,
+              current - 1,
+            ),
+        );
+      }, 1000);
 
     return () =>
       clearTimeout(timer);
-  }, [resendAvailableIn]);
+  }, [
+    resendAvailableIn,
+  ]);
 
-  /*
-   * One-hour client-side lock timer.
-   *
-   * Backend must also enforce OTP
-   * throttling; client limits alone
-   * are not a security boundary.
-   */
+  /* ============================================================
+     REQUEST LOCK TIMER
+  ============================================================ */
+
   useEffect(() => {
     if (
-      !locked ||
-      lockTimeLeft <= 0
+      !requestLocked ||
+      requestLockTimeLeft <= 0
     ) {
       if (
-        locked &&
-        lockTimeLeft <= 0
+        requestLocked &&
+        requestLockTimeLeft <= 0
       ) {
-        setLocked(false);
+        setRequestLocked(false);
         setResendCount(0);
       }
 
       return;
     }
 
-    const timer = setTimeout(() => {
-      setLockTimeLeft(
-        (current) =>
-          Math.max(
-            0,
-            current - 1,
-          ),
-      );
-    }, 1000);
+    const timer =
+      setTimeout(() => {
+        setRequestLockTimeLeft(
+          current =>
+            Math.max(
+              0,
+              current - 1,
+            ),
+        );
+      }, 1000);
 
     return () =>
       clearTimeout(timer);
   }, [
-    locked,
-    lockTimeLeft,
+    requestLocked,
+    requestLockTimeLeft,
   ]);
 
-  /*
-   * Invalidate an existing OTP whenever
-   * the email/phone value changes.
-   */
+  /* ============================================================
+     INVALIDATE WHEN EMAIL CHANGES
+  ============================================================ */
+
   useEffect(() => {
     if (
       !sentIdentifier ||
@@ -416,13 +499,9 @@ function OtpVerification({
 
     setOtpSent(false);
 
-    setConfirmation(null);
-
     setSentIdentifier(null);
 
-    setExpiresIn(
-      OTP_EXPIRY_SECONDS,
-    );
+    setExpiresIn(0);
 
     setResendAvailableIn(0);
 
@@ -436,116 +515,95 @@ function OtpVerification({
     sentIdentifier,
   ]);
 
-  const validateIdentifier =
-    useCallback(():
-      | string
-      | null => {
-      if (!normalizedIdentifier) {
+  /* ============================================================
+     VALIDATE EMAIL
+  ============================================================ */
+
+  const validateEmail =
+    useCallback(() => {
+      if (!normalizedEmail) {
         showError(
-          type === "email"
-            ? "Email Required"
-            : "Phone Required",
-          type === "email"
-            ? "Enter your email address."
-            : "Enter your phone number.",
+          "Email Required",
+          "Enter your email address.",
         );
 
         return null;
-      }
-
-      if (type === "email") {
-        const emailRegex =
-          /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-
-        if (
-          !emailRegex.test(
-            normalizedIdentifier,
-          )
-        ) {
-          showError(
-            "Invalid Email",
-            "Please enter a valid email address.",
-          );
-
-          return null;
-        }
-
-        return normalizedIdentifier;
       }
 
       if (
-        normalizedIdentifier.length !==
-          11 ||
-        !normalizedIdentifier.startsWith(
-          "0",
+        !isValidEmail(
+          normalizedEmail,
         )
       ) {
         showError(
-          "Invalid Phone Number",
-          "Enter a valid 11-digit phone number.",
+          "Invalid Email",
+          "Please enter a valid email address.",
         );
 
         return null;
       }
 
-      return normalizedIdentifier;
+      return normalizedEmail;
     }, [
-      normalizedIdentifier,
-      type,
+      normalizedEmail,
     ]);
+
+  /* ============================================================
+     SEND / RESEND OTP
+  ============================================================ */
 
   const requestOtp =
     useCallback(
       async (
         isResend: boolean,
-      ) => {
+      ): Promise<boolean> => {
         if (
           requestInFlightRef.current
         ) {
-          return;
+          return false;
         }
 
-        if (locked) {
+        if (requestLocked) {
           showError(
             "Too Many Requests",
             `Please try again in ${formatTime(
-              lockTimeLeft,
+              requestLockTimeLeft,
             )}.`,
           );
 
-          return;
+          return false;
         }
 
         if (
           isResend &&
           resendAvailableIn > 0
         ) {
-          return;
+          return false;
         }
 
-        const identifier =
-          validateIdentifier();
+        const email =
+          validateEmail();
 
-        if (!identifier) {
-          return;
+        if (!email) {
+          return false;
         }
 
         if (
           resendCount >=
           MAX_OTP_REQUESTS
         ) {
-          setLocked(true);
+          setRequestLocked(true);
 
-          setLockTimeLeft(
-            OTP_LOCK_SECONDS,
+          setRequestLockTimeLeft(
+            OTP_REQUEST_LOCK_SECONDS,
           );
 
           showError(
             "Limit Reached",
-            "You have reached the maximum OTP requests. Please wait 1 hour.",
+            "Too many code requests. Please try again in 1 hour.",
           );
 
-          return;
+          return false;
         }
 
         requestInFlightRef.current =
@@ -562,37 +620,12 @@ function OtpVerification({
         onVerified(false);
 
         try {
-          if (type === "email") {
-            await postOtpRequest(
-              EMAIL_OTP_SEND_URL,
-              {
-                identifier,
-              },
-            );
-
-            setConfirmation(null);
-          } else {
-            const formattedPhone =
-              formatPhone(
-                identifier,
-              );
-
-            if (!formattedPhone) {
-              throw new Error(
-                "Invalid phone number.",
-              );
-            }
-
-            const result =
-              await signInWithPhoneNumber(
-                auth,
-                formattedPhone,
-              );
-
-            setConfirmation(
-              result,
-            );
-          }
+          await postOtpRequest(
+            EMAIL_OTP_SEND_URL,
+            {
+              identifier: email,
+            },
+          );
 
           const nextCount =
             resendCount + 1;
@@ -602,7 +635,7 @@ function OtpVerification({
           );
 
           setSentIdentifier(
-            `${type}:${identifier}`,
+            `email:${email}`,
           );
 
           setOtpSent(true);
@@ -615,37 +648,56 @@ function OtpVerification({
             RESEND_COOLDOWN_SECONDS,
           );
 
-          /*
-           * Allow the 10th request,
-           * then prevent further requests.
-           * The current OTP can still
-           * be verified.
-           */
-          if (
-            nextCount >=
-            MAX_OTP_REQUESTS
-          ) {
-            setLocked(true);
-
-            setLockTimeLeft(
-              OTP_LOCK_SECONDS,
-            );
-          }
-
           showSuccess(
             isResend
               ? "OTP Resent"
               : "OTP Sent",
             "Verification code sent successfully.",
           );
-        } catch (error: unknown) {
+
+          if (!isResend) {
+            onOtpSent?.();
+          }
+
+          return true;
+        } catch (
+          error: unknown
+        ) {
+          /*
+           * Backend is the source of truth
+           * for existing Firebase accounts.
+           */
+          if (
+            error instanceof
+              OtpRequestError &&
+            error.code ===
+              "ACCOUNT_EXISTS"
+          ) {
+            onOtpChange("");
+
+            onVerified(false);
+
+            showError(
+              "Account Already Exists",
+              "This email is already registered. Please log in instead.",
+            );
+
+            onExistingAccount?.(
+              email,
+            );
+
+            return false;
+          }
+
           showError(
             "Unable to Send Code",
             getErrorMessage(
               error,
-              "Unable to send OTP.",
+              "Unable to send the verification code. Please try again.",
             ),
           );
+
+          return false;
         } finally {
           requestInFlightRef.current =
             false;
@@ -656,195 +708,211 @@ function OtpVerification({
         }
       },
       [
-        lockTimeLeft,
-        locked,
+        onExistingAccount,
         onOtpChange,
+        onOtpSent,
         onVerified,
+        requestLockTimeLeft,
+        requestLocked,
         resendAvailableIn,
         resendCount,
-        type,
-        validateIdentifier,
+        validateEmail,
       ],
     );
+
+  /* ============================================================
+     SEND
+  ============================================================ */
 
   const handleSend =
     useCallback(() => {
       void requestOtp(false);
     }, [requestOtp]);
 
+  /* ============================================================
+     RESEND
+  ============================================================ */
+
   const handleResend =
     useCallback(() => {
       void requestOtp(true);
     }, [requestOtp]);
 
+  /* ============================================================
+     VERIFY OTP
+  ============================================================ */
+
   const handleVerifyOtp =
-    useCallback(async () => {
-      if (
-        verifyInFlightRef.current ||
-        verified
-      ) {
-        return;
-      }
+    useCallback(
+      async (
+        completeOtp?: string,
+      ) => {
+        if (
+          verifyInFlightRef.current ||
+          verified
+        ) {
+          return;
+        }
 
-      if (
-        sanitizedOtp.length !==
-        OTP_LENGTH
-      ) {
-        return;
-      }
+        const codeToVerify =
+          (
+            completeOtp ??
+            sanitizedOtp
+          )
+            .replace(/\D/g, "")
+            .slice(
+              0,
+              OTP_LENGTH,
+            );
 
-      if (
-        !otpSent ||
-        !sentIdentifier
-      ) {
-        showError(
-          "OTP Required",
-          "Request a verification code first.",
-        );
+        if (
+          codeToVerify.length !==
+          OTP_LENGTH
+        ) {
+          return;
+        }
 
-        return;
-      }
+        if (
+          !otpSent ||
+          !sentIdentifier
+        ) {
+          showError(
+            "OTP Required",
+            "Request a verification code first.",
+          );
 
-      if (expired) {
-        showError(
-          "Code Expired",
-          "Request a new verification code.",
-        );
+          return;
+        }
 
-        return;
-      }
+        if (expired) {
+          showError(
+            "Code Expired",
+            "Request a new verification code.",
+          );
 
-      /*
-       * Critical:
-       * Verify only the exact identifier
-       * that received this OTP.
-       */
-      if (
-        sentIdentifier !==
-        identifierKey
-      ) {
-        showError(
-          "Details Changed",
-          `The ${
-            type === "email"
-              ? "email address"
-              : "phone number"
-          } changed. Request a new verification code.`,
-        );
+          return;
+        }
 
-        return;
-      }
+        if (
+          sentIdentifier !==
+          identifierKey
+        ) {
+          onOtpChange("");
 
-      verifyInFlightRef.current =
-        true;
+          showError(
+            "Email Changed",
+            "Your email address changed. Request a new verification code.",
+          );
 
-      setVerifying(true);
+          return;
+        }
 
-      try {
-        if (type === "email") {
+        const email =
+          validateEmail();
+
+        if (!email) {
+          return;
+        }
+
+        verifyInFlightRef.current =
+          true;
+
+        setVerifying(true);
+
+        try {
           await postOtpRequest(
             EMAIL_OTP_VERIFY_URL,
             {
-              email:
-                normalizedIdentifier,
-              otp: sanitizedOtp,
+              email,
+              otp: codeToVerify,
             },
           );
-        } else {
-          if (!confirmation) {
-            throw new Error(
-              "Request a new verification code.",
-            );
-          }
 
-          await confirmation.confirm(
-            sanitizedOtp,
+          onVerified(true);
+
+          setExpiresIn(0);
+
+          showSuccess(
+            "Verified",
+            "Email verified successfully.",
           );
+        } catch {
+          onOtpChange("");
+
+          showError(
+            "Invalid OTP",
+            "The verification code is not correct. Please try again.",
+          );
+        } finally {
+          verifyInFlightRef.current =
+            false;
+
+          setVerifying(false);
         }
+      },
+      [
+        expired,
+        identifierKey,
+        onOtpChange,
+        onVerified,
+        otpSent,
+        sanitizedOtp,
+        sentIdentifier,
+        validateEmail,
+        verified,
+      ],
+    );
 
-        onVerified(true);
+  /* ============================================================
+     SEND MODE
+  ============================================================ */
 
-        setExpiresIn(0);
+  if (mode === "send") {
+    return (
+      <View
+        style={
+          styles.container
+        }
+      >
+        <OtpResendCard
+          otpSent={false}
+          loading={sending}
+          resending={false}
+          resendCount={0}
+          locked={false}
+          timeLeft={0}
+          onSend={handleSend}
+          onResend={() => {}}
+          role={resolvedRole}
+          resendDisabled={
+            sending
+          }
+          resendLabel="Send Code"
+        />
+      </View>
+    );
+  }
 
-        setConfirmation(null);
-
-        showSuccess(
-          "Verified",
-          type === "email"
-            ? "Email verified successfully."
-            : "Phone verified successfully.",
-        );
-      } catch (error: unknown) {
-        showError(
-          "Verification Failed",
-          getErrorMessage(
-            error,
-            "Invalid or expired OTP.",
-          ),
-        );
-      } finally {
-        verifyInFlightRef.current =
-          false;
-
-        setVerifying(false);
-      }
-    }, [
-      confirmation,
-      expired,
-      identifierKey,
-      normalizedIdentifier,
-      onVerified,
-      otpSent,
-      sanitizedOtp,
-      sentIdentifier,
-      type,
-      verified,
-    ]);
+  /* ============================================================
+     VERIFY MODE
+  ============================================================ */
 
   return (
-    <View style={styles.container}>
+    <View
+      style={
+        styles.container
+      }
+    >
       {!verified ? (
         <>
-          <OtpResendCard
-            otpSent={otpSent}
-            loading={sending}
-            resending={
-              resending ||
-              verifying
-            }
-            resendCount={
-              resendCount
-            }
-            locked={locked}
-            timeLeft={
-              lockTimeLeft
-            }
-            onSend={handleSend}
-            onResend={
-              handleResend
-            }
-            role={resolvedRole}
-            resendDisabled={
-              resendAvailableIn >
-                0 ||
-              verifying
-            }
-            resendLabel={
-              resendAvailableIn > 0
-                ? `Resend in ${formatTime(
-                    resendAvailableIn,
-                  )}`
-                : "Resend Code"
-            }
-          />
-
           {otpSent &&
           !expired ? (
             <>
               <AppText
                 variant="caption"
                 tone={
-                  expiresIn <= 30
+                  expiresIn <=
+                  30
                     ? "warning"
                     : "secondary"
                 }
@@ -860,11 +928,15 @@ function OtpVerification({
               </AppText>
 
               <OtpVerificationCard
-                otp={sanitizedOtp}
+                otp={
+                  sanitizedOtp
+                }
                 loading={
                   verifying
                 }
-                verified={false}
+                verified={
+                  false
+                }
                 onChangeOtp={
                   onOtpChange
                 }
@@ -875,6 +947,47 @@ function OtpVerification({
                   resolvedRole
                 }
               />
+
+              <OtpResendCard
+                otpSent={true}
+                loading={false}
+                resending={
+                  resending
+                }
+                resendCount={
+                  resendCount
+                }
+                locked={
+                  requestLocked
+                }
+                timeLeft={
+                  requestLocked
+                    ? requestLockTimeLeft
+                    : resendAvailableIn
+                }
+                onSend={() => {}}
+                onResend={
+                  handleResend
+                }
+                role={
+                  resolvedRole
+                }
+                resendDisabled={
+                  requestLocked ||
+                  resendAvailableIn >
+                    0 ||
+                  resending ||
+                  verifying
+                }
+                resendLabel={
+                  resendAvailableIn >
+                  0
+                    ? `Resend in ${formatTime(
+                        resendAvailableIn,
+                      )}`
+                    : "Resend Code"
+                }
+              />
             </>
           ) : null}
 
@@ -882,48 +995,84 @@ function OtpVerification({
           expired ? (
             <View
               style={
-                styles.expiredRow
+                styles.expiredContainer
               }
             >
-              <AppIcon
-                name="warning"
+              <View
+                style={
+                  styles.expiredRow
+                }
+              >
+                <AppIcon
+                  name="warning"
+                  role={
+                    resolvedRole
+                  }
+                  size="sm"
+                  state="warning"
+                />
+
+                <AppText
+                  variant="caption"
+                  tone="warning"
+                  style={
+                    styles.expiredText
+                  }
+                >
+                  This code has
+                  expired. Request
+                  a new
+                  verification
+                  code.
+                </AppText>
+              </View>
+
+              <OtpResendCard
+                otpSent={true}
+                loading={false}
+                resending={
+                  resending
+                }
+                resendCount={
+                  resendCount
+                }
+                locked={
+                  requestLocked
+                }
+                timeLeft={
+                  requestLocked
+                    ? requestLockTimeLeft
+                    : 0
+                }
+                onSend={() => {}}
+                onResend={
+                  handleResend
+                }
                 role={
                   resolvedRole
                 }
-                size="sm"
-                state="warning"
-              />
-
-              <AppText
-                variant="caption"
-                tone="warning"
-                style={
-                  styles.expiredText
+                resendDisabled={
+                  requestLocked ||
+                  resending
                 }
-              >
-                This code has
-                expired. Request a
-                new verification
-                code.
-              </AppText>
+                resendLabel="Resend Code"
+              />
             </View>
           ) : null}
         </>
       ) : (
         <View
           accessibilityRole="text"
-          accessibilityLabel={
-            type === "email"
-              ? "Email verified successfully"
-              : "Phone verified successfully"
-          }
+          accessibilityLabel="Email verified successfully"
           style={
             styles.successRow
           }
         >
           <AppIcon
             name="success"
-            role={resolvedRole}
+            role={
+              resolvedRole
+            }
             size="sm"
             state="success"
           />
@@ -932,15 +1081,18 @@ function OtpVerification({
             variant="bodyMedium"
             tone="success"
           >
-            {type === "email"
-              ? "Email verified successfully"
-              : "Phone verified successfully"}
+            Email verified
+            successfully
           </AppText>
         </View>
       )}
     </View>
   );
 }
+
+/* ==============================================================
+   STYLES
+============================================================== */
 
 const styles =
   StyleSheet.create({
@@ -953,15 +1105,19 @@ const styles =
         FixxamTokens.spacing.md,
     },
 
+    expiredContainer: {
+      width: "100%",
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
+
     expiredRow: {
       flexDirection: "row",
       alignItems: "center",
-
       gap:
         FixxamTokens.spacing.sm,
-
-      marginTop:
-        FixxamTokens.spacing.sm,
+      marginBottom:
+        FixxamTokens.spacing.md,
     },
 
     expiredText: {
@@ -973,13 +1129,10 @@ const styles =
       alignItems: "center",
       justifyContent:
         "center",
-
       gap:
         FixxamTokens.spacing.sm,
-
       marginTop:
         FixxamTokens.spacing.sm,
-
       marginBottom:
         FixxamTokens.spacing.xs,
     },

@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useEffect,
   useState,
 } from "react";
 
@@ -11,6 +12,11 @@ import {
 import { router } from "expo-router";
 
 import {
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+
+import {
   AppButton,
   AppScreen,
   AppText,
@@ -19,9 +25,50 @@ import {
 import useSwitchRole from "@/hooks/auth/useSwitchRole";
 
 import {
+  auth,
+  db,
+} from "@/firebase/config";
+
+import {
   FixxamTokens,
   type FixxamRole,
 } from "@/theme";
+
+/* ============================================================
+   TYPES
+============================================================ */
+
+type AccountRole =
+  | "customer"
+  | "worker";
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function normalizeRoles(
+  value: unknown,
+): AccountRole[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value.filter(
+        (
+          role,
+        ): role is AccountRole =>
+          role === "customer" ||
+          role === "worker",
+      ),
+    ),
+  );
+}
+
+/* ============================================================
+   SELECT ACCOUNT
+============================================================ */
 
 export default function SelectAccount() {
   const {
@@ -37,45 +84,243 @@ export default function SelectAccount() {
       null,
     );
 
-  const handleSwitchRole =
-    useCallback(
-      async (
-        role: FixxamRole,
-      ) => {
-        if (loading) {
-          return;
-        }
+  const [
+    roles,
+    setRoles,
+  ] = useState<AccountRole[]>(
+    [],
+  );
 
-        try {
-          setPendingRole(role);
+  const [
+    profileLoading,
+    setProfileLoading,
+  ] = useState(true);
 
-          const success =
-            await switchRole(role);
+  /* ==========================================================
+     LOAD USER ROLES
+  ========================================================== */
 
-          if (!success) {
-            return;
-          }
+  useEffect(() => {
+    const currentUser =
+      auth.currentUser;
 
-          if (role === "customer") {
-            router.replace(
-              "/(customer)/(tabs)/home",
+    if (!currentUser) {
+      setRoles([]);
+      setProfileLoading(false);
+
+      return;
+    }
+
+    setProfileLoading(true);
+
+    const userRef =
+      doc(
+        db,
+        "users",
+        currentUser.uid,
+      );
+
+    const unsubscribe =
+      onSnapshot(
+        userRef,
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            setRoles([]);
+            setProfileLoading(
+              false,
             );
 
             return;
           }
 
-          router.replace(
-            "/(worker)/(tabs)/home",
+          const data =
+            snapshot.data();
+
+          setRoles(
+            normalizeRoles(
+              data.roles,
+            ),
           );
-        } finally {
-          setPendingRole(null);
+
+          setProfileLoading(
+            false,
+          );
+        },
+        (error) => {
+          console.error(
+            "SELECT_ACCOUNT_ROLE_ERROR:",
+            error,
+          );
+
+          setRoles([]);
+          setProfileLoading(
+            false,
+          );
+        },
+      );
+
+    return unsubscribe;
+  }, []);
+
+  /* ==========================================================
+     ROLE AVAILABILITY
+  ========================================================== */
+
+  const hasCustomerRole =
+    roles.includes(
+      "customer",
+    );
+
+  const hasWorkerRole =
+    roles.includes(
+      "worker",
+    );
+
+  /* ==========================================================
+     SWITCH
+  ========================================================== */
+
+  const handleSwitchRole =
+    useCallback(
+      (
+        role: FixxamRole,
+      ) => {
+        if (
+          loading ||
+          profileLoading
+        ) {
+          return;
         }
+
+        if (
+          role === "customer" &&
+          !hasCustomerRole
+        ) {
+          return;
+        }
+
+        if (
+          role === "worker" &&
+          !hasWorkerRole
+        ) {
+          return;
+        }
+
+        /*
+         * Navigate immediately.
+         *
+         * We intentionally do NOT wait for
+         * Firestore before changing screens.
+         */
+        setPendingRole(role);
+
+        router.replace(
+          role === "customer"
+            ? "/(customer)/(tabs)/home"
+            : "/(worker)/(tabs)/home",
+        );
+
+        /*
+         * Persist the selected role in the
+         * background.
+         *
+         * Navigation is no longer blocked
+         * by Firestore latency.
+         */
+        void switchRole(role).catch(
+          (error) => {
+            console.error(
+              "SELECT_ACCOUNT_BACKGROUND_SWITCH_ERROR:",
+              error,
+            );
+          },
+        );
       },
       [
+        hasCustomerRole,
+        hasWorkerRole,
         loading,
+        profileLoading,
         switchRole,
       ],
     );
+
+  /* ==========================================================
+     LOADING
+  ========================================================== */
+
+  if (profileLoading) {
+    return (
+      <AppScreen
+        padded
+        contentContainerStyle={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+          >
+            Checking your accounts...
+          </AppText>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  /* ==========================================================
+     NO VALID ROLE
+  ========================================================== */
+
+  if (
+    !hasCustomerRole &&
+    !hasWorkerRole
+  ) {
+    return (
+      <AppScreen
+        padded
+        contentContainerStyle={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
+          <AppText
+            variant="heading2"
+            center
+          >
+            Account unavailable
+          </AppText>
+
+          <AppText
+            variant="body"
+            tone="secondary"
+            center
+            style={
+              styles.errorText
+            }
+          >
+            We could not find a valid
+            Fixxam account role for
+            this account.
+          </AppText>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  /* ==========================================================
+     UI
+  ========================================================== */
 
   return (
     <AppScreen
@@ -105,72 +350,97 @@ export default function SelectAccount() {
         </View>
 
         <View style={styles.actions}>
-          <AppButton
-            title="Continue as Customer"
-            role="customer"
-            leftIconName="profile"
-            loading={
-              loading &&
-              pendingRole ===
-                "customer"
-            }
-            disabled={loading}
-            onPress={() =>
-              void handleSwitchRole(
-                "customer",
-              )
-            }
-          />
+          {/* CUSTOMER */}
 
-          <AppButton
-            title="Continue as Worker"
-            role="worker"
-            leftIconName="professional"
-            loading={
-              loading &&
-              pendingRole ===
-                "worker"
-            }
-            disabled={loading}
-            onPress={() =>
-              void handleSwitchRole(
-                "worker",
-              )
-            }
-          />
+          {hasCustomerRole && (
+            <AppButton
+              title="Continue as Customer"
+              role="customer"
+              leftIconName="profile"
+              loading={
+                loading &&
+                pendingRole ===
+                  "customer"
+              }
+              disabled={loading}
+              onPress={() =>
+                handleSwitchRole(
+                  "customer",
+                )
+              }
+            />
+          )}
+
+          {/* WORKER */}
+
+          {hasWorkerRole && (
+            <AppButton
+              title="Continue as Worker"
+              role="worker"
+              leftIconName="professional"
+              loading={
+                loading &&
+                pendingRole ===
+                  "worker"
+              }
+              disabled={loading}
+              onPress={() =>
+                handleSwitchRole(
+                  "worker",
+                )
+              }
+            />
+          )}
         </View>
       </View>
     </AppScreen>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flexGrow: 1,
-  },
+/* ============================================================
+   STYLES
+============================================================ */
 
-  container: {
-    flex: 1,
+const styles =
+  StyleSheet.create({
+    screen: {
+      flexGrow: 1,
+    },
 
-    justifyContent: "center",
-  },
+    container: {
+      flex: 1,
+      justifyContent:
+        "center",
+    },
 
-  heading: {
-    alignItems: "center",
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent:
+        "center",
+      paddingHorizontal:
+        FixxamTokens.spacing.xl,
+    },
 
-    marginBottom:
-      FixxamTokens.spacing.xxl,
-  },
+    heading: {
+      alignItems: "center",
+      marginBottom:
+        FixxamTokens.spacing.xxl,
+    },
 
-  subtitle: {
-    marginTop:
-      FixxamTokens.spacing.sm,
-  },
+    subtitle: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-  actions: {
-    width: "100%",
+    errorText: {
+      marginTop:
+        FixxamTokens.spacing.md,
+    },
 
-    gap:
-      FixxamTokens.spacing.lg,
-  },
-});
+    actions: {
+      width: "100%",
+      gap:
+        FixxamTokens.spacing.lg,
+    },
+  });

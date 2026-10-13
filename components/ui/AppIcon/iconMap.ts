@@ -66,6 +66,7 @@ import {
   X,
   XCircle,
   Zap,
+  Store,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -211,19 +212,21 @@ const icons = {
   package: Package,
 
   /* ============================================================
-     BOOK / DISCOVERY
-  ============================================================ */
+   BOOK / DISCOVERY
+============================================================ */
 
-  grid: Grid3X3,
-  headset: Headphones,
-  cart: ShoppingCart,
+grid: Grid3X3,
+headset: Headphones,
+cart: ShoppingCart,
+shop: Store,
 
   /* ============================================================
-     GENERAL SERVICE
-  ============================================================ */
+   GENERAL SERVICE
+============================================================ */
 
-  service: Wrench,
-  professional: Sparkles,
+service: Wrench,
+professional: Sparkles,
+sparkles: Sparkles,
 } satisfies Record<string, LucideIcon>;
 
 export type AppIconName =
@@ -559,6 +562,52 @@ const aliases: Record<
 
   salon:
     "beauty",
+
+    /* ============================================================
+   SPARKLES / AI
+============================================================ */
+
+"sparkles-outline":
+  "sparkles",
+
+sparkle:
+  "sparkles",
+
+"sparkle-outline":
+  "sparkles",
+
+creation:
+  "sparkles",
+
+"creation-outline":
+  "sparkles",
+
+"star-four-points":
+  "sparkles",
+
+"star-four-points-outline":
+  "sparkles",
+
+
+  shop:
+  "shop",
+
+"shop-outline":
+  "shop",
+
+store:
+  "shop",
+
+"store-outline":
+  "shop",
+
+storefront:
+  "shop",
+
+"storefront-outline":
+  "shop",
+
+
 };
 
 /*

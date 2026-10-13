@@ -1,0 +1,19 @@
+/*
+ * 11-booking.service.rules
+ *
+ * Service lifecycle permissions are maintained in:
+ * firestore/rules/04-bookings.rules
+ *
+ * Do not declare another match /bookings/{bookingId} here.
+ * This avoids duplicate lifecycle functions and overlapping
+ * authorization logic.
+ *
+ * Lifecycle:
+ * accepted
+ *   -> accepted (worker requests start confirmation)
+ *   -> in-progress (customer confirms start)
+ *   -> awaiting_completion_confirmation
+ *   -> completed
+ *
+ * This source file intentionally contains no additional rules.
+ */

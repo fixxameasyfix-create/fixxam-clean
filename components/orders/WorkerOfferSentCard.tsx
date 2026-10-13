@@ -29,7 +29,9 @@ import WorkerOfferMessage from "./WorkerOfferMessage";
 type Props = {
   amount: number;
 
-  message?: string | null;
+  message?:
+    | string
+    | null;
 };
 
 /* ============================================================
@@ -40,19 +42,26 @@ function WorkerOfferSentCard({
   amount,
   message,
 }: Props) {
+  const safeMessage =
+    typeof message === "string"
+      ? message.trim()
+      : "";
+
   return (
     <View
       accessible
       accessibilityLabel="Offer sent. Waiting for the customer to respond."
-      style={styles.card}
+      style={
+        styles.container
+      }
     >
       {/* ======================================================
           HEADER
       ====================================================== */}
 
       <WorkerOfferHeader
-        title="Offer Sent"
-        subtitle="Your offer is waiting for the customer."
+        title="Offer sent"
+        subtitle="Waiting for customer response"
         icon="check"
       />
 
@@ -60,70 +69,82 @@ function WorkerOfferSentCard({
           AMOUNT
       ====================================================== */}
 
-      <WorkerOfferAmount
-        label="YOUR OFFER"
-        amount={amount}
-      />
+      <View
+        style={
+          styles.amountSection
+        }
+      >
+        <WorkerOfferAmount
+          label="Your offer"
+          amount={
+            amount
+          }
+        />
+      </View>
 
       {/* ======================================================
           MESSAGE
       ====================================================== */}
 
-      <WorkerOfferMessage
-        message={message}
-      />
+      {safeMessage ? (
+        <View
+          style={
+            styles.messageSection
+          }
+        >
+          <WorkerOfferMessage
+            message={
+              safeMessage
+            }
+          />
+        </View>
+      ) : null}
 
       {/* ======================================================
-          WAITING STATUS
+          STATUS
       ====================================================== */}
 
       <View
-        style={styles.waiting}
+        style={
+          styles.statusRow
+        }
       >
         <View
           style={
-            styles.waitingIcon
+            styles.statusIcon
           }
         >
           <AppIcon
             name="clock"
             role="worker"
-            size="sm"
+            size="xs"
             color={
               WorkerColors.primary
             }
           />
         </View>
 
-        <View
+        <AppText
+          variant="caption"
+          tone="secondary"
+          numberOfLines={2}
           style={
-            styles.waitingContent
+            styles.statusText
           }
         >
-          <AppText
-            variant="caption"
-            weight="bold"
-            style={
-              styles.waitingTitle
-            }
-          >
-            WAITING FOR CUSTOMER
-          </AppText>
-
-          <AppText
-            variant="caption"
-            tone="secondary"
-            style={
-              styles.waitingText
-            }
-          >
-            The customer can accept or respond with a counter offer.
-          </AppText>
-        </View>
+          Waiting for the customer to respond.
+        </AppText>
       </View>
     </View>
   );
 }
+
+/* ============================================================
+   MEMO
+============================================================ */
+
+WorkerOfferSentCard.displayName =
+  "WorkerOfferSentCard";
 
 export default memo(
   WorkerOfferSentCard,
@@ -135,44 +156,15 @@ export default memo(
 
 const styles =
   StyleSheet.create({
-    /* ========================================================
-       CARD
-    ======================================================== */
-
-    card: {
-      padding:
-        FixxamTokens.spacing.md,
-
-      borderWidth: 1,
-
-      borderColor:
-        Colors.border,
-
-      borderRadius:
-        FixxamTokens.radius.lg,
-
-      backgroundColor:
-        Colors.surface,
-
-      ...FixxamTokens.shadow.card,
-    },
-
-    /* ========================================================
-       WAITING
-    ======================================================== */
-
-    waiting: {
-      marginTop:
-        FixxamTokens.spacing.md,
+    container: {
+      width:
+        "100%",
 
       padding:
-        FixxamTokens.spacing.md,
+        FixxamTokens.spacing.sm,
 
-      flexDirection: "row",
-
-      alignItems: "center",
-
-      borderWidth: 1,
+      borderWidth:
+        StyleSheet.hairlineWidth,
 
       borderColor:
         Colors.border,
@@ -181,48 +173,94 @@ const styles =
         FixxamTokens.radius.md,
 
       backgroundColor:
-        WorkerColors.primarySoft,
+        Colors.surface,
     },
 
-    waitingIcon: {
-      width: 40,
+    /* ========================================================
+       AMOUNT
+    ======================================================== */
 
-      height: 40,
+    amountSection: {
+      marginTop:
+        FixxamTokens.spacing.sm,
+    },
 
-      flexShrink: 0,
+    /* ========================================================
+       MESSAGE
+    ======================================================== */
 
-      alignItems: "center",
+    messageSection: {
+      marginTop:
+        FixxamTokens.spacing.xs,
+    },
+
+    /* ========================================================
+       STATUS
+    ======================================================== */
+
+    statusRow: {
+      width:
+        "100%",
+
+      minHeight:
+        30,
+
+      marginTop:
+        FixxamTokens.spacing.xs,
+
+      paddingTop:
+        FixxamTokens.spacing.xs,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      borderTopWidth:
+        StyleSheet.hairlineWidth,
+
+      borderTopColor:
+        Colors.divider,
+    },
+
+    statusIcon: {
+      width:
+        26,
+
+      height:
+        26,
+
+      flexShrink:
+        0,
+
+      alignItems:
+        "center",
 
       justifyContent:
         "center",
 
       borderRadius:
-        FixxamTokens.radius.md,
+        FixxamTokens.radius.full,
 
       backgroundColor:
-        Colors.surface,
+        WorkerColors.primarySoft,
     },
 
-    waitingContent: {
-      flex: 1,
+    statusText: {
+      flex:
+        1,
 
-      minWidth: 0,
+      minWidth:
+        0,
 
       marginLeft:
-        FixxamTokens.spacing.sm,
-    },
+        FixxamTokens.spacing.xs,
 
-    waitingTitle: {
-      letterSpacing: 0.3,
+      lineHeight:
+        16,
 
       color:
-        WorkerColors.primary,
-    },
-
-    waitingText: {
-      marginTop:
-        FixxamTokens.spacing.xxs,
-
-      lineHeight: 16,
+        Colors.textSecondary,
     },
   });

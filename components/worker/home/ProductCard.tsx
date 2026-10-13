@@ -43,6 +43,12 @@ type Props = {
 
   discountPercent?: number | string;
 
+  /**
+   * Legacy compatibility only.
+   *
+   * ProductCard now calculates the sale price
+   * directly from price + discountPercent.
+   */
   discountedPrice?: number | string;
 
   thumbnail?: string;
@@ -87,12 +93,16 @@ function getSafeNumber(
         )
         .trim();
 
-    if (!cleaned) {
+    if (
+      !cleaned
+    ) {
       return 0;
     }
 
     const parsed =
-      Number(cleaned);
+      Number(
+        cleaned,
+      );
 
     return Number.isFinite(
       parsed,
@@ -126,7 +136,9 @@ function formatMoney(
   value: number,
 ): string {
   const safeValue =
-    Number.isFinite(value)
+    Number.isFinite(
+      value,
+    )
       ? Math.max(
           0,
           value,
@@ -136,7 +148,8 @@ function formatMoney(
   return `₦${safeValue.toLocaleString(
     "en-NG",
     {
-      maximumFractionDigits: 2,
+      maximumFractionDigits:
+        2,
     },
   )}`;
 }
@@ -150,7 +163,6 @@ function ProductCard({
   category = "Others",
   price,
   discountPercent = 0,
-  discountedPrice,
   thumbnail,
   stock,
   width = 156,
@@ -177,7 +189,9 @@ function ProductCard({
               width,
             )
           : 156,
-      [width],
+      [
+        width,
+      ],
     );
 
   const displayTitle =
@@ -187,7 +201,9 @@ function ProductCard({
           title,
           "Unnamed Product",
         ),
-      [title],
+      [
+        title,
+      ],
     );
 
   const displayCategory =
@@ -197,7 +213,9 @@ function ProductCard({
           category,
           "Others",
         ),
-      [category],
+      [
+        category,
+      ],
     );
 
   const displayThumbnail =
@@ -206,7 +224,9 @@ function ProductCard({
         getSafeText(
           thumbnail,
         ),
-      [thumbnail],
+      [
+        thumbnail,
+      ],
     );
 
   /* ============================================================
@@ -222,7 +242,9 @@ function ProductCard({
             price,
           ),
         ),
-      [price],
+      [
+        price,
+      ],
     );
 
   /* ============================================================
@@ -256,28 +278,51 @@ function ProductCard({
 
   /* ============================================================
      SALE PRICE
+
+     IMPORTANT:
+     discountPercent is the source of truth.
+
+     Example:
+     ₦20,000 + 12%
+     = ₦17,600
   ============================================================ */
 
   const salePrice =
     useMemo(() => {
-      const value =
-        getSafeNumber(
-          discountedPrice,
-        );
-
       if (
         originalPrice <= 0 ||
-        discount <= 0 ||
-        value <= 0 ||
-        value >= originalPrice
+        discount <= 0
       ) {
         return 0;
       }
 
-      return value;
+      const calculatedPrice =
+        originalPrice *
+        (
+          1 -
+          discount / 100
+        );
+
+      if (
+        !Number.isFinite(
+          calculatedPrice,
+        ) ||
+        calculatedPrice <= 0 ||
+        calculatedPrice >=
+          originalPrice
+      ) {
+        return 0;
+      }
+
+      return (
+        Math.round(
+          calculatedPrice *
+            100,
+        ) /
+        100
+      );
     }, [
       discount,
-      discountedPrice,
       originalPrice,
     ]);
 
@@ -328,7 +373,8 @@ function ProductCard({
     ]);
 
   const hasStock =
-    safeStock !== null;
+    safeStock !==
+    null;
 
   const inStock =
     hasStock &&
@@ -340,7 +386,9 @@ function ProductCard({
 
   const handleMore =
     useCallback(() => {
-      if (!onMore) {
+      if (
+        !onMore
+      ) {
         return;
       }
 
@@ -445,7 +493,9 @@ function ProductCard({
               },
             ]}
             contentFit="cover"
-            transition={150}
+            transition={
+              150
+            }
             recyclingKey={
               displayThumbnail
             }
@@ -495,7 +545,9 @@ function ProductCard({
             <AppText
               variant="caption"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.discountText
               }
@@ -533,7 +585,9 @@ function ProductCard({
                   handleMore();
                 }
               }
-              hitSlop={6}
+              hitSlop={
+                6
+              }
               accessibilityRole="button"
               accessibilityLabel={`More options for ${displayTitle}`}
               style={({
@@ -584,7 +638,9 @@ function ProductCard({
             <AppText
               variant="caption"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={[
                 styles.stockText,
 
@@ -622,7 +678,9 @@ function ProductCard({
         <AppText
           variant="bodyMedium"
           weight="bold"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           ellipsizeMode="tail"
           style={
             styles.title
@@ -638,7 +696,9 @@ function ProductCard({
         <AppText
           variant="caption"
           tone="secondary"
-          numberOfLines={1}
+          numberOfLines={
+            1
+          }
           ellipsizeMode="tail"
           style={
             styles.category
@@ -661,7 +721,9 @@ function ProductCard({
               <AppText
                 variant="bodyMedium"
                 weight="bold"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.discountedPrice
                 }
@@ -673,7 +735,9 @@ function ProductCard({
 
               <AppText
                 variant="caption"
-                numberOfLines={1}
+                numberOfLines={
+                  1
+                }
                 style={
                   styles.originalPrice
                 }
@@ -687,7 +751,9 @@ function ProductCard({
             <AppText
               variant="caption"
               weight="medium"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.saveText
               }
@@ -703,7 +769,9 @@ function ProductCard({
             <AppText
               variant="bodyMedium"
               weight="bold"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.price
               }
@@ -716,7 +784,9 @@ function ProductCard({
             <AppText
               variant="caption"
               tone="secondary"
-              numberOfLines={1}
+              numberOfLines={
+                1
+              }
               style={
                 styles.regularPriceText
               }
@@ -752,7 +822,8 @@ const styles =
     ========================================================== */
 
     card: {
-      flexShrink: 0,
+      flexShrink:
+        0,
 
       alignSelf:
         "flex-start",
@@ -760,7 +831,8 @@ const styles =
       overflow:
         "hidden",
 
-      borderWidth: 1,
+      borderWidth:
+        1,
 
       borderColor:
         Colors.border,
@@ -776,14 +848,12 @@ const styles =
 
     cardPressed: {
       opacity:
-        FixxamTokens.motion
-          .pressedOpacity,
+        FixxamTokens.motion.pressedOpacity,
 
       transform: [
         {
           scale:
-            FixxamTokens.motion
-              .scalePressed,
+            FixxamTokens.motion.scalePressed,
         },
       ],
     },
@@ -793,7 +863,8 @@ const styles =
     ========================================================== */
 
     imageContainer: {
-      height: 150,
+      height:
+        150,
 
       position:
         "relative",
@@ -806,14 +877,16 @@ const styles =
     },
 
     image: {
-      height: 150,
+      height:
+        150,
 
       backgroundColor:
         Colors.disabledBackground,
     },
 
     placeholder: {
-      height: 150,
+      height:
+        150,
 
       alignItems:
         "center",
@@ -847,7 +920,8 @@ const styles =
       left:
         FixxamTokens.spacing.sm,
 
-      zIndex: 5,
+      zIndex:
+        5,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -881,7 +955,8 @@ const styles =
       right:
         FixxamTokens.spacing.sm,
 
-      zIndex: 10,
+      zIndex:
+        10,
     },
 
     moreButton: {
@@ -923,9 +998,11 @@ const styles =
       bottom:
         FixxamTokens.spacing.sm,
 
-      zIndex: 5,
+      zIndex:
+        5,
 
-      maxWidth: 105,
+      maxWidth:
+        105,
 
       paddingHorizontal:
         FixxamTokens.spacing.sm,
@@ -947,9 +1024,11 @@ const styles =
     },
 
     stockDot: {
-      width: 6,
+      width:
+        6,
 
-      height: 6,
+      height:
+        6,
 
       marginRight:
         FixxamTokens.spacing.xs,
@@ -986,7 +1065,8 @@ const styles =
     ========================================================== */
 
     content: {
-      minHeight: 96,
+      minHeight:
+        96,
 
       paddingHorizontal:
         FixxamTokens.spacing.md,
@@ -1036,14 +1116,16 @@ const styles =
     },
 
     discountedPrice: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         WorkerColors.primary,
     },
 
     originalPrice: {
-      flexShrink: 1,
+      flexShrink:
+        1,
 
       color:
         Colors.textMuted,
