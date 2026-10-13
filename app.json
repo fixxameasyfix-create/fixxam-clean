@@ -46,10 +46,13 @@
       "predictiveBackGestureEnabled": false
     },
 
+
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
+  "output": "single",
+  "bundler": "metro",
+  "favicon": "./assets/images/favicon.png"
+},
+
 
     "plugins": [
       "expo-router",
@@ -112,6 +115,7 @@
       "eas": {
         "projectId": "2b30c0e8-95fe-492e-b7df-6476f22e1f0c"
       }
+
     }
   }
 }
