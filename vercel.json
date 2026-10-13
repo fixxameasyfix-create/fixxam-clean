@@ -1,6 +1,0 @@
-{
-  "buildCommand": "EXPO_NO_STATIC=1 npx expo export -p web --clear",
-  "outputDirectory": "dist",
-  "framework": "expo",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
