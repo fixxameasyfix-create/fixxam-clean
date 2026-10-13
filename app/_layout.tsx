@@ -7,6 +7,7 @@ import React, {
 
 import {
   AppState,
+  Platform,
   type AppStateStatus,
   Image,
   StyleSheet,
@@ -16,7 +17,6 @@ import {
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
 
-import { registerGlobals } from "@livekit/react-native";
 
 import {
   Stack,
@@ -70,7 +70,12 @@ import useRegisterPushToken from "@/hooks/notifications/useRegisterPushToken";
    INITIALIZATION
 ============================================================ */
 
-registerGlobals();
+if (Platform.OS !== "web") {
+  try {
+    const { registerGlobals } = require("@livekit/react-native");
+    registerGlobals();
+  } catch {}
+}
 
 void SplashScreen.preventAutoHideAsync().catch(
   () => {},
