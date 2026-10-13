@@ -11,3 +11,5 @@ functions/.env
 firestore-debug.log 
 functions/build.log 
 dist/ 
+dist/ 
+.expo/ 
