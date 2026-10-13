@@ -106,7 +106,7 @@ export default function RoleSelection() {
         <Image
           source={require("../../assets/ui-images/role-selection.jpg")}
           contentFit="cover"
-          contentPosition="center top"
+          contentPosition="top"
           transition={200}
           cachePolicy="memory-disk"
           accessibilityLabel="A Fixxam customer beside a professional worker"

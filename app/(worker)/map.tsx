@@ -29,7 +29,8 @@ import MapView, {
   Marker,
   PROVIDER_GOOGLE,
   type Region,
-} from "react-native-maps";
+  type WorkerMapHandle,
+} from "@/components/maps/WorkerMapView.web";
 
 import {
   onAuthStateChanged,
@@ -361,10 +362,7 @@ export default function WorkerMapScreen() {
   const params =
     useLocalSearchParams<RouteParams>();
 
-  const mapRef =
-    useRef<MapView | null>(
-      null,
-    );
+  const mapRef = useRef<WorkerMapHandle | null>(null);
 
   const hasAutoFramedRef =
     useRef(false);

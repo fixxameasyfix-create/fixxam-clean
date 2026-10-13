@@ -1,79 +1,83 @@
 import type { Booking } from "@/types/booking";
 
 import {
-  acceptBooking,
-  arrivedBooking,
-  cancelBooking,
-  completeBooking,
-  createBooking,
-  rejectBooking,
-  startBooking,
-} from "@/firebase/queries/bookings";
-
-import type {
-  OfferAcceptedBy,
+acceptBooking,
+arrivedBooking,
+cancelBooking,
+completeBooking,
+createBooking,
+rejectBooking,
+startBooking,
+type CustomerCancellationReason,
+type OfferAcceptedBy,
 } from "@/firebase/queries/bookings";
 
 export async function bookWorker(
-  booking: Booking,
+booking: Booking,
 ) {
-  return createBooking(booking);
+return createBooking(booking);
 }
 
 export async function acceptJob(
-  bookingId: string,
-  acceptedBy: OfferAcceptedBy,
+bookingId: string,
+acceptedBy: OfferAcceptedBy,
 ) {
-  return acceptBooking(
-    bookingId,
-    acceptedBy,
-  );
+return acceptBooking(
+bookingId,
+acceptedBy,
+);
 }
 
 export async function acceptCustomerOffer(
-  bookingId: string,
+bookingId: string,
 ) {
-  return acceptBooking(
-    bookingId,
-    "customer",
-  );
+return acceptBooking(
+bookingId,
+"customer",
+);
 }
 
 export async function acceptWorkerCounterOffer(
-  bookingId: string,
+bookingId: string,
 ) {
-  return acceptBooking(
-    bookingId,
-    "worker",
-  );
+return acceptBooking(
+bookingId,
+"worker",
+);
 }
 
 export async function rejectJob(
-  bookingId: string,
+bookingId: string,
 ) {
-  return rejectBooking(bookingId);
+return rejectBooking(bookingId);
 }
 
 export async function arrivedAtJob(
-  bookingId: string,
+bookingId: string,
 ) {
-  return arrivedBooking(bookingId);
+return arrivedBooking(bookingId);
 }
 
 export async function startJob(
-  bookingId: string,
+bookingId: string,
 ) {
-  return startBooking(bookingId);
+return startBooking(bookingId);
 }
 
 export async function completeJob(
-  bookingId: string,
+bookingId: string,
 ) {
-  return completeBooking(bookingId);
+return completeBooking(bookingId);
 }
 
 export async function cancelJob(
-  bookingId: string,
+bookingId: string,
+reason: CustomerCancellationReason,
+note = "",
 ) {
-  return cancelBooking(bookingId);
+return cancelBooking(
+bookingId,
+reason,
+note,
+);
 }

@@ -20,11 +20,16 @@ import {
   useLocalSearchParams,
 } from "expo-router";
 
+import {
+  onAuthStateChanged,
+} from "firebase/auth";
+
 import MapView, {
   Marker,
   PROVIDER_GOOGLE,
+  type CustomerMapHandle,
   type Region,
-} from "react-native-maps";
+} from "@/components/maps/CustomerMapView.Web";
 
 import {
   useSafeAreaInsets,
@@ -249,10 +254,7 @@ export default function CustomerMapScreen() {
   const params =
     useLocalSearchParams<MapParams>();
 
-  const mapRef =
-    useRef<MapView | null>(
-      null,
-    );
+  const mapRef = useRef<CustomerMapHandle | null>(null);
 
   const hasAutoFramedRef =
     useRef(false);
@@ -414,6 +416,17 @@ export default function CustomerMapScreen() {
     setOpeningDirections,
   ] =
     useState(false);
+
+
+const [authReady, setAuthReady] = useState(false);
+const [userId, setUserId] = useState<string | null>(null);
+
+useEffect(() => {
+  return onAuthStateChanged(auth, (user) => {
+    setUserId(user?.uid?.trim() || null);
+    setAuthReady(true);
+  });
+}, []);
 
   /* ==========================================================
      TRAVEL DIRECTION
